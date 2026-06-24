@@ -6,7 +6,15 @@ A fully featured desktop Inventory Management System built with **C# .NET 8 WinF
 
 ## Screenshots
 
-> Login Screen · Dashboard · Equipment Management · QR Scanner
+> Login Screen
+<img width="701" height="554" alt="image" src="https://github.com/user-attachments/assets/adc83b9f-a28b-4a34-aa62-b5087a7c1939" />
+ · Dashboard
+ <img width="959" height="595" alt="image" src="https://github.com/user-attachments/assets/594aafe0-3bd0-470e-b3d3-848745c03b2b" />
+ · Equipment Management
+ <img width="957" height="599" alt="image" src="https://github.com/user-attachments/assets/d08b3318-556f-4313-971e-cf525cb99683" />
+· QR Scanner 
+<img width="959" height="599" alt="image" src="https://github.com/user-attachments/assets/ef051855-1222-4516-b14f-39b1e76bac16" />
+
 
 ---
 
