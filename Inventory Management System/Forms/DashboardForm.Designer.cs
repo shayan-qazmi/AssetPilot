@@ -48,6 +48,7 @@ namespace Inventory_Management_System
             panelMenu.Dock = System.Windows.Forms.DockStyle.Left;
             panelMenu.Width = 200;
             panelMenu.Name = "panelMenu";
+            panelMenu.AutoScroll = true;
             // Logout at very bottom (Dock.Bottom must be added first)
             panelMenu.Controls.Add(btnLogout);
             // Nav buttons in reverse order (Dock.Top stacking)

@@ -279,16 +279,76 @@ namespace Inventory_Management_System.Forms
             btnPrint.FlatAppearance.BorderSize = 0;
             btnPrint.Click += (s, ev) =>
             {
-                using var pd = new PrintDocument();
-                pd.PrintPage += (ps, pe) =>
+                try
                 {
-                    pe.Graphics!.DrawImage(qrBitmap, 20, 20, 400, 400);
-                    pe.Graphics.DrawString(
-                        $"{eq.EquipmentCode} - {eq.Name}",
-                        new Font("Segoe UI", 12, FontStyle.Bold),
-                        Brushes.Black, 20, 430);
-                };
-                pd.Print();
+                    using var db = new InventoryDbContext();
+                    var setting = db.AppSettings.FirstOrDefault();
+
+                    string companyName = setting?.CompanyName ?? "Q-Inventory";
+                    string printerName = setting?.PrinterName ?? "";
+                    int lw = setting?.LabelWidthMm ?? 62;
+                    int lh = setting?.LabelHeightMm ?? 29;
+
+                    using var pd = new PrintDocument();
+
+                    if (!string.IsNullOrWhiteSpace(printerName))
+                        pd.PrinterSettings.PrinterName = printerName;
+
+                    // Convert mm to hundredths of an inch (PrintDocument unit)
+                    int wHundredths = (int)(lw * 3.937);
+                    int hHundredths = (int)(lh * 3.937);
+                    pd.DefaultPageSettings.PaperSize =
+                        new PaperSize("Label", wHundredths, hHundredths);
+                    pd.DefaultPageSettings.Margins =
+                        new Margins(10, 10, 10, 10);
+
+                    pd.PrintPage += (ps, pe) =>
+                    {
+                        var g = pe.Graphics!;
+                        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+                        var bounds = pe.PageBounds;
+                        int qrSize = Math.Min(bounds.Height - 20, 80);
+
+                        // QR code on the left
+                        g.DrawImage(qrBitmap,
+                            new Rectangle(bounds.X + 5, bounds.Y + (bounds.Height - qrSize) / 2,
+                                qrSize, qrSize));
+
+                        // Text on the right
+                        int textX = bounds.X + qrSize + 12;
+                        int textW = bounds.Width - qrSize - 20;
+
+                        using var boldFont  = new Font("Segoe UI", 8f, FontStyle.Bold);
+                        using var smallFont = new Font("Segoe UI", 6.5f);
+
+                        g.DrawString(companyName, boldFont, Brushes.Black,
+                            new RectangleF(textX, bounds.Y + 6, textW, 18));
+                        g.DrawString(eq.EquipmentCode, boldFont, Brushes.Black,
+                            new RectangleF(textX, bounds.Y + 22, textW, 18));
+                        g.DrawString($"Status: {eq.CurrentStatus}", smallFont, Brushes.DimGray,
+                            new RectangleF(textX, bounds.Y + 38, textW, 16));
+                        g.DrawString(DateTime.Now.ToString("yyyy-MM-dd"), smallFont, Brushes.DimGray,
+                            new RectangleF(textX, bounds.Y + 52, textW, 16));
+
+                        pe.HasMorePages = false;
+                    };
+
+                    using var ppd = new PrintPreviewDialog
+                    {
+                        Document      = pd,
+                        Width         = 600,
+                        Height        = 400,
+                        StartPosition = FormStartPosition.CenterParent,
+                        Text          = "Barcode Label Preview"
+                    };
+                    ppd.ShowDialog();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Printing failed: " + ex.Message, "Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             };
 
             var btnClose = new Button

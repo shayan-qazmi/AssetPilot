@@ -158,6 +158,7 @@ namespace Inventory_Management_System.Forms
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode       = System.Windows.Forms.AutoScaleMode.Font;
             ClientSize          = new System.Drawing.Size(1200, 700);
+            AutoScroll          = true;
 
             Controls.Add(lblSectionTitle);
             Controls.Add(lblCompany);

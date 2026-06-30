@@ -71,18 +71,20 @@ namespace Inventory_Management_System.Forms
             this.lblReportType.Name = "lblReportType";
             this.lblReportType.Text = "Report Type:";
             this.lblReportType.AutoSize = true;
-            this.lblReportType.Location = new System.Drawing.Point(20, 60);
+            this.lblReportType.Text = "Select a Report:";
 
             // lblExport
             this.lblExport.Name = "lblExport";
             this.lblExport.Text = "Export:";
             this.lblExport.AutoSize = true;
-            this.lblExport.Location = new System.Drawing.Point(20, 100);
+            this.lblReportType.Location = new System.Drawing.Point(20, 0);
 
             // Form properties
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 600);
+            this.ClientSize = new System.Drawing.Size(1200, 700);
+            this.AutoScroll = true;
+            this.AutoScrollMinSize = new System.Drawing.Size(1160, 680);
             this.Text = "Reports";
             this.Name = "ReportsForm";
 
@@ -94,7 +96,7 @@ namespace Inventory_Management_System.Forms
             this.Controls.Add(this.btnExportPDF);
             this.Controls.Add(this.btnExportExcel);
             this.Controls.Add(this.lblReportType);
-            this.Controls.Add(this.lblExport);
+            
 
             this.ResumeLayout(false);
             this.PerformLayout();

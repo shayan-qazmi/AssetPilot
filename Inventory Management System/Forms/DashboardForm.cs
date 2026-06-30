@@ -46,6 +46,7 @@ namespace Inventory_Management_System
             LoadStats();
 
             this.Resize += (s, e) => { if (panelStats.Visible) LayoutCharts(); };
+            this.Shown += (s, e) => { if (panelStats.Visible) LoadStats(); };
         }
 
         // ── Theme ─────────────────────────────────────────────────────────

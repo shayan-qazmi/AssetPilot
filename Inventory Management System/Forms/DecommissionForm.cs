@@ -217,6 +217,7 @@ namespace Inventory_Management_System.Forms
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox     = false;
             ThemeHelper.ApplyFormBackground(this);
+            this.AutoScroll = true;
 
             int y = 20;
             void AddRow(string label, Control ctrl)

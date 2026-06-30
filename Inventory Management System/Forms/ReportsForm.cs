@@ -70,6 +70,10 @@ namespace Inventory_Management_System.Forms
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect
             };
             ThemeHelper.StyleDataGridView(_preview);
+            _preview.ColumnHeadersHeight = 40;
+            _preview.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            _preview.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            _preview.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
             Controls.Add(_preview);
             _preview.BringToFront();
         }
