@@ -61,16 +61,31 @@ namespace Inventory_Management_System.Services
             try
             {
                 using var db = new InventoryDbContext();
-                term = term.ToLower();
-                var list = db.Equipment
+                var allItems = db.Equipment
                     .Include(e => e.Allocations).ThenInclude(a => a.Location)
-                    .Where(e => e.Name.ToLower().Contains(term)
-                             || e.EquipmentCode.ToLower().Contains(term)
-                             || (e.SerialNumber != null && e.SerialNumber.ToLower().Contains(term))
-                             || (e.Make != null && e.Make.ToLower().Contains(term))
-                             || (e.Model != null && e.Model.ToLower().Contains(term)))
-                    .OrderBy(e => e.EquipmentCode)
                     .ToList();
+
+                var list = allItems
+                    .Where(e => FuzzySearchHelper.IsFuzzyMatch(e.Name, term)
+                             || FuzzySearchHelper.IsFuzzyMatch(e.EquipmentCode, term)
+                             || FuzzySearchHelper.IsFuzzyMatch(e.SerialNumber, term)
+                             || FuzzySearchHelper.IsFuzzyMatch(e.Make, term)
+                             || FuzzySearchHelper.IsFuzzyMatch(e.Model, term))
+                    .OrderByDescending(e => Math.Max(
+                        FuzzySearchHelper.FuzzyScore(e.Name, term),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScore(e.EquipmentCode, term),
+                            Math.Max(
+                                FuzzySearchHelper.FuzzyScore(e.SerialNumber, term),
+                                Math.Max(
+                                    FuzzySearchHelper.FuzzyScore(e.Make, term),
+                                    FuzzySearchHelper.FuzzyScore(e.Model, term)
+                                )
+                            )
+                        )
+                    ))
+                    .ToList();
+
                 return ServiceResult<List<Equipment>>.Ok(list);
             }
             catch (Exception ex)

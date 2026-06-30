@@ -567,7 +567,8 @@ namespace Inventory_Management_System
                 using var numFg = new SolidBrush(Color.FromArgb(17, 24, 39));
                 g.DrawString(item.Value, bigFont, numFg, ix + 16, iy + 30);
 
-                // Label — sized from actual font measure so it never overlaps
+                // Label — sized from actual font measure so it never overlap
+                // s
                 var numH = g.MeasureString(item.Value, bigFont).Height;
                 using var lblFg = new SolidBrush(Color.FromArgb(55, 65, 81));
                 g.DrawString(item.Label, lblFont, lblFg, ix + 16, iy + 32 + (int)numH);

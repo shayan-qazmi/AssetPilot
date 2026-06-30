@@ -62,12 +62,26 @@ namespace Inventory_Management_System.Forms
             var items = string.IsNullOrWhiteSpace(filter)
                 ? _allTransfers
                 : _allTransfers.Where(a =>
-                    (a.Equipment?.EquipmentCode              ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    (a.Equipment?.Name                       ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    (a.Employee?.FullName                     ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    (a.Location?.LocationName                ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    (a.PreviousAllocation?.Employee?.FullName ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase)
-                ).ToList();
+                    FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.EquipmentCode, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.Name, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(a.Employee?.FullName, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(a.Location?.LocationName, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(a.PreviousAllocation?.Employee?.FullName, filter)
+                )
+                .OrderByDescending(a => Math.Max(
+                    FuzzySearchHelper.FuzzyScore(a.Equipment?.EquipmentCode, filter),
+                    Math.Max(
+                        FuzzySearchHelper.FuzzyScore(a.Equipment?.Name, filter),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScore(a.Employee?.FullName, filter),
+                            Math.Max(
+                                FuzzySearchHelper.FuzzyScore(a.Location?.LocationName, filter),
+                                FuzzySearchHelper.FuzzyScore(a.PreviousAllocation?.Employee?.FullName, filter)
+                            )
+                        )
+                    )
+                ))
+                .ToList();
 
             foreach (var item in items)
             {

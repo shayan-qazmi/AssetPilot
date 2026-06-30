@@ -67,12 +67,26 @@ namespace Inventory_Management_System.Forms
             var filtered = string.IsNullOrWhiteSpace(filter)
                 ? _allLogs
                 : _allLogs.Where(l =>
-                    (l.Equipment?.EquipmentCode ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    (l.ActionType ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    (l.ChangedByUser?.FullName ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    (l.OldValue ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    (l.NewValue ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase)
-                ).ToList();
+                    FuzzySearchHelper.IsFuzzyMatch(l.Equipment?.EquipmentCode, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(l.ActionType, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(l.ChangedByUser?.FullName, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(l.OldValue, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(l.NewValue, filter)
+                )
+                .OrderByDescending(l => Math.Max(
+                    FuzzySearchHelper.FuzzyScore(l.Equipment?.EquipmentCode, filter),
+                    Math.Max(
+                        FuzzySearchHelper.FuzzyScore(l.ActionType, filter),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScore(l.ChangedByUser?.FullName, filter),
+                            Math.Max(
+                                FuzzySearchHelper.FuzzyScore(l.OldValue, filter),
+                                FuzzySearchHelper.FuzzyScore(l.NewValue, filter)
+                            )
+                        )
+                    )
+                ))
+                .ToList();
 
             foreach (var item in filtered)
             {

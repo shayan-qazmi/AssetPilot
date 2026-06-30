@@ -58,12 +58,26 @@ namespace Inventory_Management_System.Forms
             var items = string.IsNullOrWhiteSpace(filter)
                 ? _allItems
                 : _allItems.Where(e =>
-                    (e.EquipmentCode ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    (e.Name          ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    (e.Make          ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    (e.Model         ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase) ||
-                    (e.SerialNumber  ?? "").Contains(filter, StringComparison.OrdinalIgnoreCase)
-                ).ToList();
+                    FuzzySearchHelper.IsFuzzyMatch(e.EquipmentCode, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(e.Name, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(e.Make, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(e.Model, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(e.SerialNumber, filter)
+                )
+                .OrderByDescending(e => Math.Max(
+                    FuzzySearchHelper.FuzzyScore(e.EquipmentCode, filter),
+                    Math.Max(
+                        FuzzySearchHelper.FuzzyScore(e.Name, filter),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScore(e.Make, filter),
+                            Math.Max(
+                                FuzzySearchHelper.FuzzyScore(e.Model, filter),
+                                FuzzySearchHelper.FuzzyScore(e.SerialNumber, filter)
+                            )
+                        )
+                    )
+                ))
+                .ToList();
 
             foreach (var item in items)
             {
