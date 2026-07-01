@@ -1,7 +1,7 @@
 # Q Inventory Management System
 
 <p align="center">
-  <img src="screenshots/login.png" alt="Q Inventory Login Screen" width="700"/>
+<img width="698" height="557" alt="image" src="https://github.com/user-attachments/assets/a6008582-e4ce-4963-a2a6-dbdc52d66d37" />
 </p>
 
 > A professional, fully-featured desktop Inventory Management System built with **C# .NET 8 WinForms** and **MySQL**, developed as part of a PSEB apprenticeship program at QuantumRonics, Islamabad. Designed to manage the complete lifecycle of physical equipment — from procurement and allocation to transfer, maintenance, and decommission.
