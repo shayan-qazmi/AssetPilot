@@ -31,7 +31,7 @@ namespace Inventory_Management_System.Helpers
         public static readonly Font FontSmall    = new Font("Segoe UI", 8.5f,  FontStyle.Regular, GraphicsUnit.Point);
         public static readonly Font FontLarge    = new Font("Segoe UI", 14f,   FontStyle.Bold,    GraphicsUnit.Point);
         public static readonly Font FontTitle    = new Font("Segoe UI", 16f,   FontStyle.Bold,    GraphicsUnit.Point);
-        public static readonly Font FontCardNum  = new Font("Segoe UI", 32f,   FontStyle.Bold,    GraphicsUnit.Point);
+        public static readonly Font FontCardNum  = new Font("Segoe UI", 10f,   FontStyle.Bold,    GraphicsUnit.Point);
         public static readonly Font FontCardLbl  = new Font("Segoe UI", 10f,   FontStyle.Regular, GraphicsUnit.Point);
         public static readonly Font FontCardInfo = new Font("Segoe UI", 8.5f,  FontStyle.Regular, GraphicsUnit.Point);
         public static readonly Font FontSidebar  = new Font("Segoe UI", 9.5f,  FontStyle.Regular, GraphicsUnit.Point);
@@ -41,14 +41,14 @@ namespace Inventory_Management_System.Helpers
         public static void StyleButton(Button btn, Color? color = null)
         {
             var baseColor = color ?? Accent;
-            btn.BackColor   = baseColor;
-            btn.ForeColor   = Color.White;
-            btn.FlatStyle   = FlatStyle.Flat;
+            btn.BackColor = baseColor;
+            btn.ForeColor = Color.White;
+            btn.FlatStyle = FlatStyle.Flat;
             btn.FlatAppearance.BorderSize         = 0;
             btn.FlatAppearance.MouseOverBackColor = baseColor == Accent ? Header : ControlPaint.Light(baseColor, 0.15f);
             btn.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(baseColor, 0.1f);
-            btn.Font        = FontBold;
-            btn.Cursor      = Cursors.Hand;
+            btn.Font      = FontBold;
+            btn.Cursor    = Cursors.Hand;
             btn.UseVisualStyleBackColor = false;
         }
 
@@ -56,17 +56,18 @@ namespace Inventory_Management_System.Helpers
 
         public static void StyleSecondaryButton(Button btn)
         {
-            btn.BackColor   = Color.FromArgb(243, 244, 246);
-            btn.ForeColor   = TextPrimary;
-            btn.FlatStyle   = FlatStyle.Flat;
-            btn.FlatAppearance.BorderSize  = 1;
-            btn.FlatAppearance.BorderColor = InputBorder;
+            btn.BackColor = Color.FromArgb(243, 244, 246);
+            btn.ForeColor = TextPrimary;
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.FlatAppearance.BorderSize         = 1;
+            btn.FlatAppearance.BorderColor        = InputBorder;
             btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(229, 231, 235);
-            btn.Font        = FontDefault;
-            btn.Cursor      = Cursors.Hand;
+            btn.Font      = FontDefault;
+            btn.Cursor    = Cursors.Hand;
             btn.UseVisualStyleBackColor = false;
         }
 
+        // ── Sidebar button ─────────────────────────────────────────────────
         public static void StyleSidebarButton(Button btn, bool active = false)
         {
             btn.Tag       = active;
@@ -78,31 +79,79 @@ namespace Inventory_Management_System.Helpers
             btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(55, 100, 55);
             btn.Font      = active ? FontSidebarB : FontSidebar;
             btn.TextAlign = ContentAlignment.MiddleLeft;
-            btn.Padding   = new Padding(16, 0, 0, 0);
+            // Indent text to make room for the left accent bar
+            btn.Padding   = active
+                ? new Padding(22, 0, 0, 0)   // extra left pad when active (accent bar = 4px)
+                : new Padding(16, 0, 0, 0);
             btn.Cursor    = Cursors.Hand;
             btn.UseVisualStyleBackColor = false;
 
+            // Detach old handlers before re-attaching
             btn.MouseEnter -= SidebarBtn_MouseEnter;
             btn.MouseLeave -= SidebarBtn_MouseLeave;
+            btn.Paint      -= SidebarBtn_PaintAccent;
+            btn.Resize     -= SidebarBtn_Resize;
+
             btn.MouseEnter += SidebarBtn_MouseEnter;
             btn.MouseLeave += SidebarBtn_MouseLeave;
 
             if (active)
-                ApplyRoundedRegion(btn);
+            {
+                // Pill shape
+                ApplyPillRegion(btn);
+                btn.Resize += SidebarBtn_Resize;
+
+                // Left accent bar drawn via Paint
+                btn.Paint += SidebarBtn_PaintAccent;
+            }
             else
+            {
                 btn.Region = null;
+            }
         }
 
-        private static void ApplyRoundedRegion(Button btn)
+        private static void SidebarBtn_PaintAccent(object? sender, PaintEventArgs e)
+        {
+            if (sender is not Button btn) return;
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // Left accent bar — bright green pill shape
+            int barW = 4;
+            int barH = btn.Height - 16;
+            int barY = 8;
+            using var barBrush = new SolidBrush(Color.FromArgb(144, 238, 144));
+            using var barPath  = new GraphicsPath();
+            int r = barW;
+            barPath.AddArc(6, barY,           r, r, 180, 90);
+            barPath.AddArc(6, barY,           r, r, 270, 90);
+            barPath.AddArc(6, barY + barH - r, r, r, 0,   90);
+            barPath.AddArc(6, barY + barH - r, r, r, 90,  90);
+            barPath.CloseFigure();
+            g.FillRectangle(barBrush, 6, barY, barW, barH);
+        }
+
+        private static void SidebarBtn_Resize(object? sender, EventArgs e)
+        {
+            if (sender is Button btn) ApplyPillRegion(btn);
+        }
+
+        private static void ApplyPillRegion(Button btn)
         {
             if (btn.Width <= 0 || btn.Height <= 0) return;
+
+            // Inset pill — 6px from left, 4px top/bottom, flush right
+            int padL = 6, padT = 4;
+            var rect = new Rectangle(padL, padT,
+                btn.Width - padL - 1,
+                btn.Height - padT * 2);
+
             var path = new GraphicsPath();
             int radius = 10;
-            var rect = new Rectangle(0, 0, btn.Width, btn.Height);
-            path.AddArc(rect.X, rect.Y, radius, radius, 180, 90);
-            path.AddArc(rect.Right - radius, rect.Y, radius, radius, 270, 90);
-            path.AddArc(rect.Right - radius, rect.Bottom - radius, radius, radius, 0, 90);
-            path.AddArc(rect.X, rect.Bottom - radius, radius, radius, 90, 90);
+            path.AddArc(rect.X,              rect.Y,              radius, radius, 180, 90);
+            path.AddArc(rect.Right - radius, rect.Y,              radius, radius, 270, 90);
+            path.AddArc(rect.Right - radius, rect.Bottom - radius, radius, radius, 0,   90);
+            path.AddArc(rect.X,              rect.Bottom - radius, radius, radius, 90,  90);
             path.CloseFigure();
             btn.Region = new Region(path);
         }
@@ -111,9 +160,19 @@ namespace Inventory_Management_System.Helpers
         {
             if (sender is Button btn)
             {
-                btn.FlatAppearance.BorderSize = 0;
-                btn.BackColor = Color.FromArgb(45, 90, 45);
-                ApplyRoundedRegion(btn);
+                bool isActive = btn.Tag is bool a && a;
+                if (isActive)
+                {
+                    // active button retains its active background
+                    btn.BackColor = Color.FromArgb(45, 90, 45);
+                }
+                else
+                {
+                    // subtle hover highlight for inactive button
+                    btn.BackColor = ControlPaint.Light(Sidebar, 0.12f);
+                    // show pill shape on hover
+                    ApplyPillRegion(btn);
+                }
             }
         }
 
@@ -121,31 +180,39 @@ namespace Inventory_Management_System.Helpers
         {
             if (sender is Button btn)
             {
-                bool active = btn.Tag is bool a && a;
-                if (!active)
+                bool isActive = btn.Tag is bool a && a;
+                if (!isActive)
                 {
+                    // revert to default inactive styling
                     btn.BackColor = Sidebar;
                     btn.Region    = null;
+                }
+                else
+                {
+                    // ensure active button retains its pill region and background
+                    btn.BackColor = Color.FromArgb(45, 90, 45);
+                    ApplyPillRegion(btn);
                 }
             }
         }
 
+        // ── DataGridView ───────────────────────────────────────────────────
         public static void StyleDataGridView(DataGridView dgv)
         {
-            dgv.BackgroundColor          = ContentBg;
-            dgv.BorderStyle              = BorderStyle.None;
-            dgv.CellBorderStyle          = DataGridViewCellBorderStyle.SingleHorizontal;
-            dgv.GridColor                = Color.FromArgb(234, 236, 240);
-            dgv.RowHeadersVisible        = false;
-            dgv.ColumnHeadersHeight      = 40;
-            dgv.RowTemplate.Height       = 36;
-            dgv.Font                     = FontDefault;
-            dgv.DefaultCellStyle.Font    = FontDefault;
-            dgv.DefaultCellStyle.ForeColor = TextPrimary;
-            dgv.DefaultCellStyle.BackColor = ContentBg;
+            dgv.BackgroundColor = ContentBg;
+            dgv.BorderStyle     = BorderStyle.None;
+            dgv.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            dgv.GridColor       = Color.FromArgb(234, 236, 240);
+            dgv.RowHeadersVisible   = false;
+            dgv.ColumnHeadersHeight = 40;
+            dgv.RowTemplate.Height  = 36;
+            dgv.Font                = FontDefault;
+            dgv.DefaultCellStyle.Font          = FontDefault;
+            dgv.DefaultCellStyle.ForeColor     = TextPrimary;
+            dgv.DefaultCellStyle.BackColor     = ContentBg;
             dgv.DefaultCellStyle.SelectionBackColor = Color.FromArgb(224, 231, 255);
             dgv.DefaultCellStyle.SelectionForeColor = TextPrimary;
-            dgv.DefaultCellStyle.Padding = new Padding(4, 0, 4, 0);
+            dgv.DefaultCellStyle.Padding       = new Padding(4, 0, 4, 0);
             dgv.AlternatingRowsDefaultCellStyle.BackColor = GridAltRow;
             dgv.AlternatingRowsDefaultCellStyle.Font      = FontDefault;
             dgv.AlternatingRowsDefaultCellStyle.ForeColor = TextPrimary;
@@ -181,9 +248,7 @@ namespace Inventory_Management_System.Helpers
         }
 
         public static void StylePanel(Panel pnl, Color? bg = null)
-        {
-            pnl.BackColor = bg ?? ContentBg;
-        }
+            => pnl.BackColor = bg ?? ContentBg;
 
         public static void ApplyFormBackground(Form form)
         {
@@ -198,78 +263,77 @@ namespace Inventory_Management_System.Helpers
         }
 
         // ── CreateStatCard ─────────────────────────────────────────────────
-        // No "More Info" footer. Cards fill the full row equally.
         public static Panel CreateStatCard(string title, string value, Color cardColor, string icon = "📦")
         {
             var card = new Panel
             {
-                // Width set dynamically in DashboardForm.LoadStats()
-                Height    = 140,
                 BackColor = cardColor,
                 Cursor    = Cursors.Hand
             };
 
-            // ── Big number top-left ──
             var lblValue = new Label
             {
+                Name      = "lblValue",
                 Text      = value,
-                Font      = FontCardNum,
+                Font      = new Font("Segoe UI", 22f, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = Color.White,
                 AutoSize  = false,
-                Width     = 200,
-                Height    = 70,
-                Location  = new Point(16, 18),
+                Size      = new Size(190, 80),
+                Location  = new Point(12, 12),
                 TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Color.Transparent
             };
 
-            // ── Icon top-right ──
             var lblIcon = new Label
             {
+                Name      = "lblIcon",
                 Text      = icon,
-                Font      = new Font("Segoe UI Emoji", 28f, FontStyle.Regular, GraphicsUnit.Point),
+                Font      = new Font("Segoe UI Emoji", 15f, FontStyle.Regular, GraphicsUnit.Point),
                 ForeColor = Color.FromArgb(160, 255, 255, 255),
                 AutoSize  = false,
-                Width     = 64,
-                Height    = 64,
-                // X is set after card width is known — see DashboardForm
-                Location  = new Point(999, 10),
+                Size      = new Size(40, 40),
+                Location  = new Point(999, 8),
                 TextAlign = ContentAlignment.MiddleCenter,
-                BackColor = Color.Transparent,
-                Name      = "lblIcon"
+                BackColor = Color.Transparent
             };
 
-            // ── Title below number ──
             var lblTitle = new Label
             {
+                Name      = "lblTitle",
                 Text      = title,
-                Font      = new Font("Segoe UI", 11f, FontStyle.Regular, GraphicsUnit.Point),
+                Font      = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point),
                 ForeColor = Color.FromArgb(220, 255, 255, 255),
                 AutoSize  = false,
-                Height    = 26,
-                Location  = new Point(16, 95),
+                Height    = 22,
+                Location  = new Point(12, 56),
                 TextAlign = ContentAlignment.MiddleLeft,
-                BackColor = Color.Transparent,
-                Name      = "lblTitle"
+                BackColor = Color.Transparent
             };
 
             card.Controls.Add(lblValue);
             card.Controls.Add(lblIcon);
             card.Controls.Add(lblTitle);
 
-            // Rounded corners
             card.Paint += (s, e) =>
             {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+
                 using var path = new GraphicsPath();
-                int r = 12;
+                int cr   = 12;
                 var rect = new Rectangle(0, 0, card.Width - 1, card.Height - 1);
-                path.AddArc(rect.X, rect.Y, r, r, 180, 90);
-                path.AddArc(rect.Right - r, rect.Y, r, r, 270, 90);
-                path.AddArc(rect.Right - r, rect.Bottom - r, r, r, 0, 90);
-                path.AddArc(rect.X, rect.Bottom - r, r, r, 90, 90);
+                path.AddArc(rect.X,          rect.Y,          cr, cr, 180, 90);
+                path.AddArc(rect.Right - cr, rect.Y,          cr, cr, 270, 90);
+                path.AddArc(rect.Right - cr, rect.Bottom - cr, cr, cr, 0,   90);
+                path.AddArc(rect.X,          rect.Bottom - cr, cr, cr, 90,  90);
                 path.CloseFigure();
                 card.Region = new Region(path);
+
+                // Pin title to bottom, icon to top-right
+                lblTitle.Location = new Point(12, card.Height - 28);
+                lblTitle.Width    = card.Width - 24;
+                lblIcon.Location  = new Point(card.Width - 44, 2);
+                lblIcon.Size      = new Size(40, 36);
             };
 
             return card;
