@@ -16,12 +16,111 @@ namespace Inventory_Management_System.Forms
         private readonly EquipmentService _equipmentService = new();
         private List<Equipment> _allEquipment = new();
 
+        // ── Programmatic Dropdown Selection Mode (replacing Select button) ──
+        private ComboBox cmbSelectMode = null!;
+
         public EquipmentForm()
         {
             InitializeComponent();
             ApplyTheme();
+            SetupToolbarLayout();
             LoadEquipment();
         }
+
+        // ── Toolbar layout ─────────────────────────────────────────────────
+        // Restores the original designer dimensions for the buttons so text is
+        // not truncated, and programmatically replaces the "Select All" button 
+        // with a beautifully styled ComboBox (dropdown) in the exact same position.
+        private void SetupToolbarLayout()
+        {
+            // Hide the original btnSelectAll button to replace it with ComboBox
+            btnSelectAll.Visible = false;
+
+            // Setup ComboBox at btnSelectAll's scaled location and size
+            cmbSelectMode = new ComboBox
+            {
+                Name = "cmbSelectMode",
+                DropDownStyle = ComboBoxStyle.DropDown,
+                Text = "Select",
+                Size = btnSelectAll.Size,
+                Location = btnSelectAll.Location,
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat
+            };
+            
+            // Prevent typing in the DropDown
+            cmbSelectMode.KeyPress += (s, e) => e.Handled = true;
+
+            cmbSelectMode.Items.Add("Select ✔");
+            cmbSelectMode.Items.Add("Select All");
+
+            // Style dropdown to match the green header/accent buttons
+            cmbSelectMode.BackColor = ThemeHelper.Accent;
+            cmbSelectMode.ForeColor = Color.White;
+            cmbSelectMode.Font = ThemeHelper.FontBold;
+
+            // Owner Draw to style the drop-down items cleanly with modern colors
+            cmbSelectMode.DrawMode = DrawMode.OwnerDrawFixed;
+            cmbSelectMode.DrawItem += (s, e) =>
+            {
+                if (e.Index < 0) return;
+                bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+
+                using (var brush = new SolidBrush(isSelected ? ThemeHelper.Header : ThemeHelper.Accent))
+                {
+                    e.Graphics.FillRectangle(brush, e.Bounds);
+                }
+
+                string text = cmbSelectMode.Items[e.Index]?.ToString() ?? "";
+                using (var brush = new SolidBrush(Color.White))
+                {
+                    var sf = new StringFormat
+                    {
+                        LineAlignment = StringAlignment.Center,
+                        Alignment = StringAlignment.Near
+                    };
+                    e.Graphics.DrawString(text, cmbSelectMode.Font, brush, e.Bounds, sf);
+                }
+                e.DrawFocusRectangle();
+            };
+
+            cmbSelectMode.SelectedIndexChanged += cmbSelectMode_SelectedIndexChanged;
+            panelTop.Controls.Add(cmbSelectMode);
+
+            // Dynamically append Checkbox Column for manual selection (visibly hidden by default)
+            if (!dgvEquipment.Columns.Contains("ColSelect"))
+            {
+                var chkCol = new DataGridViewCheckBoxColumn
+                {
+                    Name = "ColSelect",
+                    HeaderText = "",
+                    Width = 40,
+                    ReadOnly = false,
+                    Visible = false,
+                    AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+                };
+                dgvEquipment.Columns.Add(chkCol);
+
+                // Configure grid to allow editing the Checkbox column while others are read-only
+                dgvEquipment.ReadOnly = false;
+                foreach (DataGridViewColumn col in dgvEquipment.Columns)
+                {
+                    if (col.Name == "ColSelect")
+                        col.ReadOnly = false;
+                    else
+                        col.ReadOnly = true;
+                }
+
+                // Immediately commit edits when clicking the checkbox cell so value updates instantly
+                dgvEquipment.CurrentCellDirtyStateChanged += (s, ev) =>
+                {
+                    if (dgvEquipment.CurrentCell is DataGridViewCheckBoxCell)
+                        dgvEquipment.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                };
+            }
+        }
+
+        // ── Theme ──────────────────────────────────────────────────────────
 
         private void ApplyTheme()
         {
@@ -42,6 +141,8 @@ namespace Inventory_Management_System.Forms
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
             lblRowCount.Font      = ThemeHelper.FontSmall;
         }
+
+        // ── Data ───────────────────────────────────────────────────────────
 
         private void LoadEquipment(string searchTerm = "")
         {
@@ -91,7 +192,6 @@ namespace Inventory_Management_System.Forms
                     item.PurchaseDate?.ToString("yyyy-MM-dd") ?? ""
                 );
 
-                // Color-code status cell
                 var statusCell = dgvEquipment.Rows[rowIdx].Cells["Status"];
                 switch (item.CurrentStatus)
                 {
@@ -115,8 +215,17 @@ namespace Inventory_Management_System.Forms
                 statusCell.Style.Font      = ThemeHelper.FontBold;
             }
 
+            // Maintain automatic full selection when refreshed in Select All mode
+            if (cmbSelectMode != null && cmbSelectMode.SelectedItem?.ToString() == "Select All")
+            {
+                dgvEquipment.MultiSelect = true;
+                dgvEquipment.SelectAll();
+            }
+
             lblRowCount.Text = $"Showing {dgvEquipment.Rows.Count} records";
         }
+
+        // ── Selection helpers ──────────────────────────────────────────────
 
         private Equipment? GetSelectedEquipment()
         {
@@ -128,14 +237,36 @@ namespace Inventory_Management_System.Forms
         private List<Equipment> GetSelectedEquipmentList()
         {
             var selected = new List<Equipment>();
-            foreach (DataGridViewRow row in dgvEquipment.SelectedRows)
+
+            // In manual check mode, gather only items that are checked
+            if (cmbSelectMode != null && cmbSelectMode.SelectedItem?.ToString() == "Select ✔")
             {
-                var code = row.Cells["Code"].Value?.ToString();
-                var eq   = _allEquipment.FirstOrDefault(e => e.EquipmentCode == code);
-                if (eq != null) selected.Add(eq);
+                foreach (DataGridViewRow row in dgvEquipment.Rows)
+                {
+                    var cellValue = row.Cells["ColSelect"].Value;
+                    if (cellValue != null && cellValue is bool b && b)
+                    {
+                        var code = row.Cells["Code"].Value?.ToString();
+                        var eq   = _allEquipment.FirstOrDefault(e => e.EquipmentCode == code);
+                        if (eq != null) selected.Add(eq);
+                    }
+                }
             }
+            else
+            {
+                // In all other modes, use normal Grid Selection
+                foreach (DataGridViewRow row in dgvEquipment.SelectedRows)
+                {
+                    var code = row.Cells["Code"].Value?.ToString();
+                    var eq   = _allEquipment.FirstOrDefault(e => e.EquipmentCode == code);
+                    if (eq != null) selected.Add(eq);
+                }
+            }
+
             return selected;
         }
+
+        // ── Grid events ────────────────────────────────────────────────────
 
         private void dgvEquipment_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
@@ -146,7 +277,7 @@ namespace Inventory_Management_System.Forms
             popup.ShowDialog();
         }
 
-        // ── Button handlers ───────────────────────────────────────────────
+        // ── Button handlers ────────────────────────────────────────────────
 
         private void btnAdd_Click(object sender, EventArgs e)
         {
@@ -231,9 +362,52 @@ namespace Inventory_Management_System.Forms
             }
         }
 
+        // Original btnSelectAll click event (kept to avoid potential Designer reference exceptions)
         private void btnSelectAll_Click(object sender, EventArgs e)
         {
+            dgvEquipment.MultiSelect = true;
             dgvEquipment.SelectAll();
+        }
+
+        // ── Dropdown Selection Mode Handler ────────────────────────────────
+        private void cmbSelectMode_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            string selectedMode = cmbSelectMode.SelectedItem?.ToString() ?? "";
+
+            if (selectedMode == "Select ✔")
+            {
+                // Enter checkbox mode
+                dgvEquipment.MultiSelect = false;
+                dgvEquipment.ClearSelection();
+
+                if (dgvEquipment.Columns.Contains("ColSelect"))
+                {
+                    dgvEquipment.Columns["ColSelect"].Visible = true;
+                    dgvEquipment.Columns["ColSelect"].DisplayIndex = 0;
+                }
+            }
+            else if (selectedMode == "Select All")
+            {
+                // Select all rows immediately
+                if (dgvEquipment.Columns.Contains("ColSelect"))
+                {
+                    dgvEquipment.Columns["ColSelect"].Visible = false;
+                }
+
+                dgvEquipment.MultiSelect = true;
+                dgvEquipment.SelectAll();
+            }
+            else
+            {
+                // Neutral default state ("Select ✔/ All ")
+                if (dgvEquipment.Columns.Contains("ColSelect"))
+                {
+                    dgvEquipment.Columns["ColSelect"].Visible = false;
+                }
+
+                dgvEquipment.MultiSelect = false;
+                dgvEquipment.ClearSelection();
+            }
         }
 
         private void btnGenerateQRSheet_Click(object sender, EventArgs e)
@@ -241,12 +415,11 @@ namespace Inventory_Management_System.Forms
             var selected = GetSelectedEquipmentList();
             if (selected.Count == 0)
             {
-                MessageBox.Show("Please select at least one equipment row.\n\nTip: Use Select All to select everything.",
+                MessageBox.Show("Please select at least one equipment item.",
                     "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            // Pre-generate all QR bitmaps
             var qrItems = new List<(Equipment eq, Bitmap bmp)>();
             foreach (var eq in selected)
             {
@@ -257,7 +430,7 @@ namespace Inventory_Management_System.Forms
                     var bmp = QRHelper.GenerateQRCode(qrContent, 6);
                     qrItems.Add((eq, bmp));
                 }
-                catch { /* skip items that fail */ }
+                catch { }
             }
 
             if (qrItems.Count == 0)
@@ -267,16 +440,14 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            // Layout constants (in hundredths of an inch — PrintDocument units)
-            // A4 page: 827 x 1169 (hundredths of inch)
-            const int pageW       = 827;
-            const int pageH       = 1169;
-            const int marginL     = 40;
-            const int marginT     = 40;
-            const int cellW       = 180;  // each QR cell width
-            const int cellH       = 200;  // each QR cell height
-            const int cols        = 4;    // 4 per row
-            const int qrSize      = 120;  // QR image size inside cell
+            const int pageW   = 827;
+            const int pageH   = 1169;
+            const int marginL = 40;
+            const int marginT = 40;
+            const int cellW   = 180;
+            const int cellH   = 200;
+            const int cols    = 4;
+            const int qrSize  = 120;
 
             int currentIndex = 0;
 
@@ -289,7 +460,6 @@ namespace Inventory_Management_System.Forms
                 var g = pe.Graphics!;
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
-                // Load settings for company name
                 string companyName = "Q-Inventory";
                 try
                 {
@@ -298,22 +468,20 @@ namespace Inventory_Management_System.Forms
                 }
                 catch { }
 
-                using var codeFont  = new Font("Segoe UI", 7f, FontStyle.Bold);
-                using var nameFont  = new Font("Segoe UI", 6f, FontStyle.Regular);
-                using var coFont    = new Font("Segoe UI", 5.5f, FontStyle.Regular);
+                using var codeFont = new Font("Segoe UI", 7f, FontStyle.Bold);
+                using var nameFont = new Font("Segoe UI", 6f, FontStyle.Regular);
+                using var coFont   = new Font("Segoe UI", 5.5f, FontStyle.Regular);
 
-                int col = 0;
-                int row = 0;
-                int usableW = pageW - marginL * 2;
-                int startX  = marginL;
-                int startY  = marginT;
+                int col    = 0;
+                int row    = 0;
+                int startX = marginL;
+                int startY = marginT;
 
                 while (currentIndex < qrItems.Count)
                 {
                     int x = startX + col * (cellW + 10);
                     int y = startY + row * (cellH + 10);
 
-                    // Stop if we've run off the page
                     if (y + cellH > pageH - marginT)
                     {
                         pe.HasMorePages = true;
@@ -322,28 +490,20 @@ namespace Inventory_Management_System.Forms
 
                     var (eq, bmp) = qrItems[currentIndex];
 
-                    // Cell border
                     g.DrawRectangle(Pens.LightGray, x, y, cellW, cellH);
 
-                    // QR image centered in cell
                     int qrX = x + (cellW - qrSize) / 2;
                     int qrY = y + 8;
                     g.DrawImage(bmp, new Rectangle(qrX, qrY, qrSize, qrSize));
 
-                    // Company name
                     g.DrawString(companyName, coFont, Brushes.DimGray,
-                        new RectangleF(x + 4, qrY + qrSize + 4, cellW - 8, 16));
-
-                    // Equipment code
+                        new RectangleF(x + 4, qrY + qrSize + 4,  cellW - 8, 16));
                     g.DrawString(eq.EquipmentCode, codeFont, Brushes.Black,
                         new RectangleF(x + 4, qrY + qrSize + 18, cellW - 8, 18));
 
-                    // Equipment name (truncate if too long)
                     string name = eq.Name.Length > 22 ? eq.Name[..22] + "…" : eq.Name;
                     g.DrawString(name, nameFont, Brushes.DimGray,
                         new RectangleF(x + 4, qrY + qrSize + 34, cellW - 8, 16));
-
-                    // Status
                     g.DrawString($"Status: {eq.CurrentStatus}", nameFont, Brushes.DimGray,
                         new RectangleF(x + 4, qrY + qrSize + 48, cellW - 8, 16));
 
@@ -451,8 +611,8 @@ namespace Inventory_Management_System.Forms
             {
                 try
                 {
-                    using var db      = new InventoryDbContext();
-                    var setting       = db.AppSettings.FirstOrDefault();
+                    using var db       = new InventoryDbContext();
+                    var setting        = db.AppSettings.FirstOrDefault();
                     string companyName = setting?.CompanyName ?? "Q-Inventory";
                     string printerName = setting?.PrinterName ?? "";
                     int lw = setting?.LabelWidthMm  ?? 62;
@@ -473,22 +633,22 @@ namespace Inventory_Management_System.Forms
                         var g      = pe.Graphics!;
                         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                         var bounds = pe.PageBounds;
-                        int qrSize = Math.Min(bounds.Height - 20, 80);
+                        int qrSz   = Math.Min(bounds.Height - 20, 80);
 
                         g.DrawImage(qrBitmap,
                             new Rectangle(bounds.X + 5,
-                                bounds.Y + (bounds.Height - qrSize) / 2,
-                                qrSize, qrSize));
+                                bounds.Y + (bounds.Height - qrSz) / 2,
+                                qrSz, qrSz));
 
-                        int textX = bounds.X + qrSize + 12;
-                        int textW = bounds.Width - qrSize - 20;
+                        int textX = bounds.X + qrSz + 12;
+                        int textW = bounds.Width - qrSz - 20;
 
                         using var boldFont  = new Font("Segoe UI", 8f, FontStyle.Bold);
                         using var smallFont = new Font("Segoe UI", 6.5f);
 
-                        g.DrawString(companyName,     boldFont,  Brushes.Black,
+                        g.DrawString(companyName,      boldFont,  Brushes.Black,
                             new RectangleF(textX, bounds.Y + 6,  textW, 18));
-                        g.DrawString(eq.EquipmentCode, boldFont, Brushes.Black,
+                        g.DrawString(eq.EquipmentCode, boldFont,  Brushes.Black,
                             new RectangleF(textX, bounds.Y + 22, textW, 18));
                         g.DrawString($"Status: {eq.CurrentStatus}", smallFont, Brushes.DimGray,
                             new RectangleF(textX, bounds.Y + 38, textW, 16));

@@ -1,0 +1,18 @@
+ALLOCATIONS:
+Alloc ID: 2, Eq ID: 3, Employee: 1, Status: 'returned'
+Alloc ID: 3, Eq ID: 21, Employee: 4, Status: 'returned'
+Alloc ID: 4, Eq ID: 3, Employee: 5, Status: 'returned'
+Alloc ID: 5, Eq ID: 5, Employee: 5, Status: 'approved'
+Alloc ID: 6, Eq ID: 22, Employee: 5, Status: 'returned'
+Alloc ID: 7, Eq ID: 3, Employee: 1, Status: 'approved'
+Alloc ID: 8, Eq ID: 23, Employee: 1, Status: 'pending'
+
+EQUIPMENT:
+ID: 3, Code: EQ001, Status: 'allocated'
+ID: 5, Code: EQ002, Status: 'allocated'
+ID: 21, Code: EQ003, Status: 'decommissioned'
+ID: 22, Code: EQ004, Status: 'under_repair'
+ID: 23, Code: EQP-TEST-001, Status: 'allocated'
+ID: 24, Code: EQP-TEST-002, Status: 'in_store'
+ID: 25, Code: EQP-TEST-003, Status: 'allocated'
+ID: 26, Code: EQ005, Status: 'allocated'

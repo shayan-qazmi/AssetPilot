@@ -37,8 +37,8 @@ namespace Inventory_Management_System.Services
 
                 var equipment = db.Equipment.FirstOrDefault(e => e.Id == allocation.EquipmentId);
                 if (equipment == null) return ServiceResult<Allocation>.Fail("Equipment not found.");
-                if (equipment.CurrentStatus != "in_store")
-                    return ServiceResult<Allocation>.Fail("Equipment is not available (not in_store).");
+                if (equipment.CurrentStatus != "in_store" && equipment.CurrentStatus != "allocated")
+                    return ServiceResult<Allocation>.Fail("Equipment is not available.");
 
                 var employee = db.Employees.FirstOrDefault(e => e.Id == allocation.EmployeeId);
                 if (employee == null) return ServiceResult<Allocation>.Fail("Employee not found.");
@@ -52,7 +52,10 @@ namespace Inventory_Management_System.Services
 
                 db.Allocations.Add(allocation);
                 
-                equipment.CurrentStatus = "allocated";
+                if (allocation.Status == "approved")
+                {
+                    equipment.CurrentStatus = "allocated";
+                }
 
                 db.SaveChanges();
                 return ServiceResult<Allocation>.Ok(allocation);

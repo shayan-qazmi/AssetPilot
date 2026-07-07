@@ -37,14 +37,13 @@ namespace Inventory_Management_System.Forms
         private TextBox      txtNotes          = null!;
 
         // ── Added fields ──────────────────────────────────────────────────
-        private ComboBox cmbLocation        = null!;
+        private Label?   lblLocationValue   = null;
         private ComboBox cmbProcurementType = null!;
 
         private Button btnSave   = null!;
         private Button btnCancel = null!;
 
         // Data loaded from DB
-        private List<Location>        _locations        = new();
         private List<ProcurementType> _procurementTypes = new();
 
         public AddEditEquipmentForm(Equipment? equipment = null)
@@ -165,16 +164,35 @@ namespace Inventory_Management_System.Forms
             y += 40;
 
             // ── Location (display only — no FK on Equipment) ──────────────
-            AddLabel("Location:", x, ref y);
-            cmbLocation = new ComboBox
+            if (_isEditMode)
             {
-                Location      = new Point(x, y),
-                Width         = w,
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
-            ThemeHelper.StyleComboBox(cmbLocation);
-            Controls.Add(cmbLocation);
-            y += 34;
+                AddLabel("Current Location (set via Allocation):", x, ref y);
+                lblLocationValue = new Label
+                {
+                    Location  = new Point(x, y),
+                    Width     = w,
+                    Height    = 26,
+                    TextAlign = ContentAlignment.MiddleLeft
+                };
+                ThemeHelper.StyleLabel(lblLocationValue);
+                Controls.Add(lblLocationValue);
+                y += 34;
+            }
+            else
+            {
+                var lblNote = new Label
+                {
+                    Text      = "💡 Location is assigned via the Allocation screen after adding equipment.",
+                    Location  = new Point(x, y),
+                    Width     = w,
+                    Height    = 36,
+                    Font      = ThemeHelper.FontSmall,
+                    ForeColor = ThemeHelper.TextSecondary,
+                    BackColor = Color.Transparent
+                };
+                Controls.Add(lblNote);
+                y += 40;
+            }
 
             // ── Procurement Type ──────────────────────────────────────────
             AddLabel("Procurement Type:", x, ref y);
@@ -232,13 +250,6 @@ namespace Inventory_Management_System.Forms
             try
             {
                 using var db = new InventoryDbContext();
-
-                // Locations — display only
-                _locations = db.Locations.OrderBy(l => l.LocationName).ToList();
-                cmbLocation.Items.Add("— None —");
-                foreach (var loc in _locations)
-                    cmbLocation.Items.Add(loc.LocationName);
-                cmbLocation.SelectedIndex = 0;
 
                 // Procurement Types
                 _procurementTypes = db.ProcurementTypes.OrderBy(p => p.TypeName).ToList();
@@ -314,13 +325,21 @@ namespace Inventory_Management_System.Forms
             }
 
             // Location — from active allocation
-            var activeAllocation = _equipment.Allocations
-                .FirstOrDefault(a => a.Status != null &&
-                                     a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase));
-            if (activeAllocation?.Location != null)
+            if (_isEditMode && lblLocationValue != null)
             {
-                int idx = cmbLocation.Items.IndexOf(activeAllocation.Location.LocationName);
-                if (idx >= 0) cmbLocation.SelectedIndex = idx;
+                var activeAllocation = _equipment.Allocations
+                    .FirstOrDefault(a => a.Status != null &&
+                                         a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase));
+                if (activeAllocation?.Location != null)
+                {
+                    lblLocationValue.Text = activeAllocation.Location.LocationName;
+                    ThemeHelper.StyleLabel(lblLocationValue, bold: false, color: ThemeHelper.TextPrimary);
+                }
+                else
+                {
+                    lblLocationValue.Text = "Not allocated";
+                    ThemeHelper.StyleLabel(lblLocationValue, bold: false, color: ThemeHelper.TextSecondary);
+                }
             }
         }
         private void BtnSave_Click(object? sender, EventArgs e)

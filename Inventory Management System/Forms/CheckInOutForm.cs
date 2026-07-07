@@ -1,5 +1,6 @@
 // Forms/CheckInOutForm.cs
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -13,17 +14,24 @@ namespace Inventory_Management_System.Forms
     public partial class CheckInOutForm : Form
     {
         private readonly TransactionService _transactionService = new();
-        private System.Windows.Forms.Timer _scanTimer = null!;
-        private string _lastText = "";
-        private Equipment? _scannedEquipment = null;
-        private Transaction? _activeTransaction = null;
-        private bool _isCheckOutTab = true;
+        private readonly EquipmentService   _equipmentService   = new();
+        private System.Windows.Forms.Timer   _scanTimer = null!;
+        private string                       _lastText = "";
+        private Equipment?                   _scannedEquipment = null;
+        private Transaction?                 _activeTransaction = null;
+        private bool                         _isCheckOutTab = true;
+        private EquipmentSuggestHelper?      _suggest;
 
         public CheckInOutForm()
         {
             InitializeComponent();
             ApplyTheme();
-            this.Load += (s, e) => { txtQRCode.Focus(); SetupScanTimer(); };
+            this.Load += (s, e) =>
+            {
+                txtQRCode.Focus();
+                SetupScanTimer();
+                SetupSuggestions();
+            };
         }
 
         private void ApplyTheme()
@@ -94,6 +102,25 @@ namespace Inventory_Management_System.Forms
             lblNoResult.Font = ThemeHelper.FontDefault;
 
             SwitchTab(true);
+        }
+
+        private void SetupSuggestions()
+        {
+            try
+            {
+                var allEquipment = _equipmentService.GetAll().Data ?? new List<Equipment>();
+                _suggest = new EquipmentSuggestHelper(
+                    textBox:    txtQRCode,
+                    hostForm:   this,
+                    onSelected: eq =>
+                    {
+                        _scanTimer?.Stop();
+                        _lastText = eq.EquipmentCode;
+                        Search();
+                    });
+                _suggest.LoadEquipment(allEquipment);
+            }
+            catch { /* fail silently */ }
         }
 
         private void SetupScanTimer()
@@ -386,6 +413,12 @@ namespace Inventory_Management_System.Forms
             lblNoResult.Visible = true;
             lblNoResult.Text = "📋 Scan a QR code or enter an equipment code to start check-in or check-out";
             txtQRCode.Focus();
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _suggest?.Dispose();
+            base.OnFormClosed(e);
         }
     }
 }

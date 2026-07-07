@@ -52,19 +52,22 @@ namespace Inventory_Management_System.Forms
         {
             _previewTitle = new Label
             {
-                Location  = new Point(60, 330),
-                AutoSize  = true,
+                Location  = new Point(20, 80),
+                Size      = new Size(1160, 30),
+                AutoSize  = false,
+                TextAlign = ContentAlignment.MiddleCenter,
                 Text      = "Select a report above to preview it here.",
                 Font      = ThemeHelper.FontBold,
-                ForeColor = ThemeHelper.TextPrimary
+                ForeColor = ThemeHelper.TextPrimary,
+                Anchor    = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
             Controls.Add(_previewTitle);
 
             _preview = new DataGridView
             {
-                Location = new Point(60, 360),
-                Size     = new Size(1080, 300),
-                Anchor   = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+                Location = new Point(20, 120),
+                Size     = new Size(1160, 540),
+                Anchor   = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 AllowUserToAddRows = false,
                 ReadOnly = true,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect

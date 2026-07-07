@@ -141,7 +141,7 @@ namespace Inventory_Management_System.Forms
             dgvEquipment.AllowUserToAddRows    = false;
             dgvEquipment.ReadOnly              = true;
             dgvEquipment.SelectionMode         = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
-            dgvEquipment.MultiSelect           = true;
+            dgvEquipment.MultiSelect           = false;
             dgvEquipment.Name                  = "dgvEquipment";
             dgvEquipment.CellDoubleClick      += dgvEquipment_CellDoubleClick;
             dgvEquipment.Columns.Add("Code",            "Equipment Code");

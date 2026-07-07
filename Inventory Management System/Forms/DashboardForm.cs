@@ -101,6 +101,7 @@ namespace Inventory_Management_System
 
             // Nav buttons
             ThemeHelper.StyleSidebarButton(btnDashboard,   active: true);
+            activeNavButton = btnDashboard;
             ThemeHelper.StyleSidebarButton(btnEquipment);
             ThemeHelper.StyleSidebarButton(btnEmployees);
             ThemeHelper.StyleSidebarButton(btnLocations);
@@ -690,9 +691,15 @@ namespace Inventory_Management_System
         // ════════════════════════════════════════════════════════════════
         private void SetActiveButton(Button btn)
         {
-            if (activeNavButton != null)
+            if (activeNavButton != null && activeNavButton != btn)
+            {
                 ThemeHelper.StyleSidebarButton(activeNavButton, active: false);
+                activeNavButton.Invalidate();
+                activeNavButton.Update();
+            }
             ThemeHelper.StyleSidebarButton(btn, active: true);
+            btn.Invalidate();
+            btn.Update();
             activeNavButton = btn;
         }
 

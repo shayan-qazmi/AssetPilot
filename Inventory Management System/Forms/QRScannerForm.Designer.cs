@@ -4,6 +4,7 @@ using Inventory_Management_System.Models;
 using Inventory_Management_System.Services;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -12,16 +13,21 @@ namespace Inventory_Management_System.Forms
 {
     public partial class QRScannerForm : Form
     {
-        private readonly EquipmentService _equipmentService = new();
-        private System.Windows.Forms.Timer _scanTimer = null!;
-        private string _lastText = "";
+        private readonly EquipmentService     _equipmentService = new();
+        private System.Windows.Forms.Timer    _scanTimer = null!;
+        private string                        _lastText  = "";
+        private EquipmentSuggestHelper?       _suggest;
 
         public QRScannerForm()
         {
             InitializeComponent();
             ApplyTheme();
-            // Focus the input box immediately so USB scanner input goes straight in
-            this.Load += (s, e) => { txtQRCode.Focus(); SetupScanTimer(); };
+            this.Load += (s, e) =>
+            {
+                SetupScanTimer();
+                SetupSuggestions();
+                txtQRCode.Focus();
+            };
         }
 
         private void ApplyTheme()
@@ -55,6 +61,30 @@ namespace Inventory_Management_System.Forms
             lblNoResult.Font      = ThemeHelper.FontDefault;
         }
 
+        // ── Fuzzy suggestion dropdown ─────────────────────────────────────
+        private void SetupSuggestions()
+        {
+            try
+            {
+                // Load all equipment once for the lifetime of the form
+                var allEquipment = _equipmentService.GetAll().Data ?? new List<Equipment>();
+
+                _suggest = new EquipmentSuggestHelper(
+                    textBox:    txtQRCode,
+                    hostForm:   this,
+                    onSelected: eq =>
+                    {
+                        // Stop scan timer so it doesn't double-fire
+                        _scanTimer?.Stop();
+                        _lastText = eq.EquipmentCode;
+                        Search();
+                    });
+
+                _suggest.LoadEquipment(allEquipment);
+            }
+            catch { /* suggestions are non-critical — fail silently */ }
+        }
+
         // ── USB scanner auto-search ───────────────────────────────────────
         // USB barcode/QR scanners type quickly then send Enter — we detect
         // that pattern and auto-search without the user pressing the button
@@ -86,7 +116,7 @@ namespace Inventory_Management_System.Forms
             {
                 _scanTimer?.Stop();
                 Search();
-                e.Handled         = true;
+                e.Handled          = true;
                 e.SuppressKeyPress = true;
             }
         }
@@ -215,6 +245,12 @@ namespace Inventory_Management_System.Forms
             dgvHistory.Rows.Clear();
             _lastText = "";
             txtQRCode.Focus();
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _suggest?.Dispose();
+            base.OnFormClosed(e);
         }
     }
 }

@@ -164,11 +164,17 @@ namespace Inventory_Management_System.Forms
             try
             {
                 using var db = new InventoryDbContext();
-                var a = db.Allocations.FirstOrDefault(x => x.Id == alloc.Id);
+                var a = db.Allocations
+                    .Include(x => x.Equipment)
+                    .FirstOrDefault(x => x.Id == alloc.Id);
                 if (a == null) return;
                 a.Status          = "approved";
                 a.ApprovalDate    = DateTime.UtcNow;
                 a.ApprovedByUserId= 1;
+                if (a.Equipment != null)
+                {
+                    a.Equipment.CurrentStatus = "allocated";
+                }
                 db.SaveChanges();
                 _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationApproved,
                     "pending", "approved");
@@ -290,7 +296,12 @@ namespace Inventory_Management_System.Forms
 
         public AddAllocationForm(List<Equipment> equipment, List<Employee> employees, List<Location> locations)
         {
-            _equipment = equipment.Where(e => e.CurrentStatus == "in_store").ToList();
+            using (var db = new InventoryDbContext())
+            {
+                _equipment = equipment.Where(e => e.CurrentStatus == "in_store" ||
+                                                 (e.CurrentStatus == "allocated" &&
+                                                  !db.Allocations.Any(a => a.EquipmentId == e.Id && a.Status == "approved"))).ToList();
+            }
             _employees = employees.Where(e => e.IsActive).ToList();
             _locations = locations;
             BuildUI();
