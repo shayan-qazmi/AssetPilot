@@ -38,6 +38,8 @@ public partial class InventoryDbContext : DbContext
 
     public virtual DbSet<AppSetting> AppSettings { get; set; }
 
+    public virtual DbSet<Transaction> Transactions { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         => optionsBuilder.UseMySql("server=localhost;database=inventory_management;user=root;password=", Microsoft.EntityFrameworkCore.ServerVersion.Parse("8.0.46-mysql"));
 
@@ -235,6 +237,22 @@ public partial class InventoryDbContext : DbContext
             entity.Property(e => e.SerialNumber)
                 .HasMaxLength(100)
                 .HasColumnName("serial_number");
+            entity.Property(e => e.Category)
+                .HasMaxLength(100)
+                .HasColumnName("category");
+            entity.Property(e => e.Description)
+                .HasColumnType("text")
+                .HasColumnName("description");
+            entity.Property(e => e.VendorName)
+                .HasMaxLength(255)
+                .HasColumnName("vendor_name");
+            entity.Property(e => e.ConditionGrade)
+                .HasColumnType("enum('New','Good','Fair','Poor','Unserviceable')")
+                .HasColumnName("condition_grade");
+            entity.Property(e => e.WarrantyExpiry).HasColumnName("warranty_expiry");
+            entity.Property(e => e.Notes)
+                .HasColumnType("text")
+                .HasColumnName("notes");
 
             entity.HasOne(d => d.CreatedByUser).WithMany(p => p.Equipment)
                 .HasForeignKey(d => d.CreatedByUserId)
@@ -352,6 +370,9 @@ public partial class InventoryDbContext : DbContext
             entity.Property(e => e.RoomNumber)
                 .HasMaxLength(50)
                 .HasColumnName("room_number");
+            entity.Property(e => e.AllocatedPerson)
+                .HasMaxLength(255)
+                .HasColumnName("allocated_person");
         });
 
         modelBuilder.Entity<ProcurementType>(entity =>
@@ -454,6 +475,60 @@ public partial class InventoryDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.UserRoles)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("user_roles_ibfk_1");
+        });
+
+        modelBuilder.Entity<Transaction>(entity =>
+        {
+            entity.HasKey(e => e.TransactionId).HasName("PRIMARY");
+
+            entity.ToTable("transactions");
+
+            entity.HasIndex(e => e.EquipmentId, "equipment_id");
+            entity.HasIndex(e => e.Status,      "idx_transactions_status");
+            entity.HasIndex(e => e.TransactionDate, "idx_transactions_date");
+
+            entity.Property(e => e.TransactionId).HasColumnName("transaction_id");
+            entity.Property(e => e.EquipmentId).HasColumnName("equipment_id");
+            entity.Property(e => e.TransactionType)
+                .HasColumnType("enum('Check-In','Check-Out','Transfer','Maintenance','Disposal')")
+                .HasColumnName("transaction_type");
+            entity.Property(e => e.IssuedTo)
+                .HasMaxLength(255)
+                .HasColumnName("issued_to");
+            entity.Property(e => e.Department)
+                .HasMaxLength(150)
+                .HasColumnName("department");
+            entity.Property(e => e.OperatorName)
+                .HasMaxLength(255)
+                .HasColumnName("operator_name");
+            entity.Property(e => e.TransactionDate)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("timestamp")
+                .HasColumnName("transaction_date");
+            entity.Property(e => e.ExpectedReturn).HasColumnName("expected_return");
+            entity.Property(e => e.ActualReturn).HasColumnName("actual_return");
+            entity.Property(e => e.Status)
+                .HasDefaultValueSql("'Pending'")
+                .HasColumnType("enum('Pending','Completed','Overdue','Cancelled')")
+                .HasColumnName("status");
+            entity.Property(e => e.ConditionBefore)
+                .HasColumnType("enum('New','Good','Fair','Poor','Unserviceable')")
+                .HasColumnName("condition_before");
+            entity.Property(e => e.ConditionAfter)
+                .HasColumnType("enum('New','Good','Fair','Poor','Unserviceable')")
+                .HasColumnName("condition_after");
+            entity.Property(e => e.Remarks)
+                .HasColumnType("text")
+                .HasColumnName("remarks");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("timestamp")
+                .HasColumnName("created_at");
+
+            entity.HasOne(d => d.Equipment).WithMany(p => p.Transactions)
+                .HasForeignKey(d => d.EquipmentId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("transactions_ibfk_1");
         });
 
         OnModelCreatingPartial(modelBuilder);

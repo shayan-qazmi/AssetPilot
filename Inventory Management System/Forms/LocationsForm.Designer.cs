@@ -80,10 +80,11 @@ namespace Inventory_Management_System.Forms
             dgvLocations.ReadOnly            = true;
             dgvLocations.SelectionMode       = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             dgvLocations.Name                = "dgvLocations";
-            dgvLocations.Columns.Add("ID",         "Location ID");
-            dgvLocations.Columns.Add("Name",       "Location Name");
-            dgvLocations.Columns.Add("Building",   "Building");
-            dgvLocations.Columns.Add("RoomNumber", "Room Number");
+            dgvLocations.Columns.Add("ID",              "Location ID");
+            dgvLocations.Columns.Add("Name",            "Location Name");
+            dgvLocations.Columns.Add("Building",        "Building");
+            dgvLocations.Columns.Add("RoomNumber",      "Room Number");
+            dgvLocations.Columns.Add("AllocatedPerson", "Allocated Person");
 
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode       = System.Windows.Forms.AutoScaleMode.Font;

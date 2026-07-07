@@ -288,7 +288,7 @@ namespace Inventory_Management_System.Helpers
             {
                 Name      = "lblIcon",
                 Text      = icon,
-                Font      = new Font("Segoe UI Emoji", 15f, FontStyle.Regular, GraphicsUnit.Point),
+                Font      = new Font("Segoe UI Emoji", 0.0016f, FontStyle.Regular, GraphicsUnit.Point),
                 ForeColor = Color.FromArgb(160, 255, 255, 255),
                 AutoSize  = false,
                 Size      = new Size(40, 40),
@@ -328,11 +328,19 @@ namespace Inventory_Management_System.Helpers
                 path.AddArc(rect.X,          rect.Bottom - cr, cr, cr, 90,  90);
                 path.CloseFigure();
                 card.Region = new Region(path);
+                using var emojiFont = new Font("Segoe UI Emoji", 20f, FontStyle.Regular, GraphicsUnit.Point);
+                using var emojiSf   = new StringFormat
+                {
+                    Alignment     = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center
+                };
+                g.DrawString(icon, emojiFont, Brushes.White,
+                    new RectangleF(card.Width - 54, 4, 50, 50), emojiSf);
 
                 // Pin title to bottom, icon to top-right
                 lblTitle.Location = new Point(12, card.Height - 28);
                 lblTitle.Width    = card.Width - 24;
-                lblIcon.Location  = new Point(card.Width - 44, 2);
+                lblIcon.Location  = new Point(card.Width - 40, 15);
                 lblIcon.Size      = new Size(40, 36);
             };
 

@@ -43,6 +43,7 @@ namespace Inventory_Management_System.Services
                 using var db = new InventoryDbContext();
                 var eq = db.Equipment
                     .Include(e => e.Allocations).ThenInclude(a => a.Location)
+                    .Include(e => e.ProcurementType)
                     .FirstOrDefault(e => e.Id == id);
                 return eq == null
                     ? ServiceResult<Equipment>.Fail("Equipment not found.")
@@ -51,7 +52,7 @@ namespace Inventory_Management_System.Services
             catch (Exception ex)
             {
                 var innerMsg = ex.InnerException?.Message ?? ex.Message;
-                return ServiceResult<Equipment>.Fail($"Error adding equipment: {innerMsg}");
+                return ServiceResult<Equipment>.Fail($"Error retrieving equipment: {innerMsg}");
             }
         }
         
@@ -63,6 +64,7 @@ namespace Inventory_Management_System.Services
                 using var db = new InventoryDbContext();
                 var allItems = db.Equipment
                     .Include(e => e.Allocations).ThenInclude(a => a.Location)
+                    .Include(e => e.ProcurementType)
                     .ToList();
 
                 var list = allItems
@@ -169,6 +171,13 @@ namespace Inventory_Management_System.Services
                 existing.CurrentStatus = equipment.CurrentStatus;
                 existing.PurchaseDate  = equipment.PurchaseDate;
                 existing.Price         = equipment.Price;
+                existing.Category      = equipment.Category;
+                existing.Description   = equipment.Description;
+                existing.VendorName    = equipment.VendorName;
+                existing.ConditionGrade = equipment.ConditionGrade;
+                existing.WarrantyExpiry = equipment.WarrantyExpiry;
+                existing.Notes          = equipment.Notes;
+                existing.ProcurementTypeId = equipment.ProcurementTypeId;
 
                 db.SaveChanges();
 
@@ -196,7 +205,9 @@ namespace Inventory_Management_System.Services
                     return ServiceResult<bool>.Fail("Equipment not found.");
 
                 bool hasActiveAllocation = existing.Allocations
-                    .Any(a => a.Status == "approved" || a.Status == "pending");
+                    .Any(a => a.Status != null &&
+                              (a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase) ||
+                               a.Status.Equals("pending",  StringComparison.OrdinalIgnoreCase)));
                 if (hasActiveAllocation)
                     return ServiceResult<bool>.Fail("Cannot delete equipment that is currently allocated.");
 

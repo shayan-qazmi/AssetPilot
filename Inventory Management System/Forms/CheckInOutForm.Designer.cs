@@ -1,0 +1,460 @@
+// Forms/CheckInOutForm.Designer.cs
+namespace Inventory_Management_System.Forms
+{
+    partial class CheckInOutForm
+    {
+        private System.ComponentModel.IContainer components = null;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        private void InitializeComponent()
+        {
+            panelTop = new System.Windows.Forms.Panel();
+            lblScanPrompt = new System.Windows.Forms.Label();
+            txtQRCode = new System.Windows.Forms.TextBox();
+            btnSearch = new System.Windows.Forms.Button();
+            btnClear = new System.Windows.Forms.Button();
+            lblNoResult = new System.Windows.Forms.Label();
+            panelMainContent = new System.Windows.Forms.Panel();
+            panelLeft = new System.Windows.Forms.Panel();
+            lblCardTitle = new System.Windows.Forms.Label();
+            lblCodeLabel = new System.Windows.Forms.Label();
+            lblCodeValue = new System.Windows.Forms.Label();
+            lblNameLabel = new System.Windows.Forms.Label();
+            lblNameValue = new System.Windows.Forms.Label();
+            lblCategoryLabel = new System.Windows.Forms.Label();
+            lblCategoryValue = new System.Windows.Forms.Label();
+            lblMakeLabel = new System.Windows.Forms.Label();
+            lblMakeValue = new System.Windows.Forms.Label();
+            lblModelLabel = new System.Windows.Forms.Label();
+            lblModelValue = new System.Windows.Forms.Label();
+            lblSerialLabel = new System.Windows.Forms.Label();
+            lblSerialValue = new System.Windows.Forms.Label();
+            lblStatusLabel = new System.Windows.Forms.Label();
+            lblStatusValue = new System.Windows.Forms.Label();
+            lblLocationLabel = new System.Windows.Forms.Label();
+            lblLocationValue = new System.Windows.Forms.Label();
+            lblConditionLabel = new System.Windows.Forms.Label();
+            lblConditionValue = new System.Windows.Forms.Label();
+            panelCenter = new System.Windows.Forms.Panel();
+            panelTabHeader = new System.Windows.Forms.Panel();
+            btnTabCheckOut = new System.Windows.Forms.Button();
+            btnTabCheckIn = new System.Windows.Forms.Button();
+            panelTabContent = new System.Windows.Forms.Panel();
+            panelCheckOut = new System.Windows.Forms.Panel();
+            lblIssuedTo = new System.Windows.Forms.Label();
+            txtIssuedTo = new System.Windows.Forms.TextBox();
+            lblDepartment = new System.Windows.Forms.Label();
+            txtDepartment = new System.Windows.Forms.TextBox();
+            lblOperatorOut = new System.Windows.Forms.Label();
+            txtOperatorOut = new System.Windows.Forms.TextBox();
+            lblExpectedReturn = new System.Windows.Forms.Label();
+            dtpExpectedReturn = new System.Windows.Forms.DateTimePicker();
+            lblConditionBefore = new System.Windows.Forms.Label();
+            cmbConditionBefore = new System.Windows.Forms.ComboBox();
+            lblRemarksOut = new System.Windows.Forms.Label();
+            txtRemarksOut = new System.Windows.Forms.TextBox();
+            btnConfirmCheckOut = new System.Windows.Forms.Button();
+            panelCheckIn = new System.Windows.Forms.Panel();
+            lblCurrentlyIssuedTo = new System.Windows.Forms.Label();
+            txtCurrentlyIssuedTo = new System.Windows.Forms.TextBox();
+            lblOperatorIn = new System.Windows.Forms.Label();
+            txtOperatorIn = new System.Windows.Forms.TextBox();
+            lblConditionAfter = new System.Windows.Forms.Label();
+            cmbConditionAfter = new System.Windows.Forms.ComboBox();
+            lblRemarksIn = new System.Windows.Forms.Label();
+            txtRemarksIn = new System.Windows.Forms.TextBox();
+            btnConfirmCheckIn = new System.Windows.Forms.Button();
+            panelBottom = new System.Windows.Forms.Panel();
+            lblGridTitle = new System.Windows.Forms.Label();
+            dgvRecentTransactions = new System.Windows.Forms.DataGridView();
+
+            panelTop.SuspendLayout();
+            panelMainContent.SuspendLayout();
+            panelLeft.SuspendLayout();
+            panelCenter.SuspendLayout();
+            panelTabHeader.SuspendLayout();
+            panelTabContent.SuspendLayout();
+            panelCheckOut.SuspendLayout();
+            panelCheckIn.SuspendLayout();
+            panelBottom.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvRecentTransactions).BeginInit();
+            SuspendLayout();
+
+            // ── panelTop (dock top) ───────────────────────────────────────
+            panelTop.Dock = System.Windows.Forms.DockStyle.Top;
+            panelTop.Height = 70;
+            panelTop.Name = "panelTop";
+            panelTop.Controls.Add(lblScanPrompt);
+            panelTop.Controls.Add(txtQRCode);
+            panelTop.Controls.Add(btnSearch);
+            panelTop.Controls.Add(btnClear);
+
+            lblScanPrompt.Text = "Scan QR Code / Enter Equipment Code:";
+            lblScanPrompt.Location = new System.Drawing.Point(12, 24);
+            lblScanPrompt.AutoSize = true;
+            lblScanPrompt.Name = "lblScanPrompt";
+
+            txtQRCode.Location = new System.Drawing.Point(280, 20);
+            txtQRCode.Size = new System.Drawing.Size(320, 30);
+            txtQRCode.PlaceholderText = "Scan QR code or type equipment code...";
+            txtQRCode.Name = "txtQRCode";
+            txtQRCode.Font = new System.Drawing.Font("Segoe UI", 11F);
+            txtQRCode.TextChanged += txtQRCode_TextChanged;
+            txtQRCode.KeyDown += txtQRCode_KeyDown;
+
+            btnSearch.Location = new System.Drawing.Point(610, 18);
+            btnSearch.Size = new System.Drawing.Size(100, 34);
+            btnSearch.Text = "🔍 Search";
+            btnSearch.Name = "btnSearch";
+            btnSearch.Click += btnSearch_Click;
+
+            btnClear.Location = new System.Drawing.Point(718, 18);
+            btnClear.Size = new System.Drawing.Size(90, 34);
+            btnClear.Text = "Clear";
+            btnClear.Name = "btnClear";
+            btnClear.Click += btnClear_Click;
+
+            // ── lblNoResult ───────────────────────────────────────────────
+            lblNoResult.Text = "📋 Scan a QR code or enter an equipment code to start check-in or check-out";
+            lblNoResult.Dock = System.Windows.Forms.DockStyle.Fill;
+            lblNoResult.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            lblNoResult.Name = "lblNoResult";
+
+            // ── panelMainContent (dock fill) ──────────────────────────────
+            panelMainContent.Dock = System.Windows.Forms.DockStyle.Fill;
+            panelMainContent.Name = "panelMainContent";
+            panelMainContent.Visible = false;
+            panelMainContent.Controls.Add(panelCenter);
+            panelMainContent.Controls.Add(panelLeft);
+            panelMainContent.Controls.Add(panelBottom);
+
+            // ── panelLeft (dock left) ─────────────────────────────────────
+            panelLeft.Dock = System.Windows.Forms.DockStyle.Left;
+            panelLeft.Width = 360;
+            panelLeft.Name = "panelLeft";
+            panelLeft.Padding = new System.Windows.Forms.Padding(16);
+            panelLeft.Controls.Add(lblCardTitle);
+
+            lblCardTitle.Text = "Equipment Details";
+            lblCardTitle.Location = new System.Drawing.Point(16, 16);
+            lblCardTitle.AutoSize = true;
+            lblCardTitle.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
+            lblCardTitle.Name = "lblCardTitle";
+
+            int lx = 16, vx = 160, rh = 34, sy = 56;
+            void AddField(System.Windows.Forms.Label lbl, string labelText, System.Windows.Forms.Label val, int row)
+            {
+                lbl.Text = labelText;
+                lbl.Location = new System.Drawing.Point(lx, sy + row * rh);
+                lbl.AutoSize = true;
+                lbl.Name = lbl.Name;
+                val.Location = new System.Drawing.Point(vx, sy + row * rh);
+                val.AutoSize = true;
+                val.Name = val.Name;
+                panelLeft.Controls.Add(lbl);
+                panelLeft.Controls.Add(val);
+            }
+
+            AddField(lblCodeLabel, "Equipment Code:", lblCodeValue, 0);
+            AddField(lblNameLabel, "Name:", lblNameValue, 1);
+            AddField(lblCategoryLabel, "Category:", lblCategoryValue, 2);
+            AddField(lblMakeLabel, "Make:", lblMakeValue, 3);
+            AddField(lblModelLabel, "Model:", lblModelValue, 4);
+            AddField(lblSerialLabel, "Serial Number:", lblSerialValue, 5);
+            AddField(lblStatusLabel, "Status:", lblStatusValue, 6);
+            AddField(lblLocationLabel, "Location:", lblLocationValue, 7);
+            AddField(lblConditionLabel, "Condition Grade:", lblConditionValue, 8);
+
+            // ── panelCenter (dock fill) ───────────────────────────────────
+            panelCenter.Dock = System.Windows.Forms.DockStyle.Fill;
+            panelCenter.Name = "panelCenter";
+            panelCenter.Padding = new System.Windows.Forms.Padding(16, 0, 16, 16);
+            panelCenter.Controls.Add(panelTabContent);
+            panelCenter.Controls.Add(panelTabHeader);
+
+            // ── panelTabHeader ────────────────────────────────────────────
+            panelTabHeader.Dock = System.Windows.Forms.DockStyle.Top;
+            panelTabHeader.Height = 45;
+            panelTabHeader.Name = "panelTabHeader";
+            panelTabHeader.Controls.Add(btnTabCheckOut);
+            panelTabHeader.Controls.Add(btnTabCheckIn);
+
+            btnTabCheckOut.Location = new System.Drawing.Point(0, 0);
+            btnTabCheckOut.Size = new System.Drawing.Size(150, 45);
+            btnTabCheckOut.Text = "📤 Check-Out";
+            btnTabCheckOut.Name = "btnTabCheckOut";
+            btnTabCheckOut.Click += btnTabCheckOut_Click;
+
+            btnTabCheckIn.Location = new System.Drawing.Point(150, 0);
+            btnTabCheckIn.Size = new System.Drawing.Size(150, 45);
+            btnTabCheckIn.Text = "📥 Check-In";
+            btnTabCheckIn.Name = "btnTabCheckIn";
+            btnTabCheckIn.Click += btnTabCheckIn_Click;
+
+            // ── panelTabContent ───────────────────────────────────────────
+            panelTabContent.Dock = System.Windows.Forms.DockStyle.Fill;
+            panelTabContent.Name = "panelTabContent";
+            panelTabContent.Controls.Add(panelCheckOut);
+            panelTabContent.Controls.Add(panelCheckIn);
+
+            // ── panelCheckOut ─────────────────────────────────────────────
+            panelCheckOut.Dock = System.Windows.Forms.DockStyle.Fill;
+            panelCheckOut.AutoScroll = true;
+            panelCheckOut.Name = "panelCheckOut";
+            panelCheckOut.Padding = new System.Windows.Forms.Padding(16);
+
+            int outY = 16, outH = 26, outLGap = 6, labelWidth = 140, controlWidth = 320;
+            void AddCheckoutField(System.Windows.Forms.Label lbl, string txt, System.Windows.Forms.Control ctrl)
+            {
+                lbl.Text = txt;
+                lbl.Location = new System.Drawing.Point(16, outY + outLGap);
+                lbl.Size = new System.Drawing.Size(labelWidth, outH);
+                lbl.Name = lbl.Name;
+                ctrl.Location = new System.Drawing.Point(160, outY);
+                ctrl.Size = new System.Drawing.Size(controlWidth, outH);
+                ctrl.Name = ctrl.Name;
+                panelCheckOut.Controls.Add(lbl);
+                panelCheckOut.Controls.Add(ctrl);
+                outY += 38;
+                panelCheckOut.AutoScroll = true;
+            }
+
+            AddCheckoutField(lblIssuedTo, "Issued To:", txtIssuedTo);
+            AddCheckoutField(lblDepartment, "Department:", txtDepartment);
+            AddCheckoutField(lblOperatorOut, "Operator Name:", txtOperatorOut);
+            txtOperatorOut.ReadOnly = true; // Pre-filled and read-only to avoid user errors
+
+            lblExpectedReturn.Text = "Expected Return:";
+            lblExpectedReturn.Location = new System.Drawing.Point(16, outY + outLGap);
+            lblExpectedReturn.Size = new System.Drawing.Size(labelWidth, outH);
+            dtpExpectedReturn.Location = new System.Drawing.Point(160, outY);
+            dtpExpectedReturn.Size = new System.Drawing.Size(controlWidth, outH);
+            dtpExpectedReturn.Format = System.Windows.Forms.DateTimePickerFormat.Short;
+            panelCheckOut.Controls.Add(lblExpectedReturn);
+            panelCheckOut.Controls.Add(dtpExpectedReturn);
+            outY += 38;
+
+            lblConditionBefore.Text = "Condition Before:";
+            lblConditionBefore.Location = new System.Drawing.Point(16, outY + outLGap);
+            lblConditionBefore.Size = new System.Drawing.Size(labelWidth, outH);
+            cmbConditionBefore.Location = new System.Drawing.Point(160, outY);
+            cmbConditionBefore.Size = new System.Drawing.Size(controlWidth, outH);
+            cmbConditionBefore.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            cmbConditionBefore.Items.AddRange(new object[] { "New", "Good", "Fair", "Poor", "Unserviceable" });
+            panelCheckOut.Controls.Add(lblConditionBefore);
+            panelCheckOut.Controls.Add(cmbConditionBefore);
+            outY += 38;
+            
+
+            lblRemarksOut.Text = "Remarks:";
+            lblRemarksOut.Location = new System.Drawing.Point(16, outY + outLGap);
+            lblRemarksOut.Size = new System.Drawing.Size(labelWidth, outH);
+            txtRemarksOut.Location = new System.Drawing.Point(160, outY);
+            txtRemarksOut.Size = new System.Drawing.Size(controlWidth, 75);
+            txtRemarksOut.Multiline = true;
+            txtRemarksOut.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+            panelCheckOut.Controls.Add(lblRemarksOut);
+            panelCheckOut.Controls.Add(txtRemarksOut);
+            outY += 85;
+
+            btnConfirmCheckOut.Location = new System.Drawing.Point(160, outY);
+            btnConfirmCheckOut.Size = new System.Drawing.Size(200, 40);
+            btnConfirmCheckOut.Text = "Confirm Check-Out";
+            btnConfirmCheckOut.Name = "btnConfirmCheckOut";
+            btnConfirmCheckOut.Click += btnConfirmCheckOut_Click;
+            panelCheckOut.Controls.Add(btnConfirmCheckOut);
+           
+
+            // ── panelCheckIn ──────────────────────────────────────────────
+            panelCheckIn.Dock = System.Windows.Forms.DockStyle.Fill;
+            panelCheckIn.Name = "panelCheckIn";
+            panelCheckIn.Padding = new System.Windows.Forms.Padding(16);
+            panelCheckIn.Visible = false;
+
+            int inY = 16;
+            void AddCheckinField(System.Windows.Forms.Label lbl, string txt, System.Windows.Forms.Control ctrl)
+            {
+                lbl.Text = txt;
+                lbl.Location = new System.Drawing.Point(16, inY + outLGap);
+                lbl.Size = new System.Drawing.Size(labelWidth, outH);
+                lbl.Name = lbl.Name;
+                ctrl.Location = new System.Drawing.Point(160, inY);
+                ctrl.Size = new System.Drawing.Size(controlWidth, outH);
+                ctrl.Name = ctrl.Name;
+                panelCheckIn.Controls.Add(lbl);
+                panelCheckIn.Controls.Add(ctrl);
+                inY += 38;
+            }
+
+            AddCheckinField(lblCurrentlyIssuedTo, "Currently Issued To:", txtCurrentlyIssuedTo);
+            txtCurrentlyIssuedTo.ReadOnly = true;
+
+            AddCheckinField(lblOperatorIn, "Operator Name:", txtOperatorIn);
+            txtOperatorIn.ReadOnly = true;
+
+            lblConditionAfter.Text = "Condition After:";
+            lblConditionAfter.Location = new System.Drawing.Point(16, inY + outLGap);
+            lblConditionAfter.Size = new System.Drawing.Size(labelWidth, outH);
+            cmbConditionAfter.Location = new System.Drawing.Point(160, inY);
+            cmbConditionAfter.Size = new System.Drawing.Size(controlWidth, outH);
+            cmbConditionAfter.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            cmbConditionAfter.Items.AddRange(new object[] { "New", "Good", "Fair", "Poor", "Unserviceable" });
+            panelCheckIn.Controls.Add(lblConditionAfter);
+            panelCheckIn.Controls.Add(cmbConditionAfter);
+            inY += 38;
+
+            lblRemarksIn.Text = "Remarks:";
+            lblRemarksIn.Location = new System.Drawing.Point(16, inY + outLGap);
+            lblRemarksIn.Size = new System.Drawing.Size(labelWidth, outH);
+            txtRemarksIn.Location = new System.Drawing.Point(160, inY);
+            txtRemarksIn.Size = new System.Drawing.Size(controlWidth, 75);
+            txtRemarksIn.Multiline = true;
+            txtRemarksIn.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
+            panelCheckIn.Controls.Add(lblRemarksIn);
+            panelCheckIn.Controls.Add(txtRemarksIn);
+            inY += 85;
+
+            btnConfirmCheckIn.Location = new System.Drawing.Point(160, inY);
+            btnConfirmCheckIn.Size = new System.Drawing.Size(500, 50);
+            btnConfirmCheckIn.Text = "Confirm Check-In";
+            btnConfirmCheckIn.Name = "btnConfirmCheckIn";
+            btnConfirmCheckIn.Click += btnConfirmCheckIn_Click;
+            panelCheckIn.Controls.Add(btnConfirmCheckIn);
+
+            // ── panelBottom (dock bottom) ─────────────────────────────────
+            panelBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
+            panelBottom.Height = 220;
+            panelBottom.Name = "panelBottom";
+            panelBottom.Padding = new System.Windows.Forms.Padding(16, 8, 16, 16);
+            panelBottom.Controls.Add(lblGridTitle);
+            panelBottom.Controls.Add(dgvRecentTransactions);
+
+            lblGridTitle.Text = "Recent Transactions (Last 10)";
+            lblGridTitle.Location = new System.Drawing.Point(16, 8);
+            lblGridTitle.AutoSize = true;
+            lblGridTitle.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            lblGridTitle.Name = "lblGridTitle";
+
+            dgvRecentTransactions.Location = new System.Drawing.Point(16, 32);
+            dgvRecentTransactions.Size = new System.Drawing.Size(1168, 172);
+            dgvRecentTransactions.Anchor = System.Windows.Forms.AnchorStyles.Top |
+                                            System.Windows.Forms.AnchorStyles.Left |
+                                            System.Windows.Forms.AnchorStyles.Right |
+                                            System.Windows.Forms.AnchorStyles.Bottom;
+            dgvRecentTransactions.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
+            dgvRecentTransactions.AllowUserToAddRows = false;
+            dgvRecentTransactions.ReadOnly = true;
+            dgvRecentTransactions.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            dgvRecentTransactions.Name = "dgvRecentTransactions";
+            dgvRecentTransactions.Columns.Add("Date", "Date");
+            dgvRecentTransactions.Columns.Add("Type", "Type");
+            dgvRecentTransactions.Columns.Add("IssuedTo", "Issued To");
+            dgvRecentTransactions.Columns.Add("Department", "Department");
+            dgvRecentTransactions.Columns.Add("ExpectedReturn", "Expected Return");
+            dgvRecentTransactions.Columns.Add("Status", "Status");
+            dgvRecentTransactions.Columns.Add("ConditionBefore", "Condition Before");
+            dgvRecentTransactions.Columns.Add("ConditionAfter", "Condition After");
+            dgvRecentTransactions.Columns.Add("Remarks", "Remarks");
+
+            // ── Form configuration ────────────────────────────────────────
+            AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
+            AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            ClientSize = new System.Drawing.Size(1200, 700);
+            Controls.Add(panelMainContent);
+            Controls.Add(lblNoResult);
+            Controls.Add(panelTop);
+            Text = "Reception Check In/Out";
+            Name = "CheckInOutForm";
+
+            panelTop.ResumeLayout(false);
+            panelTop.PerformLayout();
+            panelMainContent.ResumeLayout(false);
+            panelLeft.ResumeLayout(false);
+            panelLeft.PerformLayout();
+            panelCenter.ResumeLayout(false);
+            panelTabHeader.ResumeLayout(false);
+            panelTabContent.ResumeLayout(false);
+            panelCheckOut.ResumeLayout(false);
+            panelCheckOut.PerformLayout();
+            panelCheckIn.ResumeLayout(false);
+            panelCheckIn.PerformLayout();
+            panelBottom.ResumeLayout(false);
+            panelBottom.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)dgvRecentTransactions).EndInit();
+            ResumeLayout(false);
+        }
+
+        private System.Windows.Forms.Panel panelTop;
+        private System.Windows.Forms.Label lblScanPrompt;
+        private System.Windows.Forms.TextBox txtQRCode;
+        private System.Windows.Forms.Button btnSearch;
+        private System.Windows.Forms.Button btnClear;
+        private System.Windows.Forms.Label lblNoResult;
+        private System.Windows.Forms.Panel panelMainContent;
+
+        private System.Windows.Forms.Panel panelLeft;
+        private System.Windows.Forms.Label lblCardTitle;
+        private System.Windows.Forms.Label lblCodeLabel;
+        private System.Windows.Forms.Label lblCodeValue;
+        private System.Windows.Forms.Label lblNameLabel;
+        private System.Windows.Forms.Label lblNameValue;
+        private System.Windows.Forms.Label lblCategoryLabel;
+        private System.Windows.Forms.Label lblCategoryValue;
+        private System.Windows.Forms.Label lblMakeLabel;
+        private System.Windows.Forms.Label lblMakeValue;
+        private System.Windows.Forms.Label lblModelLabel;
+        private System.Windows.Forms.Label lblModelValue;
+        private System.Windows.Forms.Label lblSerialLabel;
+        private System.Windows.Forms.Label lblSerialValue;
+        private System.Windows.Forms.Label lblStatusLabel;
+        private System.Windows.Forms.Label lblStatusValue;
+        private System.Windows.Forms.Label lblLocationLabel;
+        private System.Windows.Forms.Label lblLocationValue;
+        private System.Windows.Forms.Label lblConditionLabel;
+        private System.Windows.Forms.Label lblConditionValue;
+
+        private System.Windows.Forms.Panel panelCenter;
+        private System.Windows.Forms.Panel panelTabHeader;
+        private System.Windows.Forms.Button btnTabCheckOut;
+        private System.Windows.Forms.Button btnTabCheckIn;
+        private System.Windows.Forms.Panel panelTabContent;
+
+        private System.Windows.Forms.Panel panelCheckOut;
+        private System.Windows.Forms.Label lblIssuedTo;
+        private System.Windows.Forms.TextBox txtIssuedTo;
+        private System.Windows.Forms.Label lblDepartment;
+        private System.Windows.Forms.TextBox txtDepartment;
+        private System.Windows.Forms.Label lblOperatorOut;
+        private System.Windows.Forms.TextBox txtOperatorOut;
+        private System.Windows.Forms.Label lblExpectedReturn;
+        private System.Windows.Forms.DateTimePicker dtpExpectedReturn;
+        private System.Windows.Forms.Label lblConditionBefore;
+        private System.Windows.Forms.ComboBox cmbConditionBefore;
+        private System.Windows.Forms.Label lblRemarksOut;
+        private System.Windows.Forms.TextBox txtRemarksOut;
+        private System.Windows.Forms.Button btnConfirmCheckOut;
+
+        private System.Windows.Forms.Panel panelCheckIn;
+        private System.Windows.Forms.Label lblCurrentlyIssuedTo;
+        private System.Windows.Forms.TextBox txtCurrentlyIssuedTo;
+        private System.Windows.Forms.Label lblOperatorIn;
+        private System.Windows.Forms.TextBox txtOperatorIn;
+        private System.Windows.Forms.Label lblConditionAfter;
+        private System.Windows.Forms.ComboBox cmbConditionAfter;
+        private System.Windows.Forms.Label lblRemarksIn;
+        private System.Windows.Forms.TextBox txtRemarksIn;
+        private System.Windows.Forms.Button btnConfirmCheckIn;
+
+        private System.Windows.Forms.Panel panelBottom;
+        private System.Windows.Forms.Label lblGridTitle;
+        private System.Windows.Forms.DataGridView dgvRecentTransactions;
+    }
+}

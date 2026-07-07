@@ -30,6 +30,18 @@ public partial class Equipment
 
     public string CurrentStatus { get; set; } = null!;
 
+    public string? Category       { get; set; }
+
+    public string? Description    { get; set; }
+
+    public string? VendorName     { get; set; }
+
+    public string? ConditionGrade { get; set; }
+
+    public DateOnly? WarrantyExpiry { get; set; }
+
+    public string? Notes          { get; set; }
+
     public virtual ICollection<Allocation> Allocations { get; set; } = new List<Allocation>();
 
     public virtual User CreatedByUser { get; set; } = null!;
@@ -39,4 +51,6 @@ public partial class Equipment
     public virtual ICollection<EquipmentLog> EquipmentLogs { get; set; } = new List<EquipmentLog>();
 
     public virtual ProcurementType? ProcurementType { get; set; }
+
+    public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
 }

@@ -12,6 +12,12 @@ namespace Inventory_Management_System
         {
             ApplicationConfiguration.Initialize();
 
+            try
+            {
+                new Services.TransactionService().UpdateStatus();
+            }
+            catch { }
+
             using var login = new LoginForm();
             if (login.ShowDialog() == DialogResult.OK)
             {

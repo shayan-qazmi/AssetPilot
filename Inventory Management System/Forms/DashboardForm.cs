@@ -85,7 +85,8 @@ namespace Inventory_Management_System
                         {
                             Name      = "picLogoSide",
                             SizeMode  = PictureBoxSizeMode.Zoom,
-                            Height    = 120,
+                            Height    = 100,
+                          
                             Dock      = DockStyle.Top,
                             BackColor = ThemeHelper.Sidebar
                         };
@@ -109,6 +110,7 @@ namespace Inventory_Management_System
             ThemeHelper.StyleSidebarButton(btnDecommission);
             ThemeHelper.StyleSidebarButton(btnLogs);
             ThemeHelper.StyleSidebarButton(btnQRScanner);
+            ThemeHelper.StyleSidebarButton(btnCheckInOut);
             ThemeHelper.StyleSidebarButton(btnReports);
             ThemeHelper.StyleSidebarButton(btnSettings);
 
@@ -180,6 +182,7 @@ namespace Inventory_Management_System
                 _cntUnderRepair    = db.Equipment.Count(e => e.CurrentStatus == "under_repair");
                 _cntDecommission   = db.Equipment.Count(e => e.CurrentStatus == "decommissioned");
                 _cntEmployees      = db.Employees.Count(e => e.IsActive);
+                int overdueCount   = db.Transactions.Count(t => t.Status == "Overdue");
 
                 // Monthly allocation data — last 6 months
                 var sixAgo = DateTime.Now.AddMonths(-5);
@@ -220,10 +223,11 @@ namespace Inventory_Management_System
 
                 var cardDefs = new[]
                 {
-                    (title:"Total Equipment",    value:totalEquipment.ToString(),    color:Color.FromArgb(25,  118, 210), icon:"🖥️"),
+                    (title:"Total Equipment",    value:totalEquipment.ToString(),    color:Color.FromArgb(94, 53, 177), icon:"🖥️"),
                     (title:"Allocated",          value:_cntAllocated.ToString(),     color:Color.FromArgb(245, 124, 0),   icon:"📋"),
                     (title:"In Stock",           value:_cntInStore.ToString(),       color:Color.FromArgb(56,  142, 60),  icon:"✅"),
                     (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(33,  150, 243), icon:"🔧"),
+                    (title:"Overdue",            value:overdueCount.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️"),
                     (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68,  68),  icon:"🚫"),
                     (title:"Total Employees",    value:_cntEmployees.ToString(),     color:Color.FromArgb(123, 31,  162), icon:"👤"),
                 };
@@ -737,6 +741,7 @@ namespace Inventory_Management_System
 
         private void btnLogs_Click(object sender, EventArgs e)         => OpenChildForm(new LogsForm(),         btnLogs);
         private void btnQRScanner_Click(object sender, EventArgs e)    => OpenChildForm(new QRScannerForm(),    btnQRScanner);
+        private void btnCheckInOut_Click(object sender, EventArgs e)   => OpenChildForm(new CheckInOutForm(),   btnCheckInOut);
         private void btnReports_Click(object sender, EventArgs e)      => OpenChildForm(new ReportsForm(),      btnReports);
 
         private void btnSettings_Click(object sender, EventArgs e)

@@ -31,14 +31,16 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnRefresh);
             ThemeHelper.StyleButton(btnShowQR);
             ThemeHelper.StyleButton(btnImportExcel);
+            ThemeHelper.StyleButton(btnSelectAll);
+            ThemeHelper.StyleButton(btnGenerateQRSheet);
             ThemeHelper.StyleDangerButton(btnDelete);
             ThemeHelper.StyleSecondaryButton(btnEdit);
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleTextBox(txtSearch);
             ThemeHelper.StyleDataGridView(dgvEquipment);
-            panelBottom.BackColor  = Color.FromArgb(249, 250, 251);
-            lblRowCount.ForeColor  = ThemeHelper.TextSecondary;
-            lblRowCount.Font       = ThemeHelper.FontSmall;
+            panelBottom.BackColor = Color.FromArgb(249, 250, 251);
+            lblRowCount.ForeColor = ThemeHelper.TextSecondary;
+            lblRowCount.Font      = ThemeHelper.FontSmall;
         }
 
         private void LoadEquipment(string searchTerm = "")
@@ -68,16 +70,23 @@ namespace Inventory_Management_System.Forms
             foreach (var item in items)
             {
                 string locationName = item.Allocations
-                    .FirstOrDefault(a => a.Status == "approved")?.Location?.LocationName ?? "";
+                    .FirstOrDefault(a => a.Status != null &&
+                                        a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase))
+                    ?.Location?.LocationName ?? "";
+
+                string procType = item.ProcurementType?.TypeName ?? "";
 
                 int rowIdx = dgvEquipment.Rows.Add(
                     item.EquipmentCode,
                     item.QrCode,
+                    procType,
                     item.Name,
                     item.Make,
                     item.Model,
                     item.SerialNumber,
+                    item.Category ?? "",
                     item.CurrentStatus,
+                    item.ConditionGrade ?? "",
                     locationName,
                     item.PurchaseDate?.ToString("yyyy-MM-dd") ?? ""
                 );
@@ -114,6 +123,27 @@ namespace Inventory_Management_System.Forms
             if (dgvEquipment.SelectedRows.Count == 0) return null;
             var code = dgvEquipment.SelectedRows[0].Cells["Code"].Value?.ToString();
             return _allEquipment.FirstOrDefault(e => e.EquipmentCode == code);
+        }
+
+        private List<Equipment> GetSelectedEquipmentList()
+        {
+            var selected = new List<Equipment>();
+            foreach (DataGridViewRow row in dgvEquipment.SelectedRows)
+            {
+                var code = row.Cells["Code"].Value?.ToString();
+                var eq   = _allEquipment.FirstOrDefault(e => e.EquipmentCode == code);
+                if (eq != null) selected.Add(eq);
+            }
+            return selected;
+        }
+
+        private void dgvEquipment_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            var eq = GetSelectedEquipment();
+            if (eq == null) return;
+            using var popup = new EquipmentDetailPopup(eq);
+            popup.ShowDialog();
         }
 
         // ── Button handlers ───────────────────────────────────────────────
@@ -201,6 +231,147 @@ namespace Inventory_Management_System.Forms
             }
         }
 
+        private void btnSelectAll_Click(object sender, EventArgs e)
+        {
+            dgvEquipment.SelectAll();
+        }
+
+        private void btnGenerateQRSheet_Click(object sender, EventArgs e)
+        {
+            var selected = GetSelectedEquipmentList();
+            if (selected.Count == 0)
+            {
+                MessageBox.Show("Please select at least one equipment row.\n\nTip: Use Select All to select everything.",
+                    "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Pre-generate all QR bitmaps
+            var qrItems = new List<(Equipment eq, Bitmap bmp)>();
+            foreach (var eq in selected)
+            {
+                string qrContent = eq.QrCode ?? eq.EquipmentCode;
+                if (string.IsNullOrWhiteSpace(qrContent)) continue;
+                try
+                {
+                    var bmp = QRHelper.GenerateQRCode(qrContent, 6);
+                    qrItems.Add((eq, bmp));
+                }
+                catch { /* skip items that fail */ }
+            }
+
+            if (qrItems.Count == 0)
+            {
+                MessageBox.Show("None of the selected items have a valid QR code.",
+                    "No QR Codes", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Layout constants (in hundredths of an inch — PrintDocument units)
+            // A4 page: 827 x 1169 (hundredths of inch)
+            const int pageW       = 827;
+            const int pageH       = 1169;
+            const int marginL     = 40;
+            const int marginT     = 40;
+            const int cellW       = 180;  // each QR cell width
+            const int cellH       = 200;  // each QR cell height
+            const int cols        = 4;    // 4 per row
+            const int qrSize      = 120;  // QR image size inside cell
+
+            int currentIndex = 0;
+
+            using var pd = new PrintDocument();
+            pd.DefaultPageSettings.PaperSize = new PaperSize("A4", pageW, pageH);
+            pd.DefaultPageSettings.Margins   = new Margins(marginL, marginL, marginT, marginT);
+
+            pd.PrintPage += (ps, pe) =>
+            {
+                var g = pe.Graphics!;
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+                // Load settings for company name
+                string companyName = "Q-Inventory";
+                try
+                {
+                    using var db = new InventoryDbContext();
+                    companyName = db.AppSettings.FirstOrDefault()?.CompanyName ?? "Q-Inventory";
+                }
+                catch { }
+
+                using var codeFont  = new Font("Segoe UI", 7f, FontStyle.Bold);
+                using var nameFont  = new Font("Segoe UI", 6f, FontStyle.Regular);
+                using var coFont    = new Font("Segoe UI", 5.5f, FontStyle.Regular);
+
+                int col = 0;
+                int row = 0;
+                int usableW = pageW - marginL * 2;
+                int startX  = marginL;
+                int startY  = marginT;
+
+                while (currentIndex < qrItems.Count)
+                {
+                    int x = startX + col * (cellW + 10);
+                    int y = startY + row * (cellH + 10);
+
+                    // Stop if we've run off the page
+                    if (y + cellH > pageH - marginT)
+                    {
+                        pe.HasMorePages = true;
+                        return;
+                    }
+
+                    var (eq, bmp) = qrItems[currentIndex];
+
+                    // Cell border
+                    g.DrawRectangle(Pens.LightGray, x, y, cellW, cellH);
+
+                    // QR image centered in cell
+                    int qrX = x + (cellW - qrSize) / 2;
+                    int qrY = y + 8;
+                    g.DrawImage(bmp, new Rectangle(qrX, qrY, qrSize, qrSize));
+
+                    // Company name
+                    g.DrawString(companyName, coFont, Brushes.DimGray,
+                        new RectangleF(x + 4, qrY + qrSize + 4, cellW - 8, 16));
+
+                    // Equipment code
+                    g.DrawString(eq.EquipmentCode, codeFont, Brushes.Black,
+                        new RectangleF(x + 4, qrY + qrSize + 18, cellW - 8, 18));
+
+                    // Equipment name (truncate if too long)
+                    string name = eq.Name.Length > 22 ? eq.Name[..22] + "…" : eq.Name;
+                    g.DrawString(name, nameFont, Brushes.DimGray,
+                        new RectangleF(x + 4, qrY + qrSize + 34, cellW - 8, 16));
+
+                    // Status
+                    g.DrawString($"Status: {eq.CurrentStatus}", nameFont, Brushes.DimGray,
+                        new RectangleF(x + 4, qrY + qrSize + 48, cellW - 8, 16));
+
+                    currentIndex++;
+                    col++;
+                    if (col >= cols) { col = 0; row++; }
+                }
+
+                pe.HasMorePages = false;
+            };
+
+            pd.EndPrint += (ps, pe) =>
+            {
+                foreach (var (_, bmp) in qrItems)
+                    bmp.Dispose();
+            };
+
+            using var ppd = new PrintPreviewDialog
+            {
+                Document      = pd,
+                Width         = 900,
+                Height        = 700,
+                StartPosition = FormStartPosition.CenterParent,
+                Text          = $"QR Sheet Preview — {qrItems.Count} items"
+            };
+            ppd.ShowDialog();
+        }
+
         private void btnShowQR_Click(object sender, EventArgs e)
         {
             var eq = GetSelectedEquipment();
@@ -231,26 +402,25 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            // Build QR popup
             var frm = new Form
             {
-                Text             = $"QR Code — {eq.EquipmentCode}",
-                Size             = new Size(380, 460),
-                FormBorderStyle  = FormBorderStyle.FixedDialog,
-                MaximizeBox      = false,
-                MinimizeBox      = false,
-                StartPosition    = FormStartPosition.CenterParent,
-                BackColor        = Color.White
+                Text            = $"QR Code — {eq.EquipmentCode}",
+                Size            = new Size(380, 460),
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox     = false,
+                MinimizeBox     = false,
+                StartPosition   = FormStartPosition.CenterParent,
+                BackColor       = Color.White
             };
 
             var pic = new PictureBox
             {
-                Image    = qrBitmap,
-                SizeMode = PictureBoxSizeMode.Zoom,
-                Dock     = DockStyle.None,
-                Size     = new Size(300, 300),
-                Location = new Point(38, 20),
-                BackColor= Color.White
+                Image     = qrBitmap,
+                SizeMode  = PictureBoxSizeMode.Zoom,
+                Dock      = DockStyle.None,
+                Size      = new Size(300, 300),
+                Location  = new Point(38, 20),
+                BackColor = Color.White
             };
 
             var lblCode = new Label
@@ -267,63 +437,57 @@ namespace Inventory_Management_System.Forms
 
             var btnPrint = new Button
             {
-                Text     = "🖨  Print QR",
-                Size     = new Size(160, 38),
-                Location = new Point(38, 368),
-                BackColor= ThemeHelper.Accent,
-                ForeColor= Color.White,
-                FlatStyle= FlatStyle.Flat,
-                Font     = ThemeHelper.FontBold,
-                Cursor   = Cursors.Hand
+                Text      = "🖨  Print QR",
+                Size      = new Size(160, 38),
+                Location  = new Point(38, 368),
+                BackColor = ThemeHelper.Accent,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font      = ThemeHelper.FontBold,
+                Cursor    = Cursors.Hand
             };
             btnPrint.FlatAppearance.BorderSize = 0;
             btnPrint.Click += (s, ev) =>
             {
                 try
                 {
-                    using var db = new InventoryDbContext();
-                    var setting = db.AppSettings.FirstOrDefault();
-
+                    using var db      = new InventoryDbContext();
+                    var setting       = db.AppSettings.FirstOrDefault();
                     string companyName = setting?.CompanyName ?? "Q-Inventory";
                     string printerName = setting?.PrinterName ?? "";
-                    int lw = setting?.LabelWidthMm ?? 62;
+                    int lw = setting?.LabelWidthMm  ?? 62;
                     int lh = setting?.LabelHeightMm ?? 29;
 
                     using var pd = new PrintDocument();
-
                     if (!string.IsNullOrWhiteSpace(printerName))
                         pd.PrinterSettings.PrinterName = printerName;
 
-                    // Convert mm to hundredths of an inch (PrintDocument unit)
                     int wHundredths = (int)(lw * 3.937);
                     int hHundredths = (int)(lh * 3.937);
                     pd.DefaultPageSettings.PaperSize =
                         new PaperSize("Label", wHundredths, hHundredths);
-                    pd.DefaultPageSettings.Margins =
-                        new Margins(10, 10, 10, 10);
+                    pd.DefaultPageSettings.Margins = new Margins(10, 10, 10, 10);
 
                     pd.PrintPage += (ps, pe) =>
                     {
-                        var g = pe.Graphics!;
+                        var g      = pe.Graphics!;
                         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-
                         var bounds = pe.PageBounds;
                         int qrSize = Math.Min(bounds.Height - 20, 80);
 
-                        // QR code on the left
                         g.DrawImage(qrBitmap,
-                            new Rectangle(bounds.X + 5, bounds.Y + (bounds.Height - qrSize) / 2,
+                            new Rectangle(bounds.X + 5,
+                                bounds.Y + (bounds.Height - qrSize) / 2,
                                 qrSize, qrSize));
 
-                        // Text on the right
                         int textX = bounds.X + qrSize + 12;
                         int textW = bounds.Width - qrSize - 20;
 
                         using var boldFont  = new Font("Segoe UI", 8f, FontStyle.Bold);
                         using var smallFont = new Font("Segoe UI", 6.5f);
 
-                        g.DrawString(companyName, boldFont, Brushes.Black,
-                            new RectangleF(textX, bounds.Y + 6, textW, 18));
+                        g.DrawString(companyName,     boldFont,  Brushes.Black,
+                            new RectangleF(textX, bounds.Y + 6,  textW, 18));
                         g.DrawString(eq.EquipmentCode, boldFont, Brushes.Black,
                             new RectangleF(textX, bounds.Y + 22, textW, 18));
                         g.DrawString($"Status: {eq.CurrentStatus}", smallFont, Brushes.DimGray,
@@ -353,12 +517,12 @@ namespace Inventory_Management_System.Forms
 
             var btnClose = new Button
             {
-                Text     = "Close",
-                Size     = new Size(120, 38),
-                Location = new Point(210, 368),
-                FlatStyle= FlatStyle.Flat,
-                Font     = ThemeHelper.FontDefault,
-                Cursor   = Cursors.Hand
+                Text      = "Close",
+                Size      = new Size(120, 38),
+                Location  = new Point(210, 368),
+                FlatStyle = FlatStyle.Flat,
+                Font      = ThemeHelper.FontDefault,
+                Cursor    = Cursors.Hand
             };
             btnClose.Click += (s, ev) => frm.Close();
 
@@ -387,14 +551,16 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Could not read file: {ex.Message}\n\nMake sure ClosedXML NuGet package is installed.",
+                MessageBox.Show(
+                    $"Could not read file: {ex.Message}\n\nMake sure ClosedXML NuGet package is installed.",
                     "Import Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             if (items.Count == 0)
             {
-                MessageBox.Show("No valid rows found in the Excel file.\n\nMake sure row 1 is a header and data starts from row 2.",
+                MessageBox.Show(
+                    "No valid rows found in the Excel file.\n\nMake sure row 1 is a header and data starts from row 2.",
                     "Nothing to Import", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }

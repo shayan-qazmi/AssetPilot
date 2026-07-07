@@ -35,6 +35,7 @@ namespace Inventory_Management_System
             btnDecommission  = new System.Windows.Forms.Button();
             btnLogs          = new System.Windows.Forms.Button();
             btnQRScanner     = new System.Windows.Forms.Button();
+            btnCheckInOut    = new System.Windows.Forms.Button();
             btnReports       = new System.Windows.Forms.Button();
             btnSettings      = new System.Windows.Forms.Button();
             btnLogout        = new System.Windows.Forms.Button();
@@ -52,6 +53,7 @@ namespace Inventory_Management_System
             panelMenu.Controls.Add(btnLogout);
             panelMenu.Controls.Add(btnSettings);
             panelMenu.Controls.Add(btnReports);
+            panelMenu.Controls.Add(btnCheckInOut);
             panelMenu.Controls.Add(btnQRScanner);
             panelMenu.Controls.Add(btnLogs);
             panelMenu.Controls.Add(btnDecommission);
@@ -119,6 +121,11 @@ namespace Inventory_Management_System
             btnQRScanner.Height  = 46; btnQRScanner.Text = "📷  QR Scanner";
             btnQRScanner.Name    = "btnQRScanner";
             btnQRScanner.Click  += btnQRScanner_Click;
+
+            btnCheckInOut.Dock    = System.Windows.Forms.DockStyle.Top;
+            btnCheckInOut.Height  = 46; btnCheckInOut.Text = "📋  Check In/Out";
+            btnCheckInOut.Name    = "btnCheckInOut";
+            btnCheckInOut.Click  += btnCheckInOut_Click;
 
             btnReports.Dock      = System.Windows.Forms.DockStyle.Top;
             btnReports.Height    = 46; btnReports.Text = "📊  Reports";
@@ -209,6 +216,7 @@ namespace Inventory_Management_System
         private System.Windows.Forms.Button btnDecommission;
         private System.Windows.Forms.Button btnLogs;
         private System.Windows.Forms.Button btnQRScanner;
+        private System.Windows.Forms.Button btnCheckInOut;
         private System.Windows.Forms.Button btnReports;
         private System.Windows.Forms.Button btnSettings;
         private System.Windows.Forms.Button btnLogout;

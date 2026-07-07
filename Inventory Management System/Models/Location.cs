@@ -16,6 +16,8 @@ public partial class Location
 
     public DateTime? CreatedAt { get; set; }
 
+    public string? AllocatedPerson { get; set; }
+
     public virtual ICollection<Allocation> Allocations { get; set; } = new List<Allocation>();
 
     public virtual ICollection<Employee> Employees { get; set; } = new List<Employee>();

@@ -49,7 +49,8 @@ namespace Inventory_Management_System.Forms
                     item.Id,
                     item.LocationName,
                     item.Building,
-                    item.RoomNumber
+                    item.RoomNumber,
+                    item.AllocatedPerson ?? ""
                 );
             }
         }

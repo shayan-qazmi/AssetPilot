@@ -16,18 +16,20 @@ namespace Inventory_Management_System.Forms
 
         private void InitializeComponent()
         {
-            panelTop      = new System.Windows.Forms.Panel();
-            btnAdd        = new System.Windows.Forms.Button();
-            btnEdit       = new System.Windows.Forms.Button();
-            btnDelete     = new System.Windows.Forms.Button();
-            btnRefresh    = new System.Windows.Forms.Button();
-            btnExport     = new System.Windows.Forms.Button();
-            btnShowQR     = new System.Windows.Forms.Button();
-            btnImportExcel= new System.Windows.Forms.Button();
-            txtSearch     = new System.Windows.Forms.TextBox();
-            dgvEquipment  = new System.Windows.Forms.DataGridView();
-            panelBottom   = new System.Windows.Forms.Panel();
-            lblRowCount   = new System.Windows.Forms.Label();
+            panelTop       = new System.Windows.Forms.Panel();
+            btnAdd         = new System.Windows.Forms.Button();
+            btnEdit        = new System.Windows.Forms.Button();
+            btnDelete      = new System.Windows.Forms.Button();
+            btnRefresh     = new System.Windows.Forms.Button();
+            btnExport      = new System.Windows.Forms.Button();
+            btnShowQR      = new System.Windows.Forms.Button();
+            btnImportExcel = new System.Windows.Forms.Button();
+            btnSelectAll   = new System.Windows.Forms.Button();
+            btnGenerateQRSheet = new System.Windows.Forms.Button();
+            txtSearch      = new System.Windows.Forms.TextBox();
+            dgvEquipment   = new System.Windows.Forms.DataGridView();
+            panelBottom    = new System.Windows.Forms.Panel();
+            lblRowCount    = new System.Windows.Forms.Label();
 
             panelTop.SuspendLayout();
             panelBottom.SuspendLayout();
@@ -45,6 +47,8 @@ namespace Inventory_Management_System.Forms
             panelTop.Controls.Add(btnExport);
             panelTop.Controls.Add(btnShowQR);
             panelTop.Controls.Add(btnImportExcel);
+            panelTop.Controls.Add(btnSelectAll);
+            panelTop.Controls.Add(btnGenerateQRSheet);
             panelTop.Controls.Add(txtSearch);
 
             // btnAdd
@@ -96,9 +100,23 @@ namespace Inventory_Management_System.Forms
             btnImportExcel.Name     = "btnImportExcel";
             btnImportExcel.Click   += btnImportExcel_Click;
 
+            // btnSelectAll
+            btnSelectAll.Location = new System.Drawing.Point(668, 14);
+            btnSelectAll.Size     = new System.Drawing.Size(90, 32);
+            btnSelectAll.Text     = "Select All";
+            btnSelectAll.Name     = "btnSelectAll";
+            btnSelectAll.Click   += btnSelectAll_Click;
+
+            // btnGenerateQRSheet
+            btnGenerateQRSheet.Location = new System.Drawing.Point(766, 14);
+            btnGenerateQRSheet.Size     = new System.Drawing.Size(130, 32);
+            btnGenerateQRSheet.Text     = "🖨 QR Sheet";
+            btnGenerateQRSheet.Name     = "btnGenerateQRSheet";
+            btnGenerateQRSheet.Click   += btnGenerateQRSheet_Click;
+
             // txtSearch
-            txtSearch.Location        = new System.Drawing.Point(720, 17);
-            txtSearch.Size            = new System.Drawing.Size(260, 26);
+            txtSearch.Location        = new System.Drawing.Point(910, 17);
+            txtSearch.Size            = new System.Drawing.Size(240, 26);
             txtSearch.PlaceholderText = "Search Equipment…";
             txtSearch.Name            = "txtSearch";
             txtSearch.TextChanged    += txtSearch_TextChanged;
@@ -110,7 +128,6 @@ namespace Inventory_Management_System.Forms
             panelBottom.BackColor = System.Drawing.Color.FromArgb(249, 250, 251);
             panelBottom.Controls.Add(lblRowCount);
 
-            // lblRowCount
             lblRowCount.AutoSize  = false;
             lblRowCount.Dock      = System.Windows.Forms.DockStyle.Fill;
             lblRowCount.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
@@ -119,21 +136,26 @@ namespace Inventory_Management_System.Forms
             lblRowCount.Padding   = new System.Windows.Forms.Padding(8, 0, 0, 0);
 
             // ── dgvEquipment ──────────────────────────────────────────────
-            dgvEquipment.Dock                = System.Windows.Forms.DockStyle.Fill;
-            dgvEquipment.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
-            dgvEquipment.AllowUserToAddRows  = false;
-            dgvEquipment.ReadOnly            = true;
-            dgvEquipment.SelectionMode       = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
-            dgvEquipment.Name                = "dgvEquipment";
-            dgvEquipment.Columns.Add("Code",         "Equipment Code");
-            dgvEquipment.Columns.Add("QR",           "QR Code");
-            dgvEquipment.Columns.Add("Name",         "Equipment Name");
-            dgvEquipment.Columns.Add("Make",         "Make");
-            dgvEquipment.Columns.Add("Model",        "Model");
-            dgvEquipment.Columns.Add("Serial",       "Serial Number");
-            dgvEquipment.Columns.Add("Status",       "Status");
-            dgvEquipment.Columns.Add("Location",     "Location");
-            dgvEquipment.Columns.Add("PurchaseDate", "Purchase Date");
+            dgvEquipment.Dock                  = System.Windows.Forms.DockStyle.Fill;
+            dgvEquipment.AutoSizeColumnsMode   = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.AllCells;
+            dgvEquipment.AllowUserToAddRows    = false;
+            dgvEquipment.ReadOnly              = true;
+            dgvEquipment.SelectionMode         = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
+            dgvEquipment.MultiSelect           = true;
+            dgvEquipment.Name                  = "dgvEquipment";
+            dgvEquipment.CellDoubleClick      += dgvEquipment_CellDoubleClick;
+            dgvEquipment.Columns.Add("Code",            "Equipment Code");
+            dgvEquipment.Columns.Add("QR",              "QR Code");
+            dgvEquipment.Columns.Add("ProcurementType", "Procurement Type");
+            dgvEquipment.Columns.Add("Name",            "Equipment Name");
+            dgvEquipment.Columns.Add("Make",            "Make");
+            dgvEquipment.Columns.Add("Model",           "Model");
+            dgvEquipment.Columns.Add("Serial",          "Serial Number");
+            dgvEquipment.Columns.Add("Category",        "Category");
+            dgvEquipment.Columns.Add("Status",          "Status");
+            dgvEquipment.Columns.Add("ConditionGrade",  "Condition");
+            dgvEquipment.Columns.Add("Location",        "Location");
+            dgvEquipment.Columns.Add("PurchaseDate",    "Purchase Date");
 
             // ── EquipmentForm ─────────────────────────────────────────────
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -165,6 +187,8 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Button       btnExport;
         private System.Windows.Forms.Button       btnShowQR;
         private System.Windows.Forms.Button       btnImportExcel;
+        private System.Windows.Forms.Button       btnSelectAll;
+        private System.Windows.Forms.Button       btnGenerateQRSheet;
         private System.Windows.Forms.TextBox      txtSearch;
         private System.Windows.Forms.Label        lblRowCount;
         private System.Windows.Forms.DataGridView dgvEquipment;

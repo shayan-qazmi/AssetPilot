@@ -1,3 +1,4 @@
+// Forms/AddEditLocationForm.cs
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -16,6 +17,7 @@ namespace Inventory_Management_System.Forms
         private TextBox txtName = null!;
         private TextBox txtBuilding = null!;
         private TextBox txtRoomNumber = null!;
+        private TextBox txtAllocatedPerson = null!;   // NEW
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
@@ -32,18 +34,17 @@ namespace Inventory_Management_System.Forms
         private void InitializeUI()
         {
             this.Text = _isEditMode ? "Edit Location" : "Add Location";
-            this.Size = new Size(400, 380);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
 
             ThemeHelper.ApplyFormBackground(this);
-            this.AutoScroll = true; // Ensure scrolling if content exceeds form height
+            this.AutoScroll = true;
 
             int y = 20;
 
-            // Name
+            // ── Location Name ─────────────────────────────────────────────
             Label lblName = new Label() { Text = "Location Name:", Location = new Point(20, y), AutoSize = true };
             ThemeHelper.StyleLabel(lblName);
             this.Controls.Add(lblName);
@@ -53,7 +54,7 @@ namespace Inventory_Management_System.Forms
             this.Controls.Add(txtName);
             y += 40;
 
-            // Building
+            // ── Building ──────────────────────────────────────────────────
             Label lblBuilding = new Label() { Text = "Building:", Location = new Point(20, y), AutoSize = true };
             ThemeHelper.StyleLabel(lblBuilding);
             this.Controls.Add(lblBuilding);
@@ -63,7 +64,7 @@ namespace Inventory_Management_System.Forms
             this.Controls.Add(txtBuilding);
             y += 40;
 
-            // Room Number
+            // ── Room Number ───────────────────────────────────────────────
             Label lblRoomNumber = new Label() { Text = "Room Number:", Location = new Point(20, y), AutoSize = true };
             ThemeHelper.StyleLabel(lblRoomNumber);
             this.Controls.Add(lblRoomNumber);
@@ -71,9 +72,19 @@ namespace Inventory_Management_System.Forms
             txtRoomNumber = new TextBox() { Location = new Point(20, y), Width = 340 };
             ThemeHelper.StyleTextBox(txtRoomNumber);
             this.Controls.Add(txtRoomNumber);
+            y += 40;
+
+            // ── NEW: Allocated Person ─────────────────────────────────────
+            Label lblAllocatedPerson = new Label() { Text = "Allocated Person:", Location = new Point(20, y), AutoSize = true };
+            ThemeHelper.StyleLabel(lblAllocatedPerson);
+            this.Controls.Add(lblAllocatedPerson);
+            y += 25;
+            txtAllocatedPerson = new TextBox() { Location = new Point(20, y), Width = 340 };
+            ThemeHelper.StyleTextBox(txtAllocatedPerson);
+            this.Controls.Add(txtAllocatedPerson);
             y += 50;
 
-            // Buttons
+            // ── Buttons ───────────────────────────────────────────────────
             btnSave = new Button() { Text = "Save", Location = new Point(200, y), Width = 75 };
             ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
@@ -84,6 +95,7 @@ namespace Inventory_Management_System.Forms
             btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
             this.Controls.Add(btnCancel);
 
+            this.ClientSize = new Size(380, y + 40);
             this.AcceptButton = btnSave;
             this.CancelButton = btnCancel;
         }
@@ -92,9 +104,10 @@ namespace Inventory_Management_System.Forms
         {
             if (_isEditMode)
             {
-                txtName.Text = _location.LocationName;
-                txtBuilding.Text = _location.Building;
-                txtRoomNumber.Text = _location.RoomNumber;
+                txtName.Text            = _location.LocationName;
+                txtBuilding.Text        = _location.Building;
+                txtRoomNumber.Text      = _location.RoomNumber;
+                txtAllocatedPerson.Text = _location.AllocatedPerson ?? ""; // NEW
             }
         }
 
@@ -106,9 +119,12 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            _location.LocationName = txtName.Text.Trim();
-            _location.Building = txtBuilding.Text.Trim();
-            _location.RoomNumber = txtRoomNumber.Text.Trim();
+            _location.LocationName    = txtName.Text.Trim();
+            _location.Building        = txtBuilding.Text.Trim();
+            _location.RoomNumber      = txtRoomNumber.Text.Trim();
+            _location.AllocatedPerson = string.IsNullOrWhiteSpace(txtAllocatedPerson.Text) // NEW
+                                        ? null
+                                        : txtAllocatedPerson.Text.Trim();
 
             var result = _isEditMode ? _locationService.Update(_location) : _locationService.Add(_location);
 
