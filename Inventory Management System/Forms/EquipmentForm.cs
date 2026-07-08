@@ -17,13 +17,18 @@ namespace Inventory_Management_System.Forms
         private List<Equipment> _allEquipment = new();
 
         // ── Programmatic Dropdown Selection Mode (replacing Select button) ──
-        private ComboBox cmbSelectMode = null!;
+        private ComboBox cmbSelectMode  = null!;
+
+        // ── Category filter dropdown ───────────────────────────────────────
+        private ComboBox cmbCategory    = null!;
+        private string   _activeCategory = ""; // empty = All
 
         public EquipmentForm()
         {
             InitializeComponent();
             ApplyTheme();
             SetupToolbarLayout();
+            LoadCategoryFilter();
             LoadEquipment();
         }
 
@@ -86,6 +91,46 @@ namespace Inventory_Management_System.Forms
 
             cmbSelectMode.SelectedIndexChanged += cmbSelectMode_SelectedIndexChanged;
             panelTop.Controls.Add(cmbSelectMode);
+
+            // ── Category filter dropdown (between Select and QR Sheet) ──────
+            cmbCategory = new ComboBox
+            {
+                Name          = "cmbCategory",
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Size          = new Size(115, 32),
+                Location      = new Point(766, 14),   // between Select(668) and QR Sheet(886)
+                Cursor        = Cursors.Hand,
+                FlatStyle     = FlatStyle.Flat,
+                BackColor     = ThemeHelper.Accent,
+                ForeColor     = Color.White,
+                Font          = ThemeHelper.FontBold,
+                DrawMode      = DrawMode.OwnerDrawFixed,
+            };
+
+            // Owner-draw to match the Select dropdown style
+            cmbCategory.DrawItem += (s, e) =>
+            {
+                if (e.Index < 0) return;
+                bool isHover = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+                using (var brush = new SolidBrush(isHover ? ThemeHelper.Header : ThemeHelper.Accent))
+                    e.Graphics.FillRectangle(brush, e.Bounds);
+                string text = cmbCategory.Items[e.Index]?.ToString() ?? "";
+                using (var brush = new SolidBrush(Color.White))
+                {
+                    var sf = new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Near };
+                    e.Graphics.DrawString(text, cmbCategory.Font, brush, e.Bounds, sf);
+                }
+                e.DrawFocusRectangle();
+            };
+
+            cmbCategory.SelectedIndexChanged += (s, e) =>
+            {
+                var selected = cmbCategory.SelectedItem?.ToString() ?? "";
+                _activeCategory = selected == "All Categories" ? "" : selected;
+                ApplyFilters();
+            };
+
+            panelTop.Controls.Add(cmbCategory);
 
             // Dynamically append Checkbox Column for manual selection (visibly hidden by default)
             if (!dgvEquipment.Columns.Contains("ColSelect"))
@@ -161,7 +206,47 @@ namespace Inventory_Management_System.Forms
             }
 
             _allEquipment = result.Data ?? new List<Equipment>();
-            RefreshGrid(_allEquipment);
+            ApplyFilters();
+        }
+
+        // ── Populate category dropdown from distinct DB values ─────────────
+        private void LoadCategoryFilter()
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var categories = db.Equipment
+                    .Where(e => e.Category != null && e.Category != "")
+                    .Select(e => e.Category!)
+                    .Distinct()
+                    .OrderBy(c => c)
+                    .ToList();
+
+                cmbCategory.Items.Clear();
+                cmbCategory.Items.Add("All Categories");
+                foreach (var cat in categories)
+                    cmbCategory.Items.Add(cat);
+
+                cmbCategory.SelectedIndex = 0;
+            }
+            catch
+            {
+                cmbCategory.Items.Clear();
+                cmbCategory.Items.Add("All Categories");
+                cmbCategory.SelectedIndex = 0;
+            }
+        }
+
+        // ── Apply both search-text and category filter to _allEquipment ────
+        private void ApplyFilters()
+        {
+            var filtered = _allEquipment.AsEnumerable();
+
+            if (!string.IsNullOrEmpty(_activeCategory))
+                filtered = filtered.Where(e =>
+                    string.Equals(e.Category, _activeCategory, StringComparison.OrdinalIgnoreCase));
+
+            RefreshGrid(filtered.ToList());
         }
 
         private void RefreshGrid(List<Equipment> items)
@@ -742,6 +827,7 @@ namespace Inventory_Management_System.Forms
 
         private void txtSearch_TextChanged(object sender, EventArgs e)
         {
+            // Re-load from DB with the search term, then re-apply category filter
             LoadEquipment(txtSearch.Text.Trim());
         }
     }

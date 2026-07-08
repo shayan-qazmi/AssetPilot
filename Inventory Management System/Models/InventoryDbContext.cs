@@ -41,7 +41,9 @@ public partial class InventoryDbContext : DbContext
     public virtual DbSet<Transaction> Transactions { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        => optionsBuilder.UseMySql("server=localhost;database=inventory_management;user=root;password=", Microsoft.EntityFrameworkCore.ServerVersion.Parse("8.0.46-mysql"));
+        => optionsBuilder.UseMySql(
+            "server=192.168.0.54;database=inventory_management;user=ims_user;password=StrongPassword123;",
+            Microsoft.EntityFrameworkCore.ServerVersion.Parse("11.8.8-mariadb"));
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

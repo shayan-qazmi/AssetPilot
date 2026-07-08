@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 using Inventory_Management_System.Helpers;
@@ -17,34 +18,51 @@ namespace Inventory_Management_System.Forms
         private EquipmentService _equipmentService;
         private bool _isEditMode;
 
-        // ── Existing fields ───────────────────────────────────────────────
-        private TextBox      txtEquipmentCode = null!;
-        private TextBox      txtQrCode        = null!;
-        private TextBox      txtName          = null!;
-        private TextBox      txtMake          = null!;
-        private TextBox      txtModel         = null!;
-        private TextBox      txtSerialNumber  = null!;
-        private ComboBox     cmbStatus        = null!;
-        private DateTimePicker dtpPurchaseDate = null!;
-
-        // ── New fields ────────────────────────────────────────────────────
-        private ComboBox     cmbCategory       = null!;
-        private TextBox      txtDescription    = null!;
-        private TextBox      txtVendorName     = null!;
-        private ComboBox     cmbConditionGrade = null!;
-        private CheckBox     chkWarrantyExpiry = null!;
+        // ── Form controls (unchanged) ──────────────────────────────────────
+        private TextBox       txtEquipmentCode  = null!;
+        private TextBox       txtQrCode         = null!;
+        private TextBox       txtName           = null!;
+        private TextBox       txtMake           = null!;
+        private TextBox       txtModel          = null!;
+        private TextBox       txtSerialNumber   = null!;
+        private ComboBox      cmbStatus         = null!;
+        private DateTimePicker dtpPurchaseDate  = null!;
+        private ComboBox      cmbCategory       = null!;
+        private TextBox       txtDescription    = null!;
+        private TextBox       txtVendorName     = null!;
+        private ComboBox      cmbConditionGrade = null!;
+        private CheckBox      chkWarrantyExpiry = null!;
         private DateTimePicker dtpWarrantyExpiry = null!;
-        private TextBox      txtNotes          = null!;
+        private TextBox       txtNotes          = null!;
+        private Label?        lblLocationValue  = null;
+        private ComboBox      cmbProcurementType = null!;
+        private Button        btnSave           = null!;
+        private Button        btnCancel         = null!;
 
-        // ── Added fields ──────────────────────────────────────────────────
-        private Label?   lblLocationValue   = null;
-        private ComboBox cmbProcurementType = null!;
-
-        private Button btnSave   = null!;
-        private Button btnCancel = null!;
-
-        // Data loaded from DB
         private List<ProcurementType> _procurementTypes = new();
+
+        // ── Layout constants (matching EquipmentDetailPopup) ───────────────
+        private const int DialogW     = 860;
+        private const int OuterPad    = 20;
+        private const int HeaderH     = 52;
+        private const int ColLeft     = 20;
+        private const int ColRight    = 440;
+        private const int ColW        = 390;
+        private const int FieldX      = 155;   // input start inside a row panel
+        private const int LabelW      = 148;
+        private const int InputW      = 215;
+        private const int RowH        = 38;
+        private const int MultiRowH   = 88;
+        private const int SectionGap  = 14;
+
+        // ── Colors (same as EquipmentDetailPopup) ─────────────────────────
+        private static readonly Color BgPage      = Color.FromArgb(245, 247, 250);
+        private static readonly Color CardBg      = Color.White;
+        private static readonly Color CardBorder  = Color.FromArgb(220, 225, 230);
+        private static readonly Color SectionClr  = Color.FromArgb(46, 125, 50);
+        private static readonly Color RowEven     = Color.White;
+        private static readonly Color RowOdd      = Color.FromArgb(248, 250, 248);
+        private static readonly Color SeparatorClr = Color.FromArgb(234, 237, 241);
 
         public AddEditEquipmentForm(Equipment? equipment = null)
         {
@@ -57,6 +75,9 @@ namespace Inventory_Management_System.Forms
             LoadData();
         }
 
+        // ══════════════════════════════════════════════════════════════════
+        //  UI LAYOUT
+        // ══════════════════════════════════════════════════════════════════
         private void InitializeUI()
         {
             Text            = _isEditMode ? "Edit Equipment" : "Add Equipment";
@@ -64,166 +85,111 @@ namespace Inventory_Management_System.Forms
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox     = false;
             MinimizeBox     = false;
-            AutoScroll      = true;
+            BackColor       = BgPage;
 
-            ThemeHelper.ApplyFormBackground(this);
+            // ── Header strip ─────────────────────────────────────────────
+            var header = new Panel
+            {
+                Dock      = DockStyle.Top,
+                Height    = HeaderH,
+                BackColor = ThemeHelper.Header,
+            };
+            var lblTitle = new Label
+            {
+                Text      = $"  {(_isEditMode ? "Edit" : "Add")} Equipment",
+                Dock      = DockStyle.Fill,
+                Font      = new Font("Segoe UI", 11.5f, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = Color.White,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding   = new Padding(8, 0, 0, 0),
+            };
+            header.Controls.Add(lblTitle);
+            Controls.Add(header);
 
-            int x = 20;
-            int w = 340;
-            int y = 20;
+            // ── Card container ────────────────────────────────────────────
+            var card = new Panel
+            {
+                BackColor = CardBg,
+                Location  = new Point(OuterPad, HeaderH + OuterPad),
+                Width     = DialogW - OuterPad * 2,
+            };
+            card.Paint += DrawCardBorder;
+            Controls.Add(card);
 
-            // ── Equipment Code ────────────────────────────────────────────
-            AddLabel("Equipment Code:", x, ref y);
-            txtEquipmentCode = AddTextBox(x, w, ref y);
+            // ════ LEFT COLUMN — Equipment Identification ════
+            int yL = SectionGap;
+            AddSectionHeader(card, "Equipment Identification", ColLeft, ref yL);
+            bool altL = false;
+
+            txtEquipmentCode = AddFieldRow(card, "Equipment Code *", ColLeft, ref yL, ref altL);
             if (_isEditMode) txtEquipmentCode.Enabled = false;
 
-            // ── QR Code ───────────────────────────────────────────────────
-            AddLabel("QR Code:", x, ref y);
-            txtQrCode = AddTextBox(x, w, ref y);
+            txtQrCode = AddFieldRow(card, "QR Code *", ColLeft, ref yL, ref altL);
             if (_isEditMode) txtQrCode.Enabled = false;
 
-            // ── Name ──────────────────────────────────────────────────────
-            AddLabel("Name:", x, ref y);
-            txtName = AddTextBox(x, w, ref y);
+            txtName         = AddFieldRow(card, "Name *",          ColLeft, ref yL, ref altL);
+            txtMake         = AddFieldRow(card, "Make",            ColLeft, ref yL, ref altL);
+            txtModel        = AddFieldRow(card, "Model",           ColLeft, ref yL, ref altL);
+            txtSerialNumber = AddFieldRow(card, "Serial Number",   ColLeft, ref yL, ref altL);
 
-            // ── Make ──────────────────────────────────────────────────────
-            AddLabel("Make:", x, ref y);
-            txtMake = AddTextBox(x, w, ref y);
-
-            // ── Model ─────────────────────────────────────────────────────
-            AddLabel("Model:", x, ref y);
-            txtModel = AddTextBox(x, w, ref y);
-
-            // ── Serial Number ─────────────────────────────────────────────
-            AddLabel("Serial Number:", x, ref y);
-            txtSerialNumber = AddTextBox(x, w, ref y);
-
-            // ── Status ────────────────────────────────────────────────────
-            AddLabel("Current Status:", x, ref y);
-            cmbStatus = AddComboBox(x, w, ref y,
+            cmbStatus = AddComboRow(card, "Current Status", ColLeft, ref yL, ref altL,
                 new[] { "in_store", "allocated", "decommissioned", "under_repair" });
 
-            // ── Purchase Date ─────────────────────────────────────────────
-            AddLabel("Purchase Date:", x, ref y);
-            dtpPurchaseDate = new DateTimePicker
-            {
-                Location = new Point(x, y), Width = w,
-                Format   = DateTimePickerFormat.Short
-            };
-            Controls.Add(dtpPurchaseDate);
-            y += 40;
+            dtpPurchaseDate = AddDateRow(card, "Purchase Date", ColLeft, ref yL, ref altL);
 
-            // ── Category ──────────────────────────────────────────────────
-            AddLabel("Category:", x, ref y);
-            cmbCategory = AddComboBox(x, w, ref y,
+            cmbCategory = AddComboRow(card, "Category", ColLeft, ref yL, ref altL,
                 new[] { "", "IT Equipment", "Furniture", "Vehicle", "Accessory", "Other" });
 
-            // ── Description ───────────────────────────────────────────────
-            AddLabel("Description:", x, ref y);
-            txtDescription = new TextBox
-            {
-                Location   = new Point(x, y), Width = w, Height = 64,
-                Multiline  = true, ScrollBars = ScrollBars.Vertical
-            };
-            ThemeHelper.StyleTextBox(txtDescription);
-            Controls.Add(txtDescription);
-            y += 72;
-
-            // ── Vendor Name ───────────────────────────────────────────────
-            AddLabel("Vendor Name:", x, ref y);
-            txtVendorName = AddTextBox(x, w, ref y);
-
-            // ── Condition Grade ───────────────────────────────────────────
-            AddLabel("Condition Grade:", x, ref y);
-            cmbConditionGrade = AddComboBox(x, w, ref y,
-                new[] { "", "New", "Good", "Fair", "Poor", "Unserviceable" });
-
-            // ── Warranty Expiry ───────────────────────────────────────────
-            chkWarrantyExpiry = new CheckBox
-            {
-                Text      = "Warranty Expiry:",
-                Location  = new Point(x, y),
-                AutoSize  = true,
-                Checked   = false,
-                Font      = ThemeHelper.FontDefault,
-                ForeColor = ThemeHelper.TextPrimary,
-                BackColor = Color.Transparent
-            };
-            Controls.Add(chkWarrantyExpiry);
-            y += 24;
-
-            dtpWarrantyExpiry = new DateTimePicker
-            {
-                Location = new Point(x, y), Width = w,
-                Format   = DateTimePickerFormat.Short,
-                Enabled  = false
-            };
-            Controls.Add(dtpWarrantyExpiry);
-            chkWarrantyExpiry.CheckedChanged += (s, ev) =>
-                dtpWarrantyExpiry.Enabled = chkWarrantyExpiry.Checked;
-            y += 40;
-
-            // ── Location (display only — no FK on Equipment) ──────────────
+            // Location info (edit mode) or hint note (add mode)
             if (_isEditMode)
             {
-                AddLabel("Current Location (set via Allocation):", x, ref y);
-                lblLocationValue = new Label
-                {
-                    Location  = new Point(x, y),
-                    Width     = w,
-                    Height    = 26,
-                    TextAlign = ContentAlignment.MiddleLeft
-                };
-                ThemeHelper.StyleLabel(lblLocationValue);
-                Controls.Add(lblLocationValue);
-                y += 34;
+                lblLocationValue = AddReadonlyLabelRow(card, "Current Location", ColLeft, ref yL, ref altL);
             }
             else
             {
-                var lblNote = new Label
-                {
-                    Text      = "💡 Location is assigned via the Allocation screen after adding equipment.",
-                    Location  = new Point(x, y),
-                    Width     = w,
-                    Height    = 36,
-                    Font      = ThemeHelper.FontSmall,
-                    ForeColor = ThemeHelper.TextSecondary,
-                    BackColor = Color.Transparent
-                };
-                Controls.Add(lblNote);
-                y += 40;
+                AddHintRow(card,
+                    "💡 Location is assigned via the Allocation screen after adding equipment.",
+                    ColLeft, ref yL, ref altL);
             }
 
-            // ── Procurement Type ──────────────────────────────────────────
-            AddLabel("Procurement Type:", x, ref y);
-            cmbProcurementType = new ComboBox
-            {
-                Location      = new Point(x, y),
-                Width         = w,
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
-            ThemeHelper.StyleComboBox(cmbProcurementType);
-            Controls.Add(cmbProcurementType);
-            y += 34;
+            // ════ RIGHT COLUMN — Additional Details ════
+            int yR = SectionGap;
+            AddSectionHeader(card, "Additional Details", ColRight, ref yR);
+            bool altR = false;
 
-            // ── Notes ─────────────────────────────────────────────────────
-            AddLabel("Notes:", x, ref y);
-            txtNotes = new TextBox
-            {
-                Location   = new Point(x, y), Width = w, Height = 64,
-                Multiline  = true, ScrollBars = ScrollBars.Vertical
-            };
-            ThemeHelper.StyleTextBox(txtNotes);
-            Controls.Add(txtNotes);
-            y += 72;
+            txtDescription    = AddMultilineRow(card, "Description",      ColRight, ref yR, ref altR);
+            txtVendorName     = AddFieldRow(card,    "Vendor Name",        ColRight, ref yR, ref altR);
+            cmbConditionGrade = AddComboRow(card,    "Condition Grade",    ColRight, ref yR, ref altR,
+                new[] { "", "New", "Good", "Fair", "Poor", "Unserviceable" });
 
-            // ── Buttons ───────────────────────────────────────────────────
-            y += 16;
+            AddWarrantyRow(card, ColRight, ref yR, ref altR);
+
+            cmbProcurementType = AddProcurementRow(card, ColRight, ref yR, ref altR);
+
+            txtNotes = AddMultilineRow(card, "Notes", ColRight, ref yR, ref altR);
+
+            // ── Vertical divider between columns ─────────────────────────
+            int divX = ColRight - 10;
+            card.Paint += (_, e) =>
+            {
+                using var pen = new Pen(SeparatorClr, 1);
+                e.Graphics.DrawLine(pen, divX, SectionGap, divX, Math.Max(yL, yR) - 4);
+            };
+
+            // ── Size card ─────────────────────────────────────────────────
+            int cardH = Math.Max(yL, yR) + SectionGap;
+            card.Height = cardH;
+
+            // ── Action buttons ────────────────────────────────────────────
+            int btnY = HeaderH + OuterPad + cardH + 14;
+
             btnSave = new Button
             {
                 Text     = "Save",
-                Location = new Point(x + w - 160, y),
-                Width    = 75, Height = 30
+                Size     = new Size(100, 34),
+                Location = new Point(DialogW / 2 - 110, btnY),
+                Font     = ThemeHelper.FontBold,
+                Cursor   = Cursors.Hand,
             };
             ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
@@ -232,36 +198,243 @@ namespace Inventory_Management_System.Forms
             btnCancel = new Button
             {
                 Text     = "Cancel",
-                Location = new Point(x + w - 76, y),
-                Width    = 76, Height = 30
+                Size     = new Size(100, 34),
+                Location = new Point(DialogW / 2 + 10, btnY),
+                Font     = ThemeHelper.FontDefault,
+                Cursor   = Cursors.Hand,
             };
             ThemeHelper.StyleSecondaryButton(btnCancel);
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
             Controls.Add(btnCancel);
 
-            ClientSize   = new Size(w + 2 * x, y + 30 + 24);
+            ClientSize   = new Size(DialogW, btnY + 34 + OuterPad);
             AcceptButton = btnSave;
             CancelButton = btnCancel;
         }
 
-        // ── Dropdown data from DB ─────────────────────────────────────────
+        // ══════════════════════════════════════════════════════════════════
+        //  ROW BUILDERS  (shared helper pattern)
+        // ══════════════════════════════════════════════════════════════════
+
+        private void AddSectionHeader(Panel card, string title, int x, ref int y)
+        {
+            var pnl = new Panel { Location = new Point(x, y), Size = new Size(ColW, 34), BackColor = Color.Transparent };
+            var accent = new Panel { Location = new Point(0, 5), Size = new Size(3, 22), BackColor = SectionClr };
+            pnl.Controls.Add(accent);
+            var lbl = new Label
+            {
+                Text      = title,
+                Location  = new Point(10, 7),
+                AutoSize  = true,
+                Font      = new Font("Segoe UI", 10f, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = SectionClr,
+            };
+            pnl.Controls.Add(lbl);
+            pnl.Paint += (_, e) =>
+            {
+                using var pen = new Pen(Color.FromArgb(180, 215, 180), 1);
+                e.Graphics.DrawLine(pen, 0, 33, ColW, 33);
+            };
+            card.Controls.Add(pnl);
+            y += 40;
+        }
+
+        /// Plain single-line text field row — returns the TextBox
+        private TextBox AddFieldRow(Panel card, string label, int x, ref int y, ref bool isAlt)
+        {
+            var pnl = MakeRowPanel(card, label, x, RowH, ref y, ref isAlt);
+
+            var txt = new TextBox { Location = new Point(FieldX, 6), Width = InputW, Height = 24 };
+            ThemeHelper.StyleTextBox(txt);
+            pnl.Controls.Add(txt);
+            return txt;
+        }
+
+        /// ComboBox row — returns the ComboBox
+        private ComboBox AddComboRow(Panel card, string label, int x, ref int y, ref bool isAlt, string[] items)
+        {
+            var pnl = MakeRowPanel(card, label, x, RowH, ref y, ref isAlt);
+
+            var cmb = new ComboBox
+            {
+                Location      = new Point(FieldX, 6),
+                Width         = InputW,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+            };
+            cmb.Items.AddRange(items);
+            ThemeHelper.StyleComboBox(cmb);
+            pnl.Controls.Add(cmb);
+            return cmb;
+        }
+
+        /// DateTimePicker row — returns the DTP
+        private DateTimePicker AddDateRow(Panel card, string label, int x, ref int y, ref bool isAlt)
+        {
+            var pnl = MakeRowPanel(card, label, x, RowH, ref y, ref isAlt);
+
+            var dtp = new DateTimePicker
+            {
+                Location = new Point(FieldX, 6),
+                Width    = InputW,
+                Format   = DateTimePickerFormat.Short,
+            };
+            pnl.Controls.Add(dtp);
+            return dtp;
+        }
+
+        /// Multiline TextBox row (taller) — returns the TextBox
+        private TextBox AddMultilineRow(Panel card, string label, int x, ref int y, ref bool isAlt)
+        {
+            var pnl = MakeRowPanel(card, label, x, MultiRowH, ref y, ref isAlt);
+            // Reposition label to top
+            foreach (Control c in pnl.Controls)
+                if (c is Label l) { l.Top = 8; l.TextAlign = ContentAlignment.TopLeft; }
+
+            var txt = new TextBox
+            {
+                Location   = new Point(FieldX, 6),
+                Width      = InputW,
+                Height     = MultiRowH - 14,
+                Multiline  = true,
+                ScrollBars = ScrollBars.Vertical,
+            };
+            ThemeHelper.StyleTextBox(txt);
+            pnl.Controls.Add(txt);
+            return txt;
+        }
+
+        /// Read-only display label row (edit mode location) — returns the Label
+        private Label AddReadonlyLabelRow(Panel card, string label, int x, ref int y, ref bool isAlt)
+        {
+            var pnl = MakeRowPanel(card, label, x, RowH, ref y, ref isAlt);
+
+            var lbl = new Label
+            {
+                Location  = new Point(FieldX, 0),
+                Size      = new Size(InputW, RowH),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font      = ThemeHelper.FontDefault,
+                ForeColor = ThemeHelper.TextPrimary,
+            };
+            pnl.Controls.Add(lbl);
+            return lbl;
+        }
+
+        /// Hint note row (add mode location note)
+        private void AddHintRow(Panel card, string hint, int x, ref int y, ref bool isAlt)
+        {
+            var pnl = MakeRowPanel(card, "", x, 44, ref y, ref isAlt, hideLabel: true);
+
+            var lbl = new Label
+            {
+                Text      = hint,
+                Location  = new Point(8, 6),
+                Width     = ColW - 16,
+                Height    = 32,
+                Font      = ThemeHelper.FontSmall,
+                ForeColor = ThemeHelper.TextSecondary,
+                BackColor = Color.Transparent,
+            };
+            pnl.Controls.Add(lbl);
+        }
+
+        /// Warranty row: checkbox + DateTimePicker in one panel
+        private void AddWarrantyRow(Panel card, int x, ref int y, ref bool isAlt)
+        {
+            var pnl = MakeRowPanel(card, "", x, RowH, ref y, ref isAlt, hideLabel: true);
+
+            chkWarrantyExpiry = new CheckBox
+            {
+                Text      = "Warranty Expiry:",
+                Location  = new Point(8, 9),
+                AutoSize  = true,
+                Checked   = false,
+                Font      = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary,
+                BackColor = Color.Transparent,
+            };
+            pnl.Controls.Add(chkWarrantyExpiry);
+
+            dtpWarrantyExpiry = new DateTimePicker
+            {
+                Location = new Point(FieldX, 7),
+                Width    = InputW,
+                Format   = DateTimePickerFormat.Short,
+                Enabled  = false,
+            };
+            pnl.Controls.Add(dtpWarrantyExpiry);
+
+            chkWarrantyExpiry.CheckedChanged += (_, __) =>
+                dtpWarrantyExpiry.Enabled = chkWarrantyExpiry.Checked;
+        }
+
+        /// Procurement Type — needs special ComboBox from DB
+        private ComboBox AddProcurementRow(Panel card, int x, ref int y, ref bool isAlt)
+        {
+            var pnl = MakeRowPanel(card, "Procurement Type", x, RowH, ref y, ref isAlt);
+
+            var cmb = new ComboBox
+            {
+                Location      = new Point(FieldX, 6),
+                Width         = InputW,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+            };
+            ThemeHelper.StyleComboBox(cmb);
+            pnl.Controls.Add(cmb);
+            return cmb;
+        }
+
+        /// Core panel factory — creates a styled row with label and bottom separator
+        private Panel MakeRowPanel(Panel card, string labelText, int x, int h,
+            ref int y, ref bool isAlt, bool hideLabel = false)
+        {
+            var pnl = new Panel
+            {
+                Location  = new Point(x, y),
+                Size      = new Size(ColW, h),
+                BackColor = isAlt ? RowOdd : RowEven,
+            };
+            pnl.Paint += (_, e) =>
+            {
+                using var pen = new Pen(SeparatorClr, 1);
+                e.Graphics.DrawLine(pen, 10, pnl.Height - 1, pnl.Width - 10, pnl.Height - 1);
+            };
+
+            if (!hideLabel && !string.IsNullOrEmpty(labelText))
+            {
+                var lbl = new Label
+                {
+                    Text      = labelText + ":",
+                    Location  = new Point(8, 0),
+                    Size      = new Size(LabelW, h),
+                    Font      = ThemeHelper.FontBold,
+                    ForeColor = ThemeHelper.TextSecondary,
+                    TextAlign = ContentAlignment.MiddleLeft,
+                };
+                pnl.Controls.Add(lbl);
+            }
+
+            card.Controls.Add(pnl);
+            y     += h;
+            isAlt  = !isAlt;
+            return pnl;
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        //  DATA  (completely unchanged)
+        // ══════════════════════════════════════════════════════════════════
         private void LoadDropdownData()
         {
             try
             {
                 using var db = new InventoryDbContext();
-
-                // Procurement Types
                 _procurementTypes = db.ProcurementTypes.OrderBy(p => p.TypeName).ToList();
                 cmbProcurementType.Items.Add("— None —");
                 foreach (var pt in _procurementTypes)
                     cmbProcurementType.Items.Add(pt.TypeName);
                 cmbProcurementType.SelectedIndex = 0;
             }
-            catch
-            {
-                // DB unavailable — dropdowns stay with "— None —"
-            }
+            catch { }
         }
 
         private void LoadData()
@@ -274,7 +447,6 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            // Reload fresh from DB with all includes
             try
             {
                 using var db = new InventoryDbContext();
@@ -312,7 +484,6 @@ namespace Inventory_Management_System.Forms
                     _equipment.WarrantyExpiry.Value.ToDateTime(TimeOnly.MinValue);
             }
 
-            // Procurement Type
             if (_equipment.ProcurementTypeId.HasValue)
             {
                 var pt = _procurementTypes
@@ -324,7 +495,6 @@ namespace Inventory_Management_System.Forms
                 }
             }
 
-            // Location — from active allocation
             if (_isEditMode && lblLocationValue != null)
             {
                 var activeAllocation = _equipment.Allocations
@@ -342,6 +512,10 @@ namespace Inventory_Management_System.Forms
                 }
             }
         }
+
+        // ══════════════════════════════════════════════════════════════════
+        //  SAVE  (completely unchanged)
+        // ══════════════════════════════════════════════════════════════════
         private void BtnSave_Click(object? sender, EventArgs e)
         {
             if (string.IsNullOrWhiteSpace(txtName.Text) ||
@@ -375,7 +549,6 @@ namespace Inventory_Management_System.Forms
             _equipment.Notes =
                 string.IsNullOrWhiteSpace(txtNotes.Text) ? null : txtNotes.Text.Trim();
 
-            // Procurement Type
             var selectedPt = cmbProcurementType.SelectedItem?.ToString();
             if (selectedPt != null && selectedPt != "— None —")
             {
@@ -401,37 +574,23 @@ namespace Inventory_Management_System.Forms
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
 
-        // ── UI helpers ────────────────────────────────────────────────────
-        private void AddLabel(string text, int x, ref int y)
+        // ══════════════════════════════════════════════════════════════════
+        //  CARD BORDER + SHADOW  (same as EquipmentDetailPopup)
+        // ══════════════════════════════════════════════════════════════════
+        private void DrawCardBorder(object? sender, PaintEventArgs e)
         {
-            var lbl = new Label { Text = text, Location = new Point(x, y), AutoSize = true };
-            ThemeHelper.StyleLabel(lbl);
-            Controls.Add(lbl);
-            y += 22;
-        }
+            if (sender is not Panel pnl) return;
+            var g    = e.Graphics;
+            var rect = new Rectangle(0, 0, pnl.Width - 1, pnl.Height - 1);
 
-        private TextBox AddTextBox(int x, int w, ref int y)
-        {
-            var txt = new TextBox { Location = new Point(x, y), Width = w, Height = 26 };
-            ThemeHelper.StyleTextBox(txt);
-            Controls.Add(txt);
-            y += 34;
-            return txt;
-        }
+            using var shadowBrush = new SolidBrush(Color.FromArgb(18, 0, 0, 0));
+            g.FillRectangle(shadowBrush, new Rectangle(2, 2, pnl.Width - 1, pnl.Height - 1));
 
-        private ComboBox AddComboBox(int x, int w, ref int y, string[] items)
-        {
-            var cmb = new ComboBox
-            {
-                Location      = new Point(x, y),
-                Width         = w,
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
-            cmb.Items.AddRange(items);
-            ThemeHelper.StyleComboBox(cmb);
-            Controls.Add(cmb);
-            y += 34;
-            return cmb;
+            using var bgBrush = new SolidBrush(CardBg);
+            g.FillRectangle(bgBrush, rect);
+
+            using var pen = new Pen(CardBorder, 1);
+            g.DrawRectangle(pen, rect);
         }
     }
 }

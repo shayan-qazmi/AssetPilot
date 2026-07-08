@@ -107,15 +107,15 @@ namespace Inventory_Management_System.Forms
             btnSelectAll.Name     = "btnSelectAll";
             btnSelectAll.Click   += btnSelectAll_Click;
 
-            // btnGenerateQRSheet
-            btnGenerateQRSheet.Location = new System.Drawing.Point(766, 14);
+            // btnGenerateQRSheet  (shifted right 120px to make room for Category dropdown)
+            btnGenerateQRSheet.Location = new System.Drawing.Point(886, 14);
             btnGenerateQRSheet.Size     = new System.Drawing.Size(130, 32);
             btnGenerateQRSheet.Text     = "🖨 QR Sheet";
             btnGenerateQRSheet.Name     = "btnGenerateQRSheet";
             btnGenerateQRSheet.Click   += btnGenerateQRSheet_Click;
 
-            // txtSearch
-            txtSearch.Location        = new System.Drawing.Point(910, 17);
+            // txtSearch  (shifted right 120px to make room for Category dropdown)
+            txtSearch.Location        = new System.Drawing.Point(1030, 17);
             txtSearch.Size            = new System.Drawing.Size(240, 26);
             txtSearch.PlaceholderText = "Search Equipment…";
             txtSearch.Name            = "txtSearch";

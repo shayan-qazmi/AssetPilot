@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,28 @@ namespace Inventory_Management_System.Forms
     public class EquipmentDetailPopup : Form
     {
         private Equipment _equipment;
+
+        // ── Layout Constants ─────────────────────────────────────────────────
+        private const int DialogWidth    = 860;
+        private const int PaddingOuter  = 20;
+        private const int ColLeft       = 30;
+        private const int ColRight      = 450;
+        private const int ColWidth      = 380;
+        private const int RowH          = 36;
+        private const int SectionGap    = 14;
+        private const int LabelW        = 155;
+        private const int ValueX        = 168;
+        private const int ValueW        = 200;
+
+        // ── Color Overrides (supplement ThemeHelper) ─────────────────────────
+        private static readonly Color BgPage          = Color.FromArgb(245, 247, 250);
+        private static readonly Color CardBg          = Color.White;
+        private static readonly Color CardBorderColor = Color.FromArgb(220, 225, 230);
+        private static readonly Color SectionTitle    = Color.FromArgb(46, 125, 50);
+        private static readonly Color RowEven         = Color.White;
+        private static readonly Color RowOdd          = Color.FromArgb(248, 250, 248);
+        private static readonly Color SeparatorColor  = Color.FromArgb(234, 237, 241);
+        private static readonly Color BadgeBorder     = Color.FromArgb(200, 210, 200);
 
         public EquipmentDetailPopup(Equipment equipment)
         {
@@ -31,189 +54,320 @@ namespace Inventory_Management_System.Forms
 
         private void InitializeUI()
         {
-            Text = $"Equipment Details — {_equipment.EquipmentCode}";
+            Text            = $"Equipment Details — {_equipment.EquipmentCode}";
             FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            StartPosition = FormStartPosition.CenterParent;
-            StartPosition = FormStartPosition.CenterParent;
+            MaximizeBox     = false;
+            MinimizeBox     = false;
+            StartPosition   = FormStartPosition.CenterParent;
+            BackColor       = BgPage;
 
-            ThemeHelper.ApplyFormBackground(this);
-
-            int yLeft = 20;
-
-            // Section: Equipment Information
-            var lblEqInfo = new Label
+            // ── Header Strip ────────────────────────────────────────────────
+            var header = new Panel
             {
-                Text = "Equipment Information",
-                Location = new Point(20, yLeft),
-                AutoSize = true,
-                Font = ThemeHelper.FontBold,
-                ForeColor = ThemeHelper.Success
+                Dock      = DockStyle.Top,
+                Height    = 52,
+                BackColor = ThemeHelper.Header,
             };
-            Controls.Add(lblEqInfo);
-            yLeft += 30;
 
-            bool isAltLeft = false;
-
-            AddField("Equipment Code", _equipment.EquipmentCode, 20, ref yLeft, ref isAltLeft);
-            AddField("QR Code", _equipment.QrCode, 20, ref yLeft, ref isAltLeft);
-            AddField("Name", _equipment.Name, 20, ref yLeft, ref isAltLeft);
-            AddField("Make", _equipment.Make, 20, ref yLeft, ref isAltLeft);
-            AddField("Model", _equipment.Model, 20, ref yLeft, ref isAltLeft);
-            AddField("Serial Number", _equipment.SerialNumber, 20, ref yLeft, ref isAltLeft);
-            AddField("Category", _equipment.Category, 20, ref yLeft, ref isAltLeft);
-
-            // Status Badge
-            AddStatusField("Status", _equipment.CurrentStatus, 20, ref yLeft, ref isAltLeft);
-
-            AddField("Condition", _equipment.ConditionGrade, 20, ref yLeft, ref isAltLeft);
-            AddField("Purchase Date", _equipment.PurchaseDate?.ToString("yyyy-MM-dd"), 20, ref yLeft, ref isAltLeft);
-            AddField("Price", _equipment.Price?.ToString("C"), 20, ref yLeft, ref isAltLeft);
-            AddField("Procurement Type", _equipment.ProcurementType?.TypeName, 20, ref yLeft, ref isAltLeft);
-            AddField("Vendor Name", _equipment.VendorName, 20, ref yLeft, ref isAltLeft);
-            AddField("Warranty Expiry", _equipment.WarrantyExpiry?.ToString("yyyy-MM-dd") ?? "—", 20, ref yLeft, ref isAltLeft);
-            AddField("Description", _equipment.Description, 20, ref yLeft, ref isAltLeft);
-            AddField("Notes", _equipment.Notes, 20, ref yLeft, ref isAltLeft);
-
-            int yRight = 20;
-
-            // Section: Current Allocation
-            var lblAllocInfo = new Label
+            var lblTitle = new Label
             {
-                Text = "Current Allocation",
-                Location = new Point(420, yRight),
-                AutoSize = true,
-                Font = ThemeHelper.FontBold,
-                ForeColor = ThemeHelper.Success
+                Text      = $"  Equipment Details — {_equipment.EquipmentCode}",
+                Dock      = DockStyle.Fill,
+                Font      = new Font("Segoe UI", 11.5f, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = Color.White,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding   = new Padding(8, 0, 0, 0)
             };
-            Controls.Add(lblAllocInfo);
-            yRight += 30;
+            header.Controls.Add(lblTitle);
+            Controls.Add(header);
+
+            // ── Card Container ───────────────────────────────────────────────
+            var card = new Panel
+            {
+                BackColor = CardBg,
+                Location  = new Point(PaddingOuter, header.Height + PaddingOuter),
+                Width     = DialogWidth - PaddingOuter * 2,
+            };
+            card.Paint += DrawCardBorder;
+            Controls.Add(card);
+
+            int yLeft  = SectionGap;
+            int yRight = SectionGap;
+
+            // ── Left Column: Equipment Information ───────────────────────────
+            AddSectionHeader(card, "Equipment Information", ColLeft, ref yLeft);
+
+            bool altLeft = false;
+            AddField(card, "Equipment Code",   _equipment.EquipmentCode,                              ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "QR Code",          _equipment.QrCode,                                     ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Name",             _equipment.Name,                                       ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Make",             _equipment.Make,                                       ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Model",            _equipment.Model,                                      ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Serial Number",    _equipment.SerialNumber,                               ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Category",         _equipment.Category,                                   ColLeft, ref yLeft, ref altLeft);
+            AddStatusField(card, "Status",     _equipment.CurrentStatus,                              ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Condition",        _equipment.ConditionGrade,                             ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Purchase Date",    _equipment.PurchaseDate?.ToString("yyyy-MM-dd"),       ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Price",            _equipment.Price?.ToString("C"),                       ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Procurement Type", _equipment.ProcurementType?.TypeName,                  ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Vendor Name",      _equipment.VendorName,                                 ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Warranty Expiry",  _equipment.WarrantyExpiry?.ToString("yyyy-MM-dd") ?? "—", ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Description",      _equipment.Description,                                ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Notes",            _equipment.Notes,                                      ColLeft, ref yLeft, ref altLeft);
+
+            // ── Right Column: Current Allocation ─────────────────────────────
+            AddSectionHeader(card, "Current Allocation", ColRight, ref yRight);
 
             var activeAlloc = _equipment.Allocations.FirstOrDefault(a => a.Status == "approved");
-            bool isAltRight = false;
+            bool altRight = false;
 
-            AddField("Current Location", activeAlloc?.Location?.LocationName ?? "—", 420, ref yRight, ref isAltRight);
-            AddField("Currently Assigned To", activeAlloc?.Employee?.FullName ?? "—", 420, ref yRight, ref isAltRight);
-            AddField("Allocation Date", activeAlloc?.AllocationDate.ToString("yyyy-MM-dd") ?? "—", 420, ref yRight, ref isAltRight);
-            AddField("Expected Return", activeAlloc?.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—", 420, ref yRight, ref isAltRight);
+            AddField(card, "Current Location",     activeAlloc?.Location?.LocationName          ?? "—", ColRight, ref yRight, ref altRight);
+            AddField(card, "Currently Assigned To", activeAlloc?.Employee?.FullName             ?? "—", ColRight, ref yRight, ref altRight);
+            AddField(card, "Allocation Date",      activeAlloc?.AllocationDate.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
+            AddField(card, "Expected Return",      activeAlloc?.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
 
-            int maxY = Math.Max(yLeft, yRight) + 30;
+            // ── Divider between columns ──────────────────────────────────────
+            int dividerX = ColRight - 10;
+            card.Paint += (s, e) =>
+            {
+                using var pen = new Pen(SeparatorColor, 1);
+                e.Graphics.DrawLine(pen, dividerX, SectionGap, dividerX, Math.Max(yLeft, yRight) - 4);
+            };
 
+            // ── Size card ────────────────────────────────────────────────────
+            int cardH = Math.Max(yLeft, yRight) + SectionGap;
+            card.Height = cardH;
+
+            // ── Close Button ─────────────────────────────────────────────────
+            int btnY = header.Height + PaddingOuter + cardH + 14;
             var btnClose = new Button
             {
-                Text = "Close",
-                Size = new Size(80, 32),
-                Location = new Point((820 - 80) / 2, maxY)
+                Text     = "Close",
+                Size     = new Size(100, 34),
+                Location = new Point((DialogWidth - 100) / 2, btnY),
+                Font     = ThemeHelper.FontDefault,
+                Cursor   = Cursors.Hand,
             };
             ThemeHelper.StyleSecondaryButton(btnClose);
             btnClose.Click += (s, e) => Close();
             Controls.Add(btnClose);
-            
-            maxY += 52; // Button height + bottom padding
 
-            this.ClientSize = new Size(820, maxY);
+            ClientSize = new Size(DialogWidth, btnY + 34 + PaddingOuter);
         }
 
-        private void AddField(string labelName, string? valueText, int x, ref int y, ref bool isAlt)
+        // ── Section Header with left accent bar ──────────────────────────────
+        private void AddSectionHeader(Panel card, string title, int x, ref int y)
         {
+            var pnl = new Panel
+            {
+                Location  = new Point(x, y),
+                Size      = new Size(ColWidth, 32),
+                BackColor = Color.Transparent,
+            };
+
+            // Left accent bar
+            var accent = new Panel
+            {
+                Location  = new Point(0, 4),
+                Size      = new Size(3, 22),
+                BackColor = SectionTitle,
+            };
+            pnl.Controls.Add(accent);
+
+            var lbl = new Label
+            {
+                Text      = title,
+                Location  = new Point(10, 6),
+                AutoSize  = true,
+                Font      = new Font("Segoe UI", 10f, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = SectionTitle,
+            };
+            pnl.Controls.Add(lbl);
+
+            // Bottom separator line
+            pnl.Paint += (s, e) =>
+            {
+                using var pen = new Pen(Color.FromArgb(180, 215, 180), 1);
+                e.Graphics.DrawLine(pen, 0, 31, ColWidth, 31);
+            };
+
+            card.Controls.Add(pnl);
+            y += 38;
+        }
+
+        // ── Standard Field Row ────────────────────────────────────────────────
+        private void AddField(Panel card, string labelName, string? valueText, int x, ref int y, ref bool isAlt)
+        {
+            string val = string.IsNullOrWhiteSpace(valueText) ? "—" : valueText;
+
             var lblName = new Label
             {
-                Text = labelName + ":",
-                Location = new Point(5, 8),
-                AutoSize = true,
-                MaximumSize = new Size(150, 0),
-                Font = ThemeHelper.FontBold,
-                ForeColor = ThemeHelper.TextPrimary
+                Text      = labelName + ":",
+                Location  = new Point(10, 0),
+                Size      = new Size(LabelW, RowH),
+                Font      = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary,
+                TextAlign = ContentAlignment.MiddleLeft,
             };
 
             var lblValue = new Label
             {
-                Text = string.IsNullOrWhiteSpace(valueText) ? "—" : valueText,
-                Location = new Point(165, 8),
-                AutoSize = true,
-                MaximumSize = new Size(210, 0),
-                Font = ThemeHelper.FontDefault,
-                ForeColor = ThemeHelper.TextPrimary
+                Text         = val,
+                Location     = new Point(ValueX, 0),
+                Size         = new Size(ValueW, RowH),
+                Font         = ThemeHelper.FontDefault,
+                ForeColor    = ThemeHelper.TextPrimary,
+                TextAlign    = ContentAlignment.MiddleLeft,
+                AutoEllipsis = true,
             };
 
-            int nameH = lblName.GetPreferredSize(new Size(150, 0)).Height;
-            int valH = lblValue.GetPreferredSize(new Size(210, 0)).Height;
-            int pnlHeight = Math.Max(32, Math.Max(nameH, valH) + 16);
+            // Handle long text — grow row
+            int preferredH = lblValue.GetPreferredSize(new Size(ValueW, 0)).Height;
+            int actualH    = Math.Max(RowH, preferredH + 14);
+            lblName.Height  = actualH;
+            lblValue.Height = actualH;
 
             var pnl = new Panel
             {
-                Location = new Point(x, y),
-                Size = new Size(380, pnlHeight),
-                BackColor = isAlt ? Color.FromArgb(248, 250, 248) : Color.White
+                Location  = new Point(x, y),
+                Size      = new Size(ColWidth, actualH),
+                BackColor = isAlt ? RowOdd : RowEven,
+            };
+
+            // Bottom separator
+            pnl.Paint += (s, e) =>
+            {
+                using var pen = new Pen(SeparatorColor, 1);
+                e.Graphics.DrawLine(pen, 10, pnl.Height - 1, pnl.Width - 10, pnl.Height - 1);
             };
 
             pnl.Controls.Add(lblName);
             pnl.Controls.Add(lblValue);
-            Controls.Add(pnl);
+            card.Controls.Add(pnl);
 
-            y += pnlHeight;
-            isAlt = !isAlt;
+            y     += actualH;
+            isAlt  = !isAlt;
         }
 
-        private void AddStatusField(string labelName, string status, int x, ref int y, ref bool isAlt)
+        // ── Status Badge Row ──────────────────────────────────────────────────
+        private void AddStatusField(Panel card, string labelName, string status, int x, ref int y, ref bool isAlt)
         {
             var lblName = new Label
             {
-                Text = labelName + ":",
-                Location = new Point(5, 8),
-                AutoSize = true,
-                MaximumSize = new Size(150, 0),
-                Font = ThemeHelper.FontBold,
-                ForeColor = ThemeHelper.TextPrimary
+                Text      = labelName + ":",
+                Location  = new Point(10, 0),
+                Size      = new Size(LabelW, RowH),
+                Font      = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary,
+                TextAlign = ContentAlignment.MiddleLeft,
             };
 
-            var lblValue = new Label
-            {
-                Text = status,
-                Location = new Point(165, 6),
-                AutoSize = true,
-                Font = ThemeHelper.FontBold,
-                ForeColor = Color.White,
-                Padding = new Padding(2, 2, 2, 2)
-            };
-
+            // Resolve badge colours
+            Color badgeBg;
+            string displayText;
             switch (status)
             {
                 case "in_store":
-                    lblValue.BackColor = ThemeHelper.Success;
+                    badgeBg      = Color.FromArgb(34, 139, 34);
+                    displayText  = "In Store";
                     break;
                 case "allocated":
-                    lblValue.BackColor = ThemeHelper.Warning;
+                    badgeBg      = Color.FromArgb(217, 119, 6);
+                    displayText  = "Allocated";
                     break;
                 case "under_repair":
-                    lblValue.BackColor = Color.FromArgb(255, 112, 67);
+                    badgeBg      = Color.FromArgb(220, 85, 40);
+                    displayText  = "Under Repair";
                     break;
                 case "decommissioned":
-                    lblValue.BackColor = ThemeHelper.Danger;
+                    badgeBg      = Color.FromArgb(185, 28, 28);
+                    displayText  = "Decommissioned";
                     break;
                 default:
-                    lblValue.BackColor = ThemeHelper.GridAltRow;
+                    badgeBg      = ThemeHelper.TextSecondary;
+                    displayText  = status ?? "—";
                     break;
             }
 
-            int nameH = lblName.GetPreferredSize(new Size(150, 0)).Height;
-            int valH = lblValue.GetPreferredSize(new Size(0, 0)).Height;
-            int pnlHeight = Math.Max(32, Math.Max(nameH, valH) + 16);
+            // Pill badge as a custom-painted label
+            var badge = new Label
+            {
+                Text      = $"  {displayText}  ",
+                AutoSize  = true,
+                Font      = new Font("Segoe UI", 8.5f, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = Color.White,
+                BackColor = badgeBg,
+                Padding   = new Padding(6, 3, 6, 3),
+            };
+
+            // Position vertically centred in the row
+            badge.Location = new Point(ValueX, (RowH - badge.GetPreferredSize(Size.Empty).Height) / 2);
 
             var pnl = new Panel
             {
-                Location = new Point(x, y),
-                Size = new Size(380, pnlHeight),
-                BackColor = isAlt ? Color.FromArgb(248, 250, 248) : Color.White
+                Location  = new Point(x, y),
+                Size      = new Size(ColWidth, RowH),
+                BackColor = isAlt ? RowOdd : RowEven,
             };
 
-            pnl.Controls.Add(lblName);
-            pnl.Controls.Add(lblValue);
-            Controls.Add(pnl);
+            pnl.Paint += (s, e) =>
+            {
+                using var pen = new Pen(SeparatorColor, 1);
+                e.Graphics.DrawLine(pen, 10, pnl.Height - 1, pnl.Width - 10, pnl.Height - 1);
+            };
 
-            y += pnlHeight;
-            isAlt = !isAlt;
+            // Round the badge corners
+            badge.Paint += (s, e) =>
+            {
+                var lbl  = (Label)s!;
+                var rect = new Rectangle(0, 0, lbl.Width - 1, lbl.Height - 1);
+                using var path = RoundedRect(rect, 10);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using var brush = new SolidBrush(badgeBg);
+                e.Graphics.FillPath(brush, path);
+                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                using var textBrush = new SolidBrush(Color.White);
+                e.Graphics.DrawString(displayText, badge.Font, textBrush, rect, sf);
+            };
+            badge.BackColor = Color.Transparent; // let Paint handle it
+
+            pnl.Controls.Add(lblName);
+            pnl.Controls.Add(badge);
+            card.Controls.Add(pnl);
+
+            y     += RowH;
+            isAlt  = !isAlt;
+        }
+
+        // ── Card Border + Shadow ──────────────────────────────────────────────
+        private void DrawCardBorder(object? sender, PaintEventArgs e)
+        {
+            if (sender is not Panel pnl) return;
+            var g    = e.Graphics;
+            var rect = new Rectangle(0, 0, pnl.Width - 1, pnl.Height - 1);
+
+            // Soft drop shadow (simulate via layered slightly-offset darker rects)
+            using var shadowBrush = new SolidBrush(Color.FromArgb(18, 0, 0, 0));
+            g.FillRectangle(shadowBrush, new Rectangle(2, 2, pnl.Width - 1, pnl.Height - 1));
+
+            using var bgBrush = new SolidBrush(CardBg);
+            g.FillRectangle(bgBrush, rect);
+
+            using var pen = new Pen(CardBorderColor, 1);
+            g.DrawRectangle(pen, rect);
+        }
+
+        // ── Rounded Rectangle Helper ─────────────────────────────────────────
+        private static GraphicsPath RoundedRect(Rectangle bounds, int radius)
+        {
+            int d    = radius * 2;
+            var path = new GraphicsPath();
+            path.AddArc(bounds.X, bounds.Y, d, d, 180, 90);
+            path.AddArc(bounds.Right - d, bounds.Y, d, d, 270, 90);
+            path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90);
+            path.AddArc(bounds.X, bounds.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
     }
 }
