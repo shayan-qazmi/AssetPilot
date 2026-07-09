@@ -108,7 +108,6 @@ namespace Inventory_Management_System.Forms
             AddStatusField(card, "Status",     _equipment.CurrentStatus,                              ColLeft, ref yLeft, ref altLeft);
             AddField(card, "Condition",        _equipment.ConditionGrade,                             ColLeft, ref yLeft, ref altLeft);
             AddField(card, "Purchase Date",    _equipment.PurchaseDate?.ToString("yyyy-MM-dd"),       ColLeft, ref yLeft, ref altLeft);
-            AddField(card, "Price",            _equipment.Price?.ToString("C"),                       ColLeft, ref yLeft, ref altLeft);
             AddField(card, "Procurement Type", _equipment.ProcurementType?.TypeName,                  ColLeft, ref yLeft, ref altLeft);
             AddField(card, "Vendor Name",      _equipment.VendorName,                                 ColLeft, ref yLeft, ref altLeft);
             AddField(card, "Warranty Expiry",  _equipment.WarrantyExpiry?.ToString("yyyy-MM-dd") ?? "—", ColLeft, ref yLeft, ref altLeft);

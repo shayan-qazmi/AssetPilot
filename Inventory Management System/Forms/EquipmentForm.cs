@@ -215,16 +215,23 @@ namespace Inventory_Management_System.Forms
             try
             {
                 using var db = new InventoryDbContext();
-                var categories = db.Equipment
+                var dbCategories = db.Equipment
                     .Where(e => e.Category != null && e.Category != "")
                     .Select(e => e.Category!)
                     .Distinct()
-                    .OrderBy(c => c)
+                    .ToList();
+
+                // Union: every category from Settings → Categories, PLUS any legacy
+                // category text already on equipment records (even if it's not in
+                // the JSON list), so nothing that's actually in use ever disappears.
+                var allCategories = CategoryStore.GetAll()
+                    .Union(dbCategories, StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
                     .ToList();
 
                 cmbCategory.Items.Clear();
                 cmbCategory.Items.Add("All Categories");
-                foreach (var cat in categories)
+                foreach (var cat in allCategories)
                     cmbCategory.Items.Add(cat);
 
                 cmbCategory.SelectedIndex = 0;
@@ -369,6 +376,8 @@ namespace Inventory_Management_System.Forms
             using var form = new AddEditEquipmentForm();
             if (form.ShowDialog() == DialogResult.OK)
                 LoadEquipment();
+                LoadCategoryFilter();
+                
         }
 
         private void btnEdit_Click(object sender, EventArgs e)
@@ -383,6 +392,7 @@ namespace Inventory_Management_System.Forms
             using var form = new AddEditEquipmentForm(eq);
             if (form.ShowDialog() == DialogResult.OK)
                 LoadEquipment();
+                LoadCategoryFilter();
         }
 
         private void btnDelete_Click(object sender, EventArgs e)
@@ -540,6 +550,11 @@ namespace Inventory_Management_System.Forms
             pd.DefaultPageSettings.PaperSize = new PaperSize("A4", pageW, pageH);
             pd.DefaultPageSettings.Margins   = new Margins(marginL, marginL, marginT, marginT);
 
+            pd.BeginPrint += (ps, pe) =>
+            {
+                currentIndex = 0;
+            };
+
             pd.PrintPage += (ps, pe) =>
             {
                 var g = pe.Graphics!;
@@ -600,12 +615,6 @@ namespace Inventory_Management_System.Forms
                 pe.HasMorePages = false;
             };
 
-            pd.EndPrint += (ps, pe) =>
-            {
-                foreach (var (_, bmp) in qrItems)
-                    bmp.Dispose();
-            };
-
             using var ppd = new PrintPreviewDialog
             {
                 Document      = pd,
@@ -615,6 +624,9 @@ namespace Inventory_Management_System.Forms
                 Text          = $"QR Sheet Preview — {qrItems.Count} items"
             };
             ppd.ShowDialog();
+
+            foreach (var (_, bmp) in qrItems)
+                bmp.Dispose();
         }
 
         private void btnShowQR_Click(object sender, EventArgs e)
@@ -647,6 +659,15 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
+            // Fetch company name once, used for the details block below the QR.
+            string companyName = "Q-Inventory";
+            try
+            {
+                using var db0 = new InventoryDbContext();
+                companyName = db0.AppSettings.FirstOrDefault()?.CompanyName ?? "Q-Inventory";
+            }
+            catch { }
+
             var frm = new Form
             {
                 Text            = $"QR Code — {eq.EquipmentCode}",
@@ -658,13 +679,13 @@ namespace Inventory_Management_System.Forms
                 BackColor       = Color.White
             };
 
+            // ── QR image (slightly smaller to leave room for details below) ────
             var pic = new PictureBox
             {
                 Image     = qrBitmap,
                 SizeMode  = PictureBoxSizeMode.Zoom,
-                Dock      = DockStyle.None,
-                Size      = new Size(300, 300),
-                Location  = new Point(38, 20),
+                Size      = new Size(240, 240),
+                Location  = new Point((380 - 240) / 2, 18),
                 BackColor = Color.White
             };
 
@@ -674,10 +695,27 @@ namespace Inventory_Management_System.Forms
                 Font      = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextPrimary,
                 AutoSize  = false,
-                Width     = 340,
-                Height    = 24,
-                Location  = new Point(18, 330),
+                Width     = 344,
+                Height    = 22,
+                Location  = new Point(18, 264),
                 TextAlign = ContentAlignment.MiddleCenter
+            };
+
+            // ── Additional equipment details (moved here from the print popup) ─
+            using var smallFont = new Font("Segoe UI", 8f, FontStyle.Regular);
+            var lblDetails = new Label
+            {
+                Text      = $"Company: {companyName}\n" +
+                            $"Status: {eq.CurrentStatus}\n" +
+                            $"Category: {(string.IsNullOrWhiteSpace(eq.Category) ? "—" : eq.Category)}\n" +
+                            $"Purchase Date: {eq.PurchaseDate?.ToString("yyyy-MM-dd") ?? "—"}",
+                Font      = smallFont,
+                ForeColor = Color.DimGray,
+                AutoSize  = false,
+                Width     = 344,
+                Height    = 66,
+                Location  = new Point(18, 288),
+                TextAlign = ContentAlignment.TopCenter
             };
 
             var btnPrint = new Button
@@ -698,7 +736,6 @@ namespace Inventory_Management_System.Forms
                 {
                     using var db       = new InventoryDbContext();
                     var setting        = db.AppSettings.FirstOrDefault();
-                    string companyName = setting?.CompanyName ?? "Q-Inventory";
                     string printerName = setting?.PrinterName ?? "";
                     int lw = setting?.LabelWidthMm  ?? 62;
                     int lh = setting?.LabelHeightMm ?? 29;
@@ -713,32 +750,19 @@ namespace Inventory_Management_System.Forms
                         new PaperSize("Label", wHundredths, hHundredths);
                     pd.DefaultPageSettings.Margins = new Margins(10, 10, 10, 10);
 
+                    // Print ONLY the QR code — no text, no equipment details.
                     pd.PrintPage += (ps, pe) =>
                     {
                         var g      = pe.Graphics!;
                         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                         var bounds = pe.PageBounds;
-                        int qrSz   = Math.Min(bounds.Height - 20, 80);
+                        int qrSz   = Math.Min(bounds.Width - 10, bounds.Height - 10);
 
                         g.DrawImage(qrBitmap,
-                            new Rectangle(bounds.X + 5,
+                            new Rectangle(
+                                bounds.X + (bounds.Width  - qrSz) / 2,
                                 bounds.Y + (bounds.Height - qrSz) / 2,
                                 qrSz, qrSz));
-
-                        int textX = bounds.X + qrSz + 12;
-                        int textW = bounds.Width - qrSz - 20;
-
-                        using var boldFont  = new Font("Segoe UI", 8f, FontStyle.Bold);
-                        using var smallFont = new Font("Segoe UI", 6.5f);
-
-                        g.DrawString(companyName,      boldFont,  Brushes.Black,
-                            new RectangleF(textX, bounds.Y + 6,  textW, 18));
-                        g.DrawString(eq.EquipmentCode, boldFont,  Brushes.Black,
-                            new RectangleF(textX, bounds.Y + 22, textW, 18));
-                        g.DrawString($"Status: {eq.CurrentStatus}", smallFont, Brushes.DimGray,
-                            new RectangleF(textX, bounds.Y + 38, textW, 16));
-                        g.DrawString(DateTime.Now.ToString("yyyy-MM-dd"), smallFont, Brushes.DimGray,
-                            new RectangleF(textX, bounds.Y + 52, textW, 16));
 
                         pe.HasMorePages = false;
                     };
@@ -749,7 +773,7 @@ namespace Inventory_Management_System.Forms
                         Width         = 600,
                         Height        = 400,
                         StartPosition = FormStartPosition.CenterParent,
-                        Text          = "Barcode Label Preview"
+                        Text          = "QR Code Print Preview"
                     };
                     ppd.ShowDialog();
                 }
@@ -773,6 +797,7 @@ namespace Inventory_Management_System.Forms
 
             frm.Controls.Add(pic);
             frm.Controls.Add(lblCode);
+            frm.Controls.Add(lblDetails);
             frm.Controls.Add(btnPrint);
             frm.Controls.Add(btnClose);
             frm.FormClosed += (s, ev) => qrBitmap?.Dispose();

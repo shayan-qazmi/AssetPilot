@@ -127,6 +127,42 @@ namespace Inventory_Management_System.Forms
 
         private void btnRefresh_Click(object sender, EventArgs e) => LoadEmployees();
 
-        private void btnExport_Click(object sender, EventArgs e) { }
+        private void btnExport_Click(object sender, EventArgs e)
+{
+    try
+    {
+        using var sfd = new SaveFileDialog
+        {
+            Filter   = "CSV Files|*.csv",
+            Title    = "Export Employees",
+            FileName = $"Employees_{DateTime.Now:yyyyMMdd_HHmm}.csv"
+        };
+
+        if (sfd.ShowDialog() != DialogResult.OK) return;
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Employee Code,Full Name,Department,Email,Phone,Status");
+
+        foreach (DataGridViewRow row in dgvEmployees.Rows)
+    {
+        sb.AppendLine(string.Join(",",
+            $"\"{row.Cells["ID"]?.Value}\"",
+            $"\"{row.Cells["Name"]?.Value}\"",
+            $"\"{row.Cells["Department"]?.Value}\"",
+            $"\"{row.Cells["Email"]?.Value}\"",
+            $"\"{row.Cells["Phone"]?.Value}\"",
+            $"\"{row.Cells["Status"]?.Value}\""));
+    }
+
+        System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
+        MessageBox.Show("Employees exported successfully.", "Export",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show($"Export failed: {ex.Message}", "Export Error",
+            MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+}
     }
 }

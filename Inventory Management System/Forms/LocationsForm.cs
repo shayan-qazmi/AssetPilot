@@ -102,6 +102,41 @@ namespace Inventory_Management_System.Forms
         }
 
         private void btnRefresh_Click(object sender, EventArgs e) => LoadLocations();
-        private void btnExport_Click(object sender, EventArgs e) { }
+       private void btnExport_Click(object sender, EventArgs e)
+{
+    try
+    {
+        using var sfd = new SaveFileDialog
+        {
+            Filter   = "CSV Files|*.csv",
+            Title    = "Export Locations",
+            FileName = $"Locations_{DateTime.Now:yyyyMMdd_HHmm}.csv"
+        };
+
+        if (sfd.ShowDialog() != DialogResult.OK) return;
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Location ID,Location Name,Building,Room Number,Allocated Person");
+
+        foreach (DataGridViewRow row in dgvLocations.Rows)
+        {
+            sb.AppendLine(string.Join(",",
+                $"\"{row.Cells["ID"]?.Value}\"",
+                $"\"{row.Cells["Name"]?.Value}\"",
+                $"\"{row.Cells["Building"]?.Value}\"",
+                $"\"{row.Cells["RoomNumber"]?.Value}\"",
+                $"\"{row.Cells["AllocatedPerson"]?.Value}\""));
+        }
+
+        System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
+        MessageBox.Show("Locations exported successfully.", "Export",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show($"Export failed: {ex.Message}", "Export Error",
+            MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+}
     }
 }

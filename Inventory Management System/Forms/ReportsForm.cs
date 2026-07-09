@@ -311,6 +311,11 @@ namespace Inventory_Management_System.Forms
                 var pd = new PrintDocument();
                 int currentRow = 0;
 
+                pd.BeginPrint += (s, ev) =>
+                {
+                    currentRow = 0;
+                };
+
                 pd.PrintPage += (s, ev) =>
                 {
                     var g = ev.Graphics!;
