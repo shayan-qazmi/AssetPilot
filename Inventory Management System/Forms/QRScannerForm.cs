@@ -1,4 +1,5 @@
 // Forms/QRScannerForm.Designer.cs
+#nullable enable
 namespace Inventory_Management_System.Forms
 {
     partial class QRScannerForm
@@ -187,34 +188,34 @@ namespace Inventory_Management_System.Forms
             ResumeLayout(false);
         }
 
-        private System.Windows.Forms.Panel        panelTop;
-        private System.Windows.Forms.Label        lblScanPrompt;
-        private System.Windows.Forms.TextBox      txtQRCode;
-        private System.Windows.Forms.Button       btnSearch;
-        private System.Windows.Forms.Button       btnClear;
-        private System.Windows.Forms.Panel        panelResult;
-        private System.Windows.Forms.Label        lblNoResult;
-        private System.Windows.Forms.Panel        panelCard;
-        private System.Windows.Forms.Label        lblEquipmentCode;
-        private System.Windows.Forms.Label        lblEquipmentCodeValue;
-        private System.Windows.Forms.Label        lblEquipmentName;
-        private System.Windows.Forms.Label        lblEquipmentNameValue;
-        private System.Windows.Forms.Label        lblMake;
-        private System.Windows.Forms.Label        lblMakeValue;
-        private System.Windows.Forms.Label        lblModel;
-        private System.Windows.Forms.Label        lblModelValue;
-        private System.Windows.Forms.Label        lblSerial;
-        private System.Windows.Forms.Label        lblSerialValue;
-        private System.Windows.Forms.Label        lblStatus;
-        private System.Windows.Forms.Label        lblStatusValue;
-        private System.Windows.Forms.Label        lblLocation;
-        private System.Windows.Forms.Label        lblLocationValue;
-        private System.Windows.Forms.Label        lblEmployee;
-        private System.Windows.Forms.Label        lblEmployeeValue;
-        private System.Windows.Forms.Label        lblPurchaseDate;
-        private System.Windows.Forms.Label        lblPurchaseDateValue;
-        private System.Windows.Forms.Panel        panelHistory;
-        private System.Windows.Forms.Label        lblHistoryTitle;
-        private System.Windows.Forms.DataGridView dgvHistory;
+        private System.Windows.Forms.Panel        panelTop = null!;
+        private System.Windows.Forms.Label        lblScanPrompt = null!;
+        private System.Windows.Forms.TextBox      txtQRCode = null!;
+        private System.Windows.Forms.Button       btnSearch = null!;
+        private System.Windows.Forms.Button       btnClear = null!;
+        private System.Windows.Forms.Panel        panelResult = null!;
+        private System.Windows.Forms.Label        lblNoResult = null!;
+        private System.Windows.Forms.Panel        panelCard = null!;
+        private System.Windows.Forms.Label        lblEquipmentCode = null!;
+        private System.Windows.Forms.Label        lblEquipmentCodeValue = null!;
+        private System.Windows.Forms.Label        lblEquipmentName = null!;
+        private System.Windows.Forms.Label        lblEquipmentNameValue = null!;
+        private System.Windows.Forms.Label        lblMake = null!;
+        private System.Windows.Forms.Label        lblMakeValue = null!;
+        private System.Windows.Forms.Label        lblModel = null!;
+        private System.Windows.Forms.Label        lblModelValue = null!;
+        private System.Windows.Forms.Label        lblSerial = null!;
+        private System.Windows.Forms.Label        lblSerialValue = null!;
+        private System.Windows.Forms.Label        lblStatus = null!;
+        private System.Windows.Forms.Label        lblStatusValue = null!;
+        private System.Windows.Forms.Label        lblLocation = null!;
+        private System.Windows.Forms.Label        lblLocationValue = null!;
+        private System.Windows.Forms.Label        lblEmployee = null!;
+        private System.Windows.Forms.Label        lblEmployeeValue = null!;
+        private System.Windows.Forms.Label        lblPurchaseDate = null!;
+        private System.Windows.Forms.Label        lblPurchaseDateValue = null!;
+        private System.Windows.Forms.Panel        panelHistory = null!;
+        private System.Windows.Forms.Label        lblHistoryTitle = null!;
+        private System.Windows.Forms.DataGridView dgvHistory = null!;
     }
 }

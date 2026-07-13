@@ -16,11 +16,15 @@ namespace Inventory_Management_System.Forms
     {
         private Equipment _equipment;
         private EquipmentService _equipmentService;
+        private MaintenanceService _maintenanceService;
         private bool _isEditMode;
 
-        // ── Form controls (unchanged) ──────────────────────────────────────
-        private TextBox       txtEquipmentCode  = null!;
-        private TextBox       txtQrCode         = null!;
+        // Tracks the status the equipment had when this form opened, so we can
+        // detect transitions into/out of "under_repair" via cmbStatus.
+        private string? _originalStatus;
+        private bool _suppressStatusEvent = false;
+
+        // ── Form controls ───────────────────────────────────────────────
         private TextBox       txtName           = null!;
         private TextBox       txtMake           = null!;
         private TextBox       txtModel          = null!;
@@ -35,11 +39,9 @@ namespace Inventory_Management_System.Forms
         private DateTimePicker dtpWarrantyExpiry = null!;
         private TextBox       txtNotes          = null!;
         private Label?        lblLocationValue  = null;
-        private ComboBox      cmbProcurementType = null!;
+        private TextBox       txtProcurementType = null!;
         private Button        btnSave           = null!;
         private Button        btnCancel         = null!;
-
-        private List<ProcurementType> _procurementTypes = new();
 
         // ── Layout constants (matching EquipmentDetailPopup) ───────────────
         private const int DialogW     = 860;
@@ -66,13 +68,18 @@ namespace Inventory_Management_System.Forms
 
         public AddEditEquipmentForm(Equipment? equipment = null)
         {
-            _equipment        = equipment ?? new Equipment { CurrentStatus = "in_store" };
-            _isEditMode       = equipment != null;
-            _equipmentService = new EquipmentService();
+            _equipment          = equipment ?? new Equipment { CurrentStatus = "in_store" };
+            _isEditMode         = equipment != null;
+            _equipmentService   = new EquipmentService();
+            _maintenanceService = new MaintenanceService();
 
             InitializeUI();
-            LoadDropdownData();
             LoadData();
+
+            // Capture the starting status AFTER LoadData has set cmbStatus,
+            // and only in edit mode — Add mode never triggers the maintenance
+            // modal logic since there's no "transition" happening yet.
+            _originalStatus = _isEditMode ? _equipment.CurrentStatus : null;
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -121,12 +128,6 @@ namespace Inventory_Management_System.Forms
             AddSectionHeader(card, "Equipment Identification", ColLeft, ref yL);
             bool altL = false;
 
-            txtEquipmentCode = AddFieldRow(card, "Equipment Code *", ColLeft, ref yL, ref altL);
-            if (_isEditMode) txtEquipmentCode.Enabled = false;
-
-            txtQrCode = AddFieldRow(card, "QR Code *", ColLeft, ref yL, ref altL);
-            if (_isEditMode) txtQrCode.Enabled = false;
-
             txtName         = AddFieldRow(card, "Name *",          ColLeft, ref yL, ref altL);
             txtMake         = AddFieldRow(card, "Make",            ColLeft, ref yL, ref altL);
             txtModel        = AddFieldRow(card, "Model",           ColLeft, ref yL, ref altL);
@@ -134,16 +135,20 @@ namespace Inventory_Management_System.Forms
 
             cmbStatus = AddComboRow(card, "Current Status", ColLeft, ref yL, ref altL,
                 new[] { "in_store", "allocated", "decommissioned", "under_repair" });
+            cmbStatus.SelectedIndexChanged += CmbStatus_SelectedIndexChanged;
 
             dtpPurchaseDate = AddDateRow(card, "Purchase Date", ColLeft, ref yL, ref altL);
 
             cmbCategory = AddComboRow(card, "Category", ColLeft, ref yL, ref altL,
-                new[] { "", "IT Equipment", "Furniture", "Vehicle", "Accessory", "Other" });
+                BuildCategoryItems());
 
-            // Location info (edit mode) or hint note (add mode)
+         // Location info (edit mode) or hint note (add mode)
             if (_isEditMode)
             {
                 lblLocationValue = AddReadonlyLabelRow(card, "Current Location", ColLeft, ref yL, ref altL);
+                AddHintRow(card,
+                    "💡 Location can only be changed from the Allocation screen.",
+                    ColLeft, ref yL, ref altL);
             }
             else
             {
@@ -164,7 +169,7 @@ namespace Inventory_Management_System.Forms
 
             AddWarrantyRow(card, ColRight, ref yR, ref altR);
 
-            cmbProcurementType = AddProcurementRow(card, ColRight, ref yR, ref altR);
+            txtProcurementType = AddFieldRow(card, "Procurement Type", ColRight, ref yR, ref altR);
 
             txtNotes = AddMultilineRow(card, "Notes", ColRight, ref yR, ref altR);
 
@@ -210,6 +215,263 @@ namespace Inventory_Management_System.Forms
             ClientSize   = new Size(DialogW, btnY + 34 + OuterPad);
             AcceptButton = btnSave;
             CancelButton = btnCancel;
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        //  MAINTENANCE STATUS-TRANSITION HANDLING
+        // ══════════════════════════════════════════════════════════════════
+        private void CmbStatus_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (_suppressStatusEvent) return;
+            if (!_isEditMode || _originalStatus == null) return; // Add mode: no-op
+
+            string? newStatus = cmbStatus.SelectedItem?.ToString();
+            if (newStatus == null) return;
+
+            bool wasUnderRepair = _originalStatus.Equals("under_repair", StringComparison.OrdinalIgnoreCase);
+            bool isNowUnderRepair = newStatus.Equals("under_repair", StringComparison.OrdinalIgnoreCase);
+
+            if (!wasUnderRepair && isNowUnderRepair)
+            {
+                ShowOpenMaintenanceDialog();
+            }
+            else if (wasUnderRepair && !isNowUnderRepair)
+            {
+                ShowResolveMaintenanceDialog();
+            }
+        }
+
+        private void RevertStatusTo(string status)
+        {
+            _suppressStatusEvent = true;
+            cmbStatus.SelectedItem = status;
+            _suppressStatusEvent = false;
+        }
+
+        private void ShowOpenMaintenanceDialog()
+        {
+            using var dlg = new Form
+            {
+                Text            = "Log Maintenance Issue",
+                Size            = new Size(420, 320),
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox     = false,
+                MinimizeBox     = false,
+                StartPosition   = FormStartPosition.CenterParent,
+                BackColor       = CardBg,
+            };
+
+            var lblIssue = new Label
+            {
+                Text = "Issue Description *:", Location = new Point(20, 16), AutoSize = true,
+                Font = ThemeHelper.FontBold, ForeColor = ThemeHelper.TextSecondary
+            };
+            var txtIssue = new TextBox
+            {
+                Location = new Point(20, 38), Size = new Size(360, 70),
+                Multiline = true, ScrollBars = ScrollBars.Vertical
+            };
+            ThemeHelper.StyleTextBox(txtIssue);
+
+            var lblServicedBy = new Label
+            {
+                Text = "Serviced By / Vendor:", Location = new Point(20, 118), AutoSize = true,
+                Font = ThemeHelper.FontBold, ForeColor = ThemeHelper.TextSecondary
+            };
+            var txtServicedBy = new TextBox { Location = new Point(20, 140), Size = new Size(360, 24) };
+            ThemeHelper.StyleTextBox(txtServicedBy);
+
+            var lblCost = new Label
+            {
+                Text = "Estimated Cost:", Location = new Point(20, 174), AutoSize = true,
+                Font = ThemeHelper.FontBold, ForeColor = ThemeHelper.TextSecondary
+            };
+            var txtCost = new TextBox { Location = new Point(20, 196), Size = new Size(360, 24) };
+            ThemeHelper.StyleTextBox(txtCost);
+
+            var lblError = new Label
+            {
+                Location = new Point(20, 226), Size = new Size(360, 20),
+                ForeColor = ThemeHelper.Danger, Font = ThemeHelper.FontSmall
+            };
+
+            var btnOk = new Button { Text = "OK", Location = new Point(200, 252), Size = new Size(85, 32) };
+            ThemeHelper.StyleButton(btnOk);
+            var btnCancelDlg = new Button { Text = "Cancel", Location = new Point(295, 252), Size = new Size(85, 32) };
+            ThemeHelper.StyleSecondaryButton(btnCancelDlg);
+
+            bool confirmed = false;
+
+            btnOk.Click += (s, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(txtIssue.Text))
+                {
+                    lblError.Text = "Issue description is required.";
+                    return;
+                }
+
+                decimal? cost = null;
+                if (!string.IsNullOrWhiteSpace(txtCost.Text))
+                {
+                    if (!decimal.TryParse(txtCost.Text, out var parsedCost))
+                    {
+                        lblError.Text = "Cost must be a valid number.";
+                        return;
+                    }
+                    cost = parsedCost;
+                }
+
+                var result = _maintenanceService.OpenRecord(
+                    _equipment.Id, txtIssue.Text.Trim(),
+                    string.IsNullOrWhiteSpace(txtServicedBy.Text) ? null : txtServicedBy.Text.Trim(),
+                    cost);
+
+                if (!result.Success)
+                {
+                    lblError.Text = result.ErrorMessage;
+                    return;
+                }
+
+                confirmed = true;
+                dlg.DialogResult = DialogResult.OK;
+                dlg.Close();
+            };
+
+            btnCancelDlg.Click += (s, e) => { dlg.DialogResult = DialogResult.Cancel; dlg.Close(); };
+
+            dlg.Controls.Add(lblIssue);
+            dlg.Controls.Add(txtIssue);
+            dlg.Controls.Add(lblServicedBy);
+            dlg.Controls.Add(txtServicedBy);
+            dlg.Controls.Add(lblCost);
+            dlg.Controls.Add(txtCost);
+            dlg.Controls.Add(lblError);
+            dlg.Controls.Add(btnOk);
+            dlg.Controls.Add(btnCancelDlg);
+            dlg.AcceptButton = btnOk;
+            dlg.CancelButton = btnCancelDlg;
+
+            dlg.ShowDialog(this);
+
+            if (confirmed)
+            {
+                _originalStatus = "under_repair";
+            }
+            else
+            {
+                RevertStatusTo(_originalStatus!);
+            }
+        }
+
+        private void ShowResolveMaintenanceDialog()
+        {
+            var openResult = _maintenanceService.GetOpenRecordForEquipment(_equipment.Id);
+            var openRecord = openResult.Success ? openResult.Data : null;
+
+            if (openRecord == null)
+            {
+                // No open record found (e.g. it was already resolved elsewhere) —
+                // allow the status change through without prompting.
+                _originalStatus = cmbStatus.SelectedItem?.ToString();
+                return;
+            }
+
+            using var dlg = new Form
+            {
+                Text            = "Resolve Maintenance Issue",
+                Size            = new Size(380, 240),
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox     = false,
+                MinimizeBox     = false,
+                StartPosition   = FormStartPosition.CenterParent,
+                BackColor       = CardBg,
+            };
+
+            var lblDate = new Label
+            {
+                Text = "Resolution Date:", Location = new Point(20, 16), AutoSize = true,
+                Font = ThemeHelper.FontBold, ForeColor = ThemeHelper.TextSecondary
+            };
+            var dtpResolved = new DateTimePicker
+            {
+                Location = new Point(20, 38), Size = new Size(320, 24),
+                Format = DateTimePickerFormat.Short, Value = DateTime.Today
+            };
+
+            var lblCost = new Label
+            {
+                Text = "Final Cost:", Location = new Point(20, 74), AutoSize = true,
+                Font = ThemeHelper.FontBold, ForeColor = ThemeHelper.TextSecondary
+            };
+            var txtFinalCost = new TextBox
+            {
+                Location = new Point(20, 96), Size = new Size(320, 24),
+                Text = openRecord.Cost.HasValue ? openRecord.Cost.Value.ToString("0.##") : ""
+            };
+            ThemeHelper.StyleTextBox(txtFinalCost);
+
+            var lblError = new Label
+            {
+                Location = new Point(20, 126), Size = new Size(320, 20),
+                ForeColor = ThemeHelper.Danger, Font = ThemeHelper.FontSmall
+            };
+
+            var btnOk = new Button { Text = "OK", Location = new Point(160, 156), Size = new Size(85, 32) };
+            ThemeHelper.StyleButton(btnOk);
+            var btnCancelDlg = new Button { Text = "Cancel", Location = new Point(255, 156), Size = new Size(85, 32) };
+            ThemeHelper.StyleSecondaryButton(btnCancelDlg);
+
+            bool confirmed = false;
+
+            btnOk.Click += (s, e) =>
+            {
+                decimal? finalCost = null;
+                if (!string.IsNullOrWhiteSpace(txtFinalCost.Text))
+                {
+                    if (!decimal.TryParse(txtFinalCost.Text, out var parsedCost))
+                    {
+                        lblError.Text = "Cost must be a valid number.";
+                        return;
+                    }
+                    finalCost = parsedCost;
+                }
+
+                var result = _maintenanceService.ResolveRecord(
+                    openRecord.Id, DateOnly.FromDateTime(dtpResolved.Value), finalCost);
+
+                if (!result.Success)
+                {
+                    lblError.Text = result.ErrorMessage;
+                    return;
+                }
+
+                confirmed = true;
+                dlg.DialogResult = DialogResult.OK;
+                dlg.Close();
+            };
+
+            btnCancelDlg.Click += (s, e) => { dlg.DialogResult = DialogResult.Cancel; dlg.Close(); };
+
+            dlg.Controls.Add(lblDate);
+            dlg.Controls.Add(dtpResolved);
+            dlg.Controls.Add(lblCost);
+            dlg.Controls.Add(txtFinalCost);
+            dlg.Controls.Add(lblError);
+            dlg.Controls.Add(btnOk);
+            dlg.Controls.Add(btnCancelDlg);
+            dlg.AcceptButton = btnOk;
+            dlg.CancelButton = btnCancelDlg;
+
+            dlg.ShowDialog(this);
+
+            if (confirmed)
+            {
+                _originalStatus = cmbStatus.SelectedItem?.ToString();
+            }
+            else
+            {
+                RevertStatusTo("under_repair");
+            }
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -368,22 +630,6 @@ namespace Inventory_Management_System.Forms
                 dtpWarrantyExpiry.Enabled = chkWarrantyExpiry.Checked;
         }
 
-        /// Procurement Type — needs special ComboBox from DB
-        private ComboBox AddProcurementRow(Panel card, int x, ref int y, ref bool isAlt)
-        {
-            var pnl = MakeRowPanel(card, "Procurement Type", x, RowH, ref y, ref isAlt);
-
-            var cmb = new ComboBox
-            {
-                Location      = new Point(FieldX, 6),
-                Width         = InputW,
-                DropDownStyle = ComboBoxStyle.DropDownList,
-            };
-            ThemeHelper.StyleComboBox(cmb);
-            pnl.Controls.Add(cmb);
-            return cmb;
-        }
-
         /// Core panel factory — creates a styled row with label and bottom separator
         private Panel MakeRowPanel(Panel card, string labelText, int x, int h,
             ref int y, ref bool isAlt, bool hideLabel = false)
@@ -421,20 +667,13 @@ namespace Inventory_Management_System.Forms
         }
 
         // ══════════════════════════════════════════════════════════════════
-        //  DATA  (completely unchanged)
+        //  DATA
         // ══════════════════════════════════════════════════════════════════
-        private void LoadDropdownData()
+        private static string[] BuildCategoryItems()
         {
-            try
-            {
-                using var db = new InventoryDbContext();
-                _procurementTypes = db.ProcurementTypes.OrderBy(p => p.TypeName).ToList();
-                cmbProcurementType.Items.Add("— None —");
-                foreach (var pt in _procurementTypes)
-                    cmbProcurementType.Items.Add(pt.TypeName);
-                cmbProcurementType.SelectedIndex = 0;
-            }
-            catch { }
+            var items = new List<string> { "" };
+            items.AddRange(CategoryStore.GetAll());
+            return items.ToArray();
         }
 
         private void LoadData()
@@ -458,13 +697,17 @@ namespace Inventory_Management_System.Forms
             }
             catch { }
 
-            txtEquipmentCode.Text   = _equipment.EquipmentCode;
-            txtQrCode.Text          = _equipment.QrCode;
             txtName.Text            = _equipment.Name;
             txtMake.Text            = _equipment.Make;
             txtModel.Text           = _equipment.Model;
             txtSerialNumber.Text    = _equipment.SerialNumber;
+
+            // Suppress the transition-detection event while we programmatically
+            // set the initial status from loaded data — this is not a user-driven
+            // status change and must never trigger the maintenance modal.
+            _suppressStatusEvent = true;
             cmbStatus.SelectedItem  = _equipment.CurrentStatus;
+            _suppressStatusEvent = false;
 
             if (_equipment.PurchaseDate.HasValue)
                 dtpPurchaseDate.Value =
@@ -484,16 +727,8 @@ namespace Inventory_Management_System.Forms
                     _equipment.WarrantyExpiry.Value.ToDateTime(TimeOnly.MinValue);
             }
 
-            if (_equipment.ProcurementTypeId.HasValue)
-            {
-                var pt = _procurementTypes
-                    .FirstOrDefault(p => p.Id == _equipment.ProcurementTypeId.Value);
-                if (pt != null)
-                {
-                    int idx = cmbProcurementType.Items.IndexOf(pt.TypeName);
-                    if (idx >= 0) cmbProcurementType.SelectedIndex = idx;
-                }
-            }
+            txtProcurementType.Text =
+                _equipmentService.GetProcurementTypeName(_equipment.ProcurementTypeId) ?? "";
 
             if (_isEditMode && lblLocationValue != null)
             {
@@ -514,21 +749,20 @@ namespace Inventory_Management_System.Forms
         }
 
         // ══════════════════════════════════════════════════════════════════
-        //  SAVE  (completely unchanged)
+        //  SAVE
         // ══════════════════════════════════════════════════════════════════
         private void BtnSave_Click(object? sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(txtName.Text) ||
-                string.IsNullOrWhiteSpace(txtEquipmentCode.Text) ||
-                string.IsNullOrWhiteSpace(txtQrCode.Text))
+            if (string.IsNullOrWhiteSpace(txtName.Text))
             {
-                MessageBox.Show("Equipment Code, QR Code, and Name are required.",
+                MessageBox.Show("Name is required.",
                     "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            _equipment.EquipmentCode  = txtEquipmentCode.Text.Trim();
-            _equipment.QrCode         = txtQrCode.Text.Trim();
+            // Equipment Code and QR Code are no longer entered manually —
+            // EquipmentService auto-generates them on Add when left blank,
+            // and they are simply left untouched on Update.
             _equipment.Name           = txtName.Text.Trim();
             _equipment.Make           = txtMake.Text.Trim();
             _equipment.Model          = txtModel.Text.Trim();
@@ -549,16 +783,8 @@ namespace Inventory_Management_System.Forms
             _equipment.Notes =
                 string.IsNullOrWhiteSpace(txtNotes.Text) ? null : txtNotes.Text.Trim();
 
-            var selectedPt = cmbProcurementType.SelectedItem?.ToString();
-            if (selectedPt != null && selectedPt != "— None —")
-            {
-                var pt = _procurementTypes.FirstOrDefault(p => p.TypeName == selectedPt);
-                _equipment.ProcurementTypeId = pt?.Id;
-            }
-            else
-            {
-                _equipment.ProcurementTypeId = null;
-            }
+            // Resolve-or-create ProcurementType by typed name (preserves the FK)
+            _equipment.ProcurementTypeId = _equipmentService.ResolveProcurementTypeId(txtProcurementType.Text);
 
             if (!_isEditMode)
                 _equipment.CreatedByUserId = 1;

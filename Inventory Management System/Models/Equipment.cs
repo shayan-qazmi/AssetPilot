@@ -53,4 +53,6 @@ public partial class Equipment
     public virtual ProcurementType? ProcurementType { get; set; }
 
     public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+
+    public virtual ICollection<MaintenanceRecord> MaintenanceRecords { get; set; } = new List<MaintenanceRecord>();
 }

@@ -1,4 +1,6 @@
+// Forms/EquipmentDetailPopup.cs
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
@@ -6,6 +8,7 @@ using System.Windows.Forms;
 using Microsoft.EntityFrameworkCore;
 using Inventory_Management_System.Models;
 using Inventory_Management_System.Helpers;
+using Inventory_Management_System.Services;
 
 namespace Inventory_Management_System.Forms
 {
@@ -125,6 +128,40 @@ namespace Inventory_Management_System.Forms
             AddField(card, "Allocation Date",      activeAlloc?.AllocationDate.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
             AddField(card, "Expected Return",      activeAlloc?.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
 
+            // ── Right Column: Maintenance History ────────────────────────────
+            AddSectionHeader(card, "Maintenance History", ColRight, ref yRight);
+
+            List<MaintenanceRecord> records = new();
+            try
+            {
+                var svc    = new MaintenanceService();
+                var result = svc.GetByEquipmentId(_equipment.Id);
+                if (result.Success && result.Data != null)
+                    records = result.Data;
+            }
+            catch { }
+
+            if (records.Count == 0)
+            {
+                AddField(card, "History", "No maintenance history recorded.", ColRight, ref yRight, ref altRight);
+            }
+            else
+            {
+                for (int i = 0; i < records.Count; i++)
+                {
+                    var rec = records[i];
+
+                    // Small record label so multiple entries are visually separable,
+                    // using the exact same row/label styling as every other field.
+                    AddField(card, $"Record #{i + 1}", rec.ReportedDate.ToString("yyyy-MM-dd"), ColRight, ref yRight, ref altRight);
+                    AddMaintenanceStatusField(card, "Status", rec.Status, ColRight, ref yRight, ref altRight);
+                    AddField(card, "Issue",        rec.IssueDescription,                              ColRight, ref yRight, ref altRight);
+                    AddField(card, "Serviced By",  rec.ServicedBy,                                     ColRight, ref yRight, ref altRight);
+                    AddField(card, "Cost",         rec.Cost.HasValue ? rec.Cost.Value.ToString("C2") : null, ColRight, ref yRight, ref altRight);
+                    AddField(card, "Resolved",     rec.ResolvedDate?.ToString("yyyy-MM-dd"),           ColRight, ref yRight, ref altRight);
+                }
+            }
+
             // ── Divider between columns ──────────────────────────────────────
             int dividerX = ColRight - 10;
             card.Paint += (s, e) =>
@@ -164,7 +201,6 @@ namespace Inventory_Management_System.Forms
                 BackColor = Color.Transparent,
             };
 
-            // Left accent bar
             var accent = new Panel
             {
                 Location  = new Point(0, 4),
@@ -183,7 +219,6 @@ namespace Inventory_Management_System.Forms
             };
             pnl.Controls.Add(lbl);
 
-            // Bottom separator line
             pnl.Paint += (s, e) =>
             {
                 using var pen = new Pen(Color.FromArgb(180, 215, 180), 1);
@@ -220,7 +255,6 @@ namespace Inventory_Management_System.Forms
                 AutoEllipsis = true,
             };
 
-            // Handle long text — grow row
             int preferredH = lblValue.GetPreferredSize(new Size(ValueW, 0)).Height;
             int actualH    = Math.Max(RowH, preferredH + 14);
             lblName.Height  = actualH;
@@ -233,7 +267,6 @@ namespace Inventory_Management_System.Forms
                 BackColor = isAlt ? RowOdd : RowEven,
             };
 
-            // Bottom separator
             pnl.Paint += (s, e) =>
             {
                 using var pen = new Pen(SeparatorColor, 1);
@@ -248,7 +281,7 @@ namespace Inventory_Management_System.Forms
             isAlt  = !isAlt;
         }
 
-        // ── Status Badge Row ──────────────────────────────────────────────────
+        // ── Status Badge Row (Equipment status) ───────────────────────────────
         private void AddStatusField(Panel card, string labelName, string status, int x, ref int y, ref bool isAlt)
         {
             var lblName = new Label
@@ -261,7 +294,6 @@ namespace Inventory_Management_System.Forms
                 TextAlign = ContentAlignment.MiddleLeft,
             };
 
-            // Resolve badge colours
             Color badgeBg;
             string displayText;
             switch (status)
@@ -288,7 +320,55 @@ namespace Inventory_Management_System.Forms
                     break;
             }
 
-            // Pill badge as a custom-painted label
+            RenderBadgeRow(card, lblName, badgeBg, displayText, x, y, RowH, isAlt);
+
+            y     += RowH;
+            isAlt  = !isAlt;
+        }
+
+        // ── Status Badge Row (Maintenance record status) ──────────────────────
+        // Mirrors AddStatusField exactly so the pill looks identical, just with
+        // maintenance-specific status values instead of equipment status values.
+        private void AddMaintenanceStatusField(Panel card, string labelName, string status, int x, ref int y, ref bool isAlt)
+        {
+            var lblName = new Label
+            {
+                Text      = labelName + ":",
+                Location  = new Point(10, 0),
+                Size      = new Size(LabelW, RowH),
+                Font      = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary,
+                TextAlign = ContentAlignment.MiddleLeft,
+            };
+
+            Color badgeBg;
+            string displayText;
+            switch (status)
+            {
+                case "resolved":
+                    badgeBg     = Color.FromArgb(34, 139, 34);
+                    displayText = "Resolved";
+                    break;
+                case "in_progress":
+                    badgeBg     = Color.FromArgb(217, 119, 6);
+                    displayText = "In Progress";
+                    break;
+                default:
+                    badgeBg     = Color.FromArgb(220, 85, 40);
+                    displayText = "Open";
+                    break;
+            }
+
+            RenderBadgeRow(card, lblName, badgeBg, displayText, x, y, RowH, isAlt);
+
+            y     += RowH;
+            isAlt  = !isAlt;
+        }
+
+        // ── Shared badge-row renderer used by both status methods above ──────
+        private void RenderBadgeRow(Panel card, Label lblName, Color badgeBg, string displayText,
+            int x, int y, int rowH, bool isAlt)
+        {
             var badge = new Label
             {
                 Text      = $"  {displayText}  ",
@@ -299,13 +379,12 @@ namespace Inventory_Management_System.Forms
                 Padding   = new Padding(6, 3, 6, 3),
             };
 
-            // Position vertically centred in the row
-            badge.Location = new Point(ValueX, (RowH - badge.GetPreferredSize(Size.Empty).Height) / 2);
+            badge.Location = new Point(ValueX, (rowH - badge.GetPreferredSize(Size.Empty).Height) / 2);
 
             var pnl = new Panel
             {
                 Location  = new Point(x, y),
-                Size      = new Size(ColWidth, RowH),
+                Size      = new Size(ColWidth, rowH),
                 BackColor = isAlt ? RowOdd : RowEven,
             };
 
@@ -315,7 +394,6 @@ namespace Inventory_Management_System.Forms
                 e.Graphics.DrawLine(pen, 10, pnl.Height - 1, pnl.Width - 10, pnl.Height - 1);
             };
 
-            // Round the badge corners
             badge.Paint += (s, e) =>
             {
                 var lbl  = (Label)s!;
@@ -328,14 +406,11 @@ namespace Inventory_Management_System.Forms
                 using var textBrush = new SolidBrush(Color.White);
                 e.Graphics.DrawString(displayText, badge.Font, textBrush, rect, sf);
             };
-            badge.BackColor = Color.Transparent; // let Paint handle it
+            badge.BackColor = Color.Transparent;
 
             pnl.Controls.Add(lblName);
             pnl.Controls.Add(badge);
             card.Controls.Add(pnl);
-
-            y     += RowH;
-            isAlt  = !isAlt;
         }
 
         // ── Card Border + Shadow ──────────────────────────────────────────────
@@ -345,7 +420,6 @@ namespace Inventory_Management_System.Forms
             var g    = e.Graphics;
             var rect = new Rectangle(0, 0, pnl.Width - 1, pnl.Height - 1);
 
-            // Soft drop shadow (simulate via layered slightly-offset darker rects)
             using var shadowBrush = new SolidBrush(Color.FromArgb(18, 0, 0, 0));
             g.FillRectangle(shadowBrush, new Rectangle(2, 2, pnl.Width - 1, pnl.Height - 1));
 

@@ -336,14 +336,14 @@ namespace Inventory_Management_System.Forms
                 CenterCard();
 
                 // Load logo
-                try
-                {
-                    var logoPath = System.IO.Path.Combine(
-                        System.Windows.Forms.Application.StartupPath, "Images", "logo.png");
-                    if (System.IO.File.Exists(logoPath))
-                        picLogo.Image = System.Drawing.Image.FromFile(logoPath);
-                }
-                catch { }
+                // Load embedded logo
+            try
+            {
+                picLogo.Image = global::Inventory_Management_System.Properties.Resources.logo;
+            }
+            catch
+            {
+            }
             };
         }
 

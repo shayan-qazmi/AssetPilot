@@ -26,7 +26,7 @@ namespace Inventory_Management_System.Helpers
         /// <summary>
         /// Prints the supplied QR bitmap with an optional caption.
         /// </summary>
-        public void Print(Bitmap qrBitmap, string caption = null)
+        public void Print(Bitmap qrBitmap, string? caption = null)
         {
             var doc = BuildDocument(qrBitmap, caption);
             doc.Print();
@@ -35,7 +35,7 @@ namespace Inventory_Management_System.Helpers
         /// <summary>
         /// Shows a preview dialog before printing.
         /// </summary>
-        public void ShowPreview(Bitmap qrBitmap, string caption = null)
+        public void ShowPreview(Bitmap qrBitmap, string? caption = null)
         {
             var doc = BuildDocument(qrBitmap, caption);
             using var preview = new PrintPreviewDialog
@@ -49,7 +49,7 @@ namespace Inventory_Management_System.Helpers
             preview.ShowDialog();
         }
 
-        private PrintDocument BuildDocument(Bitmap qrBitmap, string caption)
+        private PrintDocument BuildDocument(Bitmap qrBitmap, string? caption)
         {
             var doc = new PrintDocument();
             if (!string.IsNullOrWhiteSpace(_printerName))
@@ -63,7 +63,7 @@ namespace Inventory_Management_System.Helpers
 
             doc.PrintPage += (s, e) =>
             {
-                var g = e.Graphics;
+                if (e.Graphics is not Graphics g) return;
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
                 // Center QR on the label.

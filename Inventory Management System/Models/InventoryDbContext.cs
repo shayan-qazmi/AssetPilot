@@ -40,6 +40,8 @@ public partial class InventoryDbContext : DbContext
 
     public virtual DbSet<Transaction> Transactions { get; set; }
 
+    public virtual DbSet<MaintenanceRecord> MaintenanceRecords { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     => optionsBuilder.UseMySql(
         "server=localhost;database=inventory_management;user=root;password=",
@@ -531,6 +533,46 @@ public partial class InventoryDbContext : DbContext
                 .HasForeignKey(d => d.EquipmentId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("transactions_ibfk_1");
+        });
+
+        modelBuilder.Entity<MaintenanceRecord>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+
+            entity.ToTable("maintenance_records");
+
+            entity.HasIndex(e => e.EquipmentId, "idx_maintenance_equipment");
+            entity.HasIndex(e => e.Status,      "idx_maintenance_status");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.EquipmentId).HasColumnName("equipment_id");
+            entity.Property(e => e.IssueDescription)
+                .HasColumnType("text")
+                .HasColumnName("issue_description");
+            entity.Property(e => e.ReportedDate).HasColumnName("reported_date");
+            entity.Property(e => e.ResolvedDate).HasColumnName("resolved_date");
+            entity.Property(e => e.Cost)
+                .HasPrecision(12, 2)
+                .HasColumnName("cost");
+            entity.Property(e => e.ServicedBy)
+                .HasMaxLength(255)
+                .HasColumnName("serviced_by");
+            entity.Property(e => e.Status)
+                .HasDefaultValueSql("'open'")
+                .HasColumnType("enum('open','in_progress','resolved')")
+                .HasColumnName("status");
+            entity.Property(e => e.Notes)
+                .HasColumnType("text")
+                .HasColumnName("notes");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("timestamp")
+                .HasColumnName("created_at");
+
+            entity.HasOne(d => d.Equipment).WithMany(p => p.MaintenanceRecords)
+                .HasForeignKey(d => d.EquipmentId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("maintenance_records_ibfk_1");
         });
 
         OnModelCreatingPartial(modelBuilder);

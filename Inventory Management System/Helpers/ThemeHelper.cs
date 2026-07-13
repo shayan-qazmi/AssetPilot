@@ -271,6 +271,17 @@ namespace Inventory_Management_System.Helpers
                 Cursor    = Cursors.Hand
             };
 
+            Action<Control>? wireHover = null;
+            wireHover = (c) =>
+            {
+                c.MouseEnter += (s, e) => { card.BackColor = ControlPaint.Light(cardColor, 0.1f); };
+                c.MouseLeave += (s, e) => {
+                    var mousePos = card.PointToClient(Cursor.Position);
+                    if (!card.ClientRectangle.Contains(mousePos))
+                        card.BackColor = cardColor;
+                };
+            };
+
             var lblValue = new Label
             {
                 Name      = "lblValue",
@@ -314,6 +325,11 @@ namespace Inventory_Management_System.Helpers
             card.Controls.Add(lblIcon);
             card.Controls.Add(lblTitle);
 
+            wireHover(card);
+            wireHover(lblValue);
+            wireHover(lblIcon);
+            wireHover(lblTitle);
+
             card.Paint += (s, e) =>
             {
                 var g = e.Graphics;
@@ -337,8 +353,27 @@ namespace Inventory_Management_System.Helpers
                 g.DrawString(icon, emojiFont, Brushes.White,
                     new RectangleF(card.Width - 54, 4, 50, 50), emojiSf);
 
-                // Pin title to bottom, icon to top-right
-                lblTitle.Location = new Point(12, card.Height - 28);
+                // Add "More info" footer strip
+                int stripH = 26;
+                int stripY = card.Height - stripH;
+                
+                using var footerBg = new SolidBrush(Color.FromArgb(25, Color.Black));
+                using var topBorder = new Pen(Color.FromArgb(30, Color.White), 1f);
+                g.FillRectangle(footerBg, 0, stripY, card.Width, stripH);
+                g.DrawLine(topBorder, 0, stripY, card.Width, stripY);
+                
+                using var footerFont = new Font("Segoe UI", 8.25f, FontStyle.Regular, GraphicsUnit.Point);
+                using var footerFg = new SolidBrush(Color.FromArgb(190, 255, 255, 255));
+                string footerText = "More info";
+                var fSize = g.MeasureString(footerText, footerFont);
+                float totalW = fSize.Width + 14; 
+                float sx = (card.Width - totalW) / 2f;
+                float sy = stripY + (stripH - fSize.Height) / 2f;
+                g.DrawString(footerText, footerFont, footerFg, sx, sy);
+                g.DrawString("⟳", footerFont, footerFg, sx + fSize.Width + 2, sy - 1);
+
+                // Pin title to bottom (above footer), icon to top-right
+                lblTitle.Location = new Point(12, card.Height - 28 - stripH);
                 lblTitle.Width    = card.Width - 24;
                 lblIcon.Location  = new Point(card.Width - 40, 15);
                 lblIcon.Size      = new Size(40, 36);

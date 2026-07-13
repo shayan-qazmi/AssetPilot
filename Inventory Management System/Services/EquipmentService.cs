@@ -55,7 +55,7 @@ namespace Inventory_Management_System.Services
                 return ServiceResult<Equipment>.Fail($"Error retrieving equipment: {innerMsg}");
             }
         }
-        
+
 
         public ServiceResult<List<Equipment>> Search(string term)
         {
@@ -96,32 +96,120 @@ namespace Inventory_Management_System.Services
             }
         }
 
+        // ── Auto-generation helpers ─────────────────────────────────────────
+        // Equipment Code and QR Code are no longer typed manually in the UI.
+        // These generate sequential, collision-checked identifiers.
+
+        private string GenerateEquipmentCode(InventoryDbContext db)
+        {
+            var codes = db.Equipment
+                .Select(e => e.EquipmentCode)
+                .Where(c => c != null && c.StartsWith("EQ"))
+                .ToList();
+
+            int maxNum = 0;
+            foreach (var c in codes)
+            {
+                var digits = new string(c!.Skip(2).TakeWhile(char.IsDigit).ToArray());
+                if (int.TryParse(digits, out int n) && n > maxNum) maxNum = n;
+            }
+
+            string candidate;
+            int next = maxNum + 1;
+            do
+            {
+                candidate = $"EQ{next:000}";
+                next++;
+            } while (db.Equipment.Any(e => e.EquipmentCode == candidate));
+
+            return candidate;
+        }
+
+        private string GenerateQrCode(InventoryDbContext db)
+        {
+            var codes = db.Equipment
+                .Select(e => e.QrCode)
+                .Where(c => c != null && c.StartsWith("QR"))
+                .ToList();
+
+            int maxNum = 0;
+            foreach (var c in codes)
+            {
+                var digits = new string(c!.Skip(2).TakeWhile(char.IsDigit).ToArray());
+                if (int.TryParse(digits, out int n) && n > maxNum) maxNum = n;
+            }
+
+            string candidate;
+            int next = maxNum + 1;
+            do
+            {
+                candidate = $"QR{next:000}";
+                next++;
+            } while (db.Equipment.Any(e => e.QrCode == candidate));
+
+            return candidate;
+        }
+
+        // ── Procurement Type: resolve-or-create by typed name ───────────────
+        // Supports converting the Add/Edit form's ComboBox to a plain TextBox
+        // while preserving the ProcurementTypeId foreign key relationship.
+
+        public int? ResolveProcurementTypeId(string? typeName)
+        {
+            if (string.IsNullOrWhiteSpace(typeName)) return null;
+
+            string trimmed = typeName.Trim();
+
+            using var db = new InventoryDbContext();
+            var existing = db.ProcurementTypes
+                .FirstOrDefault(p => p.TypeName.ToLower() == trimmed.ToLower());
+            if (existing != null) return existing.Id;
+
+            var created = new ProcurementType { TypeName = trimmed };
+            db.ProcurementTypes.Add(created);
+            db.SaveChanges();
+            return created.Id;
+        }
+
+        public string? GetProcurementTypeName(int? id)
+        {
+            if (id == null) return null;
+            using var db = new InventoryDbContext();
+            return db.ProcurementTypes.FirstOrDefault(p => p.Id == id)?.TypeName;
+        }
+
         public ServiceResult<Equipment> Add(Equipment equipment)
         {
             try
             {
-                // Validation
+                // Validation — Equipment Code and QR Code are no longer
+                // required from the caller; they're auto-generated below.
                 if (string.IsNullOrWhiteSpace(equipment.Name))
                     return ServiceResult<Equipment>.Fail("Equipment name is required.");
-                if (string.IsNullOrWhiteSpace(equipment.EquipmentCode))
-                    return ServiceResult<Equipment>.Fail("Equipment code is required.");
                 if (string.IsNullOrWhiteSpace(equipment.SerialNumber))
                     return ServiceResult<Equipment>.Fail("Serial number is required.");
 
-                // Normalize
-                equipment.EquipmentCode = equipment.EquipmentCode.Trim().ToUpper();
                 equipment.SerialNumber  = equipment.SerialNumber.Trim().ToUpper();
                 equipment.Name          = equipment.Name.Trim();
 
                 using var db = new InventoryDbContext();
 
-                // Uniqueness checks
+                if (string.IsNullOrWhiteSpace(equipment.EquipmentCode))
+                    equipment.EquipmentCode = GenerateEquipmentCode(db);
+                else
+                    equipment.EquipmentCode = equipment.EquipmentCode.Trim().ToUpper();
+
+                if (string.IsNullOrWhiteSpace(equipment.QrCode))
+                    equipment.QrCode = GenerateQrCode(db);
+
+                // Uniqueness checks — kept as a safety net even though codes
+                // are now auto-generated (also still applies to bulk imports
+                // via AddRange, which may supply their own codes).
                 if (db.Equipment.Any(e => e.EquipmentCode == equipment.EquipmentCode))
                     return ServiceResult<Equipment>.Fail($"Equipment code '{equipment.EquipmentCode}' already exists.");
                 if (db.Equipment.Any(e => e.SerialNumber == equipment.SerialNumber))
                     return ServiceResult<Equipment>.Fail($"Serial number '{equipment.SerialNumber}' already exists.");
 
-                // Default status
                 if (string.IsNullOrWhiteSpace(equipment.CurrentStatus))
                     equipment.CurrentStatus = "in_store";
 

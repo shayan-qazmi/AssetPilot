@@ -1,4 +1,6 @@
 // Forms/DashboardForm.Designer.cs
+using Inventory_Management_System.Helpers;
+
 namespace Inventory_Management_System
 {
     partial class DashboardForm
@@ -23,7 +25,7 @@ namespace Inventory_Management_System
             panelContent     = new System.Windows.Forms.Panel();
 
             lblTitle         = new System.Windows.Forms.Label();
-            lblAppBrand      = new System.Windows.Forms.Label();
+            picLogoSide = new System.Windows.Forms.PictureBox();
 
             btnDashboard     = new System.Windows.Forms.Button();
             btnEquipment     = new System.Windows.Forms.Button();
@@ -64,13 +66,14 @@ namespace Inventory_Management_System
             panelMenu.Controls.Add(btnEmployees);
             panelMenu.Controls.Add(btnEquipment);
             panelMenu.Controls.Add(btnDashboard);
-            panelMenu.Controls.Add(lblAppBrand);
+          panelMenu.Controls.Add(picLogoSide);
 
-            lblAppBrand.Text      = "IMS";
-            lblAppBrand.Dock      = System.Windows.Forms.DockStyle.Top;
-            lblAppBrand.Height    = 120;
-            lblAppBrand.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            lblAppBrand.Name      = "lblAppBrand";
+            picLogoSide.Dock = System.Windows.Forms.DockStyle.Top;
+            picLogoSide.Height = 120;
+            picLogoSide.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
+            picLogoSide.BackColor = ThemeHelper.Sidebar;
+            picLogoSide.Image = Properties.Resources.logo;
+            picLogoSide.Name = "picLogoSide";
 
             btnDashboard.Dock    = System.Windows.Forms.DockStyle.Top;
             btnDashboard.Height  = 46; btnDashboard.Text = "⊞  Dashboard";
@@ -205,7 +208,7 @@ namespace Inventory_Management_System
         private System.Windows.Forms.Panel  panelStats;
         private System.Windows.Forms.Panel  panelContent;
         private System.Windows.Forms.Label  lblTitle;
-        private System.Windows.Forms.Label  lblAppBrand;
+        private System.Windows.Forms.PictureBox picLogoSide;
         private System.Windows.Forms.Button btnDashboard;
         private System.Windows.Forms.Button btnEquipment;
         private System.Windows.Forms.Button btnEmployees;

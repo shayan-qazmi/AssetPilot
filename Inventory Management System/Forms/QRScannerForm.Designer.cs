@@ -1,4 +1,5 @@
 // Forms/QRScannerForm.cs
+#nullable enable
 using Inventory_Management_System.Helpers;
 using Inventory_Management_System.Models;
 using Inventory_Management_System.Services;
@@ -42,8 +43,9 @@ namespace Inventory_Management_System.Forms
             panelCard.BackColor = Color.White;
             panelCard.Paint += (s, e) =>
             {
+                if (e.Graphics is not Graphics g) return;
                 using var pen = new System.Drawing.Pen(Color.FromArgb(229, 231, 235), 1f);
-                e.Graphics.DrawRectangle(pen, 0, 0, panelCard.Width - 1, panelCard.Height - 1);
+                g.DrawRectangle(pen, 0, 0, panelCard.Width - 1, panelCard.Height - 1);
             };
 
             // Style all label pairs
@@ -103,14 +105,14 @@ namespace Inventory_Management_System.Forms
             };
         }
 
-        private void txtQRCode_TextChanged(object sender, EventArgs e)
+        private void txtQRCode_TextChanged(object? sender, EventArgs e)
         {
             // Restart timer on each keystroke — fires Search() when typing pauses
             _scanTimer?.Stop();
             _scanTimer?.Start();
         }
 
-        private void txtQRCode_KeyDown(object sender, KeyEventArgs e)
+        private void txtQRCode_KeyDown(object? sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Enter)
             {
@@ -121,7 +123,7 @@ namespace Inventory_Management_System.Forms
             }
         }
 
-        private void btnSearch_Click(object sender, EventArgs e) => Search();
+        private void btnSearch_Click(object? sender, EventArgs e) => Search();
 
         private void Search()
         {
@@ -236,7 +238,7 @@ namespace Inventory_Management_System.Forms
             }
         }
 
-        private void btnClear_Click(object sender, EventArgs e)
+        private void btnClear_Click(object? sender, EventArgs e)
         {
             txtQRCode.Clear();
             panelCard.Visible   = false;

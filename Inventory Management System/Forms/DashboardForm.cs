@@ -37,6 +37,31 @@ namespace Inventory_Management_System
 
         private Button[] AdminOnlyButtons => new[] { btnDecommission, btnSettings };
 
+        // ── Top bar (yellow, matched to logo) ───────────────────────────────
+        private static readonly Color TopBarYellow = Color.FromArgb(0x99, 0xC2, 0x21);
+
+        // ── Title typing animation ───────────────────────────────────────
+        private System.Windows.Forms.Timer? _titleTypeTimer;
+
+        // ── Card entrance animations ────────────────────────────────────
+        private System.Windows.Forms.Timer? _animTimer;
+        private List<CardAnimState>? _cardAnims;
+        private float _donutAnimProgress = 1f;
+        private const int AnimTickIntervalMs = 15;
+        private const int CenterCardIndex = 3; // "Under Repair"
+
+        private enum CardAnimKind { Slide, Bounce }
+
+        private class CardAnimState
+        {
+            public Control Card { get; set; } = null!;
+            public Rectangle StartBounds { get; set; }
+            public Rectangle TargetBounds { get; set; }
+            public float Progress { get; set; }
+            public float DelayMs { get; set; }
+            public CardAnimKind Kind { get; set; }
+        }
+
         public DashboardForm()
         {
             InitializeComponent();
@@ -55,18 +80,20 @@ namespace Inventory_Management_System
         {
             BackColor = ThemeHelper.Sidebar;
 
-            panelTop.BackColor    = ThemeHelper.Header;
-            lblAppBrand.Dock      = DockStyle.Top;
-            lblAppBrand.Height    = 150;
-            lblAppBrand.TextAlign = ContentAlignment.MiddleCenter;
+            // Dashboard's own top strip color — intentionally NOT ThemeHelper.Header,
+            // since that color is shared by other forms' header strips.
+            panelTop.BackColor    = TopBarYellow;
             lblTitle.AutoSize     = false;
             lblTitle.Dock         = DockStyle.Fill;
             lblTitle.TextAlign    = ContentAlignment.MiddleCenter;
-            lblTitle.Text         = "Q-Inventory";
             lblTitle.Font         = new Font(lblTitle.Font.FontFamily, 16F, FontStyle.Bold);
-            lblTitle.ForeColor    = Color.FromArgb(255, 255, 224);
+            // Dark text for legibility against the new yellow strip (was pale yellow
+            // for contrast against the old green strip).
+            lblTitle.ForeColor    = Color.FromArgb(33, 33, 33);
             lblTitle.Visible      = true;
             this.Text             = "Q-Inventory";
+
+            AnimateTitleTo("Dashboard");
 
             panelMenu.BackColor = ThemeHelper.Sidebar;
 
@@ -75,29 +102,15 @@ namespace Inventory_Management_System
             {
                 var logoPath = System.IO.Path.Combine(Application.StartupPath, "Images", "logo.png");
                 if (System.IO.File.Exists(logoPath))
-                {
-                    lblAppBrand.Visible = false;
-                    var pic = panelMenu.Controls.OfType<PictureBox>()
-                                       .FirstOrDefault(p => p.Name == "picLogoSide");
-                    if (pic == null)
-                    {
-                        pic = new PictureBox
-                        {
-                            Name      = "picLogoSide",
-                            SizeMode  = PictureBoxSizeMode.Zoom,
-                            Height    = 100,
-                          
-                            Dock      = DockStyle.Top,
-                            BackColor = ThemeHelper.Sidebar
-                        };
-                        panelMenu.Controls.Add(pic);
-                    }
-                    pic.Image = Image.FromFile(logoPath);
-                    panelMenu.Controls.SetChildIndex(pic, panelMenu.Controls.Count - 1);
-                }
-                else { lblAppBrand.Text = "IMS"; lblAppBrand.Visible = true; }
+                    picLogoSide.Image = Image.FromFile(logoPath);
+                else
+                    picLogoSide.Image = Properties.Resources.logo;
+                picLogoSide.Visible = picLogoSide.Image != null;
             }
-            catch { lblAppBrand.Text = "IMS"; lblAppBrand.Visible = true; }
+            catch
+            {
+                picLogoSide.Visible = false;
+            }
 
             // Nav buttons
             ThemeHelper.StyleSidebarButton(btnDashboard,   active: true);
@@ -169,12 +182,46 @@ namespace Inventory_Management_System
         }
 
         // ════════════════════════════════════════════════════════════════
+        //  TITLE TYPING ANIMATION
+        // ════════════════════════════════════════════════════════════════
+        private void AnimateTitleTo(string fullText)
+        {
+            _titleTypeTimer?.Stop();
+            _titleTypeTimer?.Dispose();
+            _titleTypeTimer = null;
+
+            lblTitle.Text = "";
+            int i = 0;
+            var timer = new System.Windows.Forms.Timer { Interval = 45 };
+            timer.Tick += (s, e) =>
+            {
+                if (i >= fullText.Length)
+                {
+                    timer.Stop();
+                    timer.Dispose();
+                    if (_titleTypeTimer == timer) _titleTypeTimer = null;
+                    return;
+                }
+                i++;
+                lblTitle.Text = fullText.Substring(0, i);
+            };
+            _titleTypeTimer = timer;
+            timer.Start();
+        }
+
+        // ════════════════════════════════════════════════════════════════
         //  STATS + CHARTS
         // ════════════════════════════════════════════════════════════════
         private void LoadStats()
         {
             try
             {
+                _animTimer?.Stop();
+                _animTimer?.Dispose();
+                _animTimer = null;
+                _cardAnims = new List<CardAnimState>();
+                _donutAnimProgress = 0f;
+
                 using var db = new InventoryDbContext();
 
                 int totalEquipment = db.Equipment.Count();
@@ -241,21 +288,190 @@ namespace Inventory_Management_System
                 panelStats.Height = 210;
                 int cardH  = 180;
                 int x      = padL;
+                int cardIndex = 0;
+
+                const float staggerStepMs = 60f;
 
                 foreach (var def in cardDefs)
                 {
                     var card      = ThemeHelper.CreateStatCard(def.title, def.value, def.color, def.icon);
-                    card.Width    = cardW;
-                    card.Height   = cardH;
-                    card.Location = new Point(x, 8);
+                    Rectangle targetBounds = new Rectangle(x, 8, cardW, cardH);
+
+                    CardAnimState animState;
+
+                  if (cardIndex == CenterCardIndex)
+                    {
+                        // Center card: bounce-in via vertical position only — size stays
+                        // fixed at target size the entire time, matching every other card.
+                        Rectangle startBounds = new Rectangle(
+                            targetBounds.X,
+                            targetBounds.Y + targetBounds.Height, // starts one card-height below
+                            targetBounds.Width,
+                            targetBounds.Height);
+
+                        card.Bounds = startBounds;
+
+                        animState = new CardAnimState
+                        {
+                            Card         = card,
+                            StartBounds  = startBounds,
+                            TargetBounds = targetBounds,
+                            Progress     = 0f,
+                            DelayMs      = 0f,
+                            Kind         = CardAnimKind.Bounce
+                        };
+                    }
+                    else if (cardIndex < CenterCardIndex)
+                    {
+                        // Left group (0,1,2): slide in from off-screen left, converging
+                        // toward the center — closest to center starts first.
+                        int distanceFromCenter = CenterCardIndex - cardIndex; // 1,2,3
+                        float delay = (distanceFromCenter - 1) * staggerStepMs;
+
+                        Rectangle startBounds = new Rectangle(
+                            -targetBounds.Width, targetBounds.Y, targetBounds.Width, targetBounds.Height);
+
+                        card.Bounds = startBounds;
+
+                        animState = new CardAnimState
+                        {
+                            Card         = card,
+                            StartBounds  = startBounds,
+                            TargetBounds = targetBounds,
+                            Progress     = 0f,
+                            DelayMs      = delay,
+                            Kind         = CardAnimKind.Slide
+                        };
+                    }
+                    else
+                    {
+                        // Right group (4,5,6): slide in from off-screen right, converging
+                        // toward the center — closest to center starts first.
+                        int distanceFromCenter = cardIndex - CenterCardIndex; // 1,2,3
+                        float delay = (distanceFromCenter - 1) * staggerStepMs;
+
+                        Rectangle startBounds = new Rectangle(
+                            panelStats.Width, targetBounds.Y, targetBounds.Width, targetBounds.Height);
+
+                        card.Bounds = startBounds;
+
+                        animState = new CardAnimState
+                        {
+                            Card         = card,
+                            StartBounds  = startBounds,
+                            TargetBounds = targetBounds,
+                            Progress     = 0f,
+                            DelayMs      = delay,
+                            Kind         = CardAnimKind.Slide
+                        };
+                    }
+
+                    _cardAnims.Add(animState);
+
+                    EventHandler? clickHandler = def.title switch
+                    {
+                        "Total Equipment"  => btnEquipment_Click,
+                        "Allocated"        => btnAllocation_Click,
+                        "In Stock"         => btnEquipment_Click,
+                        "Under Repair"     => btnEquipment_Click,
+                        "Overdue"          => btnReturns_Click,
+                        "Decommissioned"   => AuthService.IsAdmin ? btnDecommission_Click : null,
+                        "Total Employees"  => btnEmployees_Click,
+                        _                  => null
+                    };
+
+                    if (clickHandler != null)
+                    {
+                        AttachCardClick(card, clickHandler);
+                    }
 
                     panelStats.Controls.Add(card);
                     x += cardW + gap;
+                    cardIndex++;
                 }
 
                 BuildChartArea();
+
+                _animTimer = new System.Windows.Forms.Timer { Interval = AnimTickIntervalMs };
+                _animTimer.Tick += AnimTimer_Tick;
+                _animTimer.Start();
             }
             catch { /* DB unavailable */ }
+        }
+
+        private void AnimTimer_Tick(object? sender, EventArgs e)
+        {
+            bool allDone = true;
+
+            if (_cardAnims != null)
+            {
+                foreach (var anim in _cardAnims)
+                {
+                    if (anim.DelayMs > 0)
+                    {
+                        anim.DelayMs -= AnimTickIntervalMs;
+                        allDone = false;
+                        continue;
+                    }
+
+                    if (anim.Progress < 1f)
+                    {
+                        anim.Progress += 0.08f;
+                        if (anim.Progress >= 1f) anim.Progress = 1f;
+                        else allDone = false;
+
+                        float t = anim.Progress;
+
+                        if (anim.Kind == CardAnimKind.Bounce)
+                        {
+                            // Position-only bounce (drop + overshoot). Width/Height stay locked
+                            // to TargetBounds throughout — no scale change, matching the sliding cards.
+                            float c1 = 1.0f;
+                            float c3 = c1 + 1;
+                            float tMinus1 = t - 1;
+                            float easeBack = 1 + c3 * tMinus1 * tMinus1 * tMinus1 + c1 * tMinus1 * tMinus1;
+
+                            int cy = (int)(anim.StartBounds.Y + (anim.TargetBounds.Y - anim.StartBounds.Y) * easeBack);
+                            int cx = anim.TargetBounds.X;
+
+                            anim.Card.Bounds = new Rectangle(cx, cy, anim.TargetBounds.Width, anim.TargetBounds.Height);
+                        }
+                        else // Slide — position-only ease-out, no scale/size change, no overshoot
+                        {
+                            float ease = 1f - MathF.Pow(1f - t, 3f);
+
+                            int cx = (int)(anim.StartBounds.X + (anim.TargetBounds.X - anim.StartBounds.X) * ease);
+                            int cy = anim.TargetBounds.Y;
+
+                            anim.Card.Bounds = new Rectangle(cx, cy, anim.TargetBounds.Width, anim.TargetBounds.Height);
+                        }
+                    }
+                }
+            }
+
+            if (_donutAnimProgress < 1f)
+            {
+                float raw = Math.Min(1f, _donutAnimProgress + 0.02f);
+                _donutAnimProgress = raw >= 1f ? 1f : 1f - MathF.Pow(1f - raw, 3f);
+                if (_donutAnimProgress > 0.999f) _donutAnimProgress = 1f;
+                _panelDonut?.Invalidate();
+                allDone = false;
+            }
+
+            if (allDone)
+            {
+                _animTimer?.Stop();
+                _animTimer?.Dispose();
+                _animTimer = null;
+                
+                if (_cardAnims != null)
+                {
+                    foreach (var anim in _cardAnims)
+                    {
+                        anim.Card.Bounds = anim.TargetBounds;
+                    }
+                }
+            }
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -420,14 +636,19 @@ namespace Inventory_Management_System
             float inner  = size * 0.54f;
             var   innerR = new RectangleF(cx - inner / 2f, cy - inner / 2f, inner, inner);
 
+            // Fixed: advance `start` by the animated sweep (animSweep), not the full
+            // final sweep — otherwise each segment grows from its own final anchor
+            // angle independently, producing visible gaps mid-animation instead of
+            // one continuous expanding ring.
             float start = -90f;
             foreach (var seg in segs)
             {
                 float sweep = (float)seg.Count / total * 360f;
-                if (sweep < 0.1f) { start += sweep; continue; }
+                float animSweep = sweep * _donutAnimProgress;
+                if (animSweep < 0.1f) continue;
                 using var br = new SolidBrush(seg.Color);
-                g.FillPie(br, outerR.X, outerR.Y, outerR.Width, outerR.Height, start, sweep);
-                start += sweep;
+                g.FillPie(br, outerR.X, outerR.Y, outerR.Width, outerR.Height, start, animSweep);
+                start += animSweep;
             }
 
             using var hole = new SolidBrush(Color.White);
@@ -686,6 +907,16 @@ namespace Inventory_Management_System
             return path;
         }
 
+        private static void AttachCardClick(Control card, EventHandler handler)
+        {
+            card.Cursor = Cursors.Hand;
+            card.Click += handler;
+            foreach (Control child in card.Controls)
+            {
+                AttachCardClick(child, handler);
+            }
+        }
+
         // ════════════════════════════════════════════════════════════════
         //  NAVIGATION
         // ════════════════════════════════════════════════════════════════
@@ -706,6 +937,10 @@ namespace Inventory_Management_System
 
         private void OpenChildForm(Form childForm, Button navBtn)
         {
+            _animTimer?.Stop();
+            _animTimer?.Dispose();
+            _animTimer = null;
+
             activeForm?.Close();
             activeForm = null;
 
@@ -729,35 +964,87 @@ namespace Inventory_Management_System
             activeForm = null;
             panelStats.Visible = true;
             SetActiveButton(btnDashboard);
+            AnimateTitleTo("Dashboard");
             LoadStats();
         }
 
-        private void btnDashboard_Click(object sender, EventArgs e)    => ShowDashboard();
-        private void btnEquipment_Click(object sender, EventArgs e)    => OpenChildForm(new EquipmentForm(),    btnEquipment);
-        private void btnEmployees_Click(object sender, EventArgs e)    => OpenChildForm(new EmployeesForm(),    btnEmployees);
-        private void btnLocations_Click(object sender, EventArgs e)    => OpenChildForm(new LocationsForm(),    btnLocations);
-        private void btnAllocation_Click(object sender, EventArgs e)   => OpenChildForm(new AllocationForm(),   btnAllocation);
-        private void btnReturns_Click(object sender, EventArgs e)      => OpenChildForm(new ReturnsForm(),      btnReturns);
-        private void btnTransfer_Click(object sender, EventArgs e)     => OpenChildForm(new TransferForm(),     btnTransfer);
+        private void btnDashboard_Click(object? sender, EventArgs e) => ShowDashboard();
 
-        private void btnDecommission_Click(object sender, EventArgs e)
+        private void btnEquipment_Click(object? sender, EventArgs e)
+        {
+            AnimateTitleTo("Equipment");
+            OpenChildForm(new EquipmentForm(), btnEquipment);
+        }
+
+        private void btnEmployees_Click(object? sender, EventArgs e)
+        {
+            AnimateTitleTo("Employees");
+            OpenChildForm(new EmployeesForm(), btnEmployees);
+        }
+
+        private void btnLocations_Click(object? sender, EventArgs e)
+        {
+            AnimateTitleTo("Locations");
+            OpenChildForm(new LocationsForm(), btnLocations);
+        }
+
+        private void btnAllocation_Click(object? sender, EventArgs e)
+        {
+            AnimateTitleTo("Allocation");
+            OpenChildForm(new AllocationForm(), btnAllocation);
+        }
+
+        private void btnReturns_Click(object? sender, EventArgs e)
+        {
+            AnimateTitleTo("Returns");
+            OpenChildForm(new ReturnsForm(), btnReturns);
+        }
+
+        private void btnTransfer_Click(object? sender, EventArgs e)
+        {
+            AnimateTitleTo("Transfer");
+            OpenChildForm(new TransferForm(), btnTransfer);
+        }
+
+        private void btnDecommission_Click(object? sender, EventArgs e)
         {
             if (!EnsureAdmin()) return;
+            AnimateTitleTo("Decommission");
             OpenChildForm(new DecommissionForm(), btnDecommission);
         }
 
-        private void btnLogs_Click(object sender, EventArgs e)         => OpenChildForm(new LogsForm(),         btnLogs);
-        private void btnQRScanner_Click(object sender, EventArgs e)    => OpenChildForm(new QRScannerForm(),    btnQRScanner);
-        private void btnCheckInOut_Click(object sender, EventArgs e)   => OpenChildForm(new CheckInOutForm(),   btnCheckInOut);
-        private void btnReports_Click(object sender, EventArgs e)      => OpenChildForm(new ReportsForm(),      btnReports);
+        private void btnLogs_Click(object? sender, EventArgs e)
+        {
+            AnimateTitleTo("Logs");
+            OpenChildForm(new LogsForm(), btnLogs);
+        }
 
-        private void btnSettings_Click(object sender, EventArgs e)
+        private void btnQRScanner_Click(object? sender, EventArgs e)
+        {
+            AnimateTitleTo("QR Scanner");
+            OpenChildForm(new QRScannerForm(), btnQRScanner);
+        }
+
+        private void btnCheckInOut_Click(object? sender, EventArgs e)
+        {
+            AnimateTitleTo("Check In/Out");
+            OpenChildForm(new CheckInOutForm(), btnCheckInOut);
+        }
+
+        private void btnReports_Click(object? sender, EventArgs e)
+        {
+            AnimateTitleTo("Reports");
+            OpenChildForm(new ReportsForm(), btnReports);
+        }
+
+        private void btnSettings_Click(object? sender, EventArgs e)
         {
             if (!EnsureAdmin()) return;
+            AnimateTitleTo("Settings");
             OpenChildForm(new SettingsForm(), btnSettings);
         }
 
-        private void btnLogout_Click(object sender, EventArgs e)
+        private void btnLogout_Click(object? sender, EventArgs e)
         {
             var result = MessageBox.Show(
                 "Are you sure you want to log out?",
@@ -767,6 +1054,14 @@ namespace Inventory_Management_System
 
             if (result == DialogResult.Yes)
             {
+                _animTimer?.Stop();
+                _animTimer?.Dispose();
+                _animTimer = null;
+
+                _titleTypeTimer?.Stop();
+                _titleTypeTimer?.Dispose();
+                _titleTypeTimer = null;
+
                 activeForm?.Close();
                 activeForm = null;
                 AuthService.ClearCurrentUser();
