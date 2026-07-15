@@ -191,13 +191,13 @@ private string? _mysqlPath;
 
             _lblWatermark = new Label
             {
-                Text      = "Built by 📷@shayanqazmi",
+                Text      = "Developed by 📷@shayanqazmi",
                 Font      = new Font("Segoe UI", 8f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(150, 150, 150),
                 BackColor = Color.Transparent,
                 AutoSize  = true,
                 Anchor    = AnchorStyles.Bottom | AnchorStyles.Right,
-                Location  = new Point(1060, 720)
+                Location  = new Point(1020, 723)
             };
             Controls.Add(_lblWatermark);
             _lblWatermark.BringToFront();

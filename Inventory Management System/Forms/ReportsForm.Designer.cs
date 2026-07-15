@@ -87,7 +87,7 @@ namespace Inventory_Management_System.Forms
             this.lblWatermark.ForeColor = System.Drawing.Color.FromArgb(150, 150, 150);
             this.lblWatermark.BackColor = System.Drawing.Color.Transparent;
             this.lblWatermark.AutoSize = true;
-            this.lblWatermark.Location = new System.Drawing.Point(1060, 672);
+            this.lblWatermark.Location = new System.Drawing.Point(1020, 720);
             this.lblWatermark.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
 
             // Form properties
