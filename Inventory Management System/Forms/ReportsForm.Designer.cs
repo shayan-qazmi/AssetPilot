@@ -82,7 +82,7 @@ namespace Inventory_Management_System.Forms
             // lblWatermark
             this.lblWatermark = new System.Windows.Forms.Label();
             this.lblWatermark.Name = "lblWatermark";
-            this.lblWatermark.Text = "Built by @shayanqazmi";
+            this.lblWatermark.Text = "Developed by 📷@shayanqazmi";
             this.lblWatermark.Font = new System.Drawing.Font("Segoe UI", 8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
             this.lblWatermark.ForeColor = System.Drawing.Color.FromArgb(150, 150, 150);
             this.lblWatermark.BackColor = System.Drawing.Color.Transparent;
