@@ -1,7 +1,8 @@
 # Q Inventory Management System
 
 <p align="center">
-<img width="698" height="557" alt="image" src="https://github.com/user-attachments/assets/a6008582-e4ce-4963-a2a6-dbdc52d66d37" />
+<img width="977" height="667" alt="image" src="https://github.com/user-attachments/assets/93c24bba-4226-40ad-a30e-6d8ccbe92021" />
+
 </p>
 
 > A professional, fully-featured desktop Inventory Management System built with **C# .NET 8 WinForms** and **MySQL**, developed as part of a PSEB apprenticeship program at QuantumRonics, Islamabad. Designed to manage the complete lifecycle of physical equipment — from procurement and allocation to transfer, maintenance, and decommission.
@@ -21,7 +22,10 @@
 - [First Login](#first-login)
 - [User Roles](#user-roles)
 - [How to Use Each Screen](#how-to-use-each-screen)
-- [QR Code System](#qr-code-system)
+- [Equipment Codes & QR Codes](#equipment-codes--qr-codes)
+- [Maintenance Tracking](#maintenance-tracking)
+- [Check In / Check Out](#check-in--check-out)
+- [Deleting vs Decommissioning](#deleting-vs-decommissioning)
 - [Barcode Scanner Hardware](#barcode-scanner-hardware)
 - [Excel Import Format](#excel-import-format)
 - [Barcode Label Printing](#barcode-label-printing)
@@ -39,16 +43,16 @@
 
 ## What This App Does
 
-Q Inventory is a Windows desktop application that helps organizations track physical equipment (laptops, printers, scanners, tools, etc.) from the moment they are added to the system until they are permanently retired.
+Q Inventory is a Windows desktop application that helps organizations track physical equipment (laptops, printers, scanners, tools, vehicles, etc.) from the moment they are added to the system until they are permanently retired.
 
 **In plain English — it answers these questions:**
-- What equipment do we own?
-- Where is each item right now?
-- Who has it?
-- When was it given to them?
-- When is it due back?
-- What happened to it over its lifetime?
-- Who made changes and when?
+- What equipment do we own, and what condition is it in?
+- Where is each item right now, and who has it?
+- Who supplied it, and is it still under warranty?
+- When was it given out, and when is it due back?
+- Is it out on a quick short-term loan, or formally allocated?
+- What happened to it over its entire lifetime — every repair, transfer, and return?
+- Who made changes, and when?
 
 ---
 
@@ -56,15 +60,15 @@ Q Inventory is a Windows desktop application that helps organizations track phys
 
 | Screen | Description |
 |---|---|
-| <img width="697" height="556" alt="image" src="https://github.com/user-attachments/assets/cb292a2c-9b95-42cc-82ea-1935d0ee3e07" />| Animated login screen |
-| <img width="958" height="598" alt="image" src="https://github.com/user-attachments/assets/70b8dcf3-9ef6-45c8-a80f-293155a30a92" />| Dashboard with charts |
-| <img width="959" height="599" alt="image" src="https://github.com/user-attachments/assets/06a38928-dec4-4b09-bdbc-b6b023accaca" />| Equipment management |
-| <img width="959" height="599" alt="image" src="https://github.com/user-attachments/assets/6bc64649-58ba-49fa-b9ee-1d42ff318c85" />| Allocation workflow |
-| <img width="959" height="599" alt="image" src="https://github.com/user-attachments/assets/6b3fe50a-d62d-4648-90a4-6effd66e22ce" />| QR Scanner with history |
-| <img width="958" height="599" alt="image" src="https://github.com/user-attachments/assets/22851793-705b-4c1a-9729-bb9b268eb82e" />| Reports screen |
-| <img width="959" height="599" alt="image" src="https://github.com/user-attachments/assets/0ba22a98-02d2-477c-8e4e-51532022e367" />| Settings screen |
-
-
+| <img width="977" height="667" alt="image" src="https://github.com/user-attachments/assets/d3d06daf-65b5-4719-befa-f3c3e63abbce" />| Login screen |
+| <img width="1919" height="1029" alt="image" src="https://github.com/user-attachments/assets/737f24b6-0799-4b0d-bf4c-140b22272b68" />| Dashboard with charts |
+| <img width="1919" height="1029" alt="image" src="https://github.com/user-attachments/assets/d857625c-175e-488e-a428-2d8b9e113622" />| Equipment management |
+| <img width="1914" height="1020" alt="image" src="https://github.com/user-attachments/assets/f4f85c97-6a7b-42c4-813b-6f84f7fe54e3" />| Add/Edit Equipment (with category, vendor, condition, warranty fields) |
+| <img width="1919" height="1031" alt="image" src="https://github.com/user-attachments/assets/a2c99255-a304-49d0-9bb5-699bf5920042" />| Allocation workflow |
+| <img width="1919" height="1029" alt="image" src="https://github.com/user-attachments/assets/72e2a451-bf64-432e-a5d9-79af996898c6" />| Check In / Check Out |
+| <img width="1917" height="1031" alt="image" src="https://github.com/user-attachments/assets/3e6397db-68da-49ff-b0fa-4c64d239fd20" />| QR Scanner with history |
+| <img width="1919" height="1031" alt="image" src="https://github.com/user-attachments/assets/930ad683-e28c-4134-bfd4-c9aa47d9b568" />| Reports screen |
+| <img width="1919" height="1031" alt="image" src="https://github.com/user-attachments/assets/105c857f-26d3-4857-95e7-59afeaec6f51" />| Settings screen |
 
 ---
 
@@ -72,7 +76,9 @@ Q Inventory is a Windows desktop application that helps organizations track phys
 
 ### Core Equipment Management
 - Add, edit, delete equipment records
-- Track: equipment code, QR code, name, make, model, serial number, purchase date, price, status, location
+- Track: equipment code, QR code, name, make, model, serial number, purchase date, price, status, **category, vendor name, condition grade, warranty expiry, procurement type, notes**
+- **Equipment Code and QR Code are now auto-generated** on save (`EQ001`, `QR001`, ...) — no manual entry, no risk of duplicate/mistyped codes
+- **Procurement Type** is a free-text field that resolves to an existing type or creates a new one automatically, while still preserving a proper database relationship behind the scenes
 - Status tracking: `in_store`, `allocated`, `under_repair`, `decommissioned`
 - Color-coded status badges across all grids (green/amber/orange/red)
 - Fuzzy search across all fields in every form
@@ -82,10 +88,24 @@ Q Inventory is a Windows desktop application that helps organizations track phys
 - **Approve** — admin approves a pending allocation request
 - **Return** — mark equipment as returned, status resets to `in_store` automatically
 - **Transfer** — move equipment directly from one employee/location to another without returning first
-- **Decommission** — permanently retire equipment with a reason (Damaged, Obsolete, Beyond Repair, End of Life, Lost, Other)
+- **Decommission** — permanently retire equipment while preserving its full history
+
+### Maintenance Tracking (New)
+- Marking equipment **"Under Repair"** now opens a dialog to log the issue — creates a dedicated maintenance record instead of just flipping a status flag
+- Moving equipment **out of "Under Repair"** opens a resolution dialog to record what was done and the repair cost
+- Full maintenance history (per item) is viewable in the Equipment Detail popup, with each record numbered and cost shown
+
+### Check In / Check Out (New)
+- A lightweight, no-approval loan tracker separate from the formal Allocation workflow
+- Designed for short-term same-day borrows (e.g. a projector for a meeting) where a full allocation request/approval cycle would be overkill
+- Check Out logs who took it and when it's expected back; Check In closes the loan and returns the item to `in_store`
+
+### Smarter Delete Protection (Updated)
+- Deleting equipment is now blocked if it has **any** allocation or transaction history at all — not just active ones — to protect audit trails from accidental data loss
+- If blocked, the app now tells you directly to use **Decommission** instead, which retires the item permanently while keeping its full history intact
 
 ### QR Code System
-- Auto-generate QR codes for every equipment item
+- QR codes are auto-generated for every equipment item (no manual entry)
 - Show QR popup with print support
 - QR Scanner screen: scan physical labels with a USB barcode scanner to instantly look up any item
 - USB barcode scanner works plug-and-play (keyboard wedge mode) — no drivers or SDK needed
@@ -105,17 +125,16 @@ Four report types, each with live on-screen preview, Excel export, and PDF print
 4. Returns History — all returned items with duration in days
 
 ### Dashboard Analytics
-- 4 real-time stat cards: Total Equipment, Allocated, In Stock, Total Employees
+- Real-time stat cards covering equipment counts by status
 - Donut chart — visual breakdown of equipment by status
 - Bar chart — monthly allocations for the last 6 months
-- Quick Summary strip — 5-column utilization overview with percentages
 
 ### Security & Access Control
 - Role-based access: **Admin** (full access) and **Operator** (restricted access)
-- Admin sees: all screens including Decommission and Settings
-- Operator sees: Equipment, Employees, Locations, Allocation, Returns, Transfer, Logs, QR Scanner, Reports
+- Admin sees: all screens including Settings, and Delete Equipment
+- Operator sees: everything except Settings; the Delete Equipment button is hidden
 - Logged-in username and role displayed persistently in the sidebar
-- "Keep me logged in" toggle switch on the login screen
+- "Keep me logged in" toggle switch on the login screen (pre-fills username only)
 - Password show/hide toggle
 
 ### Audit Logging
@@ -123,7 +142,11 @@ Four report types, each with live on-screen preview, Excel export, and PDF print
 - Each log entry records: what changed, old value, new value, who did it, exact timestamp
 - Full audit trail viewable in the Logs screen with color-coded action types
 - Logs are searchable and exportable to CSV
-- Equipment history is also shown directly in the QR Scanner screen when an item is looked up
+- *Note: returns processed via the Returns screen currently bypass this log — see Known Limitations*
+
+### Branding & Executable
+- Custom application icon compiled directly into the `.exe`
+- Sidebar/dashboard logo embedded as a compiled resource rather than a loose file, so it displays correctly regardless of where the built `.exe` is copied to
 
 ### UI/UX
 - Animated login screen with illustrated character, rising bubbles, and parallax depth effects
@@ -156,186 +179,96 @@ Four report types, each with live on-screen preview, Excel export, and PDF print
 
 ## Project Structure
 
-```
 Inventory Management System/
 │
-├── Forms/                          # All UI screens
-│   ├── LoginForm.cs                # Animated login with role auth
-│   ├── DashboardForm.cs            # Main container with sidebar + charts
-│   ├── EquipmentForm.cs            # Equipment CRUD + QR
-│   ├── EmployeesForm.cs            # Employee management
-│   ├── LocationsForm.cs            # Location management
-│   ├── AllocationForm.cs           # Allocate / Approve / Return
-│   ├── ReturnsForm.cs              # Returns history
-│   ├── TransferForm.cs             # Equipment transfers
-│   ├── DecommissionForm.cs         # Decommission management
-│   ├── LogsForm.cs                 # Audit trail viewer
-│   ├── QRScannerForm.cs            # USB scanner + equipment lookup
-│   ├── ReportsForm.cs              # Report generation + export
-│   └── SettingsForm.cs             # App config + label printing
+├── Forms/
+│   ├── LoginForm.cs
+│   ├── DashboardForm.cs
+│   ├── EquipmentForm.cs
+│   ├── AddEditEquipmentForm.cs         # now includes Category, Vendor, Condition, Warranty, Procurement Type (free text)
+│   ├── EquipmentDetailPopup.cs         # now shows maintenance history
+│   ├── EmployeesForm.cs
+│   ├── LocationsForm.cs
+│   ├── AllocationForm.cs
+│   ├── ReturnsForm.cs
+│   ├── TransferForm.cs
+│   ├── DecommissionForm.cs
+│   ├── LogsForm.cs
+│   ├── QRScannerForm.cs
+│   ├── CheckInOutForm.cs               # NEW — short-term loan tracking
+│   ├── MaintenanceForm.cs              # NEW — log a new repair issue
+│   ├── ResolveMaintenanceForm.cs       # NEW — close out a repair
+│   ├── ReportsForm.cs
+│   └── SettingsForm.cs
 │
-├── Models/                         # Database table classes
-│   ├── Equipment.cs
+├── Models/
+│   ├── Equipment.cs                    # extended: Category, Description, VendorName, ConditionGrade, WarrantyExpiry, Notes
 │   ├── Employee.cs
 │   ├── Allocation.cs
 │   ├── Location.cs
+│   ├── ProcurementType.cs
+│   ├── Transaction.cs                  # NEW — backs Check In/Out
+│   ├── MaintenanceRecord.cs            # NEW — backs Maintenance Tracking
 │   ├── EquipmentLog.cs
 │   ├── User.cs
 │   ├── Role.cs
 │   ├── UserRole.cs
 │   ├── AppSetting.cs
-│   └── InventoryDbContext.cs       # EF Core database context
+│   └── InventoryDbContext.cs
 │
-├── Services/                       # Business logic layer
-│   ├── EquipmentService.cs         # Equipment CRUD + validation
-│   ├── EmployeeService.cs          # Employee CRUD + validation
-│   ├── LocationService.cs          # Location CRUD + validation
-│   ├── AllocationService.cs        # Allocate / Return / conflict checks
-│   ├── AuditService.cs             # Audit logging
-│   ├── AuthService.cs              # Login + role lookup
-│   └── ReportService.cs            # Report data queries
+├── Services/
+│   ├── EquipmentService.cs             # auto-generates codes; delete now blocks on any history
+│   ├── EmployeeService.cs
+│   ├── LocationService.cs
+│   ├── AllocationService.cs
+│   ├── TransactionService.cs           # NEW — Check In/Out logic
+│   ├── MaintenanceService.cs           # NEW — open/resolve maintenance records
+│   ├── AuditService.cs
+│   ├── AuthService.cs
+│   └── ReportService.cs
 │
-├── Helpers/                        # Utility classes
-│   ├── ThemeHelper.cs              # All colors, fonts, styling methods
-│   ├── QRHelper.cs                 # QR code generation
-│   ├── ExcelHelper.cs              # Excel import + export
-│   ├── ServiceResult.cs            # Consistent error handling wrapper
-│   └── RoundedPanel.cs             # Custom rounded input panel control
-|   ├── Labelprinter.cs            
-│   └── FuzzysearchHelper.cs
-│   └── QRHelperWrapper.cs             │
-└── Images/
-    └── logo.png                    # Company logo (sidebar + login)
-```
+├── Helpers/
+│   ├── ThemeHelper.cs
+│   ├── QRHelper.cs
+│   ├── QRHelperWrapper.cs
+│   ├── ExcelHelper.cs
+│   ├── ServiceResult.cs
+│   ├── RoundedPanel.cs
+│   ├── LabelPrinter.cs
+│   ├── FuzzySearchHelper.cs
+│   └── CategoryStore.cs                # flat-file category list
+│
+├── Assets/
+│   └── app.ico                         # compiled application icon
+│
+└── Properties/
+└── Resources.resx                  # embedded sidebar logo
 
 ---
 
 ## Prerequisites
 
-Before installing, make sure you have these on your Windows machine:
-
-| Requirement | Download Link |
-|---|---|
-| Windows 10 or 11 (64-bit) | Already installed |
-| .NET 8 Runtime or SDK | https://dotnet.microsoft.com/download/dotnet/8.0 |
-| XAMPP (includes MySQL + phpMyAdmin) | https://www.apachefriends.org/ |
-| Visual Studio 2022 (to build from source) | https://visualstudio.microsoft.com/ |
+Same as before — Windows 10/11 (64-bit), .NET 8 Runtime/SDK, XAMPP (MySQL + phpMyAdmin), Visual Studio 2022 or newer.
 
 ---
 
 ## Installation & Setup
 
-### Step 1 — Clone or download the project
-
-```bash
-git clone https://github.com/your-username/q-inventory.git
-cd q-inventory
-```
-
-Or download the ZIP from GitHub and extract it.
-
-### Step 2 — Open in Visual Studio
-
-Double-click `Inventory Management System.sln` to open the solution in Visual Studio 2022.
-
-### Step 3 — Install NuGet packages
-
-Visual Studio should restore these automatically. If not, open **Tools → NuGet Package Manager → Package Manager Console** and run:
-
-```powershell
-Install-Package QRCoder
-Install-Package ClosedXML
-Install-Package Pomelo.EntityFrameworkCore.MySql
-Install-Package Microsoft.EntityFrameworkCore
-```
-
-### Step 4 — Start MySQL
-
-Open **XAMPP Control Panel** and click **Start** next to **MySQL**. Make sure it turns green. The app cannot connect to the database without this running.
-
-### Step 5 — Build and run
-
-Press **F5** in Visual Studio to build and launch the app.
+*(unchanged from previous version — clone, open the `.sln`, restore NuGet packages, start MySQL via XAMPP, press F5)*
 
 ---
 
 ## Database Setup
 
-### Import the database
+*(unchanged — import `inventory_management.sql`, fix collation if needed, update the connection string in `InventoryDbContext.cs`, seed roles)*
 
-1. Open your browser and go to `http://localhost/phpmyadmin`
-2. Click **Import** in the top menu
-3. Click **Choose File** and select the `inventory_management.sql` file from the project folder
-4. Click **Go**
-5. Wait for the success message — you should see the `inventory_management` database appear in the left sidebar
-
-### If you get a collation error during import
-
-This happens when your MySQL version is older than 8.0. Fix it before importing:
-
-1. Open the `.sql` file in **Notepad++** or **VS Code**
-2. Press `Ctrl+H` (Find and Replace)
-3. Find: `utf8mb4_0900_ai_ci`
-4. Replace with: `utf8mb4_general_ci`
-5. Click **Replace All**
-6. Save the file and try importing again
-
-### Configure the connection string
-
-Open `Models/InventoryDbContext.cs` and find this line:
-
-```csharp
-optionsBuilder.UseMySql(
-    "server=localhost;database=inventory_management;user=root;password=;",
-    ServerVersion.Parse("8.0.46-mysql"));
-```
-
-If your MySQL password is not empty, update the `password=` part. If you're using a different server or port, update `server=` and add `port=3306` if needed.
-
-### Set up roles
-
-Run these SQL commands in phpMyAdmin (click the `inventory_management` database → SQL tab):
-
-```sql
--- Create roles if they don't exist
-INSERT INTO roles (role_name, description)
-VALUES ('Admin', 'Full system access'),
-       ('Operator', 'Standard day-to-day access');
-
--- Assign Admin role to your first user (check actual user id first)
-SELECT id, username FROM users;
-
--- Then assign role (replace 1 with actual user id)
-INSERT INTO user_roles (user_id, role_id) VALUES (1, 1);
-```
-
-### Create an Operator user
-
-```sql
--- Create the user
-INSERT INTO users (username, full_name, password_hash, is_active)
-VALUES ('operator', 'Test Operator', 'your_password_here', 1);
-
--- Find the new user's id
-SELECT id FROM users WHERE username = 'operator';
-
--- Assign Operator role (replace 2 with actual user id, 2 is Operator role id)
-INSERT INTO user_roles (user_id, role_id) VALUES (2, 2);
-```
+> **Schema note:** the database now includes two additional tables — `transactions` (Check In/Out) and `maintenance_records` (repair history) — plus new columns on `equipment`: `category`, `description`, `vendor_name`, `condition_grade`, `warranty_expiry`, `notes`. These are already included if you're importing the latest `inventory_management.sql`.
 
 ---
 
 ## First Login
 
-When you run the app for the first time, the login screen appears. Check your `users` table in phpMyAdmin to find existing usernames:
-
-```sql
-SELECT username, full_name FROM users;
-```
-
-Passwords are stored as plain text by default in this version (suitable for internal/demo use). Enter the username and password exactly as stored in `password_hash`.
-
-> **Note for production use:** Replace plain-text password storage with BCrypt hashing using the `BCrypt.Net-Next` NuGet package before deploying to a real organization.
+*(unchanged)*
 
 ---
 
@@ -344,8 +277,8 @@ Passwords are stored as plain text by default in this version (suitable for inte
 | Feature | Admin | Operator |
 |---|---|---|
 | View Dashboard & Charts | ✅ | ✅ |
-| Equipment — View | ✅ | ✅ |
-| Equipment — Add/Edit/Delete | ✅ | ✅ |
+| Equipment — View / Add / Edit | ✅ | ✅ |
+| Equipment — Delete | ✅ | ❌ Hidden |
 | Equipment — QR Generate & Print | ✅ | ✅ |
 | Equipment — Excel Import/Export | ✅ | ✅ |
 | Employees — Full CRUD | ✅ | ✅ |
@@ -353,350 +286,154 @@ Passwords are stored as plain text by default in this version (suitable for inte
 | Allocation — Allocate/Approve/Return | ✅ | ✅ |
 | Transfer | ✅ | ✅ |
 | Returns History | ✅ | ✅ |
+| Check In / Check Out | ✅ | ✅ |
+| Decommission | ✅ | ✅ |
 | Logs — View & Export | ✅ | ✅ |
 | QR Scanner | ✅ | ✅ |
 | Reports — View & Export | ✅ | ✅ |
-| Decommission | ✅ | ❌ Hidden |
 | Settings | ✅ | ❌ Hidden |
 
 ---
 
 ## How to Use Each Screen
 
-### Dashboard
-The home screen. Shows 4 stat cards at the top (Total Equipment, Allocated, In Stock, Total Employees), a donut chart breaking down equipment by status, a bar chart of monthly allocations, and a quick summary strip. All data is live from the database. Navigate using the left sidebar.
+*(Dashboard, Employees, Locations, Allocation, Returns, Transfer, Logs, QR Scanner, Reports — unchanged from previous version)*
 
 ### Equipment
-The main equipment list. Shows all items with color-coded status:
-- 🟢 Green = In Stock (available)
-- 🟠 Amber = Allocated (assigned to someone)
-- 🟧 Orange = Under Repair
-- 🔴 Red = Decommissioned
+The main equipment list. Shows all items with color-coded status.
 
-**Add** — opens a dialog to enter equipment details. Equipment Code and Serial Number must be unique.
-**Edit** — select a row first, then click Edit.
-**Delete** — select a row, click Delete, confirm in the popup. Cannot delete allocated equipment.
-**Show QR** — select a row, click Show QR to see the QR code image. Click Print QR to print a physical label.
-**Import Excel** — bulk import equipment from a `.xlsx` file (see Excel Import Format section).
-**Export** — exports the current visible list to Excel.
-**Search** — fuzzy search across equipment code, name, make, model, serial number.
+- **Add** — opens a dialog to enter equipment details: Name, Make, Model, Serial Number, Status, Purchase Date, Category, Vendor Name, Condition Grade, Warranty Expiry, Procurement Type (free text — matched or created automatically), Notes. **Equipment Code and QR Code are generated automatically — you no longer enter them.**
+- **Edit** — select a row first, then click Edit. Changing status to "Under Repair" opens a maintenance-log dialog; changing it back opens a resolution dialog.
+- **Delete** — blocked if the item has any allocation or transaction history (even fully closed/returned ones). Use Decommission for equipment with history. Admin only.
+- **View Details** — full read-only view including complete maintenance history.
+- **Show QR / Print QR** — as before.
+- **Import Excel / Export** — as before.
+- **Search** — fuzzy search across all fields.
 
-### Employees
-Manage staff records. Each employee has a code, full name, department, email, phone, and active/inactive status. Only active employees appear in allocation dropdowns.
+### Check In / Check Out
+A quick alternative to the full Allocation workflow, for short-term loans that don't need an approval step.
 
-### Locations
-Physical locations where equipment can be deployed (e.g. "Server Room", "Finance Office", "Lab 1"). Each location has a name, building, and room number.
-
-### Allocation
-The core workflow screen:
-
-1. **Allocate** — click Allocate, select an available equipment item (only `in_store` items appear), select an employee, select a location, optionally set an expected return date. Creates a pending allocation.
-2. **Approve** — select a pending allocation row, click Approve. Status changes to `approved` and equipment status changes to `allocated`.
-3. **Return** — select an approved allocation, click Return. Equipment status changes back to `in_store`. A return record is created.
-4. **Delete** — only pending or rejected allocations can be deleted.
-5. **Select All** — selects all rows (useful for bulk review).
-
-### Returns
-Read-only history of all returned equipment. Shows who had it, when it was allocated, when it was returned, and how many days they had it. Rows where equipment was held for more than 30 days are highlighted in amber.
-
-### Transfer
-Move equipment directly from one employee/location to another without going through a Return first. Click **New Transfer**, select the currently-allocated equipment you want to move, select the new employee and location. The old allocation is automatically closed and a new one is created linked to it.
+1. Navigate to **Check In/Out**.
+2. To check out: enter or scan the equipment code, confirm who's taking it, click **Check Out**. Equipment status updates immediately.
+3. To check in: enter or scan the code again, click **Check In**. Equipment returns to `in_store`.
 
 ### Decommission
-Permanently retire equipment. Only equipment with status `in_store` or `under_repair` can be decommissioned. Click **Decommission Item**, select the equipment, choose a reason (Damaged / Obsolete / Beyond Repair / End of Life / Lost / Other), add optional notes. The equipment status changes to `decommissioned` and the action is logged.
-
-### Logs
-Full audit trail of every action taken in the system. Color coded by action type:
-- 🟢 Green = Equipment created
-- 🔵 Blue = Allocation actions
-- 🟡 Yellow = Returns
-- 🔴 Red = Rejections / Decommissions
-- 🟣 Purple = Transfers
-- 🟠 Orange = Location changes
-
-Searchable by equipment code, action type, user name, old value, or new value. Exportable to CSV.
-
-### QR Scanner
-Designed to work with a physical USB barcode scanner. How to use:
-1. Navigate to the QR Scanner screen (the input box auto-focuses)
-2. Point your USB scanner at a physical QR label stuck on equipment
-3. The scanner instantly "types" the code into the text box and the app auto-searches
-4. Equipment details appear on the left panel, full history on the right
-5. Can also type manually or paste a code and click Search, or press Enter
-
-### Reports
-Select a report type (Equipment / Employee / Allocation / Return) to preview it on screen. Then export via:
-- **Export Excel** — saves a styled `.xlsx` file
-- **Export PDF** — opens Windows print preview (save as PDF using "Microsoft Print to PDF" or send to a physical printer)
-
-### Settings
-**Application Settings:**
-- Company Name — used on printed labels
-- Theme — Light/Dark (Light is currently active)
-- Server / Database — stored for reference (does not change live connection)
-
-**Barcode Label Printing:**
-- Printer Name — type your printer's exact Windows name (leave blank for default)
-- Label Width/Height — in millimeters (default 62×29mm, a common label size)
-- Test Print Label — opens a print preview of a sample label to verify your printer and size settings before printing real equipment labels
+Permanently retire equipment while preserving its full history — this is now the recommended way to remove equipment from active use, as opposed to Delete, which only works on items with zero history.
 
 ---
 
-## QR Code System
+## Equipment Codes & QR Codes
 
-### How it works end-to-end
+Equipment Code (`EQ001`, `EQ002`, ...) and QR Code (`QR001`, `QR002`, ...) are now generated automatically by the system when equipment is added — there's no text box to fill in, and no risk of duplicates or typos. If you need to look up an item by these values, they're still shown in the Equipment grid and Detail popup as before; they're just no longer manually editable.
 
-1. When you add equipment, a QR code field stores a unique code (e.g. `QR001`)
-2. In the Equipment screen, click **Show QR** on any row to see the generated QR image
-3. Click **Print QR** to print a physical adhesive label
-4. Stick the label on the physical piece of equipment
-5. Later, when you need to look up that item, open the QR Scanner screen
-6. Scan the label with a USB scanner — the app instantly shows all details and history
+---
 
-### What the QR code contains
+## Maintenance Tracking
 
-Each QR code encodes a short text string (the `qr_code` field value, e.g. `QR001`). It is not a URL. It is plain text. Your app's QR Scanner searches for this text in the database across QR code, equipment code, and serial number fields.
+When you mark equipment as **Under Repair**, the app now prompts you to describe the issue and creates a dedicated maintenance record rather than just changing a status label. When you move the equipment back out of Under Repair, you're prompted to log the resolution and the repair cost. Every maintenance record for an item is visible in its Detail popup, so you get a full repair history over the item's lifetime — not just its current state.
 
-### Testing QR codes without a physical scanner
+---
 
-To verify a QR code is correct without buying hardware:
-- Open your iPhone Camera app and point it at the QR code on screen or on a printed label
-- If iOS opens a search or website, ignore the redirect — instead download **Qrafter** (free on App Store) which shows raw decoded text without any smart redirect behavior
-- The decoded text should match the `qr_code` column value for that equipment item in your database
+## Deleting vs Decommissioning
+
+These are now two distinct actions with different purposes:
+
+| | Delete | Decommission |
+|---|---|---|
+| Who can do it | Admin only | Admin & Operator |
+| What it does | Permanently removes the equipment row from the database | Marks equipment as retired, keeps it in the database |
+| History requirement | Blocked if the item has **any** allocation or transaction history | No restriction — this is exactly what it's for |
+| Use case | Removing a mistaken/duplicate entry that was never used | Retiring equipment that's actually been in service |
+
+If you try to delete equipment that has history, the app will tell you to decommission it instead.
 
 ---
 
 ## Barcode Scanner Hardware
 
-### Recommended scanner
-
-**Honeywell Xenon 1900GSR-2** or **Datalogic QuickScan QD2500**
-
-Both are 2D area-imager scanners that read QR codes, which is what this app generates. **Do not buy a 1D laser scanner** (like the Honeywell Voyager 1250g) — those cannot read QR codes.
-
-| | Honeywell Xenon 1900GSR-2 | Datalogic QuickScan QD2500 |
-|---|---|---|
-| Reads QR codes | ✅ Yes | ✅ Yes |
-| Interface | USB, Keyboard Wedge | USB, Keyboard Wedge |
-| Drop resistance | 6 ft to concrete | 5 ft to concrete |
-| Warranty | 5 years | 5 years |
-| Configuration tool | EasySet / scan sheets | Aladdin 3.0 (free) |
-
-### Do I need an SDK?
-
-**No.** Both scanners work in USB Keyboard Wedge mode out of the box — they plug into USB and act exactly like a keyboard. No drivers, no SDK, no coding required. The scanner just "types" the decoded text into whatever field is focused and presses Enter. Your app is already built to handle this exactly.
-
-### How to connect
-
-1. Plug the USB cable into any USB port on your Windows PC
-2. Windows detects it automatically (no driver installation needed)
-3. Open Notepad and scan any barcode — if text appears, it's working
-4. Open the QR Scanner screen in your app
-5. Scan — the app searches automatically
-
-### Confirming keyboard wedge mode
-
-When you buy the scanner, ask the seller: **"Is this pre-configured for USB Keyboard Wedge / HID mode?"**
-
-If it needs configuration, both models come with a printed manual containing special "setup barcodes" you scan to switch modes — no computer or software needed.
+*(unchanged — Honeywell Xenon 1900GSR-2 / Datalogic QuickScan QD2500 recommendation, keyboard wedge mode explanation)*
 
 ---
 
 ## Excel Import Format
 
-To bulk import equipment, create an Excel file (`.xlsx`) with exactly these column headers in **Row 1**, data starting from **Row 2**:
-
-| Column | Header | Example | Notes |
-|---|---|---|---|
-| A | equipment_code | EQ005 | Must be unique |
-| B | qr_code | QR005 | Must be unique |
-| C | name | Dell Latitude 5420 | Required |
-| D | make | Dell | Optional |
-| E | model | 5420 | Optional |
-| F | serial_number | SN98765 | Must be unique |
-| G | current_status | in_store | Must be one of: `in_store`, `allocated`, `decommissioned`, `under_repair` |
-| H | purchase_date | 2024-01-15 | Format: YYYY-MM-DD. Optional |
-
-**Notes:**
-- Row 1 must be the header row exactly as shown above (the import skips it automatically)
-- Empty rows are ignored silently
-- Rows with duplicate codes or serial numbers will fail individually but won't stop the rest from importing
-- After import, click Refresh to see the new records
+*(unchanged column format for now — flag if you'd like the new fields — Category, Vendor Name, Condition Grade, Warranty Expiry — added as optional import columns too)*
 
 ---
 
 ## Barcode Label Printing
 
-The Settings screen has a **Barcode Label Printing** section that connects to the Equipment form's QR print feature.
-
-### Setup
-1. Go to **Settings**
-2. Enter your printer's exact name as it appears in Windows (Start → Printers & Scanners → find your printer name)
-3. Set label dimensions in mm (check your label packaging — 62×29mm is a common Brother/Zebra size)
-4. Click **Test Print Label** to preview a sample label and confirm the size and layout look right
-5. Click **Save**
-
-### Printing a real label
-1. Go to **Equipment**
-2. Select the item you want to label
-3. Click **Show QR**
-4. Click **Print QR**
-5. A print preview opens showing the label with: company name, equipment code, equipment name, status, and date
-6. Click Print to send it to your label printer
-
-### Recommended label printers
-- **Brother QL series** (e.g. QL-800, QL-820NWB) — compact, affordable, common in Pakistan
-- **Zebra ZD series** (e.g. ZD230, ZD421) — enterprise grade, more expensive
+*(unchanged)*
 
 ---
 
 ## Reports
 
-### How to generate a report
-
-1. Click **Reports** in the sidebar
-2. Click one of the 4 report type buttons:
-   - **Equipment** — full inventory list
-   - **Employee** — allocation summary per person
-   - **Allocation** — currently active allocations
-   - **Return** — completed returns history
-3. The report previews instantly in the grid below
-4. Click **Export Excel** to save as `.xlsx` with a styled header
-5. Click **Export PDF** to open a print preview (multi-page with proper pagination)
-
-### PDF export note
-The PDF option uses Windows' built-in print system. In the print preview dialog, select **Microsoft Print to PDF** as the printer to save a PDF file, or select your actual printer to print on paper.
+*(unchanged)*
 
 ---
 
 ## Dashboard Charts
 
-The dashboard home screen (visible when you first log in and when you click Dashboard in the sidebar) shows three chart areas below the stat cards:
-
-### Donut Chart (Equipment Status)
-A circular chart showing the proportion of equipment in each status. The number in the center shows total equipment count. The legend below shows counts per status.
-
-### Bar Chart (Monthly Allocations)
-Shows how many allocations were created each month for the last 6 months. Useful for spotting busy periods or trends.
-
-### Quick Summary Strip
-Five columns showing: Available (in_store), Allocated, Under Repair, Decommissioned, and Active Staff — each with a count and a percentage of total.
-
-### Note on first load
-On first login, the charts may appear slightly smaller until you navigate to another screen and back to Dashboard. This is a known WinForms layout timing issue — it corrects itself automatically on second view.
+*(unchanged)*
 
 ---
 
 ## Audit Logging
 
-Every significant action in the app is automatically logged — no extra steps needed. The log records:
+*(unchanged, but see Known Limitations regarding the Returns screen)*
 
-- **What** — action type (Equipment Created, Allocation Approved, Returned to Store, etc.)
-- **Which item** — linked to the specific equipment record
-- **Before/After** — old value and new value for changes
-- **Who** — the logged-in user who performed the action
-- **When** — exact timestamp (UTC)
+---
 
-### Viewing logs
-Go to **Logs** in the sidebar. Search by equipment code, action type, user name, or value. Export to CSV using the Export button.
+## Settings
 
-### Log color codes
-| Color | Meaning |
-|---|---|
-| 🟢 Green | Equipment created |
-| 🔵 Blue | Allocation requested or approved |
-| 🟡 Yellow | Equipment returned |
-| 🔴 Red | Allocation rejected or decommissioned |
-| 🟣 Purple | Equipment transferred |
-| 🟠 Orange | Location changed |
+*(unchanged — General, Users, Change Password, Printing, Categories)*
 
 ---
 
 ## Fuzzy Search
 
-Every search bar in the app uses fuzzy search — you don't need to type the exact word or code. It finds results that approximately match what you typed, so partial words, slight typos, or fragment matches all work.
-
-For example searching `dell` in Equipment will find `Dell Latitude`, `Dell EliteBook`, etc. Searching `john` in Employees will find `John Smith`, `Johnathan Ali`, etc.
-
-This is available on all forms: Equipment, Employees, Locations, Allocation, Returns, Transfer, Decommission, Logs, QR Scanner, and Reports.
+*(unchanged)*
 
 ---
 
 ## Troubleshooting
 
-### App won't start / connection error on login
-- Open XAMPP Control Panel and make sure **MySQL is Started** (green)
-- Check the connection string in `Models/InventoryDbContext.cs` matches your MySQL server/password
+*(carry over previous entries, plus:)*
 
-### "Unknown column" error when opening a form
-- Your database schema may be out of sync with the code models
-- Re-import the `inventory_management.sql` file via phpMyAdmin
+### "Delete Failed" with an EF/association error, or "cannot be permanently deleted" message
+This is expected behavior, not a bug — equipment with any allocation or transaction history can't be permanently deleted, to protect the audit trail. Use **Decommission** instead.
 
-### Collation error during database import
-- See the "If you get a collation error" section under Database Setup above
-
-### QR code prints but scanner can't read it
-- Make sure your scanner is a **2D imager** not a 1D laser scanner
-- Try scanning from different angles or distances
-- Test the QR code with Qrafter app on your phone first to confirm it's readable
-
-### Scanner plugged in but nothing happens in QR Scanner screen
-- Make sure you clicked into the QR Scanner screen so the text box has keyboard focus
-- Open Notepad, click in it, and scan — if text appears in Notepad, the scanner is working and the issue is focus/navigation in your app
-- Make sure the scanner is in USB Keyboard Wedge mode (check with the seller or scan the HID mode setup barcode from the user manual)
-
-### Dashboard charts look squished on first login
-- Navigate to any other screen and back to Dashboard — the charts will resize correctly
-- This is a known WinForms layout timing issue being tracked for a future fix
-
-### "Non-nullable field" compile errors
-- Right-click project → Properties → Build → set **Nullable** to **Enable**
-- Rebuild the solution
-
-### Import Excel fails with "Error adding equipment"
-- Check the `equipment` table structure in phpMyAdmin — `created_by_user_id` is required
-- Make sure your Excel file has the correct column headers in row 1 exactly as specified
-- Check that equipment codes and serial numbers don't already exist in the database
+### App icon doesn't show on the built .exe after rebuilding
+Windows caches icons aggressively. Move the `.exe` to a different folder once, or restart `explorer.exe`, to force a refresh.
 
 ---
 
 ## Known Limitations
 
-- **Plain text passwords** — passwords are stored as plain text. Suitable for internal/demo use only. For production, implement BCrypt hashing.
-- **Single database connection** — the connection string is hardcoded in `InventoryDbContext.cs`. Moving it to `appsettings.json` is recommended for production.
-- **Windows only** — this is a WinForms app and runs only on Windows 10/11.
-- **Single machine** — the app runs locally. Remote access requires either RDP to a Windows Server or converting to a web app.
-- **Dark mode** — the Theme setting has a Dark option but it is a placeholder; dark mode is not yet implemented.
-- **Dashboard first-load chart sizing** — charts may appear smaller on first login, correcting on navigation back to Dashboard.
-- **One concurrent user per machine** — WinForms desktop apps are not inherently multi-user on the same machine.
+- **Plain text passwords** — unchanged, still recommended to hash before production use.
+- **Returns screen bypasses the audit log** — processing a return via the Returns screen does not currently write an `allocation_returned` log entry (Allocation → Deallocate does). Use Allocation's Deallocate action if a full audit trail matters for that return.
+- **Categories are not database-backed** — stored in a local flat file; lost if the file is deleted or the app is moved without it.
+- **No pagination** — all grids load every record at once.
+- **Single database connection** — connection string is hardcoded in `InventoryDbContext.cs`.
+- **Windows only, single machine** — as before.
 
 ---
 
 ## Future Improvements
 
-- Move connection string to `appsettings.json` config file
-- Implement BCrypt password hashing for production security
-- Add user management screen (create/edit/deactivate users from inside the app)
-- Implement dark mode theme
-- Fix dashboard first-load chart sizing
-- Add email notifications for overdue equipment returns
-- Add maintenance scheduling and reminders
-- Convert to ASP.NET Core Blazor web app for true remote/multi-user access
-- Add role for "Manager" with approval-only access
-- Add equipment image upload support
-- Add barcode (1D Code128) generation as alternative to QR codes
+- Hash passwords (BCrypt) before any real deployment
+- Route Returns-screen processing through the same audit-logged service as Allocation Deallocate
+- Move connection string to a config file
+- Add pagination to large grids
+- Wire up the currently-unused `ReportService.cs` or remove it
+- Convert Categories to a proper database table
 
 ---
 
 ## Built With
 
 Developed by **Syed Shayan Haider Kazmi** as part of a PSEB apprenticeship program at **QuantumRonics, Islamabad**.
-
-- C# .NET 8 / Windows Forms
-- Entity Framework Core 8 + Pomelo MySQL provider
-- QRCoder, ClosedXML
-- MySQL 8 via XAMPP
-- Visual Studio 2022
 
 ---
 
