@@ -42,17 +42,31 @@ namespace Inventory_Management_System.Forms
             lblRowCount.Font      = ThemeHelper.FontSmall;
         }
 
-        private void LoadTransfers(string filter = "")
+        // ── Load with full includes ───────────────────────────────────────
+        private void LoadTransfers()
         {
-            var result = _allocationService.GetAll();
-            if (!result.Success)
+            try
             {
-                MessageBox.Show(result.ErrorMessage, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
+                using var db = new InventoryDbContext();
+                _allTransfers = db.Allocations
+                    .Where(a => a.PreviousAllocationId != null)
+                    .Include(a => a.Equipment)
+                    .Include(a => a.Employee)
+                    .Include(a => a.Location)
+                    .Include(a => a.PreviousAllocation)
+                        .ThenInclude(p => p!.Employee)
+                    .Include(a => a.PreviousAllocation)
+                        .ThenInclude(p => p!.Location)
+                    .OrderByDescending(a => a.AllocationDate)
+                    .ToList();
+
+                RefreshGrid();
             }
-            // Transfers are allocations that have a PreviousAllocationId
-            _allTransfers = result.Data?.Where(a => a.PreviousAllocationId != null).ToList() ?? new();
-            RefreshGrid(filter);
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error loading transfers: " + ex.Message, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void RefreshGrid(string filter = "")
@@ -62,37 +76,31 @@ namespace Inventory_Management_System.Forms
             var items = string.IsNullOrWhiteSpace(filter)
                 ? _allTransfers
                 : _allTransfers.Where(a =>
-                    FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.EquipmentCode, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.Name, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.Employee?.FullName, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.Location?.LocationName, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.PreviousAllocation?.Employee?.FullName, filter)
-                )
+                    FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.EquipmentCode,              filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.Name,                       filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(a.Employee?.FullName,                    filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(a.Location?.LocationName,                filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(a.PreviousAllocation?.Employee?.FullName, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(a.AllocationDate.ToString("yyyy-MM-dd"), filter))
                 .OrderByDescending(a => Math.Max(
                     FuzzySearchHelper.FuzzyScore(a.Equipment?.EquipmentCode, filter),
                     Math.Max(
-                        FuzzySearchHelper.FuzzyScore(a.Equipment?.Name, filter),
+                        FuzzySearchHelper.FuzzyScore(a.Equipment?.Name,    filter),
                         Math.Max(
-                            FuzzySearchHelper.FuzzyScore(a.Employee?.FullName, filter),
-                            Math.Max(
-                                FuzzySearchHelper.FuzzyScore(a.Location?.LocationName, filter),
-                                FuzzySearchHelper.FuzzyScore(a.PreviousAllocation?.Employee?.FullName, filter)
-                            )
-                        )
-                    )
-                ))
+                            FuzzySearchHelper.FuzzyScore(a.Employee?.FullName,                    filter),
+                            FuzzySearchHelper.FuzzyScore(a.PreviousAllocation?.Employee?.FullName, filter)))))
                 .ToList();
 
             foreach (var item in items)
             {
                 dgvTransfer.Rows.Add(
                     item.Id,
-                    item.Equipment?.EquipmentCode                       ?? "—",
-                    item.Equipment?.Name                                 ?? "—",
-                    item.PreviousAllocation?.Employee?.FullName          ?? "—",
-                    item.Employee?.FullName                              ?? "—",
-                    item.PreviousAllocation?.Location?.LocationName      ?? "—",
-                    item.Location?.LocationName                          ?? "—",
+                    item.Equipment?.EquipmentCode                  ?? "—",
+                    item.Equipment?.Name                           ?? "—",
+                    item.PreviousAllocation?.Employee?.FullName    ?? "—",
+                    item.Employee?.FullName                        ?? "—",
+                    item.PreviousAllocation?.Location?.LocationName ?? "—",
+                    item.Location?.LocationName                    ?? "—",
                     item.AllocationDate.ToString("yyyy-MM-dd")
                 );
             }
@@ -102,40 +110,35 @@ namespace Inventory_Management_System.Forms
 
         private void btnTransfer_Click(object sender, EventArgs e)
         {
-            // Get all currently allocated equipment
-            var allocResult = _allocationService.GetAll();
-            if (!allocResult.Success) return;
-
-            var activeAllocations = allocResult.Data?
-                .Where(a => a.Status == "approved")
-                .ToList() ?? new();
-
-            if (activeAllocations.Count == 0)
-            {
-                MessageBox.Show("No allocated equipment available to transfer.",
-                    "No Equipment", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            using var frm = new TransferDialog(
-                activeAllocations,
-                _employeeService.GetAll().Data ?? new(),
-                _locationService.GetAll().Data ?? new());
-
-            if (frm.ShowDialog() != DialogResult.OK) return;
-
             try
             {
                 using var db = new InventoryDbContext();
+                var activeAllocations = db.Allocations
+                    .Where(a => a.Status == "approved")
+                    .Include(a => a.Equipment)
+                    .Include(a => a.Employee)
+                    .ToList();
+
+                if (activeAllocations.Count == 0)
+                {
+                    MessageBox.Show("No allocated equipment available to transfer.",
+                        "No Equipment", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                using var frm = new TransferDialog(
+                    activeAllocations,
+                    _employeeService.GetAll().Data ?? new(),
+                    _locationService.GetAll().Data ?? new());
+
+                if (frm.ShowDialog() != DialogResult.OK) return;
 
                 var oldAlloc = db.Allocations.FirstOrDefault(a => a.Id == frm.OldAllocationId);
                 if (oldAlloc == null) return;
 
-                // Close old allocation
                 oldAlloc.Status           = "returned";
                 oldAlloc.ActualReturnDate = DateOnly.FromDateTime(DateTime.Today);
 
-                // Create new allocation linked to old
                 var newAlloc = new Allocation
                 {
                     EquipmentId          = oldAlloc.EquipmentId,
@@ -192,10 +195,10 @@ namespace Inventory_Management_System.Forms
                 {
                     string E(object? v) => $"\"{v?.ToString()?.Replace("\"", "\"\"") ?? ""}\"";
                     sb.AppendLine(string.Join(",",
-                        E(row.Cells["TransferID"].Value), E(row.Cells["EquipmentCode"].Value),
+                        E(row.Cells["TransferID"].Value),    E(row.Cells["EquipmentCode"].Value),
                         E(row.Cells["EquipmentName"].Value), E(row.Cells["FromEmployee"].Value),
-                        E(row.Cells["ToEmployee"].Value), E(row.Cells["FromLocation"].Value),
-                        E(row.Cells["ToLocation"].Value), E(row.Cells["TransferDate"].Value)));
+                        E(row.Cells["ToEmployee"].Value),    E(row.Cells["FromLocation"].Value),
+                        E(row.Cells["ToLocation"].Value),    E(row.Cells["TransferDate"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
                 MessageBox.Show("Exported successfully.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -207,7 +210,7 @@ namespace Inventory_Management_System.Forms
         }
     }
 
-    // ── Transfer Dialog ───────────────────────────────────────────────────
+    // ── Transfer Dialog — unchanged ───────────────────────────────────────
     public class TransferDialog : Form
     {
         public int OldAllocationId { get; private set; }
@@ -240,7 +243,7 @@ namespace Inventory_Management_System.Forms
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox     = false;
             ThemeHelper.ApplyFormBackground(this);
-            this.AutoScroll = true;
+            AutoScroll = true;
 
             int y = 20;
             void AddRow(string label, Control ctrl)

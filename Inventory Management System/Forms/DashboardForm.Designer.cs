@@ -151,7 +151,7 @@ namespace Inventory_Management_System
             btnSettings.Click   += btnSettings_Click;
 
             btnLogout.Dock       = System.Windows.Forms.DockStyle.Bottom;
-            btnLogout.Height     = 46; btnLogout.Text = "🚪  Logout";
+            btnLogout.Height     = 46; btnLogout.Text = "⏻  Logout";
             btnLogout.Name       = "btnLogout";
             btnLogout.UseVisualStyleBackColor              = false;
             btnLogout.FlatStyle                           = System.Windows.Forms.FlatStyle.Flat;

@@ -22,7 +22,6 @@ namespace Inventory_Management_System.Forms
             btnDelete    = new System.Windows.Forms.Button();
             btnRefresh   = new System.Windows.Forms.Button();
             btnExport    = new System.Windows.Forms.Button();
-            txtSearch    = new System.Windows.Forms.TextBox();
             dgvEmployees = new System.Windows.Forms.DataGridView();
 
             panelTop.SuspendLayout();
@@ -38,7 +37,6 @@ namespace Inventory_Management_System.Forms
             panelTop.Controls.Add(btnDelete);
             panelTop.Controls.Add(btnRefresh);
             panelTop.Controls.Add(btnExport);
-            panelTop.Controls.Add(txtSearch);
 
             btnAdd.Location = new System.Drawing.Point(12, 14);
             btnAdd.Size     = new System.Drawing.Size(90, 32);
@@ -69,11 +67,6 @@ namespace Inventory_Management_System.Forms
             btnExport.Text     = "📥 Export";
             btnExport.Name     = "btnExport";
             btnExport.Click   += btnExport_Click;
-
-            txtSearch.Location        = new System.Drawing.Point(600, 16);
-            txtSearch.Size            = new System.Drawing.Size(260, 26);
-            txtSearch.PlaceholderText = "Search Employee…";
-            txtSearch.Name            = "txtSearch";
 
             dgvEmployees.Dock                = System.Windows.Forms.DockStyle.Fill;
             dgvEmployees.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
@@ -112,7 +105,6 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Button      btnDelete;
         private System.Windows.Forms.Button      btnRefresh;
         private System.Windows.Forms.Button      btnExport;
-        private System.Windows.Forms.TextBox     txtSearch;
         private System.Windows.Forms.DataGridView dgvEmployees;
     }
 }

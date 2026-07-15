@@ -5,10 +5,13 @@ using Inventory_Management_System.Services;
 using QRCoder;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Printing;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Windows.Forms;
 
 namespace Inventory_Management_System.Forms
@@ -56,9 +59,30 @@ namespace Inventory_Management_System.Forms
         private ListBox lstCategories   = null!;
         private Label   lblCategoryMsg  = null!;
 
+        // ── General / dirty-check fields ────────────────────────────────
+        private string  _originalCompanyName = "";
+        private Label   _lblSavedPill  = null!;
+
+        // ── System info fields ───────────────────────────────────────────
+        private Label _lblDbValue         = null!;
+        private Label _lblLastBackupValue = null!;
+        private DateTime? _lastBackupTime;
+
+      private static readonly string BackupInfoPath = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    "QInventory", "lastbackup.txt");
+
+private static readonly string MysqlToolsConfigPath = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    "QInventory", "mysqltools.txt");
+
+private string? _mysqldumpPath;
+private string? _mysqlPath;
+
         public SettingsForm()
         {
             InitializeComponent();
+            LoadLastBackupTime();
             BuildUI();
             LoadSettings();
             LoadUsers();
@@ -233,7 +257,7 @@ namespace Inventory_Management_System.Forms
         }
 
         // ══════════════════════════════════════════════════════════════
-        //  GENERAL PANEL
+        //  GENERAL PANEL  — Company (dirty-check) + System info + Danger zone
         // ══════════════════════════════════════════════════════════════
         private Panel BuildGeneralPanel()
         {
@@ -253,6 +277,7 @@ namespace Inventory_Management_System.Forms
             };
             outer.Controls.Add(title);
 
+            // ═══ Card 1: Company ═══
             var card = new Panel
             {
                 Location  = new Point(32, 72),
@@ -280,13 +305,25 @@ namespace Inventory_Management_System.Forms
                 Size     = new Size(490, 28)
             };
             ThemeHelper.StyleTextBox(txtCompany);
+            txtCompany.TextChanged += (s, e) => UpdateSaveButtonState();
             card.Controls.Add(txtCompany);
+
+            var lblHint = new Label
+            {
+                Text      = "Appears on printed labels, reports, and exported files.",
+                Font      = ThemeHelper.FontSmall,
+                ForeColor = ThemeHelper.TextSecondary,
+                AutoSize  = true,
+                Location  = new Point(28, 84),
+                BackColor = Color.Transparent
+            };
+            card.Controls.Add(lblHint);
 
             btnSave = new Button
             {
-                Text     = "💾  Save",
-                Location = new Point(28, 110),
-                Size     = new Size(150, 36)
+                Text     = "💾  Save changes",
+                Location = new Point(28, 116),
+                Size     = new Size(160, 36)
             };
             StyleGreenBtn(btnSave);
             btnSave.Click += btnSave_Click;
@@ -295,14 +332,597 @@ namespace Inventory_Management_System.Forms
             btnReset = new Button
             {
                 Text     = "↺  Reset",
-                Location = new Point(192, 110),
-                Size     = new Size(150, 36)
+                Location = new Point(200, 116),
+                Size     = new Size(120, 36)
             };
             StyleGrayBtn(btnReset);
             btnReset.Click += btnReset_Click;
             card.Controls.Add(btnReset);
 
+            _lblSavedPill = new Label
+            {
+                Text      = "✓ Saved",
+                Font      = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.Success,
+                AutoSize  = true,
+                Location  = new Point(334, 126),
+                BackColor = Color.Transparent,
+                Visible   = false
+            };
+            card.Controls.Add(_lblSavedPill);
+
+            // ═══ Card 2: System ═══
+            var sysCard = new Panel
+            {
+                Location  = new Point(32, 308),
+                Size      = new Size(560, 200),
+                BackColor = Color.White
+            };
+            ApplyCardStyle(sysCard);
+            outer.Controls.Add(sysCard);
+
+            var lblSysTitle = new Label
+            {
+                Text      = "System",
+                Font      = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize  = true,
+                Location  = new Point(28, 20),
+                BackColor = Color.Transparent
+            };
+            sysCard.Controls.Add(lblSysTitle);
+
+            string appVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
+
+            sysCard.Controls.Add(MakeSysInfoLabel("App version", appVersion, 28, 56));
+
+            _lblDbValue = MakeSysInfoValueLabel("", 220, 56, 300);
+            sysCard.Controls.Add(MakeSysInfoLabel("Database", "", 220, 56, hideValue: true));
+            sysCard.Controls.Add(_lblDbValue);
+
+            _lblLastBackupValue = MakeSysInfoValueLabel(FormatLastBackup(), 28, 96, 180);
+            sysCard.Controls.Add(MakeSysInfoLabel("Last backup", "", 28, 96, hideValue: true));
+            sysCard.Controls.Add(_lblLastBackupValue);
+
+            sysCard.Controls.Add(MakeSysInfoLabel("Built by", "@shayanqazmi", 220, 96));
+
+            var divider = new Panel
+            {
+                Location  = new Point(28, 132),
+                Size      = new Size(504, 1),
+                BackColor = ThemeHelper.CardBorder
+            };
+            sysCard.Controls.Add(divider);
+
+            var btnBackupDb = new Button
+            {
+                Text     = "⇩  Backup database",
+                Location = new Point(28, 148),
+                Size     = new Size(190, 36)
+            };
+            StyleGrayBtn(btnBackupDb);
+            btnBackupDb.Click += BtnBackupDb_Click;
+            sysCard.Controls.Add(btnBackupDb);
+
+            var btnRestoreDb = new Button
+            {
+                Text     = "⇧  Restore from file",
+                Location = new Point(228, 148),
+                Size     = new Size(190, 36)
+            };
+            StyleGrayBtn(btnRestoreDb);
+            btnRestoreDb.Click += BtnRestoreDb_Click;
+            sysCard.Controls.Add(btnRestoreDb);
+
+            // ═══ Card 3: Danger zone ═══
+            var dangerCard = new Panel
+            {
+                Location  = new Point(32, 524),
+                Size      = new Size(560, 150),
+                BackColor = Color.FromArgb(255, 248, 248)
+            };
+            ApplyCardStyle(dangerCard, borderColor: Color.FromArgb(252, 165, 165));
+            outer.Controls.Add(dangerCard);
+
+            var lblDangerTitle = new Label
+            {
+                Text      = "Danger zone",
+                Font      = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+                ForeColor = ThemeHelper.Danger,
+                AutoSize  = true,
+                Location  = new Point(28, 20),
+                BackColor = Color.Transparent
+            };
+            dangerCard.Controls.Add(lblDangerTitle);
+
+            var lblDangerHint = new Label
+            {
+                Text      = "These actions are destructive and cannot be undone.",
+                Font      = ThemeHelper.FontSmall,
+                ForeColor = ThemeHelper.TextSecondary,
+                AutoSize  = true,
+                Location  = new Point(28, 48),
+                BackColor = Color.Transparent
+            };
+            dangerCard.Controls.Add(lblDangerHint);
+
+            var btnClearLogs = new Button
+            {
+                Text     = "🗑  Clear all logs",
+                Location = new Point(28, 84),
+                Size     = new Size(160, 36)
+            };
+            StyleDangerOutlineBtn(btnClearLogs);
+            btnClearLogs.Click += BtnClearLogs_Click;
+            dangerCard.Controls.Add(btnClearLogs);
+
+            var btnResetData = new Button
+            {
+                Text     = "⚠  Reset application data",
+                Location = new Point(198, 84),
+                Size     = new Size(220, 36)
+            };
+            StyleDangerOutlineBtn(btnResetData);
+            btnResetData.Click += BtnResetAppData_Click;
+            dangerCard.Controls.Add(btnResetData);
+
             return outer;
+        }
+
+        private static Label MakeSysInfoLabel(string caption, string value, int x, int y, int width = 180, bool hideValue = false)
+        {
+            var lbl = new Label
+            {
+                Text      = caption,
+                Font      = ThemeHelper.FontSmall,
+                ForeColor = ThemeHelper.TextSecondary,
+                AutoSize  = true,
+                Location  = new Point(x, y),
+                BackColor = Color.Transparent
+            };
+            if (!hideValue)
+            {
+                var container = new Panel { Location = new Point(x, y), Size = new Size(width, 34), BackColor = Color.Transparent };
+                lbl.Location = new Point(0, 0);
+                container.Controls.Add(lbl);
+                var valLbl = new Label
+                {
+                    Text      = value,
+                    Font      = ThemeHelper.FontDefault,
+                    ForeColor = ThemeHelper.TextPrimary,
+                    AutoSize  = true,
+                    Location  = new Point(0, 16),
+                    BackColor = Color.Transparent
+                };
+                container.Controls.Add(valLbl);
+                return CreateWrapperLabel(container);
+            }
+            return lbl;
+        }
+
+        // Small helper: some sysinfo rows need a caption label + separate updatable value label
+        private static Label CreateWrapperLabel(Panel container)
+        {
+            // Returning a zero-size invisible label just so callers can add "container" via
+            // sysCard.Controls.Add — simplified by directly adding container instead below.
+            var placeholder = new Label { Visible = false, Size = Size.Empty };
+            container.Tag = placeholder;
+            return placeholder;
+        }
+
+        private static Label MakeSysInfoValueLabel(string value, int x, int y, int width)
+        {
+            return new Label
+            {
+                Text      = value,
+                Font      = ThemeHelper.FontDefault,
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize  = false,
+                Size      = new Size(width, 18),
+                Location  = new Point(x, y + 16),
+                BackColor = Color.Transparent
+            };
+        }
+
+        private void UpdateSaveButtonState()
+        {
+            bool dirty = txtCompany.Text.Trim() != _originalCompanyName;
+            btnSave.Enabled = dirty;
+            if (dirty) _lblSavedPill.Visible = false;
+        }
+
+        private string FormatLastBackup() =>
+            _lastBackupTime.HasValue ? _lastBackupTime.Value.ToString("MMM dd, yyyy · h:mm tt") : "Never";
+
+        private void LoadLastBackupTime()
+        {
+            try
+            {
+                if (File.Exists(BackupInfoPath))
+                {
+                    var text = File.ReadAllText(BackupInfoPath);
+                    if (DateTime.TryParse(text, out var dt)) _lastBackupTime = dt;
+                }
+            }
+            catch { }
+        }
+
+        private void SaveLastBackupTimeNow()
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(BackupInfoPath)!);
+                File.WriteAllText(BackupInfoPath, DateTime.Now.ToString("o"));
+                _lastBackupTime = DateTime.Now;
+                if (_lblLastBackupValue != null)
+                    _lblLastBackupValue.Text = FormatLastBackup();
+            }
+            catch { }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  BACKUP / RESTORE  (MySQL via mysqldump / mysql CLI)
+        // ══════════════════════════════════════════════════════════════
+        private string? LocateMySqlTool(string exeName)
+        {
+            if (exeName == "mysqldump.exe" && _mysqldumpPath != null && File.Exists(_mysqldumpPath))
+                return _mysqldumpPath;
+            if (exeName == "mysql.exe" && _mysqlPath != null && File.Exists(_mysqlPath))
+                return _mysqlPath;
+
+            try
+            {
+                if (File.Exists(MysqlToolsConfigPath))
+                {
+                    foreach (var line in File.ReadAllLines(MysqlToolsConfigPath))
+                    {
+                        if (line.EndsWith(exeName, StringComparison.OrdinalIgnoreCase) && File.Exists(line))
+                        {
+                            CacheToolPath(exeName, line);
+                            return line;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            string[] commonDirs =
+            {
+                @"C:\xampp\mysql\bin",
+                @"C:\Program Files\MySQL\MySQL Server 8.0\bin",
+                @"C:\Program Files\MySQL\MySQL Server 8.4\bin",
+                @"C:\wamp64\bin\mysql\mysql8.0.31\bin",
+            };
+            foreach (var dir in commonDirs)
+            {
+                var candidate = Path.Combine(dir, exeName);
+                if (File.Exists(candidate))
+                {
+                    CacheToolPath(exeName, candidate);
+                    return candidate;
+                }
+            }
+
+            using var ofd = new OpenFileDialog
+            {
+                Title  = $"Locate {exeName}",
+                Filter = "Executable|*.exe"
+            };
+            if (ofd.ShowDialog() == DialogResult.OK && Path.GetFileName(ofd.FileName)
+                    .Equals(exeName, StringComparison.OrdinalIgnoreCase))
+            {
+                CacheToolPath(exeName, ofd.FileName);
+                return ofd.FileName;
+            }
+
+            return null;
+        }
+
+        private void CacheToolPath(string exeName, string fullPath)
+        {
+            if (exeName == "mysqldump.exe") _mysqldumpPath = fullPath;
+            if (exeName == "mysql.exe")     _mysqlPath     = fullPath;
+
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(MysqlToolsConfigPath)!);
+                var lines = File.Exists(MysqlToolsConfigPath)
+                    ? File.ReadAllLines(MysqlToolsConfigPath).Where(l => !l.EndsWith(exeName, StringComparison.OrdinalIgnoreCase)).ToList()
+                    : new List<string>();
+                lines.Add(fullPath);
+                File.WriteAllLines(MysqlToolsConfigPath, lines);
+            }
+            catch { }
+        }
+        private (string host, string db, string user, string pass)? PromptDbCredentials()
+        {
+            using var frm = new Form
+            {
+                Text            = "Database Credentials",
+                Size            = new Size(360, 300),
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox     = false,
+                MinimizeBox     = false,
+                StartPosition   = FormStartPosition.CenterParent,
+                BackColor       = Color.White
+            };
+
+            int y = 20;
+            var txtHost = MakeCredField(frm, "Host", _current?.DbServer ?? "localhost", ref y);
+            var txtDb   = MakeCredField(frm, "Database", _current?.DbName ?? "inventory_management", ref y);
+            var txtUser = MakeCredField(frm, "Username", "root", ref y);
+            var txtPass = MakeCredField(frm, "Password", "", ref y);
+            txtPass.UseSystemPasswordChar = true;
+
+            var btnOk = new Button
+            {
+                Text     = "Continue",
+                Location = new Point(60, y + 10),
+                Size     = new Size(110, 32)
+            };
+            StyleGreenBtn(btnOk);
+            btnOk.Click += (s, e) => frm.DialogResult = DialogResult.OK;
+            frm.Controls.Add(btnOk);
+
+            var btnCancel = new Button
+            {
+                Text     = "Cancel",
+                Location = new Point(180, y + 10),
+                Size     = new Size(90, 32)
+            };
+            StyleGrayBtn(btnCancel);
+            btnCancel.Click += (s, e) => frm.DialogResult = DialogResult.Cancel;
+            frm.Controls.Add(btnCancel);
+
+            frm.AcceptButton = btnOk;
+            frm.CancelButton = btnCancel;
+            frm.ClientSize   = new Size(340, y + 60);
+
+            if (frm.ShowDialog() != DialogResult.OK) return null;
+            return (txtHost.Text.Trim(), txtDb.Text.Trim(), txtUser.Text.Trim(), txtPass.Text);
+        }
+
+        private static TextBox MakeCredField(Form frm, string label, string defaultVal, ref int y)
+        {
+            frm.Controls.Add(new Label
+            {
+                Text = label, Location = new Point(20, y), AutoSize = true,
+                Font = ThemeHelper.FontBold, ForeColor = ThemeHelper.TextPrimary
+            });
+            y += 20;
+            var txt = new TextBox { Location = new Point(20, y), Size = new Size(300, 26), Text = defaultVal };
+            ThemeHelper.StyleTextBox(txt);
+            frm.Controls.Add(txt);
+            y += 36;
+            return txt;
+        }
+
+        private void BtnBackupDb_Click(object? sender, EventArgs e)
+        {
+            using var sfd = new SaveFileDialog
+            {
+                Filter   = "SQL Files|*.sql",
+                Title    = "Save Database Backup",
+                FileName = $"qinventory_backup_{DateTime.Now:yyyyMMdd_HHmm}.sql"
+            };
+            if (sfd.ShowDialog() != DialogResult.OK) return;
+
+            var creds = PromptDbCredentials();
+            if (creds == null) return;
+            var (host, db, user, pass) = creds.Value;
+
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName               = LocateMySqlTool("mysqldump.exe") ?? "mysqldump",
+                    Arguments              = $"-h {host} -u {user}{(string.IsNullOrEmpty(pass) ? "" : $" -p{pass}")} {db}",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                    UseShellExecute        = false,
+                    CreateNoWindow         = true
+                };
+
+                using var proc = Process.Start(psi)!;
+                string output = proc.StandardOutput.ReadToEnd();
+                string errors = proc.StandardError.ReadToEnd();
+                proc.WaitForExit();
+
+                if (proc.ExitCode == 0 && output.Length > 0)
+                {
+                    File.WriteAllText(sfd.FileName, output);
+                    SaveLastBackupTimeNow();
+                    MessageBox.Show("Backup completed successfully.", "Backup",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show("mysqldump did not complete successfully:\n\n" + errors,
+                        "Backup Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "Backup failed: " + ex.Message +
+                    "\n\nMake sure mysqldump.exe is installed and available on your system PATH " +
+                    "(it ships with MySQL Server / XAMPP under the bin folder).",
+                    "Backup Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BtnRestoreDb_Click(object? sender, EventArgs e)
+        {
+            using var ofd = new OpenFileDialog { Filter = "SQL Files|*.sql", Title = "Select Backup File" };
+            if (ofd.ShowDialog() != DialogResult.OK) return;
+
+            if (MessageBox.Show(
+                "Restoring will OVERWRITE existing data in the target database with the contents " +
+                "of this backup file. This cannot be undone. Continue?",
+                "Confirm Restore", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                return;
+
+            var creds = PromptDbCredentials();
+            if (creds == null) return;
+            var (host, db, user, pass) = creds.Value;
+
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName              = LocateMySqlTool("mysql.exe") ?? "mysql",
+                    Arguments             = $"-h {host} -u {user}{(string.IsNullOrEmpty(pass) ? "" : $" -p{pass}")} {db}",
+                    RedirectStandardInput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute       = false,
+                    CreateNoWindow        = true
+                };
+
+                using var proc = Process.Start(psi)!;
+                string sqlText = File.ReadAllText(ofd.FileName);
+                proc.StandardInput.Write(sqlText);
+                proc.StandardInput.Close();
+                string errors = proc.StandardError.ReadToEnd();
+                proc.WaitForExit();
+
+                if (proc.ExitCode == 0)
+                {
+                    MessageBox.Show("Database restored successfully. Please restart the application.",
+                        "Restore Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show("Restore did not complete successfully:\n\n" + errors,
+                        "Restore Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "Restore failed: " + ex.Message +
+                    "\n\nMake sure mysql.exe is installed and available on your system PATH.",
+                    "Restore Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  DANGER ZONE
+        // ══════════════════════════════════════════════════════════════
+        private void BtnClearLogs_Click(object? sender, EventArgs e)
+        {
+            if (MessageBox.Show(
+                "This will permanently delete ALL entries in the activity log. This cannot be undone.",
+                "Confirm Clear Logs", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                return;
+
+            try
+            {
+                using var db = new InventoryDbContext();
+                var logs = db.EquipmentLogs.ToList();
+                db.EquipmentLogs.RemoveRange(logs);
+                db.SaveChanges();
+                MessageBox.Show($"{logs.Count} log entries deleted.", "Logs Cleared",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not clear logs: " + ex.Message, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BtnResetAppData_Click(object? sender, EventArgs e)
+        {
+            if (!ShowTypedConfirm(
+                "This will permanently delete ALL equipment and allocation records.\n" +
+                "Users, roles, categories, and settings will NOT be affected.\n\n" +
+                "Type RESET below to confirm.", "RESET"))
+                return;
+
+            var errors = new List<string>();
+            int deletedAllocations = 0, deletedEquipment = 0;
+
+            try
+            {
+                using var db = new InventoryDbContext();
+                try
+                {
+                    var allocations = db.Allocations.ToList();
+                    db.Allocations.RemoveRange(allocations);
+                    db.SaveChanges();
+                    deletedAllocations = allocations.Count;
+                }
+                catch (Exception ex) { errors.Add("Allocations: " + ex.Message); }
+
+                try
+                {
+                    var equipment = db.Equipment.ToList();
+                    db.Equipment.RemoveRange(equipment);
+                    db.SaveChanges();
+                    deletedEquipment = equipment.Count;
+                }
+                catch (Exception ex) { errors.Add("Equipment: " + ex.Message); }
+            }
+            catch (Exception ex)
+            {
+                errors.Add("Database connection: " + ex.Message);
+            }
+
+            string summary = $"Deleted {deletedEquipment} equipment records and {deletedAllocations} allocation records.";
+            if (errors.Count > 0)
+                summary += "\n\nSome tables could not be cleared:\n" + string.Join("\n", errors);
+
+            MessageBox.Show(summary, "Reset Complete",
+                MessageBoxButtons.OK, errors.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+        }
+
+        /// Small modal requiring the user to type an exact confirmation word before proceeding.
+        private bool ShowTypedConfirm(string message, string requiredWord)
+        {
+            using var frm = new Form
+            {
+                Text            = "Confirm Destructive Action",
+                Size            = new Size(420, 260),
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox     = false,
+                MinimizeBox     = false,
+                StartPosition   = FormStartPosition.CenterParent,
+                BackColor       = Color.White
+            };
+
+            var lblMsg = new Label
+            {
+                Text      = message,
+                Location  = new Point(20, 18),
+                Size      = new Size(380, 100),
+                Font      = ThemeHelper.FontDefault,
+                ForeColor = ThemeHelper.TextPrimary
+            };
+            frm.Controls.Add(lblMsg);
+
+            var txtConfirm = new TextBox { Location = new Point(20, 126), Size = new Size(380, 28) };
+            ThemeHelper.StyleTextBox(txtConfirm);
+            frm.Controls.Add(txtConfirm);
+
+            var btnConfirm = new Button
+            {
+                Text     = $"Type \"{requiredWord}\" to confirm",
+                Location = new Point(20, 166),
+                Size     = new Size(380, 36),
+                Enabled  = false
+            };
+            StyleDangerOutlineBtn(btnConfirm);
+            btnConfirm.BackColor = ThemeHelper.Danger;
+            btnConfirm.ForeColor = Color.White;
+            frm.Controls.Add(btnConfirm);
+
+            txtConfirm.TextChanged += (s, e) =>
+                btnConfirm.Enabled = txtConfirm.Text.Trim() == requiredWord;
+
+            btnConfirm.Click += (s, e) => frm.DialogResult = DialogResult.OK;
+
+            frm.ClientSize = new Size(420, 220);
+            return frm.ShowDialog() == DialogResult.OK;
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -741,7 +1361,7 @@ namespace Inventory_Management_System.Forms
         }
 
         // ══════════════════════════════════════════════════════════════
-        //  CATEGORIES PANEL  — now backed by CategoryStore (shared)
+        //  CATEGORIES PANEL  — backed by CategoryStore (shared)
         // ══════════════════════════════════════════════════════════════
         private Panel BuildCategoriesPanel()
         {
@@ -808,7 +1428,7 @@ namespace Inventory_Management_System.Forms
 
             card.Controls.Add(MakeLabel("Existing Categories", 28, 116));
 
-          lstCategories = new ListBox
+            lstCategories = new ListBox
             {
                 Location    = new Point(28, 142),
                 Size        = new Size(490, 200),
@@ -880,6 +1500,7 @@ namespace Inventory_Management_System.Forms
             lblCategoryMsg.Text      = $"🗑 '{selected}' deleted.";
             LoadCategories();
         }
+
         private void LstCategories_DrawItem(object? sender, DrawItemEventArgs e)
         {
             if (e.Index < 0) return;
@@ -934,6 +1555,13 @@ namespace Inventory_Management_System.Forms
                 txtPrinterName.Text = _current.PrinterName ?? "";
                 txtLabelWidth.Text  = (_current.LabelWidthMm  ?? 62).ToString();
                 txtLabelHeight.Text = (_current.LabelHeightMm ?? 29).ToString();
+
+                _originalCompanyName = txtCompany.Text.Trim();
+                if (btnSave != null) btnSave.Enabled = false;
+                if (_lblSavedPill != null) _lblSavedPill.Visible = false;
+
+                if (_lblDbValue != null)
+                    _lblDbValue.Text = $"{_current.DbName} · {_current.DbServer}";
             }
             catch (Exception ex)
             {
@@ -976,8 +1604,24 @@ namespace Inventory_Management_System.Forms
                 db.SaveChanges();
                 _current = entity;
 
-                MessageBox.Show("Settings saved successfully.", "Saved",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                _originalCompanyName = txtCompany.Text.Trim();
+                btnSave.Enabled      = false;
+
+                // From the General/Company card: inline "✓ Saved" confirmation instead of a popup.
+                // The Printing panel reuses this same btnSave/handler, so only show the pill
+                // when the Company card's pill control is on the currently visible panel.
+                if (_lblSavedPill != null && _panelGeneral.Visible)
+                {
+                    _lblSavedPill.Visible = true;
+                }
+                else
+                {
+                    MessageBox.Show("Settings saved successfully.", "Saved",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+
+                if (_lblDbValue != null)
+                    _lblDbValue.Text = $"{_current.DbName} · {_current.DbServer}";
             }
             catch (Exception ex)
             {
@@ -993,6 +1637,10 @@ namespace Inventory_Management_System.Forms
             txtPrinterName.Text = _current.PrinterName ?? "";
             txtLabelWidth.Text  = (_current.LabelWidthMm  ?? 62).ToString();
             txtLabelHeight.Text = (_current.LabelHeightMm ?? 29).ToString();
+
+            _originalCompanyName = txtCompany.Text.Trim();
+            if (btnSave != null) btnSave.Enabled = false;
+            if (_lblSavedPill != null) _lblSavedPill.Visible = false;
         }
 
         private void btnTestPrint_Click(object? sender, EventArgs e)
@@ -1061,7 +1709,7 @@ namespace Inventory_Management_System.Forms
         // ══════════════════════════════════════════════════════════════
         //  UI HELPERS
         // ══════════════════════════════════════════════════════════════
-        private static void ApplyCardStyle(Panel card)
+        private static void ApplyCardStyle(Panel card, Color? borderColor = null)
         {
             card.Paint += (s, e) =>
             {
@@ -1070,7 +1718,7 @@ namespace Inventory_Management_System.Forms
                 using var path = RoundedPath(
                     new Rectangle(0, 0, card.Width - 1, card.Height - 1), 12);
                 card.Region = new Region(path);
-                using var pen = new Pen(ThemeHelper.CardBorder, 1f);
+                using var pen = new Pen(borderColor ?? ThemeHelper.CardBorder, 1f);
                 g.DrawPath(pen, path);
             };
         }
@@ -1128,6 +1776,19 @@ namespace Inventory_Management_System.Forms
             btn.UseVisualStyleBackColor = false;
             btn.FlatAppearance.BorderSize         = 0;
             btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(185, 28, 28);
+        }
+
+        private static void StyleDangerOutlineBtn(Button btn)
+        {
+            btn.BackColor = Color.White;
+            btn.ForeColor = ThemeHelper.Danger;
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.Font      = ThemeHelper.FontBold;
+            btn.Cursor    = Cursors.Hand;
+            btn.UseVisualStyleBackColor = false;
+            btn.FlatAppearance.BorderSize         = 1;
+            btn.FlatAppearance.BorderColor        = Color.FromArgb(252, 165, 165);
+            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(254, 226, 226);
         }
 
         private static GraphicsPath RoundedPath(Rectangle r, int radius)
