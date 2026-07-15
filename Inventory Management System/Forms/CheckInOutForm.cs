@@ -22,6 +22,9 @@ namespace Inventory_Management_System.Forms
         private bool                         _isCheckOutTab = true;
         private EquipmentSuggestHelper?      _suggest;
 
+        private static readonly Font CardLabelFont = new Font("Segoe UI", 8f, FontStyle.Bold);
+        private static readonly Font CardValueFont = new Font("Segoe UI", 8f, FontStyle.Regular);
+
         public CheckInOutForm()
         {
             InitializeComponent();
@@ -50,17 +53,33 @@ namespace Inventory_Management_System.Forms
                 e.Graphics.DrawRectangle(pen, 0, 0, panelLeft.Width - 1, panelLeft.Height - 1);
             };
 
-            // Style left card labels
+            // Style left card labels (colors from theme, then compact font applied after)
             ThemeHelper.StyleLabel(lblCardTitle, bold: true);
-            foreach (var lbl in new[] { lblCodeLabel, lblNameLabel, lblCategoryLabel, lblMakeLabel, 
-                                         lblModelLabel, lblSerialLabel, lblStatusLabel, lblLocationLabel, lblConditionLabel })
+
+            var captionLabels = new[]
+            {
+                lblCodeLabel, lblQrCodeLabel, lblNameLabel, lblCategoryLabel, lblMakeLabel,
+                lblModelLabel, lblSerialLabel, lblProcurementTypeLabel, lblStatusLabel,
+                lblConditionLabel, lblLocationLabel, lblVendorLabel, lblPurchaseDateLabel,
+                lblWarrantyLabel, lblDescriptionTitle, lblNotesTitle
+            };
+            foreach (var lbl in captionLabels)
             {
                 ThemeHelper.StyleLabel(lbl, bold: true);
+                lbl.Font = CardLabelFont;
             }
-            foreach (var lbl in new[] { lblCodeValue, lblNameValue, lblCategoryValue, lblMakeValue, 
-                                         lblModelValue, lblSerialValue, lblStatusValue, lblLocationValue, lblConditionValue })
+
+            var valueLabels = new[]
+            {
+                lblCodeValue, lblQrCodeValue, lblNameValue, lblCategoryValue, lblMakeValue,
+                lblModelValue, lblSerialValue, lblProcurementTypeValue, lblStatusValue,
+                lblConditionValue, lblLocationValue, lblVendorValue, lblPurchaseDateValue,
+                lblWarrantyValue, lblDescriptionValue, lblNotesValue
+            };
+            foreach (var lbl in valueLabels)
             {
                 ThemeHelper.StyleLabel(lbl);
+                lbl.Font = CardValueFont;
             }
 
             // Tab header button defaults
@@ -168,6 +187,7 @@ namespace Inventory_Management_System.Forms
                 var equipment = db.Equipment
                     .Include(e => e.Allocations).ThenInclude(a => a.Employee)
                     .Include(e => e.Allocations).ThenInclude(a => a.Location)
+                    .Include(e => e.ProcurementType)
                     .FirstOrDefault(e => e.QrCode == code || e.EquipmentCode == code || e.SerialNumber == code);
 
                 if (equipment == null)
@@ -185,13 +205,20 @@ namespace Inventory_Management_System.Forms
                 panelMainContent.Visible = true;
 
                 // Populate details card
-                lblCodeValue.Text = equipment.EquipmentCode;
-                lblNameValue.Text = equipment.Name;
-                lblCategoryValue.Text = equipment.Category ?? "—";
-                lblMakeValue.Text = equipment.Make ?? "—";
-                lblModelValue.Text = equipment.Model ?? "—";
-                lblSerialValue.Text = equipment.SerialNumber ?? "—";
-                lblConditionValue.Text = equipment.ConditionGrade ?? "—";
+                lblCodeValue.Text            = equipment.EquipmentCode;
+                lblQrCodeValue.Text          = equipment.QrCode ?? "—";
+                lblNameValue.Text            = equipment.Name;
+                lblCategoryValue.Text        = equipment.Category ?? "—";
+                lblMakeValue.Text            = equipment.Make ?? "—";
+                lblModelValue.Text           = equipment.Model ?? "—";
+                lblSerialValue.Text          = equipment.SerialNumber ?? "—";
+                lblProcurementTypeValue.Text = equipment.ProcurementType?.TypeName ?? "—";
+                lblConditionValue.Text       = equipment.ConditionGrade ?? "—";
+                lblVendorValue.Text          = equipment.VendorName ?? "—";
+                lblPurchaseDateValue.Text    = equipment.PurchaseDate?.ToString("yyyy-MM-dd") ?? "—";
+                lblWarrantyValue.Text        = equipment.WarrantyExpiry?.ToString("yyyy-MM-dd") ?? "—";
+                lblDescriptionValue.Text     = string.IsNullOrWhiteSpace(equipment.Description) ? "—" : equipment.Description;
+                lblNotesValue.Text           = string.IsNullOrWhiteSpace(equipment.Notes) ? "—" : equipment.Notes;
 
                 // Color coded status
                 lblStatusValue.Text = equipment.CurrentStatus;
@@ -203,7 +230,7 @@ namespace Inventory_Management_System.Forms
                     "decommissioned" => ThemeHelper.Danger,
                     _ => ThemeHelper.TextPrimary
                 };
-                lblStatusValue.Font = ThemeHelper.FontBold;
+                lblStatusValue.Font = CardLabelFont;
 
                 // Current location
                 var activeAlloc = equipment.Allocations.FirstOrDefault(a => a.Status == "approved");
@@ -287,17 +314,15 @@ namespace Inventory_Management_System.Forms
                     tx.Remarks ?? "—"
                 );
 
-                // Style transaction type cell
                 var typeCell = dgvRecentTransactions.Rows[idx].Cells["Type"];
                 typeCell.Style.Font = ThemeHelper.FontBold;
                 typeCell.Style.ForeColor = tx.TransactionType switch
                 {
-                    "Check-Out" => Color.FromArgb(25, 118, 210), // Blue
+                    "Check-Out" => Color.FromArgb(25, 118, 210),
                     "Check-In" => ThemeHelper.Success,
                     _ => ThemeHelper.TextPrimary
                 };
 
-                // Style status cell
                 var statusCell = dgvRecentTransactions.Rows[idx].Cells["Status"];
                 statusCell.Style.Font = ThemeHelper.FontBold;
                 statusCell.Style.ForeColor = tx.Status switch

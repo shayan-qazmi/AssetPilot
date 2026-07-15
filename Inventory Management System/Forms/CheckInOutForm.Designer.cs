@@ -27,6 +27,8 @@ namespace Inventory_Management_System.Forms
             lblCardTitle = new System.Windows.Forms.Label();
             lblCodeLabel = new System.Windows.Forms.Label();
             lblCodeValue = new System.Windows.Forms.Label();
+            lblQrCodeLabel = new System.Windows.Forms.Label();
+            lblQrCodeValue = new System.Windows.Forms.Label();
             lblNameLabel = new System.Windows.Forms.Label();
             lblNameValue = new System.Windows.Forms.Label();
             lblCategoryLabel = new System.Windows.Forms.Label();
@@ -37,12 +39,24 @@ namespace Inventory_Management_System.Forms
             lblModelValue = new System.Windows.Forms.Label();
             lblSerialLabel = new System.Windows.Forms.Label();
             lblSerialValue = new System.Windows.Forms.Label();
+            lblProcurementTypeLabel = new System.Windows.Forms.Label();
+            lblProcurementTypeValue = new System.Windows.Forms.Label();
             lblStatusLabel = new System.Windows.Forms.Label();
             lblStatusValue = new System.Windows.Forms.Label();
-            lblLocationLabel = new System.Windows.Forms.Label();
-            lblLocationValue = new System.Windows.Forms.Label();
             lblConditionLabel = new System.Windows.Forms.Label();
             lblConditionValue = new System.Windows.Forms.Label();
+            lblLocationLabel = new System.Windows.Forms.Label();
+            lblLocationValue = new System.Windows.Forms.Label();
+            lblVendorLabel = new System.Windows.Forms.Label();
+            lblVendorValue = new System.Windows.Forms.Label();
+            lblPurchaseDateLabel = new System.Windows.Forms.Label();
+            lblPurchaseDateValue = new System.Windows.Forms.Label();
+            lblWarrantyLabel = new System.Windows.Forms.Label();
+            lblWarrantyValue = new System.Windows.Forms.Label();
+            lblDescriptionTitle = new System.Windows.Forms.Label();
+            lblDescriptionValue = new System.Windows.Forms.Label();
+            lblNotesTitle = new System.Windows.Forms.Label();
+            lblNotesValue = new System.Windows.Forms.Label();
             panelCenter = new System.Windows.Forms.Panel();
             panelTabHeader = new System.Windows.Forms.Panel();
             btnTabCheckOut = new System.Windows.Forms.Button();
@@ -136,11 +150,12 @@ namespace Inventory_Management_System.Forms
             panelMainContent.Controls.Add(panelLeft);
             panelMainContent.Controls.Add(panelBottom);
 
-            // ── panelLeft (dock left) ─────────────────────────────────────
+            // ── panelLeft (dock left) — compact single-column detail list ─
             panelLeft.Dock = System.Windows.Forms.DockStyle.Left;
             panelLeft.Width = 360;
             panelLeft.Name = "panelLeft";
             panelLeft.Padding = new System.Windows.Forms.Padding(16);
+            panelLeft.AutoScroll = true;
             panelLeft.Controls.Add(lblCardTitle);
 
             lblCardTitle.Text = "Equipment Details";
@@ -149,29 +164,63 @@ namespace Inventory_Management_System.Forms
             lblCardTitle.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
             lblCardTitle.Name = "lblCardTitle";
 
-            int lx = 16, vx = 160, rh = 34, sy = 56;
+            const int lx = 16, vx = 140, vw = 188, rh = 22, sy = 56;
             void AddField(System.Windows.Forms.Label lbl, string labelText, System.Windows.Forms.Label val, int row)
             {
                 lbl.Text = labelText;
                 lbl.Location = new System.Drawing.Point(lx, sy + row * rh);
                 lbl.AutoSize = true;
                 lbl.Name = lbl.Name;
-                val.Location = new System.Drawing.Point(vx, sy + row * rh);
-                val.AutoSize = true;
+                val.Location     = new System.Drawing.Point(vx, sy + row * rh);
+                val.AutoSize     = false;
+                val.Size         = new System.Drawing.Size(vw, rh - 2);
+                val.AutoEllipsis = true;
                 val.Name = val.Name;
                 panelLeft.Controls.Add(lbl);
                 panelLeft.Controls.Add(val);
             }
 
-            AddField(lblCodeLabel, "Equipment Code:", lblCodeValue, 0);
-            AddField(lblNameLabel, "Name:", lblNameValue, 1);
-            AddField(lblCategoryLabel, "Category:", lblCategoryValue, 2);
-            AddField(lblMakeLabel, "Make:", lblMakeValue, 3);
-            AddField(lblModelLabel, "Model:", lblModelValue, 4);
-            AddField(lblSerialLabel, "Serial Number:", lblSerialValue, 5);
-            AddField(lblStatusLabel, "Status:", lblStatusValue, 6);
-            AddField(lblLocationLabel, "Location:", lblLocationValue, 7);
-            AddField(lblConditionLabel, "Condition Grade:", lblConditionValue, 8);
+            AddField(lblCodeLabel,             "Equipment Code:",   lblCodeValue,             0);
+            AddField(lblQrCodeLabel,           "QR Code:",          lblQrCodeValue,           1);
+            AddField(lblNameLabel,             "Name:",             lblNameValue,             2);
+            AddField(lblCategoryLabel,         "Category:",         lblCategoryValue,         3);
+            AddField(lblMakeLabel,             "Make:",             lblMakeValue,             4);
+            AddField(lblModelLabel,            "Model:",            lblModelValue,            5);
+            AddField(lblSerialLabel,           "Serial Number:",    lblSerialValue,           6);
+            AddField(lblProcurementTypeLabel,  "Procurement Type:", lblProcurementTypeValue,  7);
+            AddField(lblStatusLabel,           "Status:",           lblStatusValue,           8);
+            AddField(lblConditionLabel,        "Condition Grade:",  lblConditionValue,        9);
+            AddField(lblLocationLabel,         "Location:",         lblLocationValue,         10);
+            AddField(lblVendorLabel,           "Vendor Name:",      lblVendorValue,           11);
+            AddField(lblPurchaseDateLabel,     "Purchase Date:",    lblPurchaseDateValue,     12);
+            AddField(lblWarrantyLabel,         "Warranty Expiry:",  lblWarrantyValue,         13);
+
+            int descY = sy + 14 * rh + 8;
+            lblDescriptionTitle.Text     = "Description:";
+            lblDescriptionTitle.Location = new System.Drawing.Point(lx, descY);
+            lblDescriptionTitle.AutoSize = true;
+            lblDescriptionTitle.Name     = "lblDescriptionTitle";
+
+            lblDescriptionValue.Location = new System.Drawing.Point(lx, descY + 16);
+            lblDescriptionValue.Size     = new System.Drawing.Size(328, 40);
+            lblDescriptionValue.AutoSize = false;
+            lblDescriptionValue.Name     = "lblDescriptionValue";
+
+            int notesY = descY + 16 + 40 + 8;
+            lblNotesTitle.Text     = "Notes:";
+            lblNotesTitle.Location = new System.Drawing.Point(lx, notesY);
+            lblNotesTitle.AutoSize = true;
+            lblNotesTitle.Name     = "lblNotesTitle";
+
+            lblNotesValue.Location = new System.Drawing.Point(lx, notesY + 16);
+            lblNotesValue.Size     = new System.Drawing.Size(328, 40);
+            lblNotesValue.AutoSize = false;
+            lblNotesValue.Name     = "lblNotesValue";
+
+            panelLeft.Controls.Add(lblDescriptionTitle);
+            panelLeft.Controls.Add(lblDescriptionValue);
+            panelLeft.Controls.Add(lblNotesTitle);
+            panelLeft.Controls.Add(lblNotesValue);
 
             // ── panelCenter (dock fill) ───────────────────────────────────
             panelCenter.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -230,7 +279,7 @@ namespace Inventory_Management_System.Forms
             AddCheckoutField(lblIssuedTo, "Issued To:", txtIssuedTo);
             AddCheckoutField(lblDepartment, "Department:", txtDepartment);
             AddCheckoutField(lblOperatorOut, "Operator Name:", txtOperatorOut);
-            txtOperatorOut.ReadOnly = true; // Pre-filled and read-only to avoid user errors
+            txtOperatorOut.ReadOnly = true;
 
             lblExpectedReturn.Text = "Expected Return:";
             lblExpectedReturn.Location = new System.Drawing.Point(16, outY + outLGap);
@@ -252,7 +301,6 @@ namespace Inventory_Management_System.Forms
             panelCheckOut.Controls.Add(lblConditionBefore);
             panelCheckOut.Controls.Add(cmbConditionBefore);
             outY += 38;
-            
 
             lblRemarksOut.Text = "Remarks:";
             lblRemarksOut.Location = new System.Drawing.Point(16, outY + outLGap);
@@ -271,7 +319,6 @@ namespace Inventory_Management_System.Forms
             btnConfirmCheckOut.Name = "btnConfirmCheckOut";
             btnConfirmCheckOut.Click += btnConfirmCheckOut_Click;
             panelCheckOut.Controls.Add(btnConfirmCheckOut);
-           
 
             // ── panelCheckIn ──────────────────────────────────────────────
             panelCheckIn.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -404,6 +451,8 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Label lblCardTitle;
         private System.Windows.Forms.Label lblCodeLabel;
         private System.Windows.Forms.Label lblCodeValue;
+        private System.Windows.Forms.Label lblQrCodeLabel;
+        private System.Windows.Forms.Label lblQrCodeValue;
         private System.Windows.Forms.Label lblNameLabel;
         private System.Windows.Forms.Label lblNameValue;
         private System.Windows.Forms.Label lblCategoryLabel;
@@ -414,12 +463,24 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Label lblModelValue;
         private System.Windows.Forms.Label lblSerialLabel;
         private System.Windows.Forms.Label lblSerialValue;
+        private System.Windows.Forms.Label lblProcurementTypeLabel;
+        private System.Windows.Forms.Label lblProcurementTypeValue;
         private System.Windows.Forms.Label lblStatusLabel;
         private System.Windows.Forms.Label lblStatusValue;
-        private System.Windows.Forms.Label lblLocationLabel;
-        private System.Windows.Forms.Label lblLocationValue;
         private System.Windows.Forms.Label lblConditionLabel;
         private System.Windows.Forms.Label lblConditionValue;
+        private System.Windows.Forms.Label lblLocationLabel;
+        private System.Windows.Forms.Label lblLocationValue;
+        private System.Windows.Forms.Label lblVendorLabel;
+        private System.Windows.Forms.Label lblVendorValue;
+        private System.Windows.Forms.Label lblPurchaseDateLabel;
+        private System.Windows.Forms.Label lblPurchaseDateValue;
+        private System.Windows.Forms.Label lblWarrantyLabel;
+        private System.Windows.Forms.Label lblWarrantyValue;
+        private System.Windows.Forms.Label lblDescriptionTitle;
+        private System.Windows.Forms.Label lblDescriptionValue;
+        private System.Windows.Forms.Label lblNotesTitle;
+        private System.Windows.Forms.Label lblNotesValue;
 
         private System.Windows.Forms.Panel panelCenter;
         private System.Windows.Forms.Panel panelTabHeader;
