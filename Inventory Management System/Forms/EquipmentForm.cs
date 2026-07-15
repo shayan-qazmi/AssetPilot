@@ -269,6 +269,15 @@ namespace Inventory_Management_System.Forms
 
                 string procType = item.ProcurementType?.TypeName ?? "";
 
+                string formattedStatus = item.CurrentStatus switch
+                {
+                    "in_store"       => "In Store",
+                    "allocated"      => "Allocated",
+                    "decommissioned" => "Decommissioned",
+                    "under_repair"   => "Under Repair",
+                    _                => item.CurrentStatus
+                };
+
                 int rowIdx = dgvEquipment.Rows.Add(
                     item.EquipmentCode,
                     item.QrCode,
@@ -278,7 +287,7 @@ namespace Inventory_Management_System.Forms
                     item.Model,
                     item.SerialNumber,
                     item.Category ?? "",
-                    item.CurrentStatus,
+                    formattedStatus,
                     item.ConditionGrade ?? "",
                     locationName,
                     item.PurchaseDate?.ToString("yyyy-MM-dd") ?? ""

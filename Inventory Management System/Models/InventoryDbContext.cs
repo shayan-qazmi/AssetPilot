@@ -1,3 +1,4 @@
+// Models/InventoryDbContext.cs
 using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
@@ -138,7 +139,7 @@ public partial class InventoryDbContext : DbContext
 
             entity.HasOne(d => d.Equipment).WithMany(p => p.Allocations)
                 .HasForeignKey(d => d.EquipmentId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
+                .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("allocations_ibfk_1");
 
             entity.HasOne(d => d.Location).WithMany(p => p.Allocations)
@@ -531,7 +532,7 @@ public partial class InventoryDbContext : DbContext
 
             entity.HasOne(d => d.Equipment).WithMany(p => p.Transactions)
                 .HasForeignKey(d => d.EquipmentId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
+                .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("transactions_ibfk_1");
         });
 

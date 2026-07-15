@@ -134,7 +134,7 @@ namespace Inventory_Management_System.Forms
             txtSerialNumber = AddFieldRow(card, "Serial Number",   ColLeft, ref yL, ref altL);
 
             cmbStatus = AddComboRow(card, "Current Status", ColLeft, ref yL, ref altL,
-                new[] { "in_store", "allocated", "decommissioned", "under_repair" });
+                new[] { "In Store", "Allocated", "Decommissioned", "Under Repair" });
             cmbStatus.SelectedIndexChanged += CmbStatus_SelectedIndexChanged;
 
             dtpPurchaseDate = AddDateRow(card, "Purchase Date", ColLeft, ref yL, ref altL);
@@ -225,8 +225,9 @@ namespace Inventory_Management_System.Forms
             if (_suppressStatusEvent) return;
             if (!_isEditMode || _originalStatus == null) return; // Add mode: no-op
 
-            string? newStatus = cmbStatus.SelectedItem?.ToString();
-            if (newStatus == null) return;
+            string? selectedItem = cmbStatus.SelectedItem?.ToString();
+            if (selectedItem == null) return;
+            string newStatus = UnformatStatus(selectedItem);
 
             bool wasUnderRepair = _originalStatus.Equals("under_repair", StringComparison.OrdinalIgnoreCase);
             bool isNowUnderRepair = newStatus.Equals("under_repair", StringComparison.OrdinalIgnoreCase);
@@ -244,7 +245,7 @@ namespace Inventory_Management_System.Forms
         private void RevertStatusTo(string status)
         {
             _suppressStatusEvent = true;
-            cmbStatus.SelectedItem = status;
+            cmbStatus.SelectedItem = FormatStatus(status);
             _suppressStatusEvent = false;
         }
 
@@ -466,7 +467,7 @@ namespace Inventory_Management_System.Forms
 
             if (confirmed)
             {
-                _originalStatus = cmbStatus.SelectedItem?.ToString();
+                _originalStatus = UnformatStatus(cmbStatus.SelectedItem?.ToString() ?? "");
             }
             else
             {
@@ -667,6 +668,25 @@ namespace Inventory_Management_System.Forms
         }
 
         // ══════════════════════════════════════════════════════════════════
+        private static string FormatStatus(string raw) => raw switch
+        {
+            "in_store"       => "In Store",
+            "allocated"      => "Allocated",
+            "decommissioned" => "Decommissioned",
+            "under_repair"   => "Under Repair",
+            _                => raw
+        };
+
+        private static string UnformatStatus(string display) => display switch
+        {
+            "In Store"       => "in_store",
+            "Allocated"      => "allocated",
+            "Decommissioned" => "decommissioned",
+            "Under Repair"   => "under_repair",
+            _                => display
+        };
+
+        // ══════════════════════════════════════════════════════════════════
         //  DATA
         // ══════════════════════════════════════════════════════════════════
         private static string[] BuildCategoryItems()
@@ -706,7 +726,7 @@ namespace Inventory_Management_System.Forms
             // set the initial status from loaded data — this is not a user-driven
             // status change and must never trigger the maintenance modal.
             _suppressStatusEvent = true;
-            cmbStatus.SelectedItem  = _equipment.CurrentStatus;
+            cmbStatus.SelectedItem  = FormatStatus(_equipment.CurrentStatus);
             _suppressStatusEvent = false;
 
             if (_equipment.PurchaseDate.HasValue)
@@ -767,7 +787,7 @@ namespace Inventory_Management_System.Forms
             _equipment.Make           = txtMake.Text.Trim();
             _equipment.Model          = txtModel.Text.Trim();
             _equipment.SerialNumber   = txtSerialNumber.Text.Trim();
-            _equipment.CurrentStatus  = cmbStatus.SelectedItem?.ToString() ?? "in_store";
+            _equipment.CurrentStatus  = UnformatStatus(cmbStatus.SelectedItem?.ToString() ?? "In Store");
             _equipment.PurchaseDate   = DateOnly.FromDateTime(dtpPurchaseDate.Value);
 
             _equipment.Category =

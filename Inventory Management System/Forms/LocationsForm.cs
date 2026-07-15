@@ -28,7 +28,6 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleDangerButton(btnDelete);
             ThemeHelper.StyleButton(btnEdit, Color.FromArgb(245, 158, 11));
             ThemeHelper.StyleSecondaryButton(btnExport);
-            ThemeHelper.StyleTextBox(txtSearch);
             ThemeHelper.StyleDataGridView(dgvLocations);
         }
 

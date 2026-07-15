@@ -288,16 +288,29 @@ namespace Inventory_Management_System.Services
                 using var db = new InventoryDbContext();
                 var existing = db.Equipment
                     .Include(e => e.Allocations)
+                    .Include(e => e.Transactions)
                     .FirstOrDefault(e => e.Id == id);
                 if (existing == null)
                     return ServiceResult<bool>.Fail("Equipment not found.");
 
+                // Block if any allocation is currently active (checked out).
                 bool hasActiveAllocation = existing.Allocations
                     .Any(a => a.Status != null &&
                               (a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase) ||
                                a.Status.Equals("pending",  StringComparison.OrdinalIgnoreCase)));
                 if (hasActiveAllocation)
                     return ServiceResult<bool>.Fail("Cannot delete equipment that is currently allocated.");
+
+                // Block if there's ANY allocation or transaction history at all
+                // (even closed/returned records). Deleting equipment with history
+                // would either fail on the FK constraint or silently destroy the
+                // audit trail. Point the user to Decommission instead, which
+                // retires the equipment while preserving its records.
+                bool hasAnyHistory = existing.Allocations.Any() || existing.Transactions.Any();
+                if (hasAnyHistory)
+                    return ServiceResult<bool>.Fail(
+                        "This equipment has allocation or transaction history and cannot be permanently deleted. " +
+                        "Use Decommission instead to retire it while preserving its records.");
 
                 db.Equipment.Remove(existing);
                 db.SaveChanges();
@@ -306,7 +319,8 @@ namespace Inventory_Management_System.Services
             }
             catch (Exception ex)
             {
-                return ServiceResult<bool>.Fail($"Error deleting equipment: {ex.Message}");
+                var innerMsg = ex.InnerException?.Message ?? ex.Message;
+                return ServiceResult<bool>.Fail($"Error deleting equipment: {innerMsg}");
             }
         }
 
