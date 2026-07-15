@@ -242,7 +242,7 @@ Inventory Management System/
 │   └── app.ico                         # compiled application icon
 │
 └── Properties/
-└── Resources.resx                  # embedded sidebar logo
+    └── Resources.resx                  # embedded sidebar logo
 
 ---
 
