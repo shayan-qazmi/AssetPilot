@@ -278,7 +278,7 @@ Same as before — Windows 10/11 (64-bit), .NET 8 Runtime/SDK, XAMPP (MySQL + ph
 |---|---|---|
 | View Dashboard & Charts | ✅ | ✅ |
 | Equipment — View / Add / Edit | ✅ | ✅ |
-| Equipment — Delete | ✅ | ❌ Hidden |
+| Equipment — Delete | ✅ | ✅ |
 | Equipment — QR Generate & Print | ✅ | ✅ |
 | Equipment — Excel Import/Export | ✅ | ✅ |
 | Employees — Full CRUD | ✅ | ✅ |
@@ -287,7 +287,7 @@ Same as before — Windows 10/11 (64-bit), .NET 8 Runtime/SDK, XAMPP (MySQL + ph
 | Transfer | ✅ | ✅ |
 | Returns History | ✅ | ✅ |
 | Check In / Check Out | ✅ | ✅ |
-| Decommission | ✅ | ✅ |
+| Decommission | ✅ | ❌ Hidden |
 | Logs — View & Export | ✅ | ✅ |
 | QR Scanner | ✅ | ✅ |
 | Reports — View & Export | ✅ | ✅ |
