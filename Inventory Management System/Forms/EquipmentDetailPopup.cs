@@ -157,7 +157,8 @@ namespace Inventory_Management_System.Forms
                     AddMaintenanceStatusField(card, "Status", rec.Status, ColRight, ref yRight, ref altRight);
                     AddField(card, "Issue",        rec.IssueDescription,                              ColRight, ref yRight, ref altRight);
                     AddField(card, "Serviced By",  rec.ServicedBy,                                     ColRight, ref yRight, ref altRight);
-                    AddField(card, "Cost",         rec.Cost.HasValue ? rec.Cost.Value.ToString("C2") : null, ColRight, ref yRight, ref altRight);
+                    string costStr = rec.Cost.HasValue ? $"₨{rec.Cost.Value:N2}" : "—";
+                    AddField(card, "Cost",         costStr, ColRight, ref yRight, ref altRight);
                     AddField(card, "Resolved",     rec.ResolvedDate?.ToString("yyyy-MM-dd"),           ColRight, ref yRight, ref altRight);
                 }
             }
