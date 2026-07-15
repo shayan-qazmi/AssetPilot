@@ -39,15 +39,15 @@ namespace Inventory_Management_System.Forms
 
             // btnRefresh
             btnRefresh.Location = new System.Drawing.Point(12, 14);
-            btnRefresh.Size     = new System.Drawing.Size(90, 32);
-            btnRefresh.Text     = "Refresh";
+            btnRefresh.Size     = new System.Drawing.Size(100, 32);
+            btnRefresh.Text     = "🔄 Refresh";
             btnRefresh.Name     = "btnRefresh";
             btnRefresh.Click   += btnRefresh_Click;
 
             // btnExport
-            btnExport.Location = new System.Drawing.Point(110, 14);
-            btnExport.Size     = new System.Drawing.Size(90, 32);
-            btnExport.Text     = "Export CSV";
+            btnExport.Location = new System.Drawing.Point(120, 14);
+            btnExport.Size     = new System.Drawing.Size(100, 32);
+            btnExport.Text     = "📥 Export";
             btnExport.Name     = "btnExport";
             btnExport.Click   += btnExport_Click;
 

@@ -53,69 +53,69 @@ namespace Inventory_Management_System.Forms
 
             // btnAdd
             btnAdd.Location = new System.Drawing.Point(12, 14);
-            btnAdd.Size     = new System.Drawing.Size(80, 32);
-            btnAdd.Text     = "Add";
+            btnAdd.Size     = new System.Drawing.Size(100, 32);
+            btnAdd.Text     = "➕ Add";
             btnAdd.Name     = "btnAdd";
             btnAdd.Click   += btnAdd_Click;
 
             // btnEdit
-            btnEdit.Location = new System.Drawing.Point(100, 14);
-            btnEdit.Size     = new System.Drawing.Size(80, 32);
-            btnEdit.Text     = "Edit";
+            btnEdit.Location = new System.Drawing.Point(120, 14);
+            btnEdit.Size     = new System.Drawing.Size(100, 32);
+            btnEdit.Text     = "✏️ Edit";
             btnEdit.Name     = "btnEdit";
             btnEdit.Click   += btnEdit_Click;
 
             // btnDelete
-            btnDelete.Location = new System.Drawing.Point(188, 14);
-            btnDelete.Size     = new System.Drawing.Size(80, 32);
-            btnDelete.Text     = "Delete";
+            btnDelete.Location = new System.Drawing.Point(228, 14);
+            btnDelete.Size     = new System.Drawing.Size(100, 32);
+            btnDelete.Text     = "🗑️ Delete";
             btnDelete.Name     = "btnDelete";
             btnDelete.Click   += btnDelete_Click;
 
             // btnRefresh
-            btnRefresh.Location = new System.Drawing.Point(276, 14);
-            btnRefresh.Size     = new System.Drawing.Size(80, 32);
-            btnRefresh.Text     = "Refresh";
+            btnRefresh.Location = new System.Drawing.Point(336, 14);
+            btnRefresh.Size     = new System.Drawing.Size(100, 32);
+            btnRefresh.Text     = "🔄 Refresh";
             btnRefresh.Name     = "btnRefresh";
             btnRefresh.Click   += btnRefresh_Click;
 
             // btnExport
-            btnExport.Location = new System.Drawing.Point(364, 14);
-            btnExport.Size     = new System.Drawing.Size(80, 32);
-            btnExport.Text     = "Export";
+            btnExport.Location = new System.Drawing.Point(444, 14);
+            btnExport.Size     = new System.Drawing.Size(100, 32);
+            btnExport.Text     = "📥 Export";
             btnExport.Name     = "btnExport";
             btnExport.Click   += btnExport_Click;
 
             // btnShowQR
-            btnShowQR.Location = new System.Drawing.Point(452, 14);
-            btnShowQR.Size     = new System.Drawing.Size(90, 32);
+            btnShowQR.Location = new System.Drawing.Point(552, 14);
+            btnShowQR.Size     = new System.Drawing.Size(100, 32);
             btnShowQR.Text     = "🔍 Show QR";
             btnShowQR.Name     = "btnShowQR";
             btnShowQR.Click   += btnShowQR_Click;
 
             // btnImportExcel
-            btnImportExcel.Location = new System.Drawing.Point(550, 14);
-            btnImportExcel.Size     = new System.Drawing.Size(110, 32);
+            btnImportExcel.Location = new System.Drawing.Point(660, 14);
+            btnImportExcel.Size     = new System.Drawing.Size(120, 32);
             btnImportExcel.Text     = "📥 Import Excel";
             btnImportExcel.Name     = "btnImportExcel";
             btnImportExcel.Click   += btnImportExcel_Click;
 
             // btnSelectAll
-            btnSelectAll.Location = new System.Drawing.Point(668, 14);
+            btnSelectAll.Location = new System.Drawing.Point(788, 14);
             btnSelectAll.Size     = new System.Drawing.Size(90, 32);
             btnSelectAll.Text     = "Select All";
             btnSelectAll.Name     = "btnSelectAll";
             btnSelectAll.Click   += btnSelectAll_Click;
 
-            // btnGenerateQRSheet  (shifted right 120px to make room for Category dropdown)
-            btnGenerateQRSheet.Location = new System.Drawing.Point(886, 14);
+            // btnGenerateQRSheet  (shifted right to make room for Category dropdown)
+            btnGenerateQRSheet.Location = new System.Drawing.Point(1006, 14);
             btnGenerateQRSheet.Size     = new System.Drawing.Size(130, 32);
             btnGenerateQRSheet.Text     = "🖨 QR Sheet";
             btnGenerateQRSheet.Name     = "btnGenerateQRSheet";
             btnGenerateQRSheet.Click   += btnGenerateQRSheet_Click;
 
-            // txtSearch  (shifted right 120px to make room for Category dropdown)
-            txtSearch.Location        = new System.Drawing.Point(1030, 17);
+            // txtSearch  (shifted right to make room for Category dropdown)
+            txtSearch.Location        = new System.Drawing.Point(1144, 17);
             txtSearch.Size            = new System.Drawing.Size(240, 26);
             txtSearch.PlaceholderText = "Search Equipment…";
             txtSearch.Name            = "txtSearch";

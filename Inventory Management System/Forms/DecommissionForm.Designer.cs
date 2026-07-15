@@ -39,19 +39,19 @@ namespace Inventory_Management_System.Forms
 
             btnDecommission.Location = new System.Drawing.Point(12, 14);
             btnDecommission.Size     = new System.Drawing.Size(140, 32);
-            btnDecommission.Text     = "Decommission Item";
+            btnDecommission.Text     = "🗑️ Decommission Item";
             btnDecommission.Name     = "btnDecommission";
             btnDecommission.Click   += btnDecommission_Click;
 
             btnRefresh.Location = new System.Drawing.Point(160, 14);
             btnRefresh.Size     = new System.Drawing.Size(90, 32);
-            btnRefresh.Text     = "Refresh";
+            btnRefresh.Text     = "🔄 Refresh";
             btnRefresh.Name     = "btnRefresh";
             btnRefresh.Click   += btnRefresh_Click;
 
             btnExport.Location = new System.Drawing.Point(258, 14);
             btnExport.Size     = new System.Drawing.Size(90, 32);
-            btnExport.Text     = "Export CSV";
+            btnExport.Text     = "📥 Export CSV";
             btnExport.Name     = "btnExport";
             btnExport.Click   += btnExport_Click;
 

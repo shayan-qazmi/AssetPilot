@@ -25,6 +25,7 @@ namespace Inventory_Management_System
             panelContent     = new System.Windows.Forms.Panel();
 
             lblTitle         = new System.Windows.Forms.Label();
+            lblAppBrand      = new System.Windows.Forms.Label();
             picLogoSide = new System.Windows.Forms.PictureBox();
 
             btnDashboard     = new System.Windows.Forms.Button();
@@ -66,7 +67,16 @@ namespace Inventory_Management_System
             panelMenu.Controls.Add(btnEmployees);
             panelMenu.Controls.Add(btnEquipment);
             panelMenu.Controls.Add(btnDashboard);
-          panelMenu.Controls.Add(picLogoSide);
+            panelMenu.Controls.Add(lblAppBrand);
+            panelMenu.Controls.Add(picLogoSide);
+
+            // ── lblAppBrand — fallback text logo shown when logo.png is missing ─
+            lblAppBrand.Dock      = System.Windows.Forms.DockStyle.Top;
+            lblAppBrand.Height    = 150;
+            lblAppBrand.Text      = "Q-Inventory";
+            lblAppBrand.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            lblAppBrand.Name      = "lblAppBrand";
+            lblAppBrand.Visible   = false;  // hidden by default; shown only when logo.png not found
 
             picLogoSide.Dock = System.Windows.Forms.DockStyle.Top;
             picLogoSide.Height = 120;
@@ -208,6 +218,7 @@ namespace Inventory_Management_System
         private System.Windows.Forms.Panel  panelStats;
         private System.Windows.Forms.Panel  panelContent;
         private System.Windows.Forms.Label  lblTitle;
+        private System.Windows.Forms.Label  lblAppBrand;
         private System.Windows.Forms.PictureBox picLogoSide;
         private System.Windows.Forms.Button btnDashboard;
         private System.Windows.Forms.Button btnEquipment;

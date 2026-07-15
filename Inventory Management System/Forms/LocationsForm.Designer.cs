@@ -41,31 +41,31 @@ namespace Inventory_Management_System.Forms
 
             btnAdd.Location = new System.Drawing.Point(12, 14);
             btnAdd.Size     = new System.Drawing.Size(90, 32);
-            btnAdd.Text     = "Add";
+            btnAdd.Text     = "➕ Add";
             btnAdd.Name     = "btnAdd";
             btnAdd.Click   += btnAdd_Click;
 
             btnEdit.Location = new System.Drawing.Point(110, 14);
             btnEdit.Size     = new System.Drawing.Size(90, 32);
-            btnEdit.Text     = "Edit";
+            btnEdit.Text     = "✏️ Edit";
             btnEdit.Name     = "btnEdit";
             btnEdit.Click   += btnEdit_Click;
 
             btnDelete.Location = new System.Drawing.Point(208, 14);
             btnDelete.Size     = new System.Drawing.Size(90, 32);
-            btnDelete.Text     = "Delete";
+            btnDelete.Text     = "🗑️ Delete";
             btnDelete.Name     = "btnDelete";
             btnDelete.Click   += btnDelete_Click;
 
             btnRefresh.Location = new System.Drawing.Point(306, 14);
             btnRefresh.Size     = new System.Drawing.Size(90, 32);
-            btnRefresh.Text     = "Refresh";
+            btnRefresh.Text     = "🔄 Refresh";
             btnRefresh.Name     = "btnRefresh";
             btnRefresh.Click   += btnRefresh_Click;
 
             btnExport.Location = new System.Drawing.Point(404, 14);
             btnExport.Size     = new System.Drawing.Size(90, 32);
-            btnExport.Text     = "Export";
+            btnExport.Text     = "📥 Export";
             btnExport.Name     = "btnExport";
             btnExport.Click   += btnExport_Click;
 

@@ -46,48 +46,48 @@ namespace Inventory_Management_System.Forms
             panelTop.Controls.Add(txtSearch);
 
             btnAdd.Location = new System.Drawing.Point(12, 14);
-            btnAdd.Size     = new System.Drawing.Size(80, 32);
-            btnAdd.Text     = "Allocate";
+            btnAdd.Size     = new System.Drawing.Size(100, 32);
+            btnAdd.Text     = "➕ Allocate";
             btnAdd.Name     = "btnAdd";
             btnAdd.Click   += btnAdd_Click;
 
-            btnApprove.Location = new System.Drawing.Point(100, 14);
+            btnApprove.Location = new System.Drawing.Point(120, 14);
             btnApprove.Size     = new System.Drawing.Size(80, 32);
             btnApprove.Text     = "Approve";
             btnApprove.Name     = "btnApprove";
             btnApprove.Click   += btnApprove_Click;
 
-            btnReturn.Location = new System.Drawing.Point(188, 14);
+            btnReturn.Location = new System.Drawing.Point(208, 14);
             btnReturn.Size     = new System.Drawing.Size(80, 32);
             btnReturn.Text     = "Return";
             btnReturn.Name     = "btnReturn";
             btnReturn.Click   += btnReturn_Click;
 
-            btnDelete.Location = new System.Drawing.Point(276, 14);
-            btnDelete.Size     = new System.Drawing.Size(80, 32);
-            btnDelete.Text     = "Delete";
+            btnDelete.Location = new System.Drawing.Point(296, 14);
+            btnDelete.Size     = new System.Drawing.Size(100, 32);
+            btnDelete.Text     = "🗑️ Delete";
             btnDelete.Name     = "btnDelete";
             btnDelete.Click   += btnDelete_Click;
 
-            btnRefresh.Location = new System.Drawing.Point(364, 14);
-            btnRefresh.Size     = new System.Drawing.Size(80, 32);
-            btnRefresh.Text     = "Refresh";
+            btnRefresh.Location = new System.Drawing.Point(404, 14);
+            btnRefresh.Size     = new System.Drawing.Size(100, 32);
+            btnRefresh.Text     = "🔄 Refresh";
             btnRefresh.Name     = "btnRefresh";
             btnRefresh.Click   += btnRefresh_Click;
 
-            btnExport.Location = new System.Drawing.Point(452, 14);
-            btnExport.Size     = new System.Drawing.Size(80, 32);
-            btnExport.Text     = "Export";
+            btnExport.Location = new System.Drawing.Point(512, 14);
+            btnExport.Size     = new System.Drawing.Size(100, 32);
+            btnExport.Text     = "📥 Export";
             btnExport.Name     = "btnExport";
             btnExport.Click   += btnExport_Click;
 
-            btnSelectAll.Location = new System.Drawing.Point(540, 14);
+            btnSelectAll.Location = new System.Drawing.Point(620, 14);
             btnSelectAll.Size     = new System.Drawing.Size(90, 32);
             btnSelectAll.Text     = "Select All";
             btnSelectAll.Name     = "btnSelectAll";
             btnSelectAll.Click   += btnSelectAll_Click;
 
-            txtSearch.Location        = new System.Drawing.Point(700, 16);
+            txtSearch.Location        = new System.Drawing.Point(718, 16);
             txtSearch.Size            = new System.Drawing.Size(240, 26);
             txtSearch.PlaceholderText = "Search allocations...";
             txtSearch.Name            = "txtSearch";

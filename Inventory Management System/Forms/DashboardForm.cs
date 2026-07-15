@@ -23,6 +23,7 @@ namespace Inventory_Management_System
         private int _cntAllocated    = 0;
         private int _cntUnderRepair  = 0;
         private int _cntDecommission = 0;
+        private int _cntOverdue      = 0;
         private int _cntEmployees    = 0;
         private List<(string Month, int Count)> _monthlyData    = new();
         private List<(string Month, int Count)> _monthlyAdded   = new();
@@ -83,6 +84,9 @@ namespace Inventory_Management_System
             // Dashboard's own top strip color — intentionally NOT ThemeHelper.Header,
             // since that color is shared by other forms' header strips.
             panelTop.BackColor    = TopBarYellow;
+            lblAppBrand.Dock      = DockStyle.Top;
+            lblAppBrand.Height    = 150;
+            lblAppBrand.TextAlign = ContentAlignment.MiddleCenter;
             lblTitle.AutoSize     = false;
             lblTitle.Dock         = DockStyle.Fill;
             lblTitle.TextAlign    = ContentAlignment.MiddleCenter;
@@ -102,15 +106,29 @@ namespace Inventory_Management_System
             {
                 var logoPath = System.IO.Path.Combine(Application.StartupPath, "Images", "logo.png");
                 if (System.IO.File.Exists(logoPath))
-                    picLogoSide.Image = Image.FromFile(logoPath);
-                else
-                    picLogoSide.Image = Properties.Resources.logo;
-                picLogoSide.Visible = picLogoSide.Image != null;
+                {
+                    lblAppBrand.Visible = false;
+                    var pic = panelMenu.Controls.OfType<PictureBox>()
+                                       .FirstOrDefault(p => p.Name == "picLogoSide");
+                    if (pic == null)
+                    {
+                        pic = new PictureBox
+                        {
+                            Name      = "picLogoSide",
+                            SizeMode  = PictureBoxSizeMode.Zoom,
+                            Height    = 100,
+                          
+                            Dock      = DockStyle.Top,
+                            BackColor = ThemeHelper.Sidebar
+                        };
+                        panelMenu.Controls.Add(pic);
+                    }
+                    pic.Image = Image.FromFile(logoPath);
+                    panelMenu.Controls.SetChildIndex(pic, panelMenu.Controls.Count - 1);
+                }
+                else { lblAppBrand.Text = "Q-Inventory"; lblAppBrand.Visible = true; }
             }
-            catch
-            {
-                picLogoSide.Visible = false;
-            }
+            catch { lblAppBrand.Text = "Q-Inventory"; lblAppBrand.Visible = true; }
 
             // Nav buttons
             ThemeHelper.StyleSidebarButton(btnDashboard,   active: true);
@@ -230,7 +248,12 @@ namespace Inventory_Management_System
                 _cntUnderRepair    = db.Equipment.Count(e => e.CurrentStatus == "under_repair");
                 _cntDecommission   = db.Equipment.Count(e => e.CurrentStatus == "decommissioned");
                 _cntEmployees      = db.Employees.Count(e => e.IsActive);
-                int overdueCount   = db.Transactions.Count(t => t.Status == "Overdue");
+                int overdueCount = db.Allocations.Count(a =>
+                    a.Status == "approved" &&
+                    a.ExpectedReturnDate.HasValue &&
+                    a.ExpectedReturnDate.Value < DateOnly.FromDateTime(DateTime.Today) &&
+                    a.ActualReturnDate == null);
+                _cntOverdue = overdueCount;
 
                 // Monthly allocation data — last 6 months
                 var sixAgo = DateTime.Now.AddMonths(-5);
@@ -616,7 +639,7 @@ namespace Inventory_Management_System
             g.SmoothingMode     = SmoothingMode.AntiAlias;
             g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
-            int total = _cntInStore + _cntAllocated + _cntUnderRepair + _cntDecommission;
+            int total = _cntInStore + _cntAllocated + _cntUnderRepair + _cntDecommission + _cntOverdue;
             if (total == 0) total = 1;
 
             var segs = new[]
@@ -625,6 +648,7 @@ namespace Inventory_Management_System
                 (Label:"Allocated",      Count:_cntAllocated,    Color:Color.FromArgb(245, 124, 0)),
                 (Label:"Under Repair",   Count:_cntUnderRepair,  Color:Color.FromArgb(33,  150, 243)),
                 (Label:"Decommissioned", Count:_cntDecommission, Color:Color.FromArgb(239, 68,  68)),
+                (Label:"Overdue",        Count:_cntOverdue,      Color:Color.FromArgb(255, 160, 0)),
             };
 
             int   top   = 54;
@@ -699,6 +723,7 @@ namespace Inventory_Management_System
                 (Label:"Allocated",       Count:_cntAllocated,    Color:Color.FromArgb(245, 124, 0)),
                 (Label:"Under Repair",    Count:_cntUnderRepair,  Color:Color.FromArgb(33,  150, 243)),
                 (Label:"Decommissioned",  Count:_cntDecommission, Color:Color.FromArgb(239, 68,  68)),
+                (Label:"Overdue",         Count:_cntOverdue,      Color:Color.FromArgb(255, 160, 0)),
             };
 
             int total   = Math.Max(1, bars.Sum(b => b.Count));

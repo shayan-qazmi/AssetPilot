@@ -38,20 +38,20 @@ namespace Inventory_Management_System.Forms
             panelTop.Controls.Add(txtSearch);
 
             btnTransfer.Location = new System.Drawing.Point(12, 14);
-            btnTransfer.Size     = new System.Drawing.Size(110, 32);
-            btnTransfer.Text     = "New Transfer";
+            btnTransfer.Size     = new System.Drawing.Size(135, 32);
+            btnTransfer.Text     = "➕ New Transfer";
             btnTransfer.Name     = "btnTransfer";
             btnTransfer.Click   += btnTransfer_Click;
 
-            btnRefresh.Location = new System.Drawing.Point(130, 14);
+            btnRefresh.Location = new System.Drawing.Point(155, 14);
             btnRefresh.Size     = new System.Drawing.Size(90, 32);
-            btnRefresh.Text     = "Refresh";
+            btnRefresh.Text     = "🔄 Refresh";
             btnRefresh.Name     = "btnRefresh";
             btnRefresh.Click   += btnRefresh_Click;
 
-            btnExport.Location = new System.Drawing.Point(228, 14);
+            btnExport.Location = new System.Drawing.Point(253, 14);
             btnExport.Size     = new System.Drawing.Size(90, 32);
-            btnExport.Text     = "Export CSV";
+            btnExport.Text     = "📥 Export CSV";
             btnExport.Name     = "btnExport";
             btnExport.Click   += btnExport_Click;
 

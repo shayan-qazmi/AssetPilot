@@ -98,7 +98,7 @@ namespace Inventory_Management_System.Forms
                 Name          = "cmbCategory",
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Size          = new Size(115, 32),
-                Location      = new Point(766, 14),   // between Select(668) and QR Sheet(886)
+                Location      = new Point(886, 14),   // between Select(788) and QR Sheet(1006)
                 Cursor        = Cursors.Hand,
                 FlatStyle     = FlatStyle.Flat,
                 BackColor     = ThemeHelper.Accent,
@@ -172,13 +172,13 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);
             ThemeHelper.StyleButton(btnAdd);
-            ThemeHelper.StyleButton(btnRefresh);
+            ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleButton(btnShowQR);
             ThemeHelper.StyleButton(btnImportExcel);
             ThemeHelper.StyleButton(btnSelectAll);
             ThemeHelper.StyleButton(btnGenerateQRSheet);
             ThemeHelper.StyleDangerButton(btnDelete);
-            ThemeHelper.StyleSecondaryButton(btnEdit);
+            ThemeHelper.StyleButton(btnEdit, Color.FromArgb(245, 158, 11));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleTextBox(txtSearch);
             ThemeHelper.StyleDataGridView(dgvEquipment);

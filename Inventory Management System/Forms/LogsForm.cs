@@ -26,7 +26,7 @@ namespace Inventory_Management_System.Forms
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);
-            ThemeHelper.StyleButton(btnRefresh);
+            ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleTextBox(txtSearch);
             ThemeHelper.StyleDataGridView(dgvLogs);

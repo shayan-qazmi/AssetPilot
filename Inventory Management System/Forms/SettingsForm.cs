@@ -27,6 +27,7 @@ namespace Inventory_Management_System.Forms
         private Panel  _panelPrinting   = null!;
         private Panel  _panelCategories = null!;
         private Button _activeNavBtn    = null!;
+        private Label  _lblWatermark    = null!;
 
         // ── Sidebar (distinct styling + slide-in animation) ─────────────
         private Panel _sidebar = null!;
@@ -164,6 +165,19 @@ namespace Inventory_Management_System.Forms
             Controls.Add(content);
             Controls.Add(sidebar);
 
+            _lblWatermark = new Label
+            {
+                Text      = "Built by @shayanqazmi",
+                Font      = new Font("Segoe UI", 8f, FontStyle.Regular),
+                ForeColor = Color.FromArgb(150, 150, 150),
+                BackColor = Color.Transparent,
+                AutoSize  = true,
+                Anchor    = AnchorStyles.Bottom | AnchorStyles.Right,
+                Location  = new Point(1060, 720)
+            };
+            Controls.Add(_lblWatermark);
+            _lblWatermark.BringToFront();
+
             // Activate General by default
             _activeNavBtn = navBtns[0];
             ShowSection(_panelGeneral, navBtns[0], navBtns);
@@ -188,6 +202,9 @@ namespace Inventory_Management_System.Forms
 
             if (panel == _panelUsers)      LoadUsers();
             if (panel == _panelCategories) LoadCategories();
+
+            if (_lblWatermark != null)
+                _lblWatermark.BringToFront();
         }
 
         // ══════════════════════════════════════════════════════════════

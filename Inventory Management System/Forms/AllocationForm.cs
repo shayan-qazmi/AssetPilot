@@ -35,7 +35,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnAdd);
             ThemeHelper.StyleButton(btnApprove, Color.FromArgb(25, 118, 210));
             ThemeHelper.StyleButton(btnReturn,  Color.FromArgb(245, 124, 0));
-            ThemeHelper.StyleButton(btnRefresh);
+            ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnSelectAll);
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleDangerButton(btnDelete);

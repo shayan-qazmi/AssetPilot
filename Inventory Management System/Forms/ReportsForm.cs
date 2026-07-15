@@ -38,10 +38,10 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleLabel(lblReportType, bold: true, color: ThemeHelper.Accent);
             ThemeHelper.StyleLabel(lblExport,     bold: true, color: ThemeHelper.Accent);
 
-            ThemeHelper.StyleButton(btnEquipmentReport);
-            ThemeHelper.StyleButton(btnEmployeeReport);
-            ThemeHelper.StyleButton(btnAllocationReport);
-            ThemeHelper.StyleButton(btnReturnReport);
+            ThemeHelper.StyleButton(btnEquipmentReport, Color.FromArgb(94, 53, 177));
+            ThemeHelper.StyleButton(btnEmployeeReport, Color.FromArgb(123, 31, 162));
+            ThemeHelper.StyleButton(btnAllocationReport, Color.FromArgb(245, 124, 0));
+            ThemeHelper.StyleButton(btnReturnReport, Color.FromArgb(255, 160, 0));
 
             ThemeHelper.StyleSecondaryButton(btnExportPDF);
             ThemeHelper.StyleSecondaryButton(btnExportExcel);

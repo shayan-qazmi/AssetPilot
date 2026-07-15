@@ -29,11 +29,11 @@ namespace Inventory_Management_System.Forms
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);
-            ThemeHelper.StyleButton(btnAdd);
-            ThemeHelper.StyleButton(btnEdit);
-            ThemeHelper.StyleDangerButton(btnDelete);
-            ThemeHelper.StyleButton(btnRefresh);
-            ThemeHelper.StyleSecondaryButton(btnExport);
+            ThemeHelper.StyleButton(btnAdd);                                        // green — positive action
+            ThemeHelper.StyleButton(btnEdit, Color.FromArgb(245, 158, 11));         // amber — modify
+            ThemeHelper.StyleDangerButton(btnDelete);                               // red — destructive
+            ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));      // blue — matches "Under Repair" blue elsewhere
+            ThemeHelper.StyleSecondaryButton(btnExport);                            // grey — neutral/export
             ThemeHelper.StyleTextBox(txtSearch);
             ThemeHelper.StyleDataGridView(dgvReturns);
             panelBottom.BackColor = Color.FromArgb(249, 250, 251);
@@ -212,17 +212,63 @@ namespace Inventory_Management_System.Forms
             }
         }
 
+        // ── Delete (Undo Return) ────────────────────────────────────────────
+        // A "return" is not its own row — it's an Allocation with Status =
+        // "returned". Deleting it here means undoing that return: the
+        // allocation goes back to "approved" (still checked out) and the
+        // equipment's status reverts to "allocated". This preserves history
+        // instead of permanently destroying the allocation record.
         private void BtnDelete_Click(object? sender, EventArgs e)
         {
-            if (dgvReturns.SelectedRows.Count == 0)
+            var ret = GetSelectedReturn();
+            if (ret == null)
             {
-                MessageBox.Show("Please select a return to delete.", "Delete Return", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Please select a return to delete.", "Delete Return",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            var confirm = MessageBox.Show("Are you sure you want to delete this return?", "Delete Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (confirm == DialogResult.Yes)
+
+            var confirm = MessageBox.Show(
+                $"This will undo the return for '{ret.Equipment?.EquipmentCode} — {ret.Equipment?.Name}', " +
+                "reverting it back to an active allocation. Continue?",
+                "Undo Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (confirm != DialogResult.Yes) return;
+
+            try
             {
+                using var db = new InventoryDbContext();
+
+                var alloc = db.Allocations
+                    .Include(a => a.Equipment)
+                    .FirstOrDefault(a => a.Id == ret.Id);
+
+                if (alloc == null)
+                {
+                    MessageBox.Show("Return record not found.", "Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                string oldValue = $"{alloc.Equipment?.EquipmentCode} - returned";
+
+                alloc.Status           = "approved";
+                alloc.ActualReturnDate = null;
+
+                if (alloc.Equipment != null)
+                    alloc.Equipment.CurrentStatus = "allocated";
+
+                db.SaveChanges();
+
+                _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned,
+                    oldValue, $"{alloc.Equipment?.EquipmentCode} - approved (return undone)");
+
                 LoadReturns();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Failed to undo return: " + ex.Message, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
