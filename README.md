@@ -1,7 +1,7 @@
 # Q Inventory Management System
 
 <p align="center">
-<img width="977" height="667" alt="image" src="https://github.com/user-attachments/assets/93c24bba-4226-40ad-a30e-6d8ccbe92021" />
+<<img width="980" height="668" alt="image" src="https://github.com/user-attachments/assets/7d99d426-fa8e-4dc7-88b9-193918d3c833" />
 
 </p>
 
@@ -60,7 +60,7 @@ Q Inventory is a Windows desktop application that helps organizations track phys
 
 | Screen | Description |
 |---|---|
-| <img width="977" height="667" alt="image" src="https://github.com/user-attachments/assets/d3d06daf-65b5-4719-befa-f3c3e63abbce" />| Login screen |
+| <img width="980" height="668" alt="image" src="https://github.com/user-attachments/assets/0858e828-165b-4124-a6ac-7bc54e99d7ba" />| Login screen |
 | <img width="1919" height="1029" alt="image" src="https://github.com/user-attachments/assets/737f24b6-0799-4b0d-bf4c-140b22272b68" />| Dashboard with charts |
 | <img width="1919" height="1029" alt="image" src="https://github.com/user-attachments/assets/d857625c-175e-488e-a428-2d8b9e113622" />| Equipment management |
 | <img width="1914" height="1020" alt="image" src="https://github.com/user-attachments/assets/f4f85c97-6a7b-42c4-813b-6f84f7fe54e3" />| Add/Edit Equipment (with category, vendor, condition, warranty fields) |
