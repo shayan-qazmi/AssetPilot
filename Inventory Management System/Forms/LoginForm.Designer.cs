@@ -54,7 +54,7 @@ namespace Inventory_Management_System.Forms
 
             // ── panelLeft ─────────────────────────────────────────────────
             // Exact same green as btnLogin everywhere on this side now.
-            panelLeft.Dock      = System.Windows.Forms.DockStyle.Right;
+            panelLeft.Dock      = System.Windows.Forms.DockStyle.Left;
             panelLeft.Width     = 420;
             panelLeft.BackColor = System.Drawing.Color.FromArgb(27, 94, 32);
             panelLeft.Name      = "panelLeft";

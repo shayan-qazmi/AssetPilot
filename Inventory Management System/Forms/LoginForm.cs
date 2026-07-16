@@ -15,16 +15,17 @@ namespace Inventory_Management_System.Forms
     {
         private System.Windows.Forms.Timer _animTimer = null!;
         private float _tick = 0f;
+        private Image? _personImage;
 
-        private static readonly Color GreenDark  = Color.FromArgb(27,  94,  32);
-        private static readonly Color GreenMid   = Color.FromArgb(46,  125, 50);
-        private static readonly Color GreenLight = Color.FromArgb(76,  175, 80);
-        private static readonly Color GreenPale  = Color.FromArgb(200, 230, 201);
+        private static readonly Color GreenDark = Color.FromArgb(27, 94, 32);
+        private static readonly Color GreenMid = Color.FromArgb(46, 125, 50);
+        private static readonly Color GreenLight = Color.FromArgb(76, 175, 80);
+        private static readonly Color GreenPale = Color.FromArgb(200, 230, 201);
 
         private readonly List<Bubble> _bubbles = new();
         private readonly Random _rng = new();
         private float _introProgress = 0f;
-        private float _waveOffset    = 0f;
+        private float _waveOffset = 0f;
 
         private class Bubble
         {
@@ -39,6 +40,7 @@ namespace Inventory_Management_System.Forms
         {
             InitializeComponent();
             ApplyTheme();
+            LoadPersonImage();
             SetupAnimation();
             LoadRememberedUser();
         }
@@ -50,7 +52,7 @@ namespace Inventory_Management_System.Forms
             panelLeft.BackColor = GreenDark;
             panelAnim.BackColor = GreenDark;
 
-            btnLogin.Region  = MakeRoundedRegion(btnLogin.Width, btnLogin.Height, 12);
+            btnLogin.Region = MakeRoundedRegion(btnLogin.Width, btnLogin.Height, 12);
             btnCancel.Region = MakeRoundedRegion(btnCancel.Width, btnCancel.Height, 10);
 
             typeof(Panel).GetProperty("DoubleBuffered",
@@ -65,12 +67,34 @@ namespace Inventory_Management_System.Forms
         {
             var path = new GraphicsPath();
             int d = r * 2;
-            path.AddArc(0,     0,     d, d, 180, 90);
-            path.AddArc(w - d, 0,     d, d, 270, 90);
-            path.AddArc(w - d, h - d, d, d, 0,   90);
-            path.AddArc(0,     h - d, d, d, 90,  90);
+            path.AddArc(0, 0, d, d, 180, 90);
+            path.AddArc(w - d, 0, d, d, 270, 90);
+            path.AddArc(w - d, h - d, d, d, 0, 90);
+            path.AddArc(0, h - d, d, d, 90, 90);
             path.CloseFigure();
             return new Region(path);
+        }
+
+        private void LoadPersonImage()
+        {
+            try
+            {
+                var path = System.IO.Path.Combine(Application.StartupPath, "Images", "login-illustration.png");
+                if (System.IO.File.Exists(path))
+                    _personImage = Image.FromFile(path);
+            }
+            catch { /* falls back to the hand-drawn vector person if this fails */ }
+        }
+
+        private void DrawPersonImage(Graphics g, float cx, float groundY, float scale, float breathe)
+        {
+            float imgH = 500f * scale * breathe;
+            float imgW = imgH * ((float)_personImage!.Width / _personImage.Height);
+
+            float px = cx - imgW / 2f;
+            float py = groundY - imgH + 20f * scale;
+
+            g.DrawImage(_personImage, px, py, imgW, imgH);
         }
 
         private void SetupAnimation()
@@ -79,13 +103,13 @@ namespace Inventory_Management_System.Forms
             {
                 _bubbles.Add(new Bubble
                 {
-                    X          = (float)_rng.NextDouble(),
-                    Y          = (float)_rng.NextDouble(),
-                    Speed      = 4f + (float)_rng.NextDouble() * 7f,
-                    Phase      = (float)_rng.NextDouble() * (float)Math.PI * 2f,
-                    Wobble     = 4f + (float)_rng.NextDouble() * 6f,
-                    Size       = 3f + (float)_rng.NextDouble() * 6f,
-                    Opacity    = 0.06f + (float)_rng.NextDouble() * 0.12f,
+                    X = (float)_rng.NextDouble(),
+                    Y = (float)_rng.NextDouble(),
+                    Speed = 4f + (float)_rng.NextDouble() * 7f,
+                    Phase = (float)_rng.NextDouble() * (float)Math.PI * 2f,
+                    Wobble = 4f + (float)_rng.NextDouble() * 6f,
+                    Size = 3f + (float)_rng.NextDouble() * 6f,
+                    Opacity = 0.06f + (float)_rng.NextDouble() * 0.12f,
                     Foreground = false
                 });
             }
@@ -93,22 +117,22 @@ namespace Inventory_Management_System.Forms
             {
                 _bubbles.Add(new Bubble
                 {
-                    X          = (float)_rng.NextDouble(),
-                    Y          = (float)_rng.NextDouble(),
-                    Speed      = 10f + (float)_rng.NextDouble() * 16f,
-                    Phase      = (float)_rng.NextDouble() * (float)Math.PI * 2f,
-                    Wobble     = 8f + (float)_rng.NextDouble() * 12f,
-                    Size       = 6f + (float)_rng.NextDouble() * 12f,
-                    Opacity    = 0.14f + (float)_rng.NextDouble() * 0.24f,
+                    X = (float)_rng.NextDouble(),
+                    Y = (float)_rng.NextDouble(),
+                    Speed = 10f + (float)_rng.NextDouble() * 16f,
+                    Phase = (float)_rng.NextDouble() * (float)Math.PI * 2f,
+                    Wobble = 8f + (float)_rng.NextDouble() * 12f,
+                    Size = 6f + (float)_rng.NextDouble() * 12f,
+                    Opacity = 0.14f + (float)_rng.NextDouble() * 0.24f,
                     Foreground = true
                 });
             }
 
-            _animTimer          = new System.Windows.Forms.Timer();
+            _animTimer = new System.Windows.Forms.Timer();
             _animTimer.Interval = 16;
-            _animTimer.Tick    += (s, e) =>
+            _animTimer.Tick += (s, e) =>
             {
-                _tick       += 0.022f;
+                _tick += 0.022f;
                 _waveOffset += 0.014f;
 
                 if (_introProgress < 1f)
@@ -139,9 +163,9 @@ namespace Inventory_Management_System.Forms
             int h = panelAnim.Height;
             if (w <= 0 || h <= 0) return;
 
-            g.SmoothingMode      = SmoothingMode.AntiAlias;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
             g.CompositingQuality = CompositingQuality.HighQuality;
-            g.InterpolationMode  = InterpolationMode.HighQualityBicubic;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
 
             float ease = EaseOutCubic(_introProgress);
 
@@ -190,7 +214,7 @@ namespace Inventory_Management_System.Forms
 
             g.FillEllipse(b1, x1 - 110, y1 - 110, 220, 220);
             g.FillEllipse(b2, x2 - 130, y2 - 130, 260, 260);
-            g.FillEllipse(b3, x3 - 90,  y3 - 90,  180, 180);
+            g.FillEllipse(b3, x3 - 90, y3 - 90, 180, 180);
         }
 
         private void DrawBubbleLayer(Graphics g, int w, int h, float ease, bool foreground)
@@ -251,7 +275,7 @@ namespace Inventory_Management_System.Forms
         private void DrawIllustrationScene(Graphics g, int w, int h, float ease)
         {
             float groundY = h * 0.78f;
-            float scale   = Math.Min(w / 420f, h / 640f);
+            float scale = Math.Min(w / 420f, h / 640f);
             scale = Math.Max(0.65f, Math.Min(1.3f, scale));
 
             float cx = w * 0.52f;
@@ -261,10 +285,18 @@ namespace Inventory_Management_System.Forms
 
             float breathe = 1f + (float)Math.Sin(_tick * 0.9f) * 0.012f;
 
-            DrawDeskSurface(g, w, groundY, scale);
-            DrawContactShadow(g, cx, groundY, scale);
-            DrawLaptop(g, cx, groundY, scale, ease);
-            DrawPersonVector(g, cx, groundY, scale, breathe);
+            if (_personImage != null)
+            {
+                DrawContactShadow(g, cx, groundY, scale);
+                DrawPersonImage(g, cx, groundY, scale, breathe);
+            }
+            else
+            {
+                DrawDeskSurface(g, w, groundY, scale);
+                DrawContactShadow(g, cx, groundY, scale);
+                DrawLaptop(g, cx, groundY, scale, ease);
+                DrawPersonVector(g, cx, groundY, scale, breathe);
+            }
 
             float pulse = 1f + (float)Math.Sin(_tick * 1.4f) * 0.05f;
             DrawFloatingIcon(g, "📦", w * 0.12f, groundY - 230f * scale + (float)Math.Sin(_tick * 0.7f) * 10f, pulse, ease);
@@ -342,11 +374,11 @@ namespace Inventory_Management_System.Forms
 
             using var trouser = new SolidBrush(Color.FromArgb(245, 38, 38, 46));
             FillRoundedF(g, trouser, new RectangleF(px - 24 * scale, shoulderY + 86 * scale, 18 * scale, footY - (shoulderY + 86 * scale)), 7f * scale);
-            FillRoundedF(g, trouser, new RectangleF(px + 6  * scale, shoulderY + 86 * scale, 18 * scale, footY - (shoulderY + 86 * scale)), 7f * scale);
+            FillRoundedF(g, trouser, new RectangleF(px + 6 * scale, shoulderY + 86 * scale, 18 * scale, footY - (shoulderY + 86 * scale)), 7f * scale);
 
             using var shoe = new SolidBrush(Color.FromArgb(255, 24, 24, 24));
             FillRoundedF(g, shoe, new RectangleF(px - 26 * scale, footY - 2 * scale, 22 * scale, 9 * scale), 4f * scale);
-            FillRoundedF(g, shoe, new RectangleF(px + 4  * scale, footY - 2 * scale, 22 * scale, 9 * scale), 4f * scale);
+            FillRoundedF(g, shoe, new RectangleF(px + 4 * scale, footY - 2 * scale, 22 * scale, 9 * scale), 4f * scale);
 
             float torsoW = 64f * scale * breathe;
             float torsoH = 92f * scale * breathe;
@@ -371,12 +403,12 @@ namespace Inventory_Management_System.Forms
             g.FillRectangle(hair, px - headR, shoulderY - 8 * scale - headR * 1.15f, headR * 2f, headR * 0.5f);
 
             g.FillEllipse(skin, px - headR * 1.08f, shoulderY - 8 * scale - headR * 0.7f, headR * 0.36f, headR * 0.46f);
-            g.FillEllipse(skin, px + headR * 0.72f,  shoulderY - 8 * scale - headR * 0.7f, headR * 0.36f, headR * 0.46f);
+            g.FillEllipse(skin, px + headR * 0.72f, shoulderY - 8 * scale - headR * 0.7f, headR * 0.36f, headR * 0.46f);
 
             float elbowX = px - torsoW * 0.55f;
             float elbowY = shoulderY + 50f * scale;
-            float handX  = cx - 28f * scale;
-            float handY  = groundY - 16f * scale;
+            float handX = cx - 28f * scale;
+            float handY = groundY - 16f * scale;
 
             using var armPen = new Pen(Color.FromArgb(248, 46, 125, 50), 12f * scale)
             { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
@@ -413,7 +445,7 @@ namespace Inventory_Management_System.Forms
 
             using var sf = new StringFormat
             {
-                Alignment     = StringAlignment.Center,
+                Alignment = StringAlignment.Center,
                 LineAlignment = StringAlignment.Center
             };
             using var f = new Font("Segoe UI Emoji", 15f, FontStyle.Regular, GraphicsUnit.Point);
@@ -425,10 +457,10 @@ namespace Inventory_Management_System.Forms
             using var path = new GraphicsPath();
             float d = r * 2f;
             d = Math.Min(d, Math.Min(rect.Width, rect.Height));
-            path.AddArc(rect.X,             rect.Y,              d, d, 180, 90);
-            path.AddArc(rect.Right - d,     rect.Y,              d, d, 270, 90);
-            path.AddArc(rect.Right - d,     rect.Bottom - d,     d, d, 0,   90);
-            path.AddArc(rect.X,             rect.Bottom - d,     d, d, 90,  90);
+            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
             path.CloseFigure();
             g.FillPath(brush, path);
         }
@@ -449,7 +481,7 @@ namespace Inventory_Management_System.Forms
 
             try
             {
-                using var db   = new InventoryDbContext();
+                using var db = new InventoryDbContext();
                 var user = db.Users
                     .FirstOrDefault(u => u.Username == username && u.IsActive == true);
 
@@ -488,44 +520,44 @@ namespace Inventory_Management_System.Forms
         private void lblShowHidePassword_Click(object? sender, EventArgs e)
         {
             txtPassword.UseSystemPasswordChar = !txtPassword.UseSystemPasswordChar;
-            lblShowHidePassword.Text          = txtPassword.UseSystemPasswordChar ? "👁" : "🚫";
+            lblShowHidePassword.Text = txtPassword.UseSystemPasswordChar ? "👁" : "🚫";
         }
 
-private void pnlToggle_Paint(object? sender, PaintEventArgs e)
-{
-    var g = e.Graphics;
-    g.SmoothingMode = SmoothingMode.AntiAlias;
+        private void pnlToggle_Paint(object? sender, PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
 
-    var rect = new Rectangle(0, 2, 60, 32);
-    int d = rect.Height;
-    using var path = new GraphicsPath();
-    path.AddArc(rect.X, rect.Y, d, d, 180, 90);
-    path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
-    path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
-    path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
-    path.CloseFigure();
+            var rect = new Rectangle(0, 2, 60, 32);
+            int d = rect.Height;
+            using var path = new GraphicsPath();
+            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
 
-    Color bgColor = _keepMeLoggedIn
-        ? Color.FromArgb(46, 125, 50)
-        : Color.FromArgb(209, 213, 219);
-    using var bgBrush = new SolidBrush(bgColor);
-    g.FillPath(bgBrush, path);
+            Color bgColor = _keepMeLoggedIn
+                ? Color.FromArgb(46, 125, 50)
+                : Color.FromArgb(209, 213, 219);
+            using var bgBrush = new SolidBrush(bgColor);
+            g.FillPath(bgBrush, path);
 
-    int knobSize = 26;
-    int knobY    = rect.Y + (rect.Height - knobSize) / 2;
-    int knobX    = _keepMeLoggedIn
-        ? (rect.Right - knobSize - 3)
-        : (rect.X + 3);
+            int knobSize = 26;
+            int knobY = rect.Y + (rect.Height - knobSize) / 2;
+            int knobX = _keepMeLoggedIn
+                ? (rect.Right - knobSize - 3)
+                : (rect.X + 3);
 
-    using var knobBrush = new SolidBrush(Color.White);
-    g.FillEllipse(knobBrush, knobX, knobY, knobSize, knobSize);
+            using var knobBrush = new SolidBrush(Color.White);
+            g.FillEllipse(knobBrush, knobX, knobY, knobSize, knobSize);
 
-    if (!_keepMeLoggedIn)
-    {
-        using var knobPen = new Pen(Color.FromArgb(156, 163, 175), 0.5f);
-        g.DrawEllipse(knobPen, knobX, knobY, knobSize, knobSize);
-    }
-}
+            if (!_keepMeLoggedIn)
+            {
+                using var knobPen = new Pen(Color.FromArgb(156, 163, 175), 0.5f);
+                g.DrawEllipse(knobPen, knobX, knobY, knobSize, knobSize);
+            }
+        }
 
         private void pnlToggle_Click(object? sender, EventArgs e)
         {
