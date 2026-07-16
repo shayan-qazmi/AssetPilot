@@ -191,7 +191,7 @@ private string? _mysqlPath;
 
             _lblWatermark = new Label
             {
-                Text      = "Developed by 📷@shayanqazmi",
+                Text      = "Developed by 🐙shayan-qazmi",
                 Font      = new Font("Segoe UI", 8f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(150, 150, 150),
                 BackColor = Color.Transparent,

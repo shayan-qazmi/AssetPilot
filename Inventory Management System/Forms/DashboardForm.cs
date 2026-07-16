@@ -160,10 +160,7 @@ namespace Inventory_Management_System
             panelDesktop.BackColor = Color.FromArgb(240, 244, 240);
             panelStats.BackColor   = Color.FromArgb(240, 244, 240);
 
-            // Sidebar shape + shadow
-            ApplySidebarRoundedCorners();
-            panelMenu.Resize        += (s, e) => ApplySidebarRoundedCorners();
-            panelDesktop.Paint      += PaintSidebarShadow;
+          
 
             // Who's logged in
             var lbl = panelMenu.Controls.OfType<Label>().FirstOrDefault(l => l.Name == "lblWhoAmI");
