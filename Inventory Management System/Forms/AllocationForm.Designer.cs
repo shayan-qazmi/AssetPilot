@@ -14,21 +14,28 @@ namespace Inventory_Management_System.Forms
 
         private void InitializeComponent()
         {
-            panelTop      = new System.Windows.Forms.Panel();
-            btnAdd        = new System.Windows.Forms.Button();
-            btnApprove    = new System.Windows.Forms.Button();
-            btnReturn     = new System.Windows.Forms.Button();
-            btnDelete     = new System.Windows.Forms.Button();
-            btnRefresh    = new System.Windows.Forms.Button();
-            btnExport     = new System.Windows.Forms.Button();
-            btnSelectAll  = new System.Windows.Forms.Button();
-            txtSearch     = new System.Windows.Forms.TextBox();
-            dgvAllocation = new System.Windows.Forms.DataGridView();
-            panelBottom   = new System.Windows.Forms.Panel();
-            lblRowCount   = new System.Windows.Forms.Label();
+            panelTop           = new System.Windows.Forms.Panel();
+            btnAdd             = new System.Windows.Forms.Button();
+            btnApprove         = new System.Windows.Forms.Button();
+            btnReturn          = new System.Windows.Forms.Button();
+            btnDelete          = new System.Windows.Forms.Button();
+            btnRefresh         = new System.Windows.Forms.Button();
+            btnExport          = new System.Windows.Forms.Button();
+            btnSelectAll       = new System.Windows.Forms.Button();
+            txtSearch          = new System.Windows.Forms.TextBox();
+            dgvAllocation      = new System.Windows.Forms.DataGridView();
+            panelBottom        = new System.Windows.Forms.Panel();
+            panelPagination    = new System.Windows.Forms.Panel();
+            lblRowCount        = new System.Windows.Forms.Label();
+            lblPageSize        = new System.Windows.Forms.Label();
+            cmbPageSize        = new System.Windows.Forms.ComboBox();
+            btnPrevPage        = new System.Windows.Forms.Button();
+            lblPageIndicator   = new System.Windows.Forms.Label();
+            btnNextPage        = new System.Windows.Forms.Button();
 
             panelTop.SuspendLayout();
             panelBottom.SuspendLayout();
+            panelPagination.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvAllocation).BeginInit();
             SuspendLayout();
 
@@ -110,17 +117,59 @@ namespace Inventory_Management_System.Forms
             dgvAllocation.Columns.Add("Status",        "Status");
 
             panelBottom.Dock      = System.Windows.Forms.DockStyle.Bottom;
-            panelBottom.Height    = 30;
+            panelBottom.Height    = 40;
             panelBottom.Name      = "panelBottom";
             panelBottom.BackColor = System.Drawing.Color.FromArgb(249, 250, 251);
             panelBottom.Controls.Add(lblRowCount);
+            panelBottom.Controls.Add(panelPagination);
 
-            lblRowCount.AutoSize  = false;
-            lblRowCount.Dock      = System.Windows.Forms.DockStyle.Fill;
+            lblRowCount.Dock      = System.Windows.Forms.DockStyle.Left;
+            lblRowCount.Width     = 260;
             lblRowCount.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             lblRowCount.Text      = "Showing 0 records";
             lblRowCount.Name      = "lblRowCount";
             lblRowCount.Padding   = new System.Windows.Forms.Padding(8, 0, 0, 0);
+
+            panelPagination.Dock   = System.Windows.Forms.DockStyle.Right;
+            panelPagination.Width  = 420;
+            panelPagination.Name   = "panelPagination";
+            panelPagination.Controls.Add(lblPageSize);
+            panelPagination.Controls.Add(cmbPageSize);
+            panelPagination.Controls.Add(btnPrevPage);
+            panelPagination.Controls.Add(lblPageIndicator);
+            panelPagination.Controls.Add(btnNextPage);
+
+            lblPageSize.AutoSize = true;
+            lblPageSize.Location = new System.Drawing.Point(4, 12);
+            lblPageSize.Name     = "lblPageSize";
+            lblPageSize.Text     = "Page size:";
+
+            cmbPageSize.Location              = new System.Drawing.Point(78, 8);
+            cmbPageSize.Size                  = new System.Drawing.Size(60, 27);
+            cmbPageSize.Name                  = "cmbPageSize";
+            cmbPageSize.DropDownStyle         = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            cmbPageSize.Items.AddRange(new object[] { "10", "25", "50", "100" });
+            cmbPageSize.SelectedIndex         = 1;
+            cmbPageSize.SelectedIndexChanged += cmbPageSize_SelectedIndexChanged;
+
+            btnPrevPage.Location = new System.Drawing.Point(148, 6);
+            btnPrevPage.Size     = new System.Drawing.Size(70, 26);
+            btnPrevPage.Text     = "◀ Prev";
+            btnPrevPage.Name     = "btnPrevPage";
+            btnPrevPage.Click   += btnPrevPage_Click;
+
+            lblPageIndicator.AutoSize  = false;
+            lblPageIndicator.Location  = new System.Drawing.Point(226, 6);
+            lblPageIndicator.Size      = new System.Drawing.Size(100, 26);
+            lblPageIndicator.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            lblPageIndicator.Name      = "lblPageIndicator";
+            lblPageIndicator.Text      = "Page 1 of 1";
+
+            btnNextPage.Location = new System.Drawing.Point(334, 6);
+            btnNextPage.Size     = new System.Drawing.Size(70, 26);
+            btnNextPage.Text     = "Next ▶";
+            btnNextPage.Name     = "btnNextPage";
+            btnNextPage.Click   += btnNextPage_Click;
 
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode       = System.Windows.Forms.AutoScaleMode.Font;
@@ -136,12 +185,15 @@ namespace Inventory_Management_System.Forms
             panelTop.ResumeLayout(false);
             panelTop.PerformLayout();
             panelBottom.ResumeLayout(false);
+            panelPagination.ResumeLayout(false);
+            panelPagination.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dgvAllocation).EndInit();
             ResumeLayout(false);
         }
 
         private System.Windows.Forms.Panel        panelTop;
         private System.Windows.Forms.Panel        panelBottom;
+        private System.Windows.Forms.Panel        panelPagination;
         private System.Windows.Forms.Button       btnAdd;
         private System.Windows.Forms.Button       btnApprove;
         private System.Windows.Forms.Button       btnReturn;
@@ -150,6 +202,11 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Button       btnExport;
         private System.Windows.Forms.Button       btnSelectAll;
         private System.Windows.Forms.TextBox      txtSearch;
+        private System.Windows.Forms.Label        lblPageSize;
+        private System.Windows.Forms.ComboBox     cmbPageSize;
+        private System.Windows.Forms.Button       btnPrevPage;
+        private System.Windows.Forms.Button       btnNextPage;
+        private System.Windows.Forms.Label        lblPageIndicator;
         private System.Windows.Forms.Label        lblRowCount;
         private System.Windows.Forms.DataGridView dgvAllocation;
     }

@@ -36,6 +36,37 @@ namespace Inventory_Management_System.Services
             }
         }
 
+        public ServiceResult<PagedResult<Equipment>> GetPage(int pageNumber, int pageSize)
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var query = db.Equipment
+                    .Include(e => e.Allocations)
+                        .ThenInclude(a => a.Location)
+                    .Include(e => e.ProcurementType)
+                    .OrderBy(e => e.EquipmentCode);
+
+                var totalCount = query.Count();
+                var items = query
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+
+                return ServiceResult<PagedResult<Equipment>>.Ok(new PagedResult<Equipment>
+                {
+                    Items      = items,
+                    TotalCount = totalCount,
+                    PageNumber = pageNumber,
+                    PageSize   = pageSize
+                });
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<PagedResult<Equipment>>.Fail($"Error paging equipment: {ex.Message}");
+            }
+        }
+
         public ServiceResult<Equipment> GetById(int id)
         {
             try

@@ -16,16 +16,23 @@ namespace Inventory_Management_System.Forms
 
         private void InitializeComponent()
         {
-            panelTop    = new System.Windows.Forms.Panel();
-            btnRefresh  = new System.Windows.Forms.Button();
-            btnExport   = new System.Windows.Forms.Button();
-            txtSearch   = new System.Windows.Forms.TextBox();
-            dgvLogs     = new System.Windows.Forms.DataGridView();
-            panelBottom = new System.Windows.Forms.Panel();
-            lblRowCount = new System.Windows.Forms.Label();
+            panelTop           = new System.Windows.Forms.Panel();
+            btnRefresh         = new System.Windows.Forms.Button();
+            btnExport          = new System.Windows.Forms.Button();
+            txtSearch          = new System.Windows.Forms.TextBox();
+            dgvLogs            = new System.Windows.Forms.DataGridView();
+            panelBottom        = new System.Windows.Forms.Panel();
+            panelPagination    = new System.Windows.Forms.Panel();
+            lblRowCount        = new System.Windows.Forms.Label();
+            lblPageSize        = new System.Windows.Forms.Label();
+            cmbPageSize        = new System.Windows.Forms.ComboBox();
+            btnPrevPage        = new System.Windows.Forms.Button();
+            lblPageIndicator   = new System.Windows.Forms.Label();
+            btnNextPage        = new System.Windows.Forms.Button();
 
             panelTop.SuspendLayout();
             panelBottom.SuspendLayout();
+            panelPagination.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvLogs).BeginInit();
             SuspendLayout();
 
@@ -37,21 +44,18 @@ namespace Inventory_Management_System.Forms
             panelTop.Controls.Add(btnExport);
             panelTop.Controls.Add(txtSearch);
 
-            // btnRefresh
             btnRefresh.Location = new System.Drawing.Point(12, 14);
             btnRefresh.Size     = new System.Drawing.Size(100, 32);
             btnRefresh.Text     = "🔄 Refresh";
             btnRefresh.Name     = "btnRefresh";
             btnRefresh.Click   += btnRefresh_Click;
 
-            // btnExport
             btnExport.Location = new System.Drawing.Point(120, 14);
             btnExport.Size     = new System.Drawing.Size(100, 32);
             btnExport.Text     = "📥 Export";
             btnExport.Name     = "btnExport";
             btnExport.Click   += btnExport_Click;
 
-            // txtSearch
             txtSearch.Location        = new System.Drawing.Point(260, 16);
             txtSearch.Size            = new System.Drawing.Size(300, 26);
             txtSearch.PlaceholderText = "Search by equipment, action, user…";
@@ -60,18 +64,59 @@ namespace Inventory_Management_System.Forms
 
             // ── panelBottom ───────────────────────────────────────────────
             panelBottom.Dock      = System.Windows.Forms.DockStyle.Bottom;
-            panelBottom.Height    = 30;
+            panelBottom.Height    = 40;
             panelBottom.Name      = "panelBottom";
             panelBottom.BackColor = System.Drawing.Color.FromArgb(249, 250, 251);
             panelBottom.Controls.Add(lblRowCount);
+            panelBottom.Controls.Add(panelPagination);
 
-            // lblRowCount
-            lblRowCount.AutoSize  = false;
-            lblRowCount.Dock      = System.Windows.Forms.DockStyle.Fill;
+            lblRowCount.Dock      = System.Windows.Forms.DockStyle.Left;
+            lblRowCount.Width     = 260;
             lblRowCount.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             lblRowCount.Text      = "Showing 0 records";
             lblRowCount.Name      = "lblRowCount";
             lblRowCount.Padding   = new System.Windows.Forms.Padding(8, 0, 0, 0);
+
+            panelPagination.Dock   = System.Windows.Forms.DockStyle.Right;
+            panelPagination.Width  = 420;
+            panelPagination.Name   = "panelPagination";
+            panelPagination.Controls.Add(lblPageSize);
+            panelPagination.Controls.Add(cmbPageSize);
+            panelPagination.Controls.Add(btnPrevPage);
+            panelPagination.Controls.Add(lblPageIndicator);
+            panelPagination.Controls.Add(btnNextPage);
+
+            lblPageSize.AutoSize = true;
+            lblPageSize.Location = new System.Drawing.Point(4, 12);
+            lblPageSize.Name     = "lblPageSize";
+            lblPageSize.Text     = "Page size:";
+
+            cmbPageSize.Location              = new System.Drawing.Point(78, 8);
+            cmbPageSize.Size                  = new System.Drawing.Size(60, 27);
+            cmbPageSize.Name                  = "cmbPageSize";
+            cmbPageSize.DropDownStyle         = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            cmbPageSize.Items.AddRange(new object[] { "10", "25", "50", "100" });
+            cmbPageSize.SelectedIndex         = 1;
+            cmbPageSize.SelectedIndexChanged += cmbPageSize_SelectedIndexChanged;
+
+            btnPrevPage.Location = new System.Drawing.Point(148, 6);
+            btnPrevPage.Size     = new System.Drawing.Size(70, 26);
+            btnPrevPage.Text     = "◀ Prev";
+            btnPrevPage.Name     = "btnPrevPage";
+            btnPrevPage.Click   += btnPrevPage_Click;
+
+            lblPageIndicator.AutoSize  = false;
+            lblPageIndicator.Location  = new System.Drawing.Point(226, 6);
+            lblPageIndicator.Size      = new System.Drawing.Size(100, 26);
+            lblPageIndicator.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            lblPageIndicator.Name      = "lblPageIndicator";
+            lblPageIndicator.Text      = "Page 1 of 1";
+
+            btnNextPage.Location = new System.Drawing.Point(334, 6);
+            btnNextPage.Size     = new System.Drawing.Size(70, 26);
+            btnNextPage.Text     = "Next ▶";
+            btnNextPage.Name     = "btnNextPage";
+            btnNextPage.Click   += btnNextPage_Click;
 
             // ── dgvLogs ───────────────────────────────────────────────────
             dgvLogs.Dock                = System.Windows.Forms.DockStyle.Fill;
@@ -81,7 +126,6 @@ namespace Inventory_Management_System.Forms
             dgvLogs.SelectionMode       = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             dgvLogs.Name                = "dgvLogs";
 
-            // Columns
             var colId   = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "ID",        HeaderText = "Log ID",         FillWeight = 6 };
             var colEq   = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Equipment", HeaderText = "Equipment Code", FillWeight = 12 };
             var colAct  = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Action",    HeaderText = "Action",         FillWeight = 18 };
@@ -107,6 +151,8 @@ namespace Inventory_Management_System.Forms
             panelTop.ResumeLayout(false);
             panelTop.PerformLayout();
             panelBottom.ResumeLayout(false);
+            panelPagination.ResumeLayout(false);
+            panelPagination.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)dgvLogs).EndInit();
             ResumeLayout(false);
         }
@@ -115,9 +161,15 @@ namespace Inventory_Management_System.Forms
 
         private System.Windows.Forms.Panel        panelTop;
         private System.Windows.Forms.Panel        panelBottom;
+        private System.Windows.Forms.Panel        panelPagination;
         private System.Windows.Forms.Button       btnRefresh;
         private System.Windows.Forms.Button       btnExport;
         private System.Windows.Forms.TextBox      txtSearch;
+        private System.Windows.Forms.Label        lblPageSize;
+        private System.Windows.Forms.ComboBox     cmbPageSize;
+        private System.Windows.Forms.Button       btnPrevPage;
+        private System.Windows.Forms.Button       btnNextPage;
+        private System.Windows.Forms.Label        lblPageIndicator;
         private System.Windows.Forms.Label        lblRowCount;
         private System.Windows.Forms.DataGridView dgvLogs;
     }

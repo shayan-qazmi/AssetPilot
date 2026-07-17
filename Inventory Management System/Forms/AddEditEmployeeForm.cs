@@ -1,3 +1,4 @@
+// Forms/AddEditEmployeeForm.cs
 using System;
 using System.Drawing;
 using System.Windows.Forms;
@@ -13,7 +14,6 @@ namespace Inventory_Management_System.Forms
         private EmployeeService _employeeService;
         private bool _isEditMode;
 
-        private TextBox txtEmployeeCode = null!;
         private TextBox txtFullName = null!;
         private TextBox txtDepartment = null!;
         private TextBox txtEmail = null!;
@@ -35,7 +35,7 @@ namespace Inventory_Management_System.Forms
         private void InitializeUI()
         {
             this.Text = _isEditMode ? "Edit Employee" : "Add Employee";
-            this.Size = new Size(400, 560);
+            this.Size = new Size(400, 480);
             this.StartPosition = FormStartPosition.CenterParent;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
@@ -45,16 +45,6 @@ namespace Inventory_Management_System.Forms
             this.AutoScroll = true; // Ensure scrolling when content exceeds form size
 
             int y = 20;
-
-            // Employee Code
-            Label lblCode = new Label() { Text = "Employee Code:", Location = new Point(20, y), AutoSize = true };
-            ThemeHelper.StyleLabel(lblCode);
-            this.Controls.Add(lblCode);
-            y += 25;
-            txtEmployeeCode = new TextBox() { Location = new Point(20, y), Width = 340 };
-            ThemeHelper.StyleTextBox(txtEmployeeCode);
-            this.Controls.Add(txtEmployeeCode);
-            y += 40;
 
             // Full Name
             Label lblName = new Label() { Text = "Full Name:", Location = new Point(20, y), AutoSize = true };
@@ -122,7 +112,6 @@ namespace Inventory_Management_System.Forms
         {
             if (_isEditMode)
             {
-                txtEmployeeCode.Text = _employee.EmployeeCode;
                 txtFullName.Text = _employee.FullName;
                 txtDepartment.Text = _employee.Department;
                 txtEmail.Text = _employee.Email;
@@ -139,7 +128,10 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            _employee.EmployeeCode = txtEmployeeCode.Text.Trim();
+            // Employee Code is no longer entered here — EmployeeService.Add()
+            // auto-generates it on save. In edit mode, _employee already
+            // carries its existing code from the constructor, so it's left
+            // untouched.
             _employee.FullName = txtFullName.Text.Trim();
             _employee.Department = txtDepartment.Text.Trim();
             _employee.Email = txtEmail.Text.Trim();

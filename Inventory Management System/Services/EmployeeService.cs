@@ -1,3 +1,4 @@
+// Services/EmployeeService.cs
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,6 +9,53 @@ namespace Inventory_Management_System.Services
 {
     public class EmployeeService
     {
+        // ── Paged retrieval ──────────────────────────────────────────────────
+        public ServiceResult<PagedResult<Employee>> GetPage(int pageNumber, int pageSize)
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var total = db.Employees.Count();
+                var items = db.Employees
+                    .OrderBy(e => e.FullName)
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToList();
+
+                return ServiceResult<PagedResult<Employee>>.Ok(new PagedResult<Employee>
+                {
+                    Items = items,
+                    TotalCount = total,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                });
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<PagedResult<Employee>>.Fail($"Error paging employees: {ex.Message}");
+            }
+        }
+
+        // ── Fuzzy search (returns full match set; caller pages in memory) ────
+        public ServiceResult<List<Employee>> Search(string term)
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var all = db.Employees.ToList();
+                var list = all
+                    .Where(e => FuzzySearchHelper.IsFuzzyMatch(e.FullName, term))
+                    .OrderByDescending(e => FuzzySearchHelper.FuzzyScore(e.FullName, term))
+                    .ToList();
+
+                return ServiceResult<List<Employee>>.Ok(list);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<List<Employee>>.Fail($"Error searching employees: {ex.Message}");
+            }
+        }
+
         public ServiceResult<List<Employee>> GetAll()
         {
             try
@@ -36,16 +84,54 @@ namespace Inventory_Management_System.Services
             }
         }
 
+        // ── Auto-generation helper ───────────────────────────────────────────
+        // Mirrors EquipmentService.GenerateEquipmentCode() — sequential,
+        // collision-checked, based on the highest existing "EMP###" number.
+        private string GenerateEmployeeCode(InventoryDbContext db)
+        {
+            var codes = db.Employees
+                .Select(e => e.EmployeeCode)
+                .Where(c => c != null && c.StartsWith("EMP"))
+                .ToList();
+
+            int maxNum = 0;
+            foreach (var c in codes)
+            {
+                var digits = new string(c!.Skip(3).TakeWhile(char.IsDigit).ToArray());
+                if (int.TryParse(digits, out int n) && n > maxNum) maxNum = n;
+            }
+
+            string candidate;
+            int next = maxNum + 1;
+            do
+            {
+                candidate = $"EMP{next:000}";
+                next++;
+            } while (db.Employees.Any(e => e.EmployeeCode == candidate));
+
+            return candidate;
+        }
+
         public ServiceResult<Employee> Add(Employee employee)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(employee.FullName))
                     return ServiceResult<Employee>.Fail("Full Name is required.");
-                if (string.IsNullOrWhiteSpace(employee.EmployeeCode))
-                    return ServiceResult<Employee>.Fail("Employee Code is required.");
 
                 using var db = new InventoryDbContext();
+
+                // Employee Code is no longer typed manually — auto-generate
+                // when blank. If a value was already supplied (e.g. Excel
+                // import), keep it as-is.
+                if (string.IsNullOrWhiteSpace(employee.EmployeeCode))
+                    employee.EmployeeCode = GenerateEmployeeCode(db);
+                else
+                    employee.EmployeeCode = employee.EmployeeCode.Trim().ToUpper();
+
+                // Safety net — same defensive pattern as EquipmentService.
+                if (db.Employees.Any(e => e.EmployeeCode == employee.EmployeeCode))
+                    return ServiceResult<Employee>.Fail($"Employee code '{employee.EmployeeCode}' already exists.");
 
                 if (!string.IsNullOrWhiteSpace(employee.Email))
                 {
@@ -69,7 +155,7 @@ namespace Inventory_Management_System.Services
             {
                 if (string.IsNullOrWhiteSpace(employee.FullName))
                     return ServiceResult<Employee>.Fail("Full Name is required.");
-                
+
                 using var db = new InventoryDbContext();
 
                 if (!string.IsNullOrWhiteSpace(employee.Email))

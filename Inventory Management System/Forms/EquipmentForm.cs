@@ -16,6 +16,10 @@ namespace Inventory_Management_System.Forms
         private readonly EquipmentService _equipmentService = new();
         private List<Equipment> _allEquipment = new();
 
+        private int _currentPage = 1;
+        private int _pageSize = 25;
+        private int _totalPages = 1;
+
         // ── Programmatic Dropdown Selection Mode (replacing Select button) ──
         private ComboBox cmbSelectMode  = null!;
 
@@ -181,6 +185,9 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnEdit, Color.FromArgb(245, 158, 11));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleTextBox(txtSearch);
+            ThemeHelper.StyleComboBox(cmbPageSize);
+            ThemeHelper.StyleSecondaryButton(btnPrevPage);
+            ThemeHelper.StyleSecondaryButton(btnNextPage);
             ThemeHelper.StyleDataGridView(dgvEquipment);
             panelBottom.BackColor = Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
@@ -191,22 +198,50 @@ namespace Inventory_Management_System.Forms
 
         private void LoadEquipment(string searchTerm = "")
         {
-            ServiceResult<List<Equipment>> result;
-
             if (string.IsNullOrWhiteSpace(searchTerm))
-                result = _equipmentService.GetAll();
-            else
-                result = _equipmentService.Search(searchTerm);
-
-            if (!result.Success)
             {
-                MessageBox.Show(result.ErrorMessage, "Data Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
+                var result = _equipmentService.GetPage(_currentPage, _pageSize);
+                if (!result.Success)
+                {
+                    MessageBox.Show(result.ErrorMessage, "Data Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                _totalPages = Math.Max(1, result.Data!.TotalPages);
+                if (_currentPage > _totalPages) _currentPage = _totalPages;
+
+                _allEquipment = result.Data.Items;
+            }
+            else
+            {
+                var result = _equipmentService.Search(searchTerm);
+                if (!result.Success)
+                {
+                    MessageBox.Show(result.ErrorMessage, "Data Error",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                var fullMatches = result.Data ?? new List<Equipment>();
+                _totalPages = Math.Max(1, (int)Math.Ceiling(fullMatches.Count / (double)_pageSize));
+                if (_currentPage > _totalPages) _currentPage = _totalPages;
+
+                _allEquipment = fullMatches
+                    .Skip((_currentPage - 1) * _pageSize)
+                    .Take(_pageSize)
+                    .ToList();
             }
 
-            _allEquipment = result.Data ?? new List<Equipment>();
+            UpdatePaginationControls();
             ApplyFilters();
+        }
+
+        private void UpdatePaginationControls()
+        {
+            lblPageIndicator.Text = $"Page {_currentPage} of {Math.Max(1, _totalPages)}";
+            btnPrevPage.Enabled = _currentPage > 1;
+            btnNextPage.Enabled = _currentPage < _totalPages;
         }
 
         // ── Populate category dropdown from distinct DB values ─────────────
@@ -432,6 +467,7 @@ namespace Inventory_Management_System.Forms
         private void btnRefresh_Click(object sender, EventArgs e)
         {
             txtSearch.Text = string.Empty;
+            _currentPage = 1;
             LoadEquipment();
         }
 
@@ -824,9 +860,10 @@ namespace Inventory_Management_System.Forms
             if (ofd.ShowDialog() != DialogResult.OK) return;
 
             List<Equipment> items;
+            List<string>    parseErrors;
             try
             {
-                items = ExcelHelper.ImportEquipment(ofd.FileName);
+                (items, parseErrors) = ExcelHelper.ImportEquipment(ofd.FileName, _equipmentService);
             }
             catch (Exception ex)
             {
@@ -838,31 +875,70 @@ namespace Inventory_Management_System.Forms
 
             if (items.Count == 0)
             {
-                MessageBox.Show(
-                    "No valid rows found in the Excel file.\n\nMake sure row 1 is a header and data starts from row 2.",
+                string detail = parseErrors.Count > 0
+                    ? "\n\nRow-level issues:\n" + string.Join("\n", parseErrors.Take(10))
+                    : "\n\nMake sure row 1 has header columns 'name' and 'serial_number', and data starts from row 2.";
+                MessageBox.Show("No valid rows found in the Excel file." + detail,
                     "Nothing to Import", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             var result = _equipmentService.AddRange(items);
-            if (result.Success)
+
+            // Combine service-level error text with any Excel parse warnings
+            var allErrors = new List<string>();
+            if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
+                allErrors.Add(result.ErrorMessage);
+            allErrors.AddRange(parseErrors);
+
+            if (allErrors.Count == 0)
             {
                 MessageBox.Show($"✅ {result.Data} of {items.Count} records imported successfully.",
                     "Import Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                LoadEquipment();
             }
             else
             {
-                MessageBox.Show($"Import completed with errors:\n\n{result.ErrorMessage}",
-                    "Import Partial", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                LoadEquipment();
+                MessageBox.Show(
+                    $"{result.Data} of {items.Count} records imported.\n\nDetails:\n" +
+                    string.Join("\n", allErrors.Take(20)),
+                    "Import Complete", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
+
+            LoadEquipment();
         }
 
         private void txtSearch_TextChanged(object sender, EventArgs e)
         {
-            // Re-load from DB with the search term, then re-apply category filter
+            _currentPage = 1;
             LoadEquipment(txtSearch.Text.Trim());
+        }
+
+        private void cmbPageSize_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (int.TryParse(cmbPageSize.SelectedItem?.ToString(), out int size))
+            {
+                _pageSize = size;
+                _currentPage = 1;
+                LoadEquipment(txtSearch.Text.Trim());
+            }
+        }
+
+        private void btnPrevPage_Click(object sender, EventArgs e)
+        {
+            if (_currentPage > 1)
+            {
+                _currentPage--;
+                LoadEquipment(txtSearch.Text.Trim());
+            }
+        }
+
+        private void btnNextPage_Click(object sender, EventArgs e)
+        {
+            if (_currentPage < _totalPages)
+            {
+                _currentPage++;
+                LoadEquipment(txtSearch.Text.Trim());
+            }
         }
     }
 }

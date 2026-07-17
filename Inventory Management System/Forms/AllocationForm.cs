@@ -20,7 +20,13 @@ namespace Inventory_Management_System.Forms
         private readonly LocationService    _locationService    = new();
         private readonly AuditService       _audit              = new();
         private List<Allocation>            _allAllocations     = new();
+        private List<Allocation>            _suggestSourceAllocations = new();
         private EntitySuggestHelper<Allocation>? _suggest;
+
+        private int _currentPage = 1;
+        private int _pageSize = 25;
+        private int _totalPages = 1;
+        private int _totalMatchingCount = 0;
 
         public AllocationForm()
         {
@@ -42,6 +48,9 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleDangerButton(btnDelete);
             ThemeHelper.StyleTextBox(txtSearch);
+            ThemeHelper.StyleComboBox(cmbPageSize);
+            ThemeHelper.StyleSecondaryButton(btnPrevPage);
+            ThemeHelper.StyleSecondaryButton(btnNextPage);
             ThemeHelper.StyleDataGridView(dgvAllocation);
             panelBottom.BackColor = Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
@@ -68,7 +77,7 @@ namespace Inventory_Management_System.Forms
                                     FuzzySearchHelper.FuzzyScore(a.Status, term))))),
                     line1Selector: a => $"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name}",
                     line2Selector: a => $"{a.Employee?.FullName ?? "—"} • {a.Status}");
-                _suggest.LoadItems(_allAllocations);
+                _suggest.LoadItems(_suggestSourceAllocations);
             }
             catch { /* non-critical UI enhancement, fail silently */ }
         }
@@ -90,20 +99,37 @@ namespace Inventory_Management_System.Forms
         }
 
         // ── Load with full includes so navigation props are populated ─────
-        private void LoadAllocations()
+        private void LoadAllocations(string filter = "")
         {
             try
             {
                 using var db = new InventoryDbContext();
-                _allAllocations = db.Allocations
+                var query = db.Allocations
                     .Include(a => a.Equipment)
                     .Include(a => a.Employee)
                     .Include(a => a.Location)
-                    .OrderByDescending(a => a.AllocationDate)
-                    .ToList();
+                    .OrderByDescending(a => a.AllocationDate);
 
-                _suggest?.LoadItems(_allAllocations);   // keep dropdown data in sync
-                RefreshGrid();
+                _suggestSourceAllocations = query.ToList();
+
+                if (string.IsNullOrWhiteSpace(filter))
+                {
+                    _totalMatchingCount = _suggestSourceAllocations.Count;
+                    _totalPages = Math.Max(1, (int)Math.Ceiling(_totalMatchingCount / (double)_pageSize));
+                    if (_currentPage > _totalPages) _currentPage = _totalPages;
+
+                    _allAllocations = _suggestSourceAllocations
+                        .Skip((_currentPage - 1) * _pageSize)
+                        .Take(_pageSize)
+                        .ToList();
+                }
+                else
+                {
+                    _allAllocations = _suggestSourceAllocations;
+                }
+
+                _suggest?.LoadItems(_suggestSourceAllocations);
+                RefreshGrid(filter);
             }
             catch (Exception ex)
             {
@@ -116,9 +142,18 @@ namespace Inventory_Management_System.Forms
         {
             dgvAllocation.Rows.Clear();
 
-            var items = string.IsNullOrWhiteSpace(filter)
-                ? _allAllocations
-                : _allAllocations.Where(a =>
+            List<Allocation> items;
+            int totalMatching;
+
+            if (string.IsNullOrWhiteSpace(filter))
+            {
+                items = _allAllocations;
+                totalMatching = _totalMatchingCount;
+                _totalPages = Math.Max(1, (int)Math.Ceiling(totalMatching / (double)_pageSize));
+            }
+            else
+            {
+                var filtered = _allAllocations.Where(a =>
                     FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.EquipmentCode, filter) ||
                     FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.Name,          filter) ||
                     FuzzySearchHelper.IsFuzzyMatch(a.Employee?.FullName,       filter) ||
@@ -134,6 +169,16 @@ namespace Inventory_Management_System.Forms
                                 FuzzySearchHelper.FuzzyScore(a.Location?.LocationName, filter),
                                 FuzzySearchHelper.FuzzyScore(a.Status,                filter))))))
                 .ToList();
+
+                totalMatching = filtered.Count;
+                _totalPages = Math.Max(1, (int)Math.Ceiling(totalMatching / (double)_pageSize));
+                if (_currentPage > _totalPages) _currentPage = _totalPages;
+
+                items = filtered
+                    .Skip((_currentPage - 1) * _pageSize)
+                    .Take(_pageSize)
+                    .ToList();
+            }
 
             foreach (var item in items)
             {
@@ -171,7 +216,10 @@ namespace Inventory_Management_System.Forms
                 statusCell.Style.Font = ThemeHelper.FontBold;
             }
 
-            lblRowCount.Text = $"Showing {dgvAllocation.Rows.Count} of {_allAllocations.Count} records";
+            lblRowCount.Text = $"Showing {items.Count} of {totalMatching} records";
+            lblPageIndicator.Text = $"Page {_currentPage} of {Math.Max(1, _totalPages)}";
+            btnPrevPage.Enabled = _currentPage > 1;
+            btnNextPage.Enabled = _currentPage < _totalPages;
         }
 
         private Allocation? GetSelectedAllocation()
@@ -274,6 +322,7 @@ namespace Inventory_Management_System.Forms
         private void btnRefresh_Click(object sender, EventArgs e)
         {
             txtSearch.Text = string.Empty;
+            _currentPage = 1;
             LoadAllocations();
         }
 
@@ -281,7 +330,43 @@ namespace Inventory_Management_System.Forms
             => dgvAllocation.SelectAll();
 
         private void txtSearch_TextChanged(object sender, EventArgs e)
-            => RefreshGrid(txtSearch.Text.Trim());
+        {
+            _currentPage = 1;
+            LoadAllocations(txtSearch.Text.Trim());
+        }
+
+        private void cmbPageSize_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (int.TryParse(cmbPageSize.SelectedItem?.ToString(), out int size))
+            {
+                _pageSize = size;
+                _currentPage = 1;
+                if (string.IsNullOrWhiteSpace(txtSearch.Text))
+                    LoadAllocations();
+                else
+                    RefreshGrid(txtSearch.Text.Trim());
+            }
+        }
+
+        private void btnPrevPage_Click(object sender, EventArgs e)
+        {
+            if (_currentPage <= 1) return;
+            _currentPage--;
+            if (string.IsNullOrWhiteSpace(txtSearch.Text))
+                LoadAllocations();
+            else
+                RefreshGrid(txtSearch.Text.Trim());
+        }
+
+        private void btnNextPage_Click(object sender, EventArgs e)
+        {
+            if (_currentPage >= _totalPages) return;
+            _currentPage++;
+            if (string.IsNullOrWhiteSpace(txtSearch.Text))
+                LoadAllocations();
+            else
+                RefreshGrid(txtSearch.Text.Trim());
+        }
 
         private void btnExport_Click(object sender, EventArgs e)
         {
