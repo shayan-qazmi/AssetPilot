@@ -17,6 +17,7 @@ namespace Inventory_Management_System.Forms
         private void InitializeComponent()
         {
             panelTop           = new System.Windows.Forms.Panel();
+            flowToolbar        = new System.Windows.Forms.FlowLayoutPanel();
             btnRefresh         = new System.Windows.Forms.Button();
             btnExport          = new System.Windows.Forms.Button();
             txtSearch          = new System.Windows.Forms.TextBox();
@@ -31,35 +32,48 @@ namespace Inventory_Management_System.Forms
             btnNextPage        = new System.Windows.Forms.Button();
 
             panelTop.SuspendLayout();
+            flowToolbar.SuspendLayout();
             panelBottom.SuspendLayout();
             panelPagination.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvLogs).BeginInit();
             SuspendLayout();
 
-            // ── panelTop ──────────────────────────────────────────────────
-            panelTop.Dock   = System.Windows.Forms.DockStyle.Top;
-            panelTop.Height = 60;
-            panelTop.Name   = "panelTop";
-            panelTop.Controls.Add(btnRefresh);
-            panelTop.Controls.Add(btnExport);
-            panelTop.Controls.Add(txtSearch);
+            // ── panelTop ────────────────────────────────────────────────────
+            panelTop.Dock         = System.Windows.Forms.DockStyle.Top;
+            panelTop.AutoSize     = true;
+            panelTop.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            panelTop.MinimumSize  = new System.Drawing.Size(0, 60);
+            panelTop.Name         = "panelTop";
+            panelTop.Controls.Add(flowToolbar);
 
-            btnRefresh.Location = new System.Drawing.Point(12, 14);
-            btnRefresh.Size     = new System.Drawing.Size(100, 32);
-            btnRefresh.Text     = "🔄 Refresh";
-            btnRefresh.Name     = "btnRefresh";
-            btnRefresh.Click   += btnRefresh_Click;
+            // ── flowToolbar ──────────────────────────────────────────────────
+            flowToolbar.Dock          = System.Windows.Forms.DockStyle.Fill;
+            flowToolbar.FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight;
+            flowToolbar.WrapContents  = true;
+            flowToolbar.AutoSize      = true;
+            flowToolbar.AutoSizeMode  = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            flowToolbar.Padding       = new System.Windows.Forms.Padding(8, 8, 8, 8);
+            flowToolbar.Name          = "flowToolbar";
+            flowToolbar.Controls.Add(btnRefresh);
+            flowToolbar.Controls.Add(btnExport);
+            flowToolbar.Controls.Add(txtSearch);
 
-            btnExport.Location = new System.Drawing.Point(120, 14);
-            btnExport.Size     = new System.Drawing.Size(100, 32);
-            btnExport.Text     = "📥 Export";
-            btnExport.Name     = "btnExport";
-            btnExport.Click   += btnExport_Click;
+            btnRefresh.Size   = new System.Drawing.Size(100, 32);
+            btnRefresh.Text   = "🔄 Refresh";
+            btnRefresh.Name   = "btnRefresh";
+            btnRefresh.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnRefresh.Click += btnRefresh_Click;
 
-            txtSearch.Location        = new System.Drawing.Point(260, 16);
+            btnExport.Size   = new System.Drawing.Size(100, 32);
+            btnExport.Text   = "📥 Export";
+            btnExport.Name   = "btnExport";
+            btnExport.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnExport.Click += btnExport_Click;
+
             txtSearch.Size            = new System.Drawing.Size(300, 26);
             txtSearch.PlaceholderText = "Search by equipment, action, user…";
             txtSearch.Name            = "txtSearch";
+            txtSearch.Margin          = new System.Windows.Forms.Padding(16, 7, 4, 0);
             txtSearch.TextChanged    += txtSearch_TextChanged;
 
             // ── panelBottom ───────────────────────────────────────────────
@@ -148,6 +162,8 @@ namespace Inventory_Management_System.Forms
             Text = "Audit Logs";
             Name = "LogsForm";
 
+            flowToolbar.ResumeLayout(false);
+            flowToolbar.PerformLayout();
             panelTop.ResumeLayout(false);
             panelTop.PerformLayout();
             panelBottom.ResumeLayout(false);
@@ -160,6 +176,7 @@ namespace Inventory_Management_System.Forms
         #endregion
 
         private System.Windows.Forms.Panel        panelTop;
+        private System.Windows.Forms.FlowLayoutPanel flowToolbar;
         private System.Windows.Forms.Panel        panelBottom;
         private System.Windows.Forms.Panel        panelPagination;
         private System.Windows.Forms.Button       btnRefresh;

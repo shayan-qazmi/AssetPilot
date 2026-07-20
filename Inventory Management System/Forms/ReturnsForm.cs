@@ -82,12 +82,29 @@ namespace Inventory_Management_System.Forms
             }
         }
 
-        // ── Load with full includes ───────────────────────────────────────
+        // ── Display-only view-model row combining Allocation returns + Check In/Out completions
+        private class ReturnRow
+        {
+            public int    Id            { get; set; }
+            public string Source        { get; set; } = "Allocation"; // "Allocation" | "Check In/Out"
+            public string EquipmentCode { get; set; } = "—";
+            public string EquipmentName { get; set; } = "—";
+            public string Employee      { get; set; } = "—";
+            public DateTime SortDate    { get; set; }
+            public string ReturnDate    { get; set; } = "—";
+            public string Condition     { get; set; } = "—";
+            public int    DurationDays  { get; set; }
+            public Allocation? AllocationRef { get; set; } // non-null only for Allocation-sourced rows
+        }
+
+        private List<ReturnRow> _allReturnRows = new();
+
         private void LoadReturns()
         {
             try
             {
                 using var db = new InventoryDbContext();
+
                 _allReturns = db.Allocations
                     .Where(a => a.Status == "returned")
                     .Include(a => a.Equipment)
@@ -96,7 +113,54 @@ namespace Inventory_Management_System.Forms
                     .OrderByDescending(a => a.ActualReturnDate)
                     .ToList();
 
-                _suggest?.LoadItems(_allReturns);   // keep dropdown data in sync
+                var allocRows = _allReturns.Select(item =>
+                {
+                    var returnDate = item.ActualReturnDate.HasValue
+                        ? item.ActualReturnDate.Value.ToDateTime(TimeOnly.MinValue)
+                        : DateTime.Today;
+                    return new ReturnRow
+                    {
+                        Id            = item.Id,
+                        Source        = "Allocation",
+                        EquipmentCode = item.Equipment?.EquipmentCode ?? "—",
+                        EquipmentName = item.Equipment?.Name ?? "—",
+                        Employee      = item.Employee?.FullName ?? "—",
+                        SortDate      = returnDate,
+                        ReturnDate    = item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
+                        Condition     = item.Equipment?.ConditionGrade ?? "—",
+                        DurationDays  = (returnDate - item.AllocationDate).Days,
+                        AllocationRef = item
+                    };
+                }).ToList();
+
+                var completedCheckIns = db.Transactions
+                    .Include(t => t.Equipment)
+                    .Where(t => t.Status == "Completed" && t.ActualReturn.HasValue)
+                    .ToList();
+
+                var checkInRows = completedCheckIns.Select(t =>
+                {
+                    var returnDate = t.ActualReturn!.Value.ToDateTime(TimeOnly.MinValue);
+                    return new ReturnRow
+                    {
+                        Id            = -t.TransactionId,
+                        Source        = "Check In/Out",
+                        EquipmentCode = t.Equipment?.EquipmentCode ?? "—",
+                        EquipmentName = t.Equipment?.Name ?? "—",
+                        Employee      = string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
+                        SortDate      = returnDate,
+                        ReturnDate    = t.ActualReturn?.ToString("yyyy-MM-dd") ?? "—",
+                        Condition     = t.ConditionAfter ?? "—",
+                        DurationDays  = (returnDate - t.TransactionDate).Days,
+                        AllocationRef = null
+                    };
+                }).ToList();
+
+                _allReturnRows = allocRows.Concat(checkInRows)
+                    .OrderByDescending(r => r.SortDate)
+                    .ToList();
+
+                _suggest?.LoadItems(_allReturns);   // suggestion dropdown stays Allocation-only, unchanged
                 RefreshGrid();
             }
             catch (Exception ex)
@@ -111,46 +175,50 @@ namespace Inventory_Management_System.Forms
             dgvReturns.Rows.Clear();
 
             var items = string.IsNullOrWhiteSpace(filter)
-                ? _allReturns
-                : _allReturns.Where(a =>
-                    FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.EquipmentCode, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.Name,          filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.Employee?.FullName,       filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.ActualReturnDate?.ToString("yyyy-MM-dd"), filter))
-                .OrderByDescending(a => Math.Max(
-                    FuzzySearchHelper.FuzzyScore(a.Equipment?.EquipmentCode, filter),
+                ? _allReturnRows
+                : _allReturnRows.Where(r =>
+                    FuzzySearchHelper.IsFuzzyMatch(r.EquipmentCode, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(r.EquipmentName, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(r.Employee,      filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(r.ReturnDate,    filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(r.Source,        filter))
+                .OrderByDescending(r => Math.Max(
+                    FuzzySearchHelper.FuzzyScore(r.EquipmentCode, filter),
                     Math.Max(
-                        FuzzySearchHelper.FuzzyScore(a.Equipment?.Name,    filter),
-                        FuzzySearchHelper.FuzzyScore(a.Employee?.FullName, filter))))
+                        FuzzySearchHelper.FuzzyScore(r.EquipmentName, filter),
+                        FuzzySearchHelper.FuzzyScore(r.Employee, filter))))
                 .ToList();
 
             foreach (var item in items)
             {
-                var returnDate   = item.ActualReturnDate.HasValue
-                    ? item.ActualReturnDate.Value.ToDateTime(TimeOnly.MinValue)
-                    : DateTime.Today;
-                int durationDays = (returnDate - item.AllocationDate).Days;
-
                 int rowIdx = dgvReturns.Rows.Add(
                     item.Id,
-                    item.Equipment?.EquipmentCode ?? "—",
-                    item.Equipment?.Name          ?? "—",
-                    item.Employee?.FullName        ?? "—",
-                    item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
-                    item.Equipment?.ConditionGrade ?? "—"
+                    item.EquipmentCode,
+                    item.EquipmentName,
+                    item.Employee,
+                    item.ReturnDate,
+                    item.Condition,
+                    item.Source
                 );
 
-                if (durationDays > 30)
+                if (item.DurationDays > 30)
                     dgvReturns.Rows[rowIdx].Cells["ReturnDate"].Style.ForeColor = ThemeHelper.Warning;
+
+                var sourceCell = dgvReturns.Rows[rowIdx].Cells["Source"];
+                sourceCell.Style.ForeColor = item.Source == "Check In/Out"
+                    ? Color.FromArgb(25, 118, 210)
+                    : Color.FromArgb(107, 114, 128);
+                sourceCell.Style.Font = ThemeHelper.FontBold;
             }
 
-            lblRowCount.Text = $"Showing {dgvReturns.Rows.Count} of {_allReturns.Count} returns";
+            lblRowCount.Text = $"Showing {dgvReturns.Rows.Count} of {_allReturnRows.Count} returns";
         }
 
         private Allocation? GetSelectedReturn()
         {
             if (dgvReturns.SelectedRows.Count == 0) return null;
             if (!int.TryParse(dgvReturns.SelectedRows[0].Cells["ReturnID"].Value?.ToString(), out int id)) return null;
+            if (id < 0) return null; // Check In/Out-sourced row — not editable/deletable here
             return _allReturns.FirstOrDefault(a => a.Id == id);
         }
 

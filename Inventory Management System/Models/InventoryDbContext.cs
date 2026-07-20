@@ -43,7 +43,7 @@ public partial class InventoryDbContext : DbContext
 
     public virtual DbSet<MaintenanceRecord> MaintenanceRecords { get; set; }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     => optionsBuilder.UseMySql(
         "server=localhost;database=inventory_management;user=root;password=",
         Microsoft.EntityFrameworkCore.ServerVersion.Parse("8.0.46-mysql"));

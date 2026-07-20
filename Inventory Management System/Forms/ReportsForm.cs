@@ -22,6 +22,7 @@ namespace Inventory_Management_System.Forms
         // Currently selected report — drives both the on-screen preview grid
         // and what gets exported when PDF/Excel buttons are clicked.
         private string _currentReport = "";
+        private string _activeEquipmentCategory = "All Categories";
         private DataGridView _preview = null!;
         private Label _previewTitle = null!;
 
@@ -81,11 +82,66 @@ namespace Inventory_Management_System.Forms
             _preview.BringToFront();
         }
 
-        // ── Report builders ─────────────────────────────────────────────
         private void btnEquipmentReport_Click(object sender, EventArgs e)
         {
+            // Build the ContextMenuStrip
+            var menu = new ContextMenuStrip
+            {
+                Font = ThemeHelper.FontDefault,
+                BackColor = Color.White,
+                ForeColor = ThemeHelper.TextPrimary
+            };
+
+            // Load categories matching EquipmentForm.LoadCategoryFilter() union & sorting logic
+            List<string> categories = new List<string>();
+            try
+            {
+                using var db = new InventoryDbContext();
+                var dbCategories = db.Equipment
+                    .Where(eq => eq.Category != null && eq.Category != "")
+                    .Select(eq => eq.Category!)
+                    .Distinct()
+                    .ToList();
+
+                categories = CategoryStore.GetAll()
+                    .Union(dbCategories, StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+            catch
+            {
+                categories = CategoryStore.GetAll()
+                    .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
+            // Default to "All Categories" before displaying category menu
+            _activeEquipmentCategory = "All Categories";
+
+            // Add "All Categories" item
+            var allCatItem = new ToolStripMenuItem("All Categories");
+            allCatItem.Click += (s, ev) => LoadEquipmentReport("All Categories");
+            menu.Items.Add(allCatItem);
+
+            // Add other category items
+            foreach (var cat in categories)
+            {
+                var item = new ToolStripMenuItem(cat);
+                item.Click += (s, ev) => LoadEquipmentReport(cat);
+                menu.Items.Add(item);
+            }
+
+            // Show menu below the button
+            menu.Show(btnEquipmentReport, new Point(0, btnEquipmentReport.Height));
+        }
+
+        private void LoadEquipmentReport(string category)
+        {
             _currentReport = "Equipment";
-            _previewTitle.Text = "Equipment Inventory Report";
+            _activeEquipmentCategory = category;
+            _previewTitle.Text = category == "All Categories"
+                ? "Equipment Inventory Report"
+                : $"Equipment Inventory Report - {category}";
 
             var result = _equipmentService.GetAll();
             if (!result.Success)
@@ -105,7 +161,16 @@ namespace Inventory_Management_System.Forms
             _preview.Columns.Add("Location", "Location");
             _preview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
-            foreach (var item in result.Data ?? new List<Equipment>())
+            var equipmentList = result.Data ?? new List<Equipment>();
+
+            if (category != "All Categories")
+            {
+                equipmentList = equipmentList
+                    .Where(e => string.Equals(e.Category, category, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+
+            foreach (var item in equipmentList)
             {
                 string location = item.Allocations
                     .FirstOrDefault(a => a.Status == "approved")?.Location?.LocationName ?? "—";
@@ -118,7 +183,7 @@ namespace Inventory_Management_System.Forms
                 statusCell.Style.ForeColor = item.CurrentStatus switch
                 {
                     "in_store"       => ThemeHelper.Success,
-                    "allocated"      => ThemeHelper.Warning,
+                    "allocated" => ThemeHelper.Warning,
                     "under_repair"   => Color.FromArgb(255, 112, 67),
                     "decommissioned" => ThemeHelper.Danger,
                     _                => ThemeHelper.TextPrimary

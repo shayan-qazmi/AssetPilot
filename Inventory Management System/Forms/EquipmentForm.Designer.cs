@@ -17,6 +17,7 @@ namespace Inventory_Management_System.Forms
         private void InitializeComponent()
         {
             panelTop           = new System.Windows.Forms.Panel();
+            flowToolbar        = new System.Windows.Forms.FlowLayoutPanel();
             btnAdd             = new System.Windows.Forms.Button();
             btnEdit            = new System.Windows.Forms.Button();
             btnDelete          = new System.Windows.Forms.Button();
@@ -38,84 +39,98 @@ namespace Inventory_Management_System.Forms
             btnNextPage        = new System.Windows.Forms.Button();
 
             panelTop.SuspendLayout();
+            flowToolbar.SuspendLayout();
             panelBottom.SuspendLayout();
             panelPagination.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvEquipment).BeginInit();
             SuspendLayout();
 
             // ── panelTop ──────────────────────────────────────────────────
-            panelTop.Dock   = System.Windows.Forms.DockStyle.Top;
-            panelTop.Height = 60;
-            panelTop.Name   = "panelTop";
-            panelTop.Controls.Add(btnAdd);
-            panelTop.Controls.Add(btnEdit);
-            panelTop.Controls.Add(btnDelete);
-            panelTop.Controls.Add(btnRefresh);
-            panelTop.Controls.Add(btnExport);
-            panelTop.Controls.Add(btnShowQR);
-            panelTop.Controls.Add(btnImportExcel);
-            panelTop.Controls.Add(btnSelectAll);
-            panelTop.Controls.Add(btnGenerateQRSheet);
-            panelTop.Controls.Add(txtSearch);
+            panelTop.Dock         = System.Windows.Forms.DockStyle.Top;
+            panelTop.AutoSize     = true;
+            panelTop.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            panelTop.MinimumSize  = new System.Drawing.Size(0, 60);
+            panelTop.Name         = "panelTop";
+            panelTop.Controls.Add(flowToolbar);
 
-            btnAdd.Location = new System.Drawing.Point(12, 14);
-            btnAdd.Size     = new System.Drawing.Size(100, 32);
-            btnAdd.Text     = "➕ Add";
-            btnAdd.Name     = "btnAdd";
-            btnAdd.Click   += btnAdd_Click;
+            // ── flowToolbar ───────────────────────────────────────────────
+            flowToolbar.Dock          = System.Windows.Forms.DockStyle.Fill;
+            flowToolbar.FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight;
+            flowToolbar.WrapContents  = true;
+            flowToolbar.AutoSize      = true;
+            flowToolbar.AutoSizeMode  = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            flowToolbar.Padding       = new System.Windows.Forms.Padding(8, 8, 8, 8);
+            flowToolbar.Name          = "flowToolbar";
+            flowToolbar.Controls.Add(btnAdd);
+            flowToolbar.Controls.Add(btnEdit);
+            flowToolbar.Controls.Add(btnDelete);
+            flowToolbar.Controls.Add(btnRefresh);
+            flowToolbar.Controls.Add(btnExport);
+            flowToolbar.Controls.Add(btnShowQR);
+            flowToolbar.Controls.Add(btnImportExcel);
+            flowToolbar.Controls.Add(btnSelectAll);
+            // cmbSelectMode and cmbCategory are inserted here by SetupToolbarLayout()
+            flowToolbar.Controls.Add(btnGenerateQRSheet);
+            flowToolbar.Controls.Add(txtSearch);
 
-            btnEdit.Location = new System.Drawing.Point(120, 14);
-            btnEdit.Size     = new System.Drawing.Size(100, 32);
-            btnEdit.Text     = "✏️ Edit";
-            btnEdit.Name     = "btnEdit";
-            btnEdit.Click   += btnEdit_Click;
+            btnAdd.Size   = new System.Drawing.Size(100, 32);
+            btnAdd.Text   = "➕ Add";
+            btnAdd.Name   = "btnAdd";
+            btnAdd.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnAdd.Click += btnAdd_Click;
 
-            btnDelete.Location = new System.Drawing.Point(228, 14);
-            btnDelete.Size     = new System.Drawing.Size(100, 32);
-            btnDelete.Text     = "🗑️ Delete";
-            btnDelete.Name     = "btnDelete";
-            btnDelete.Click   += btnDelete_Click;
+            btnEdit.Size   = new System.Drawing.Size(100, 32);
+            btnEdit.Text   = "✏️ Edit";
+            btnEdit.Name   = "btnEdit";
+            btnEdit.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnEdit.Click += btnEdit_Click;
 
-            btnRefresh.Location = new System.Drawing.Point(336, 14);
-            btnRefresh.Size     = new System.Drawing.Size(100, 32);
-            btnRefresh.Text     = "🔄 Refresh";
-            btnRefresh.Name     = "btnRefresh";
-            btnRefresh.Click   += btnRefresh_Click;
+            btnDelete.Size   = new System.Drawing.Size(100, 32);
+            btnDelete.Text   = "🗑️ Delete";
+            btnDelete.Name   = "btnDelete";
+            btnDelete.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnDelete.Click += btnDelete_Click;
 
-            btnExport.Location = new System.Drawing.Point(444, 14);
-            btnExport.Size     = new System.Drawing.Size(100, 32);
-            btnExport.Text     = "📥 Export";
-            btnExport.Name     = "btnExport";
-            btnExport.Click   += btnExport_Click;
+            btnRefresh.Size   = new System.Drawing.Size(100, 32);
+            btnRefresh.Text   = "🔄 Refresh";
+            btnRefresh.Name   = "btnRefresh";
+            btnRefresh.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnRefresh.Click += btnRefresh_Click;
 
-            btnShowQR.Location = new System.Drawing.Point(552, 14);
-            btnShowQR.Size     = new System.Drawing.Size(100, 32);
-            btnShowQR.Text     = "🔍 Show QR";
-            btnShowQR.Name     = "btnShowQR";
-            btnShowQR.Click   += btnShowQR_Click;
+            btnExport.Size   = new System.Drawing.Size(100, 32);
+            btnExport.Text   = "📥 Export";
+            btnExport.Name   = "btnExport";
+            btnExport.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnExport.Click += btnExport_Click;
 
-            btnImportExcel.Location = new System.Drawing.Point(660, 14);
-            btnImportExcel.Size     = new System.Drawing.Size(120, 32);
-            btnImportExcel.Text     = "📥 Import Excel";
-            btnImportExcel.Name     = "btnImportExcel";
-            btnImportExcel.Click   += btnImportExcel_Click;
+            btnShowQR.Size   = new System.Drawing.Size(100, 32);
+            btnShowQR.Text   = "🔍 Show QR";
+            btnShowQR.Name   = "btnShowQR";
+            btnShowQR.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnShowQR.Click += btnShowQR_Click;
 
-            btnSelectAll.Location = new System.Drawing.Point(788, 14);
-            btnSelectAll.Size     = new System.Drawing.Size(90, 32);
-            btnSelectAll.Text     = "Select All";
-            btnSelectAll.Name     = "btnSelectAll";
-            btnSelectAll.Click   += btnSelectAll_Click;
+            btnImportExcel.Size   = new System.Drawing.Size(120, 32);
+            btnImportExcel.Text   = "📥 Import Excel";
+            btnImportExcel.Name   = "btnImportExcel";
+            btnImportExcel.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnImportExcel.Click += btnImportExcel_Click;
 
-            btnGenerateQRSheet.Location = new System.Drawing.Point(1006, 14);
-            btnGenerateQRSheet.Size     = new System.Drawing.Size(130, 32);
-            btnGenerateQRSheet.Text     = "🖨 QR Sheet";
-            btnGenerateQRSheet.Name     = "btnGenerateQRSheet";
-            btnGenerateQRSheet.Click   += btnGenerateQRSheet_Click;
+            btnSelectAll.Size   = new System.Drawing.Size(90, 32);
+            btnSelectAll.Text   = "Select All";
+            btnSelectAll.Name   = "btnSelectAll";
+            btnSelectAll.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnSelectAll.Click += btnSelectAll_Click;
 
-            txtSearch.Location        = new System.Drawing.Point(1144, 17);
+            btnGenerateQRSheet.Size   = new System.Drawing.Size(130, 32);
+            btnGenerateQRSheet.Text   = "🖨 QR Sheet";
+            btnGenerateQRSheet.Name   = "btnGenerateQRSheet";
+            btnGenerateQRSheet.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnGenerateQRSheet.Click += btnGenerateQRSheet_Click;
+
             txtSearch.Size            = new System.Drawing.Size(240, 26);
             txtSearch.PlaceholderText = "Search Equipment…";
             txtSearch.Name            = "txtSearch";
+            txtSearch.Margin          = new System.Windows.Forms.Padding(16, 7, 4, 0);
             txtSearch.TextChanged    += txtSearch_TextChanged;
 
             // ── panelBottom ───────────────────────────────────────────────
@@ -208,6 +223,8 @@ namespace Inventory_Management_System.Forms
             Text = "Equipment";
             Name = "EquipmentForm";
 
+            flowToolbar.ResumeLayout(false);
+            flowToolbar.PerformLayout();
             panelTop.ResumeLayout(false);
             panelTop.PerformLayout();
             panelBottom.ResumeLayout(false);
@@ -219,25 +236,26 @@ namespace Inventory_Management_System.Forms
 
         #endregion
 
-        private System.Windows.Forms.Panel        panelTop;
-        private System.Windows.Forms.Panel        panelBottom;
-        private System.Windows.Forms.Panel        panelPagination;
-        private System.Windows.Forms.Button       btnAdd;
-        private System.Windows.Forms.Button       btnEdit;
-        private System.Windows.Forms.Button       btnDelete;
-        private System.Windows.Forms.Button       btnRefresh;
-        private System.Windows.Forms.Button       btnExport;
-        private System.Windows.Forms.Button       btnShowQR;
-        private System.Windows.Forms.Button       btnImportExcel;
-        private System.Windows.Forms.Button       btnSelectAll;
-        private System.Windows.Forms.Button       btnGenerateQRSheet;
-        private System.Windows.Forms.TextBox      txtSearch;
-        private System.Windows.Forms.Label        lblPageSize;
-        private System.Windows.Forms.ComboBox     cmbPageSize;
-        private System.Windows.Forms.Button       btnPrevPage;
-        private System.Windows.Forms.Button       btnNextPage;
-        private System.Windows.Forms.Label        lblPageIndicator;
-        private System.Windows.Forms.Label        lblRowCount;
-        private System.Windows.Forms.DataGridView dgvEquipment;
+        private System.Windows.Forms.Panel           panelTop;
+        private System.Windows.Forms.FlowLayoutPanel flowToolbar;
+        private System.Windows.Forms.Panel           panelBottom;
+        private System.Windows.Forms.Panel           panelPagination;
+        private System.Windows.Forms.Button          btnAdd;
+        private System.Windows.Forms.Button          btnEdit;
+        private System.Windows.Forms.Button          btnDelete;
+        private System.Windows.Forms.Button          btnRefresh;
+        private System.Windows.Forms.Button          btnExport;
+        private System.Windows.Forms.Button          btnShowQR;
+        private System.Windows.Forms.Button          btnImportExcel;
+        private System.Windows.Forms.Button          btnSelectAll;
+        private System.Windows.Forms.Button          btnGenerateQRSheet;
+        private System.Windows.Forms.TextBox         txtSearch;
+        private System.Windows.Forms.Label           lblPageSize;
+        private System.Windows.Forms.ComboBox        cmbPageSize;
+        private System.Windows.Forms.Button          btnPrevPage;
+        private System.Windows.Forms.Button          btnNextPage;
+        private System.Windows.Forms.Label           lblPageIndicator;
+        private System.Windows.Forms.Label           lblRowCount;
+        private System.Windows.Forms.DataGridView    dgvEquipment;
     }
 }

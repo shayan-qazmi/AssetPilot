@@ -137,6 +137,12 @@ namespace Inventory_Management_System.Forms
                 new[] { "In Store", "Allocated", "Decommissioned", "Under Repair" });
             cmbStatus.SelectedIndexChanged += CmbStatus_SelectedIndexChanged;
 
+            if (!_isEditMode)
+            {
+                cmbStatus.SelectedIndex = cmbStatus.Items.IndexOf("In Store");
+                cmbStatus.Enabled = false;
+            }
+
             dtpPurchaseDate = AddDateRow(card, "Purchase Date", ColLeft, ref yL, ref altL);
 
             cmbCategory = AddComboRow(card, "Category", ColLeft, ref yL, ref altL,

@@ -25,8 +25,7 @@ namespace Inventory_Management_System
         private int _cntDecommission = 0;
         private int _cntOverdue      = 0;
         private int _cntEmployees    = 0;
-        private List<(string Month, int Count)> _monthlyData    = new();
-        private List<(string Month, int Count)> _monthlyAdded   = new();
+        private List<(string Category, int Count)> _categoryBreakdown = new();
 
         // ── Chart panels ──────────────────────────────────────────────────
         private Panel? _panelCharts  = null;
@@ -114,11 +113,10 @@ namespace Inventory_Management_System
                     {
                         pic = new PictureBox
                         {
-                            Name      = "picLogoSide",
-                            SizeMode  = PictureBoxSizeMode.Zoom,
-                            Height    = 100,
-                          
-                            Dock      = DockStyle.Top,
+                            Name = "picLogoSide",
+                            SizeMode = PictureBoxSizeMode.Zoom,
+                            Size = new Size(40, 40),      // Change to your desired size
+                            Location = new Point(39, 10), // Center it (adjust as needed)
                             BackColor = ThemeHelper.Sidebar
                         };
                         panelMenu.Controls.Add(pic);
@@ -252,39 +250,16 @@ namespace Inventory_Management_System
                     a.ActualReturnDate == null);
                 _cntOverdue = overdueCount;
 
-                // Monthly allocation data — last 6 months
-                var sixAgo = DateTime.Now.AddMonths(-5);
-               _monthlyAdded = db.Allocations
-                    .Where(a => a.AllocationDate >= sixAgo)
-                    .AsEnumerable()
-                    .GroupBy(a => new { a.AllocationDate.Year, a.AllocationDate.Month })
-                    .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
-                    .Select(g => (
-                        Month: new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM"),
-                        Count: g.Count()))
+
+                // Category breakdown — equipment count per category
+                _categoryBreakdown = db.Equipment
+                    .Where(e => e.Category != null && e.Category != "")
+                    .GroupBy(e => e.Category)
+                    .Select(g => new { Category = g.Key, Count = g.Count() })
+                    .OrderByDescending(g => g.Count)
+                    .ToList()
+                    .Select(g => (Category: g.Category!, Count: g.Count))
                     .ToList();
-
-                if (_monthlyAdded.Count == 0)
-                    for (int i = 5; i >= 0; i--)
-                        _monthlyAdded.Add((DateTime.Now.AddMonths(-i).ToString("MMM"), 0));
-                if (_monthlyData.Count == 0)
-                    for (int i = 5; i >= 0; i--)
-                        _monthlyData.Add((DateTime.Now.AddMonths(-i).ToString("MMM"), 0));
-
-                // Monthly equipment added — last 6 months
-                _monthlyAdded = db.Allocations
-                .Where(a => a.AllocationDate >= sixAgo)
-                .AsEnumerable()
-                .GroupBy(a => new { a.AllocationDate.Year, a.AllocationDate.Month })
-                .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
-                .Select(g => (
-                    Month: new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM"),
-                    Count: g.Count()))
-                .ToList();
-
-                if (_monthlyAdded.Count == 0)
-                    for (int i = 5; i >= 0; i--)
-                        _monthlyAdded.Add((DateTime.Now.AddMonths(-i).ToString("MMM"), 0));
 
                 // ── Stat cards — all 6 in one row ──────────────────────────
                 panelStats.Controls.Clear();
@@ -542,8 +517,8 @@ namespace Inventory_Management_System
                 Dock      = DockStyle.None
             };
 
-            _panelLine = MakeChartCard("Allocation Trends (Last 6 Months)");
-            _panelLine.Paint += PaintLineChart;
+            _panelLine = MakeChartCard("Equipment by Category");
+            _panelLine.Paint += PaintCategoryBreakdownChart;
 
             _panelBotRow.Controls.Add(_panelLine);
 
@@ -772,104 +747,92 @@ namespace Inventory_Management_System
         }
 
         // ════════════════════════════════════════════════════════════════
-        //  LINE CHART  — Assets Added Over Time
+        //  CATEGORY BREAKDOWN CHART — Equipment count by Category
         // ════════════════════════════════════════════════════════════════
-        private void PaintLineChart(object? sender, PaintEventArgs e)
+        private void PaintCategoryBreakdownChart(object? sender, PaintEventArgs e)
         {
             if (sender is not Panel p) return;
             var g = e.Graphics;
             g.SmoothingMode     = SmoothingMode.AntiAlias;
             g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
-            var data = _monthlyAdded;
-            if (data.Count == 0) return;
+            // ── Empty state ──────────────────────────────────────────────
+            if (_categoryBreakdown.Count == 0)
+            {
+                using var emptyFont = new Font("Segoe UI", 10f, FontStyle.Regular, GraphicsUnit.Point);
+                using var emptyFg   = new SolidBrush(Color.FromArgb(156, 163, 175));
+                var msg  = "No category data available";
+                var msgSz = g.MeasureString(msg, emptyFont);
+                g.DrawString(msg, emptyFont, emptyFg,
+                    (p.Width  - msgSz.Width)  / 2f,
+                    (p.Height - msgSz.Height) / 2f);
+                return;
+            }
 
-            int   top    = 54, padL = 52, padR = 30, padB = 38;
+            // ── Palette — cycles if more categories than colours ─────────
+            var palette = new[]
+            {
+                Color.FromArgb(94,  53,  177),
+                Color.FromArgb(245, 124,   0),
+                Color.FromArgb(56,  142,  60),
+                Color.FromArgb(33,  150, 243),
+                Color.FromArgb(239,  68,  68),
+                Color.FromArgb(123,  31, 162),
+            };
+
+            // ── Layout — identical constants to PaintBarChart ────────────
+            int   top    = 54, padL = 160, padR = 120, padB = 20;
             int   chartW = p.Width  - padL - padR;
             int   chartH = p.Height - top  - padB - 8;
             int   chartX = padL, chartY = top;
-            int   maxVal = Math.Max(1, data.Max(m => m.Count));
-            int   gridMx = ((maxVal / 5) + 1) * 5;
 
-            // Grid
-            using var gridPen  = new Pen(Color.FromArgb(229, 231, 235), 1f);
-            using var axisFont = new Font("Segoe UI", 7.5f, FontStyle.Regular, GraphicsUnit.Point);
-            using var axisFg   = new SolidBrush(Color.FromArgb(156, 163, 175));
+            int   barCount = _categoryBreakdown.Count;
+            int   total    = Math.Max(1, _categoryBreakdown.Sum(c => c.Count));
+            int   maxVal   = Math.Max(1, _categoryBreakdown.Max(c => c.Count));
 
-            for (int i = 0; i <= 4; i++)
+            using var labelFont = new Font("Segoe UI", 9f,   FontStyle.Regular, GraphicsUnit.Point);
+            using var valFont   = new Font("Segoe UI", 8.5f, FontStyle.Bold,    GraphicsUnit.Point);
+            using var labelFg   = new SolidBrush(Color.FromArgb(55,  65, 81));
+            using var bgBar     = new SolidBrush(Color.FromArgb(240, 244, 240));
+
+            // Cap bar height so the chart stays balanced with many or few categories
+            float rowH = (float)chartH / barCount;
+            float barH = Math.Clamp(rowH * 0.50f, 14f, 32f);
+
+            for (int i = 0; i < barCount; i++)
             {
-                int yv = gridMx * i / 4;
-                int yp = chartY + chartH - (int)((float)yv / gridMx * chartH);
-                g.DrawLine(gridPen, chartX, yp, chartX + chartW, yp);
-                var ls = g.MeasureString(yv.ToString(), axisFont);
-                g.DrawString(yv.ToString(), axisFont, axisFg, chartX - ls.Width - 4, yp - ls.Height / 2f);
-            }
+                var   cat   = _categoryBreakdown[i];
+                Color color = palette[i % palette.Length];
+                float by    = chartY + i * rowH + (rowH - barH) / 2f;
 
-            // Compute point positions
-            float slotW = (float)chartW / Math.Max(1, data.Count - 1);
-            var   pts   = new PointF[data.Count];
-            for (int i = 0; i < data.Count; i++)
-            {
-                float px = chartX + i * slotW;
-                float py = chartY + chartH - (float)data[i].Count / gridMx * chartH;
-                pts[i] = new PointF(px, py);
-            }
+                // Background track
+                using var trackPath = RoundedRectF(new RectangleF(chartX, by, chartW, barH), 5f);
+                g.FillPath(bgBar, trackPath);
 
-            // Filled area under the line (gradient)
-            if (pts.Length >= 2)
-            {
-                var fillPts = new List<PointF>(pts)
+                // Filled bar (gradient, identical style to PaintBarChart)
+                float fillW = maxVal == 0 ? 0 : Math.Max(barH, (float)cat.Count / maxVal * chartW);
+                if (fillW > 0)
                 {
-                    new PointF(pts[^1].X, chartY + chartH),
-                    new PointF(pts[0].X,  chartY + chartH)
-                };
-                using var fillBrush = new LinearGradientBrush(
-                    new PointF(chartX, chartY),
-                    new PointF(chartX, chartY + chartH),
-                    Color.FromArgb(80, 56, 142, 60),
-                    Color.FromArgb(5,  56, 142, 60));
-                g.FillPolygon(fillBrush, fillPts.ToArray());
+                    using var grad = new LinearGradientBrush(
+                        new PointF(chartX, by), new PointF(chartX + fillW, by),
+                        ControlPaint.Light(color, 0.3f), color);
+                    using var fillPath = RoundedRectF(new RectangleF(chartX, by, fillW, barH), 5f);
+                    g.FillPath(grad, fillPath);
+                }
 
-                // Line
-                using var linePen = new Pen(Color.FromArgb(56, 142, 60), 2.5f)
-                {
-                    LineJoin = LineJoin.Round,
-                    StartCap = LineCap.Round,
-                    EndCap   = LineCap.Round
-                };
-                if (pts.Length >= 2)
-                g.DrawLines(linePen, pts);
+                // Category label (left of track)
+                var lSz = g.MeasureString(cat.Category, labelFont);
+                g.DrawString(cat.Category, labelFont, labelFg,
+                    chartX - lSz.Width - 10, by + barH / 2f - lSz.Height / 2f);
+
+                // Count + percentage (right of bar, coloured like the bar)
+                float pct     = (float)cat.Count / total * 100f;
+                string valStr = $"{cat.Count}  ({pct:0}%)";
+                var vSz = g.MeasureString(valStr, valFont);
+                using var vFg = new SolidBrush(color);
+                g.DrawString(valStr, valFont, vFg,
+                    chartX + fillW + 8, by + barH / 2f - vSz.Height / 2f);
             }
-
-            // Data points + value labels + X labels
-            using var dotBrush   = new SolidBrush(Color.FromArgb(56, 142, 60));
-            using var dotBorder  = new Pen(Color.White, 2f);
-            using var valFont    = new Font("Segoe UI", 7.5f, FontStyle.Bold,    GraphicsUnit.Point);
-            using var labelFont  = new Font("Segoe UI", 8f,   FontStyle.Regular, GraphicsUnit.Point);
-            using var valFg      = new SolidBrush(Color.FromArgb(27, 94, 32));
-            using var labelFg    = new SolidBrush(Color.FromArgb(55, 65, 81));
-
-            for (int i = 0; i < pts.Length; i++)
-            {
-                // Dot
-                float dotR = 5f;
-                g.FillEllipse(dotBrush,  pts[i].X - dotR, pts[i].Y - dotR, dotR * 2, dotR * 2);
-                g.DrawEllipse(dotBorder, pts[i].X - dotR, pts[i].Y - dotR, dotR * 2, dotR * 2);
-
-                // Value above dot
-                var vs = g.MeasureString(data[i].Count.ToString(), valFont);
-                g.DrawString(data[i].Count.ToString(), valFont, valFg,
-                    pts[i].X - vs.Width / 2f, pts[i].Y - vs.Height - 6);
-
-                // Month label below axis
-                var ms = g.MeasureString(data[i].Month, labelFont);
-                g.DrawString(data[i].Month, labelFont, labelFg,
-                    pts[i].X - ms.Width / 2f, chartY + chartH + 6f);
-            }
-
-            // X axis
-            using var axLine = new Pen(Color.FromArgb(209, 213, 219), 1.5f);
-            g.DrawLine(axLine, chartX, chartY + chartH, chartX + chartW, chartY + chartH);
         }
 
         // ════════════════════════════════════════════════════════════════

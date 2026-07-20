@@ -52,7 +52,7 @@ namespace Inventory_Management_System.Forms
                 DropDownStyle = ComboBoxStyle.DropDown,
                 Text = "Select",
                 Size = btnSelectAll.Size,
-                Location = btnSelectAll.Location,
+                Margin = new Padding(4, 4, 0, 0),
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat
             };
@@ -94,7 +94,10 @@ namespace Inventory_Management_System.Forms
             };
 
             cmbSelectMode.SelectedIndexChanged += cmbSelectMode_SelectedIndexChanged;
-            panelTop.Controls.Add(cmbSelectMode);
+            // Insert cmbSelectMode into flowToolbar right after btnImportExcel
+            var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
+            flow.Controls.Add(cmbSelectMode);
+            flow.Controls.SetChildIndex(cmbSelectMode, flow.Controls.IndexOf(btnImportExcel) + 1);
 
             // ── Category filter dropdown (between Select and QR Sheet) ──────
             cmbCategory = new ComboBox
@@ -102,7 +105,7 @@ namespace Inventory_Management_System.Forms
                 Name          = "cmbCategory",
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Size          = new Size(115, 32),
-                Location      = new Point(886, 14),   // between Select(788) and QR Sheet(1006)
+                Margin        = new Padding(4, 4, 0, 0),
                 Cursor        = Cursors.Hand,
                 FlatStyle     = FlatStyle.Flat,
                 BackColor     = ThemeHelper.Accent,
@@ -134,7 +137,9 @@ namespace Inventory_Management_System.Forms
                 ApplyFilters();
             };
 
-            panelTop.Controls.Add(cmbCategory);
+            // Insert cmbCategory right after cmbSelectMode in the flow
+            flow.Controls.Add(cmbCategory);
+            flow.Controls.SetChildIndex(cmbCategory, flow.Controls.IndexOf(cmbSelectMode) + 1);
 
             // Dynamically append Checkbox Column for manual selection (visibly hidden by default)
             if (!dgvEquipment.Columns.Contains("ColSelect"))
@@ -468,6 +473,22 @@ namespace Inventory_Management_System.Forms
         {
             txtSearch.Text = string.Empty;
             _currentPage = 1;
+
+            // Reset Select mode back to normal browsing — Refresh doubles as
+            // the way to exit checkbox/select-all mode since there's no
+            // dedicated "None" option in the dropdown itself.
+            if (cmbSelectMode != null)
+            {
+                cmbSelectMode.SelectedIndex = -1;
+                cmbSelectMode.Text = "Select";
+            }
+
+            if (dgvEquipment.Columns.Contains("ColSelect"))
+                dgvEquipment.Columns["ColSelect"].Visible = false;
+
+            dgvEquipment.MultiSelect = false;
+            dgvEquipment.ClearSelection();
+
             LoadEquipment();
         }
 

@@ -17,6 +17,7 @@ namespace Inventory_Management_System.Forms
         private void InitializeComponent()
         {
             panelTop    = new System.Windows.Forms.Panel();
+            flowToolbar = new System.Windows.Forms.FlowLayoutPanel();
             btnAdd      = new System.Windows.Forms.Button();
             btnEdit     = new System.Windows.Forms.Button();
             btnDelete   = new System.Windows.Forms.Button();
@@ -28,54 +29,66 @@ namespace Inventory_Management_System.Forms
             lblRowCount = new System.Windows.Forms.Label();
 
             panelTop.SuspendLayout();
+            flowToolbar.SuspendLayout();
             panelBottom.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvReturns).BeginInit();
             SuspendLayout();
 
-            panelTop.Dock   = System.Windows.Forms.DockStyle.Top;
-            panelTop.Height = 60;
-            panelTop.Name   = "panelTop";
-            panelTop.Controls.Add(btnAdd);
-            panelTop.Controls.Add(btnEdit);
-            panelTop.Controls.Add(btnDelete);
-            panelTop.Controls.Add(btnRefresh);
-            panelTop.Controls.Add(btnExport);
-            panelTop.Controls.Add(txtSearch);
+            panelTop.Dock         = System.Windows.Forms.DockStyle.Top;
+            panelTop.AutoSize     = true;
+            panelTop.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            panelTop.MinimumSize  = new System.Drawing.Size(0, 60);
+            panelTop.Name         = "panelTop";
+            panelTop.Controls.Add(flowToolbar);
 
-            btnAdd.Location = new System.Drawing.Point(12, 14);
-            btnAdd.Size     = new System.Drawing.Size(90, 32);
-            btnAdd.Text     = "➕ Process Return";
-            btnAdd.Name     = "btnAdd";
-            btnAdd.Click   += BtnAdd_Click;
+            flowToolbar.Dock          = System.Windows.Forms.DockStyle.Fill;
+            flowToolbar.FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight;
+            flowToolbar.WrapContents  = true;
+            flowToolbar.AutoSize      = true;
+            flowToolbar.AutoSizeMode  = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            flowToolbar.Padding       = new System.Windows.Forms.Padding(8, 8, 8, 8);
+            flowToolbar.Name          = "flowToolbar";
+            flowToolbar.Controls.Add(btnAdd);
+            flowToolbar.Controls.Add(btnEdit);
+            flowToolbar.Controls.Add(btnDelete);
+            flowToolbar.Controls.Add(btnRefresh);
+            flowToolbar.Controls.Add(btnExport);
+            flowToolbar.Controls.Add(txtSearch);
 
-            btnEdit.Location = new System.Drawing.Point(110, 14);
-            btnEdit.Size     = new System.Drawing.Size(90, 32);
-            btnEdit.Text     = "✏️ Edit";
-            btnEdit.Name     = "btnEdit";
-            btnEdit.Click   += BtnEdit_Click;
+            btnAdd.Size   = new System.Drawing.Size(90, 32);
+            btnAdd.Text   = "➕ Process Return";
+            btnAdd.Name   = "btnAdd";
+            btnAdd.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnAdd.Click += BtnAdd_Click;
 
-            btnDelete.Location = new System.Drawing.Point(208, 14);
-            btnDelete.Size     = new System.Drawing.Size(90, 32);
-            btnDelete.Text     = "🗑️ Remove Return";
-            btnDelete.Name     = "btnDelete";
-            btnDelete.Click   += BtnDelete_Click;
+            btnEdit.Size   = new System.Drawing.Size(90, 32);
+            btnEdit.Text   = "✏️ Edit";
+            btnEdit.Name   = "btnEdit";
+            btnEdit.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnEdit.Click += BtnEdit_Click;
 
-            btnRefresh.Location = new System.Drawing.Point(306, 14);
-            btnRefresh.Size     = new System.Drawing.Size(90, 32);
-            btnRefresh.Text     = "🔄 Refresh";
-            btnRefresh.Name     = "btnRefresh";
-            btnRefresh.Click   += btnRefresh_Click;
+            btnDelete.Size   = new System.Drawing.Size(90, 32);
+            btnDelete.Text   = "🗑️ Remove Return";
+            btnDelete.Name   = "btnDelete";
+            btnDelete.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnDelete.Click += BtnDelete_Click;
 
-            btnExport.Location = new System.Drawing.Point(404, 14);
-            btnExport.Size     = new System.Drawing.Size(90, 32);
-            btnExport.Text     = "📥 Export";
-            btnExport.Name     = "btnExport";
-            btnExport.Click   += btnExport_Click;
+            btnRefresh.Size   = new System.Drawing.Size(90, 32);
+            btnRefresh.Text   = "🔄 Refresh";
+            btnRefresh.Name   = "btnRefresh";
+            btnRefresh.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnRefresh.Click += btnRefresh_Click;
 
-            txtSearch.Location        = new System.Drawing.Point(600, 16);
+            btnExport.Size   = new System.Drawing.Size(90, 32);
+            btnExport.Text   = "📥 Export";
+            btnExport.Name   = "btnExport";
+            btnExport.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnExport.Click += btnExport_Click;
+
             txtSearch.Size            = new System.Drawing.Size(260, 26);
             txtSearch.PlaceholderText = "Search Return…";
             txtSearch.Name            = "txtSearch";
+            txtSearch.Margin          = new System.Windows.Forms.Padding(16, 7, 4, 0);
             txtSearch.TextChanged    += txtSearch_TextChanged;
 
             dgvReturns.Dock                = System.Windows.Forms.DockStyle.Fill;
@@ -90,6 +103,7 @@ namespace Inventory_Management_System.Forms
             dgvReturns.Columns.Add("Employee",      "Employee");
             dgvReturns.Columns.Add("ReturnDate",    "Return Date");
             dgvReturns.Columns.Add("Condition",     "Condition");
+            dgvReturns.Columns.Add("Source", "Source");
 
             panelBottom.Dock      = System.Windows.Forms.DockStyle.Bottom;
             panelBottom.Height    = 30;
@@ -115,6 +129,8 @@ namespace Inventory_Management_System.Forms
             Text = "Returns";
             Name = "ReturnsForm";
 
+            flowToolbar.ResumeLayout(false);
+            flowToolbar.PerformLayout();
             panelTop.ResumeLayout(false);
             panelTop.PerformLayout();
             panelBottom.ResumeLayout(false);
@@ -125,6 +141,7 @@ namespace Inventory_Management_System.Forms
         #endregion
 
         private System.Windows.Forms.Panel        panelTop;
+        private System.Windows.Forms.FlowLayoutPanel flowToolbar;
         private System.Windows.Forms.Panel        panelBottom;
         private System.Windows.Forms.Button       btnAdd;
         private System.Windows.Forms.Button       btnEdit;

@@ -15,6 +15,7 @@ namespace Inventory_Management_System.Forms
         private void InitializeComponent()
         {
             panelTop        = new System.Windows.Forms.Panel();
+            flowToolbar     = new System.Windows.Forms.FlowLayoutPanel();
             btnDecommission = new System.Windows.Forms.Button();
             btnRefresh      = new System.Windows.Forms.Button();
             btnExport       = new System.Windows.Forms.Button();
@@ -24,41 +25,53 @@ namespace Inventory_Management_System.Forms
             lblRowCount     = new System.Windows.Forms.Label();
 
             panelTop.SuspendLayout();
+            flowToolbar.SuspendLayout();
             panelBottom.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgvDecommission).BeginInit();
             SuspendLayout();
 
-            panelTop.Dock      = System.Windows.Forms.DockStyle.Top;
-            panelTop.Height    = 60;
-            panelTop.Name      = "panelTop";
-            panelTop.BackColor = System.Drawing.Color.FromArgb(249, 250, 251);
-            panelTop.Controls.Add(btnDecommission);
-            panelTop.Controls.Add(btnRefresh);
-            panelTop.Controls.Add(btnExport);
-            panelTop.Controls.Add(txtSearch);
+            panelTop.Dock         = System.Windows.Forms.DockStyle.Top;
+            panelTop.AutoSize     = true;
+            panelTop.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            panelTop.MinimumSize  = new System.Drawing.Size(0, 60);
+            panelTop.Name         = "panelTop";
+            panelTop.BackColor    = System.Drawing.Color.FromArgb(249, 250, 251);
+            panelTop.Controls.Add(flowToolbar);
 
-            btnDecommission.Location = new System.Drawing.Point(12, 14);
-            btnDecommission.Size     = new System.Drawing.Size(140, 32);
-            btnDecommission.Text     = "🗑️ Decommission Item";
-            btnDecommission.Name     = "btnDecommission";
-            btnDecommission.Click   += btnDecommission_Click;
+            flowToolbar.Dock          = System.Windows.Forms.DockStyle.Fill;
+            flowToolbar.FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight;
+            flowToolbar.WrapContents  = true;
+            flowToolbar.AutoSize      = true;
+            flowToolbar.AutoSizeMode  = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            flowToolbar.Padding       = new System.Windows.Forms.Padding(8, 8, 8, 8);
+            flowToolbar.Name          = "flowToolbar";
+            flowToolbar.Controls.Add(btnDecommission);
+            flowToolbar.Controls.Add(btnRefresh);
+            flowToolbar.Controls.Add(btnExport);
+            flowToolbar.Controls.Add(txtSearch);
 
-            btnRefresh.Location = new System.Drawing.Point(160, 14);
-            btnRefresh.Size     = new System.Drawing.Size(90, 32);
-            btnRefresh.Text     = "🔄 Refresh";
-            btnRefresh.Name     = "btnRefresh";
-            btnRefresh.Click   += btnRefresh_Click;
+            btnDecommission.Size   = new System.Drawing.Size(140, 32);
+            btnDecommission.Text   = "🗑️ Decommission Item";
+            btnDecommission.Name   = "btnDecommission";
+            btnDecommission.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnDecommission.Click += btnDecommission_Click;
 
-            btnExport.Location = new System.Drawing.Point(258, 14);
-            btnExport.Size     = new System.Drawing.Size(90, 32);
-            btnExport.Text     = "📥 Export CSV";
-            btnExport.Name     = "btnExport";
-            btnExport.Click   += btnExport_Click;
+            btnRefresh.Size   = new System.Drawing.Size(90, 32);
+            btnRefresh.Text   = "🔄 Refresh";
+            btnRefresh.Name   = "btnRefresh";
+            btnRefresh.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnRefresh.Click += btnRefresh_Click;
 
-            txtSearch.Location        = new System.Drawing.Point(410, 16);
+            btnExport.Size   = new System.Drawing.Size(90, 32);
+            btnExport.Text   = "📥 Export CSV";
+            btnExport.Name   = "btnExport";
+            btnExport.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnExport.Click += btnExport_Click;
+
             txtSearch.Size            = new System.Drawing.Size(280, 26);
             txtSearch.PlaceholderText = "Search decommissioned items...";
             txtSearch.Name            = "txtSearch";
+            txtSearch.Margin          = new System.Windows.Forms.Padding(16, 7, 4, 0);
             txtSearch.TextChanged    += txtSearch_TextChanged;
 
             dgvDecommission.Dock                = System.Windows.Forms.DockStyle.Fill;
@@ -99,6 +112,8 @@ namespace Inventory_Management_System.Forms
             Text = "Decommissioned Equipment";
             Name = "DecommissionForm";
 
+            flowToolbar.ResumeLayout(false);
+            flowToolbar.PerformLayout();
             panelTop.ResumeLayout(false);
             panelTop.PerformLayout();
             panelBottom.ResumeLayout(false);
@@ -107,6 +122,7 @@ namespace Inventory_Management_System.Forms
         }
 
         private System.Windows.Forms.Panel        panelTop;
+        private System.Windows.Forms.FlowLayoutPanel flowToolbar;
         private System.Windows.Forms.Panel        panelBottom;
         private System.Windows.Forms.Button       btnDecommission;
         private System.Windows.Forms.Button       btnRefresh;
