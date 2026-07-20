@@ -103,14 +103,17 @@ namespace Inventory_Management_System.Forms
                     .Distinct()
                     .ToList();
 
-                categories = CategoryStore.GetAll()
+                var categoryNames = new CategoryService().GetAll().Data?
+                    .Select(c => c.Name) ?? Enumerable.Empty<string>();
+
+                categories = categoryNames
                     .Union(dbCategories, StringComparer.OrdinalIgnoreCase)
                     .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
             catch
             {
-                categories = CategoryStore.GetAll()
+                categories = (new CategoryService().GetAll().Data?.Select(c => c.Name) ?? Enumerable.Empty<string>())
                     .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }

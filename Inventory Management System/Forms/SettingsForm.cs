@@ -21,7 +21,7 @@ namespace Inventory_Management_System.Forms
         private AppSetting? _current;
         private List<User>  _users = new();
         private List<Role>  _roles = new();
-        private List<string> _categories = new();
+        private List<Category> _categories = new();
 
         // ── Section panels ─────────────────────────────────────────────
         private Panel  _panelGeneral    = null!;
@@ -1456,12 +1456,13 @@ private string? _mysqlPath;
 
         private void LoadCategories()
         {
-            _categories = CategoryStore.GetAll();
+            var result = new CategoryService().GetAll();
+            _categories = result.Success ? (result.Data ?? new List<Category>()) : new List<Category>();
 
             if (lstCategories == null) return;
             lstCategories.Items.Clear();
             foreach (var c in _categories)
-                lstCategories.Items.Add(c);
+                lstCategories.Items.Add(c.Name);
         }
 
         private void BtnAddCategory_Click(object? sender, EventArgs e)
@@ -1469,35 +1470,46 @@ private string? _mysqlPath;
             lblCategoryMsg.Text = "";
             string name = txtNewCategory.Text.Trim();
 
-            if (!CategoryStore.Add(name, out string? error))
+            var result = new CategoryService().Add(name);
+            if (!result.Success)
             {
                 lblCategoryMsg.ForeColor = ThemeHelper.Danger;
-                lblCategoryMsg.Text      = error ?? "Could not add category.";
+                lblCategoryMsg.Text = result.ErrorMessage ?? "Could not add category.";
                 return;
             }
 
             txtNewCategory.Text = "";
             lblCategoryMsg.ForeColor = ThemeHelper.Success;
-            lblCategoryMsg.Text      = $"✅ '{name}' added.";
+            lblCategoryMsg.Text = $"✅ '{name}' added.";
             LoadCategories();
         }
 
         private void BtnDeleteCategory_Click(object? sender, EventArgs e)
         {
-            if (lstCategories.SelectedItem == null)
+            if (lstCategories.SelectedIndex < 0)
             {
                 lblCategoryMsg.ForeColor = ThemeHelper.Danger;
-                lblCategoryMsg.Text      = "Select a category to delete.";
+                lblCategoryMsg.Text = "Select a category to delete.";
                 return;
             }
 
-            string selected = lstCategories.SelectedItem.ToString()!;
-            if (MessageBox.Show($"Delete category '{selected}'?", "Confirm",
+            int index = lstCategories.SelectedIndex;
+            if (index >= _categories.Count) return;
+            var selected = _categories[index];
+
+            if (MessageBox.Show($"Delete category '{selected.Name}'?", "Confirm",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
-            CategoryStore.Delete(selected);
+            var result = new CategoryService().Delete(selected.Id);
+            if (!result.Success)
+            {
+                lblCategoryMsg.ForeColor = ThemeHelper.Danger;
+                lblCategoryMsg.Text = result.ErrorMessage ?? "Could not delete category.";
+                return;
+            }
+
             lblCategoryMsg.ForeColor = ThemeHelper.Success;
-            lblCategoryMsg.Text      = $"🗑 '{selected}' deleted.";
+            lblCategoryMsg.Text = $"🗑 '{selected.Name}' deleted.";
             LoadCategories();
         }
 

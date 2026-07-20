@@ -261,10 +261,14 @@ namespace Inventory_Management_System.Forms
                     .Distinct()
                     .ToList();
 
-                // Union: every category from Settings → Categories, PLUS any legacy
-                // category text already on equipment records (even if it's not in
-                // the JSON list), so nothing that's actually in use ever disappears.
-                var allCategories = CategoryStore.GetAll()
+                // Union: every category from Settings → Categories table, PLUS
+                // any legacy category text already on equipment records (even
+                // if it's not in the categories table), so nothing that's
+                // actually in use ever disappears.
+                var categoryNames = new CategoryService().GetAll().Data?
+                    .Select(c => c.Name).ToList() ?? new List<string>();
+
+                var allCategories = categoryNames
                     .Union(dbCategories, StringComparer.OrdinalIgnoreCase)
                     .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
                     .ToList();
@@ -418,15 +422,14 @@ namespace Inventory_Management_System.Forms
             popup.ShowDialog();
         }
 
-        // ── Button handlers ────────────────────────────────────────────────
-
         private void btnAdd_Click(object sender, EventArgs e)
         {
             using var form = new AddEditEquipmentForm();
             if (form.ShowDialog() == DialogResult.OK)
+            {
                 LoadEquipment();
                 LoadCategoryFilter();
-                
+            }
         }
 
         private void btnEdit_Click(object sender, EventArgs e)
@@ -440,8 +443,10 @@ namespace Inventory_Management_System.Forms
             }
             using var form = new AddEditEquipmentForm(eq);
             if (form.ShowDialog() == DialogResult.OK)
+            {
                 LoadEquipment();
                 LoadCategoryFilter();
+            }
         }
 
         private void btnDelete_Click(object sender, EventArgs e)

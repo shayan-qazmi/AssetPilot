@@ -43,10 +43,12 @@ public partial class InventoryDbContext : DbContext
 
     public virtual DbSet<MaintenanceRecord> MaintenanceRecords { get; set; }
 
-protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    => optionsBuilder.UseMySql(
-        "server=localhost;database=inventory_management;user=root;password=",
-        Microsoft.EntityFrameworkCore.ServerVersion.Parse("8.0.46-mysql"));
+    public virtual DbSet<Category> Categories { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        => optionsBuilder.UseMySql(
+            "server=localhost;database=inventory_management;user=root;password=",
+            Microsoft.EntityFrameworkCore.ServerVersion.Parse("8.0.46-mysql"));
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -375,7 +377,6 @@ protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             entity.Property(e => e.RoomNumber)
                 .HasMaxLength(50)
                 .HasColumnName("room_number");
-            // Models/InventoryDbContext.cs
             entity.Property(e => e.RoomName)
                 .HasMaxLength(255)
                 .HasColumnName("room_name");
@@ -490,7 +491,7 @@ protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             entity.ToTable("transactions");
 
             entity.HasIndex(e => e.EquipmentId, "equipment_id");
-            entity.HasIndex(e => e.Status,      "idx_transactions_status");
+            entity.HasIndex(e => e.Status, "idx_transactions_status");
             entity.HasIndex(e => e.TransactionDate, "idx_transactions_date");
 
             entity.Property(e => e.TransactionId).HasColumnName("transaction_id");
@@ -544,7 +545,7 @@ protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             entity.ToTable("maintenance_records");
 
             entity.HasIndex(e => e.EquipmentId, "idx_maintenance_equipment");
-            entity.HasIndex(e => e.Status,      "idx_maintenance_status");
+            entity.HasIndex(e => e.Status, "idx_maintenance_status");
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.EquipmentId).HasColumnName("equipment_id");
@@ -575,6 +576,19 @@ protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
                 .HasForeignKey(d => d.EquipmentId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("maintenance_records_ibfk_1");
+        });
+
+        modelBuilder.Entity<Category>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+            entity.ToTable("categories");
+            entity.HasIndex(e => e.Name, "category_name").IsUnique();
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Name).HasMaxLength(100).HasColumnName("name");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("timestamp")
+                .HasColumnName("created_at");
         });
 
         OnModelCreatingPartial(modelBuilder);

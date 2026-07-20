@@ -698,7 +698,9 @@ namespace Inventory_Management_System.Forms
         private static string[] BuildCategoryItems()
         {
             var items = new List<string> { "" };
-            items.AddRange(CategoryStore.GetAll());
+            var names = new CategoryService().GetAll().Data?
+                .Select(c => c.Name) ?? Enumerable.Empty<string>();
+            items.AddRange(names);
             return items.ToArray();
         }
 

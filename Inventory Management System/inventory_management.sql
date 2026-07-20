@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 16, 2026 at 08:39 AM
+-- Generation Time: Jul 20, 2026 at 01:43 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -50,12 +50,8 @@ CREATE TABLE `allocations` (
 INSERT INTO `allocations` (`id`, `equipment_id`, `employee_id`, `location_id`, `allocated_by_user_id`, `approved_by_user_id`, `allocation_date`, `approval_date`, `expected_return_date`, `actual_return_date`, `status`, `rejection_reason`, `previous_allocation_id`) VALUES
 (2, 3, 1, 1, 1, 1, '2026-06-22 05:10:46', '2026-06-22 06:41:55', '2026-06-23', '2026-06-24', 'returned', NULL, NULL),
 (3, 21, 4, 1, 1, 1, '2026-06-23 23:58:07', '2026-06-23 23:58:16', NULL, NULL, 'returned', NULL, NULL),
-(4, 3, 5, 3, 1, 1, '2026-06-24 01:33:24', '2026-06-24 01:33:24', NULL, NULL, 'returned', NULL, 2),
-(5, 5, 5, 1, 1, 1, '2026-06-30 00:52:21', '2026-06-30 00:52:34', '2026-07-01', NULL, 'approved', NULL, NULL),
-(6, 22, 5, 4, 1, 1, '2026-07-02 01:01:28', '2026-07-02 01:03:53', NULL, NULL, 'returned', NULL, NULL),
 (7, 3, 1, 4, 1, 1, '2026-07-06 13:51:33', '2026-07-06 13:51:43', '2027-07-22', '2026-07-09', 'returned', NULL, NULL),
 (9, 26, 1, 3, 1, 1, '2026-07-07 00:47:36', '2026-07-07 00:47:41', '2026-07-08', '2026-07-14', 'returned', NULL, NULL),
-(11, 26, 5, 3, 1, 1, '2026-07-15 12:56:35', '2026-07-15 12:56:35', NULL, NULL, 'returned', NULL, 9),
 (12, 26, 4, 5, 1, 1, '2026-07-15 14:18:19', '2026-07-15 14:18:27', NULL, NULL, 'approved', NULL, NULL);
 
 -- --------------------------------------------------------
@@ -86,6 +82,18 @@ INSERT INTO `app_settings` (`id`, `company_name`, `theme`, `db_server`, `db_name
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `categories`
+--
+
+CREATE TABLE `categories` (
+  `id` int(11) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `employees`
 --
 
@@ -109,7 +117,7 @@ CREATE TABLE `employees` (
 INSERT INTO `employees` (`id`, `employee_code`, `full_name`, `department`, `email`, `phone`, `default_location_id`, `is_active`, `created_at`, `updated_at`) VALUES
 (1, 'EMP001', 'Shayan', 'IT', 'shayan@gmail.com', '0987654', NULL, 1, '2026-06-10 10:12:19', '2026-06-24 05:06:57'),
 (4, 'EMP002', 'Fahad', 'QR', 'fahad@gmail.com', '11223344', NULL, 1, '2026-06-17 10:57:05', '2026-06-17 10:57:05'),
-(5, 'EM003', 'Zohaib', 'WD', 'zohaib@gmail.com', '4567890', NULL, 1, '2026-06-24 05:06:36', '2026-06-24 05:07:05');
+(6, 'EMP003', 'Zia', 'IT', 'zia@gmail.com', '6435634', NULL, 1, '2026-07-20 07:30:30', '2026-07-20 07:30:30');
 
 -- --------------------------------------------------------
 
@@ -148,11 +156,11 @@ CREATE TABLE `equipment` (
 --
 
 INSERT INTO `equipment` (`id`, `equipment_code`, `qr_code`, `name`, `make`, `model`, `category`, `description`, `vendor_name`, `condition_grade`, `warranty_expiry`, `serial_number`, `purchase_date`, `price`, `procurement_type_id`, `created_by_user_id`, `current_status`, `current_location_id`, `current_employee_id`, `current_allocation_id`, `notes`, `created_at`, `updated_at`) VALUES
-(3, 'EQ001', 'QR001', 'Dell Latitude', 'Dell', '5400', 'IT Equipment', 'minor dent on edge', 'Ali', 'Good', '2027-12-01', 'SN12345', '2026-06-24', NULL, 1, 1, 'allocated', NULL, NULL, NULL, 'pin pack', '2026-06-11 09:25:51', '2026-07-15 11:04:35'),
+(3, 'EQ001', 'QR001', 'Dell Latitude', 'Dell', '5400', 'Rented', 'minor dent on edge', 'Ali', 'Good', '2027-12-01', 'SN12345', '2026-06-24', NULL, 1, 1, 'allocated', NULL, NULL, NULL, 'pin pack', '2026-06-11 09:25:51', '2026-07-20 11:24:55'),
 (5, 'EQ002', 'QR002', 'Lenovo Thinkbook', 'Lenovo', '6900', 'IT Equipment', NULL, NULL, 'Poor', NULL, 'ASR34R', '2026-06-17', NULL, 6, 1, 'in_store', NULL, NULL, NULL, NULL, '2026-06-19 18:43:48', '2026-07-15 11:34:39'),
-(21, 'EQ003', 'QR003', 'MacBook', 'Apple', '231', 'Accessory', NULL, NULL, NULL, NULL, 'SN1324', '2026-06-09', NULL, 1, 1, 'under_repair', NULL, NULL, NULL, NULL, '2026-06-24 04:57:09', '2026-07-10 11:57:34'),
+(21, 'EQ003', 'QR003', 'MacBook', 'Apple', '231', 'Furniture', NULL, NULL, NULL, NULL, 'SN1324', '2026-06-09', NULL, 1, 1, 'under_repair', NULL, NULL, NULL, NULL, '2026-06-24 04:57:09', '2026-07-20 06:59:05'),
 (22, 'EQ004', 'QR004', 'Dell EliteBook', 'HP', '8973', 'Accessory', NULL, NULL, 'Unserviceable', NULL, 'FP63G', '2026-06-24', NULL, 1, 1, 'decommissioned', NULL, NULL, NULL, NULL, '2026-06-24 05:09:16', '2026-07-15 07:56:55'),
-(26, 'EQ005', 'QR005', 'Barcode Scanner', 'deli', '14952', 'IT Equipment', '2D plug and plau Barcode Scanner.', 'Zia', 'New', '2027-07-07', 'A26480111949', '2026-07-03', NULL, 1, 1, 'allocated', NULL, NULL, NULL, 'Purchased by Sir Zia, for IMS', '2026-07-07 05:26:29', '2026-07-15 07:18:27'),
+(26, 'EQ005', 'QR005', 'Barcode Scanner', 'deli', '14952', 'Other', '2D plug and plau Barcode Scanner.', 'Zia', 'New', '2027-07-07', 'A26480111949', '2026-07-03', NULL, 1, 1, 'allocated', NULL, NULL, NULL, 'Purchased by Sir Zia, for IMS', '2026-07-07 05:26:29', '2026-07-20 06:58:35'),
 (28, 'EQ006', 'QR006', 'Keyboard', 'Lenovo', '26555', 'IT Equipment', 'yes', 'fahad', 'New', NULL, 'PI234H5', '2026-07-09', NULL, 4, 1, 'in_store', NULL, NULL, NULL, NULL, '2026-07-10 06:38:17', '2026-07-10 11:46:18');
 
 -- --------------------------------------------------------
@@ -291,7 +299,10 @@ INSERT INTO `equipment_logs` (`id`, `equipment_id`, `action_type`, `changed_by_u
 (120, 26, 'allocation_approved', 1, 'pending', 'approved', NULL, '2026-07-15 14:18:27'),
 (121, 22, 'location_changed', 1, 'EQ004 - Dell EliteBook - in_store', 'EQ004 - Dell EliteBook - decommissioned', NULL, '2026-07-15 14:56:55'),
 (122, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - decommissioned', 'EQ001 - Dell Latitude - in_store', NULL, '2026-07-15 14:57:00'),
-(123, 5, 'location_changed', 1, 'EQ002 - Lenovo Thinkbook - in_store', 'EQ002 - Lenovo Thinkbook - in_store', NULL, '2026-07-15 18:34:39');
+(123, 5, 'location_changed', 1, 'EQ002 - Lenovo Thinkbook - in_store', 'EQ002 - Lenovo Thinkbook - in_store', NULL, '2026-07-15 18:34:39'),
+(124, 26, 'location_changed', 1, 'EQ005 - Barcode Scanner - allocated', 'EQ005 - Barcode Scanner - allocated', NULL, '2026-07-20 01:58:35'),
+(125, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - allocated', 'EQ001 - Dell Latitude - allocated', NULL, '2026-07-20 01:58:50'),
+(126, 21, 'location_changed', 1, 'EQ003 - MacBook - under_repair', 'EQ003 - MacBook - under_repair', NULL, '2026-07-20 01:59:05');
 
 -- --------------------------------------------------------
 
@@ -304,19 +315,19 @@ CREATE TABLE `locations` (
   `location_name` varchar(100) NOT NULL COMMENT 'Lab, Kitchen, Server Room, Store',
   `building` varchar(100) DEFAULT NULL,
   `room_number` varchar(50) DEFAULT NULL,
-  `allocated_person` varchar(255) DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT current_timestamp()
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `room_name` varchar(100) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `locations`
 --
 
-INSERT INTO `locations` (`id`, `location_name`, `building`, `room_number`, `allocated_person`, `created_at`) VALUES
-(1, 'Main Store', 'Evacuee Trust Complex', '108', 'Zia', '2026-06-10 10:12:31'),
-(3, 'QuantumRonics', 'Evacuee Trust Complex', '109', 'Shayan', '2026-06-24 05:04:37'),
-(4, 'Common Criteria PK', 'Evacuee Trust Complex', '110', 'Fahad', '2026-06-24 05:05:11'),
-(5, 'Quantum Communications', 'Evacuee', '111', 'Haider', '2026-06-24 05:05:33');
+INSERT INTO `locations` (`id`, `location_name`, `building`, `room_number`, `created_at`, `room_name`) VALUES
+(1, 'Main Store', 'Evacuee Trust Complex', '108', '2026-06-10 10:12:31', 'Quantum Lab'),
+(3, 'QuantumRonics', 'Evacuee Trust Complex', '109', '2026-06-24 05:04:37', 'Confrence Room'),
+(4, 'Common Criteria PK', 'Evacuee Trust Complex', '110', '2026-06-24 05:05:11', 'Main Lab'),
+(5, 'Quantum Communications', 'Evacuee', '111', '2026-06-24 05:05:33', 'PKI Lab');
 
 -- --------------------------------------------------------
 
@@ -419,7 +430,10 @@ CREATE TABLE `transactions` (
 
 INSERT INTO `transactions` (`transaction_id`, `equipment_id`, `transaction_type`, `issued_to`, `department`, `operator_name`, `transaction_date`, `expected_return`, `actual_return`, `status`, `condition_before`, `condition_after`, `remarks`, `created_at`) VALUES
 (2, 5, 'Check-Out', 'Ali', 'IT', 'Administrator', '2026-07-15 07:24:52', '2026-07-22', '2026-07-15', 'Completed', 'Good', 'Poor', '', '2026-07-15 07:24:52'),
-(3, 3, 'Check-Out', 'Kazmi', 'Engineering', 'Administrator', '2026-07-15 11:04:35', '2026-07-22', NULL, 'Pending', 'Good', NULL, 'Vapis de dain pls', '2026-07-15 11:04:35');
+(3, 3, 'Check-Out', 'Kazmi', 'Engineering', 'Administrator', '2026-07-15 11:04:35', '2026-07-22', '2026-07-20', 'Completed', 'Good', 'Good', '', '2026-07-15 11:04:35'),
+(4, 3, 'Check-Out', 'asd', 'DAS', 'Administrator', '2026-07-20 07:41:41', '2026-07-27', '2026-07-20', 'Completed', 'Good', 'Good', '', '2026-07-20 07:41:41'),
+(5, 3, 'Check-Out', 'Asad', 'HR', 'Administrator', '2026-07-20 07:55:27', '2026-07-27', '2026-07-20', 'Completed', 'Good', 'Good', '', '2026-07-20 07:55:27'),
+(6, 3, 'Check-Out', 'ali', 'QR', 'Administrator', '2026-07-20 11:24:55', '2026-07-28', NULL, 'Pending', 'Good', NULL, 'return tommorow', '2026-07-20 11:24:55');
 
 -- --------------------------------------------------------
 
@@ -444,7 +458,7 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`id`, `username`, `password_hash`, `email`, `full_name`, `is_active`, `created_at`, `updated_at`) VALUES
 (1, 'admin', 'admin123', 'shayan@gmail.com', 'Administrator', 1, '2026-06-11 09:25:22', '2026-07-09 06:08:33'),
-(2, 'operator', 'admin1234', 'test@gmail.com', 'Test', 1, '2026-06-24 05:26:20', '2026-07-15 05:59:32');
+(2, 'operator', 'admin1234', 'test@gmail.com', 'Test', 1, '2026-06-24 05:26:20', '2026-07-20 10:44:30');
 
 -- --------------------------------------------------------
 
@@ -489,6 +503,13 @@ ALTER TABLE `allocations`
 --
 ALTER TABLE `app_settings`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `categories`
+--
+ALTER TABLE `categories`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `category_name` (`name`);
 
 --
 -- Indexes for table `employees`
@@ -598,10 +619,16 @@ ALTER TABLE `app_settings`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
+-- AUTO_INCREMENT for table `categories`
+--
+ALTER TABLE `categories`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `employees`
 --
 ALTER TABLE `employees`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `equipment`
@@ -619,7 +646,7 @@ ALTER TABLE `equipment_location_history`
 -- AUTO_INCREMENT for table `equipment_logs`
 --
 ALTER TABLE `equipment_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=124;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=127;
 
 --
 -- AUTO_INCREMENT for table `locations`
@@ -649,7 +676,7 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `transactions`
 --
 ALTER TABLE `transactions`
-  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `users`
