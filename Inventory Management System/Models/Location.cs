@@ -14,9 +14,11 @@ public partial class Location
 
     public string? RoomNumber { get; set; }
 
+    // NEW
+    public string? RoomName { get; set; }
+
     public DateTime? CreatedAt { get; set; }
 
-    public string? AllocatedPerson { get; set; }
 
     public virtual ICollection<Allocation> Allocations { get; set; } = new List<Allocation>();
 

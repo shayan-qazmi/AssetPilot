@@ -90,7 +90,7 @@ namespace Inventory_Management_System.Forms
             dgvLocations.Columns.Add("Name",            "Location Name");
             dgvLocations.Columns.Add("Building",        "Building");
             dgvLocations.Columns.Add("RoomNumber",      "Room Number");
-            dgvLocations.Columns.Add("AllocatedPerson", "Allocated Person");
+            dgvLocations.Columns.Add("RoomName", "Room Name");
 
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode       = System.Windows.Forms.AutoScaleMode.Font;

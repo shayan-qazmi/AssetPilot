@@ -79,7 +79,7 @@ namespace Inventory_Management_System
             lblAppBrand.Visible   = false;  // hidden by default; shown only when logo.png not found
 
             picLogoSide.Dock = System.Windows.Forms.DockStyle.Top;
-            picLogoSide.Height = 120;
+            picLogoSide.Height = 105;
             picLogoSide.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             picLogoSide.BackColor = ThemeHelper.Sidebar;
             picLogoSide.Image = Properties.Resources.logo;

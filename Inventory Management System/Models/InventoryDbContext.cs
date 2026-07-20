@@ -375,9 +375,10 @@ protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
             entity.Property(e => e.RoomNumber)
                 .HasMaxLength(50)
                 .HasColumnName("room_number");
-            entity.Property(e => e.AllocatedPerson)
+            // Models/InventoryDbContext.cs
+            entity.Property(e => e.RoomName)
                 .HasMaxLength(255)
-                .HasColumnName("allocated_person");
+                .HasColumnName("room_name");
         });
 
         modelBuilder.Entity<ProcurementType>(entity =>

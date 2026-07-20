@@ -17,7 +17,7 @@ namespace Inventory_Management_System.Forms
         private TextBox txtName = null!;
         private TextBox txtBuilding = null!;
         private TextBox txtRoomNumber = null!;
-        private TextBox txtAllocatedPerson = null!;   // NEW
+        private TextBox txtRoomName = null!;
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
@@ -74,14 +74,14 @@ namespace Inventory_Management_System.Forms
             this.Controls.Add(txtRoomNumber);
             y += 40;
 
-            // ── NEW: Allocated Person ─────────────────────────────────────
-            Label lblAllocatedPerson = new Label() { Text = "Allocated Person:", Location = new Point(20, y), AutoSize = true };
-            ThemeHelper.StyleLabel(lblAllocatedPerson);
-            this.Controls.Add(lblAllocatedPerson);
+         // ── Room Name ─────────────────────────────────────────────────
+            Label lblRoomName = new Label() { Text = "Room Name:", Location = new Point(20, y), AutoSize = true };
+            ThemeHelper.StyleLabel(lblRoomName);
+            this.Controls.Add(lblRoomName);
             y += 25;
-            txtAllocatedPerson = new TextBox() { Location = new Point(20, y), Width = 340 };
-            ThemeHelper.StyleTextBox(txtAllocatedPerson);
-            this.Controls.Add(txtAllocatedPerson);
+            txtRoomName = new TextBox() { Location = new Point(20, y), Width = 340 };
+            ThemeHelper.StyleTextBox(txtRoomName);
+            this.Controls.Add(txtRoomName);
             y += 50;
 
             // ── Buttons ───────────────────────────────────────────────────
@@ -107,7 +107,7 @@ namespace Inventory_Management_System.Forms
                 txtName.Text            = _location.LocationName;
                 txtBuilding.Text        = _location.Building;
                 txtRoomNumber.Text      = _location.RoomNumber;
-                txtAllocatedPerson.Text = _location.AllocatedPerson ?? ""; // NEW
+                txtRoomName.Text = _location.RoomName ?? "";
             }
         }
 
@@ -122,9 +122,9 @@ namespace Inventory_Management_System.Forms
             _location.LocationName    = txtName.Text.Trim();
             _location.Building        = txtBuilding.Text.Trim();
             _location.RoomNumber      = txtRoomNumber.Text.Trim();
-            _location.AllocatedPerson = string.IsNullOrWhiteSpace(txtAllocatedPerson.Text) // NEW
-                                        ? null
-                                        : txtAllocatedPerson.Text.Trim();
+            _location.RoomName = string.IsNullOrWhiteSpace(txtRoomName.Text)
+            ? null
+            : txtRoomName.Text.Trim();
 
             var result = _isEditMode ? _locationService.Update(_location) : _locationService.Add(_location);
 

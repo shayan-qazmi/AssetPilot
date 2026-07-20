@@ -69,7 +69,7 @@ namespace Inventory_Management_System.Services
                 existing.LocationName = location.LocationName;
                 existing.Building = location.Building;
                 existing.RoomNumber = location.RoomNumber;
-                existing.AllocatedPerson = location.AllocatedPerson;
+                existing.RoomName = location.RoomName;
 
                 db.SaveChanges();
                 return ServiceResult<Location>.Ok(existing);

@@ -107,18 +107,19 @@ namespace Inventory_Management_System
                 if (System.IO.File.Exists(logoPath))
                 {
                     lblAppBrand.Visible = false;
+                    lblAppBrand.Size = Size.Empty;
                     var pic = panelMenu.Controls.OfType<PictureBox>()
                                        .FirstOrDefault(p => p.Name == "picLogoSide");
                     if (pic == null)
                     {
-                        pic = new PictureBox
-                        {
-                            Name = "picLogoSide",
-                            SizeMode = PictureBoxSizeMode.Zoom,
-                            Size = new Size(40, 40),      // Change to your desired size
-                            Location = new Point(39, 10), // Center it (adjust as needed)
-                            BackColor = ThemeHelper.Sidebar
-                        };
+                     pic = new PictureBox
+                    {
+                        Name = "picLogoSide",
+                        SizeMode = PictureBoxSizeMode.Zoom,
+                        Size = new Size(55, 55),
+                        Location = new Point((panelMenu.Width - 55) / 2, 10),
+                        BackColor = ThemeHelper.Sidebar
+                    };
                         panelMenu.Controls.Add(pic);
                     }
                     pic.Image = Image.FromFile(logoPath);
@@ -677,17 +678,18 @@ namespace Inventory_Management_System
         // ════════════════════════════════════════════════════════════════
         //  BAR CHART
         // ════════════════════════════════════════════════════════════════
+        // ════════════════════════════════════════════════════════════════
+        //  BAR CHART — now vertical, matches "Asset Status Breakdown"
+        // ════════════════════════════════════════════════════════════════
+        // ════════════════════════════════════════════════════════════════
+        //  BAR CHART — now vertical, matches "Asset Status Breakdown"
+        // ════════════════════════════════════════════════════════════════
         private void PaintBarChart(object? sender, PaintEventArgs e)
         {
             if (sender is not Panel p) return;
             var g = e.Graphics;
-            g.SmoothingMode     = SmoothingMode.AntiAlias;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-
-            int   top    = 54, padL = 160, padR = 120, padB = 20;
-            int   chartW = p.Width  - padL - padR;
-            int   chartH = p.Height - top  - padB - 8;
-            int   chartX = padL, chartY = top;
 
             var bars = new[]
             {
@@ -698,51 +700,104 @@ namespace Inventory_Management_System
                 (Label:"Overdue",         Count:_cntOverdue,      Color:Color.FromArgb(255, 160, 0)),
             };
 
-            int total   = Math.Max(1, bars.Sum(b => b.Count));
-            int maxVal  = Math.Max(1, bars.Max(b => b.Count));
+            int total = Math.Max(1, bars.Sum(b => b.Count));
+            int maxVal = Math.Max(1, bars.Max(b => b.Count));
+            int barCount = bars.Length;
 
-            using var labelFont = new Font("Segoe UI", 9f,   FontStyle.Regular, GraphicsUnit.Point);
-            using var valFont   = new Font("Segoe UI", 8.5f, FontStyle.Bold,    GraphicsUnit.Point);
-            using var labelFg   = new SolidBrush(Color.FromArgb(55,  65, 81));
-            using var valFg     = new SolidBrush(Color.FromArgb(107, 114, 128));
-            using var bgBar     = new SolidBrush(Color.FromArgb(240, 244, 240));
+            using var labelFont = new Font("Segoe UI", 8f, FontStyle.Regular, GraphicsUnit.Point);
+            using var valFont = new Font("Segoe UI", 8.5f, FontStyle.Bold, GraphicsUnit.Point);
+            using var labelFg = new SolidBrush(Color.FromArgb(55, 65, 81));
+            using var bgBar = new SolidBrush(Color.FromArgb(240, 244, 240));
 
-            int   barCount  = bars.Length;
-            float rowH      = (float)chartH / barCount;
-            float barH      = Math.Min(rowH * 0.45f, 28f);
+            // Reserve space: header (44, drawn by card) + top padding for value
+            // labels above bars + bottom padding for (possibly 2-line) category
+            // labels below bars, so nothing ever gets clipped regardless of panel size.
+            int top = 54;
+            int padSide = 16;
+            int valueGap = 20; // room for "count (pct%)" above each bar
+            float labelLineH = g.MeasureString("Ag", labelFont).Height;
+            int labelGap = (int)(labelLineH * 2 + 8); // up to 2 wrapped lines below
+
+            int chartX = padSide;
+            int chartW = Math.Max(10, p.Width - padSide * 2);
+            int chartTopY = top + valueGap;
+            int chartH = Math.Max(10, p.Height - chartTopY - labelGap);
+
+            float gapRatio = 0.35f;
+            float colWidth = chartW / (float)barCount;
+            float barWidth = colWidth * (1f - gapRatio);
+            if (barWidth > 56f) barWidth = 56f; // don't let bars get absurdly fat on wide panels
+
+            // Local helper: draw text centered under a bar, wrapping to a 2nd
+            // line if it doesn't fit the column width instead of cutting off.
+            void DrawWrappedLabel(string text, float centerX, float startY, float maxWidth)
+            {
+                var fullSize = g.MeasureString(text, labelFont);
+                if (fullSize.Width <= maxWidth)
+                {
+                    g.DrawString(text, labelFont, labelFg, centerX - fullSize.Width / 2f, startY);
+                    return;
+                }
+
+                // Split on the nearest space to the middle so both lines are
+                // roughly balanced and nothing is truncated.
+                var words = text.Split(' ');
+                if (words.Length < 2)
+                {
+                    g.DrawString(text, labelFont, labelFg, centerX - fullSize.Width / 2f, startY);
+                    return;
+                }
+
+                int mid = words.Length / 2;
+                string line1 = string.Join(" ", words.Take(mid));
+                string line2 = string.Join(" ", words.Skip(mid));
+
+                var l1Size = g.MeasureString(line1, labelFont);
+                var l2Size = g.MeasureString(line2, labelFont);
+                g.DrawString(line1, labelFont, labelFg, centerX - l1Size.Width / 2f, startY);
+                g.DrawString(line2, labelFont, labelFg, centerX - l2Size.Width / 2f, startY + labelLineH);
+            }
 
             for (int i = 0; i < barCount; i++)
             {
-                var  b   = bars[i];
-                float by = chartY + i * rowH + (rowH - barH) / 2f;
+                var b = bars[i];
+                float colCenterX = chartX + colWidth * i + colWidth / 2f;
+                float barX = colCenterX - barWidth / 2f;
 
-                // Background track
-                using var trackPath = RoundedRectF(new RectangleF(chartX, by, chartW, barH), 5f);
+                // Background track (full height column)
+                using var trackPath = RoundedRectF(new RectangleF(barX, chartTopY, barWidth, chartH), 5f);
                 g.FillPath(bgBar, trackPath);
 
-                // Filled bar
-                float fillW = maxVal == 0 ? 0 : Math.Max(barH, (float)b.Count / maxVal * chartW);
-                if (fillW > 0)
+                // Filled bar, growing upward from the bottom
+                float fillH = maxVal == 0 ? 0 : Math.Max(b.Count > 0 ? barWidth * 0.4f : 0, (float)b.Count / maxVal * chartH);
+                if (fillH > 0)
                 {
+                    float barY = chartTopY + (chartH - fillH);
                     using var grad = new LinearGradientBrush(
-                        new PointF(chartX, by), new PointF(chartX + fillW, by),
+                        new PointF(barX, chartTopY + chartH), new PointF(barX, barY),
                         ControlPaint.Light(b.Color, 0.3f), b.Color);
-                    using var fillPath = RoundedRectF(new RectangleF(chartX, by, fillW, barH), 5f);
+                    using var fillPath = RoundedRectF(new RectangleF(barX, barY, barWidth, fillH), 5f);
                     g.FillPath(grad, fillPath);
+
+                    // Value + pct, centered above the bar
+                    float pct = (float)b.Count / total * 100f;
+                    string valStr = $"{b.Count} ({pct:0}%)";
+                    var vSz = g.MeasureString(valStr, valFont);
+                    using var vFg = new SolidBrush(b.Color);
+                    float vY = Math.Max(top, barY - vSz.Height - 2);
+                    g.DrawString(valStr, valFont, vFg, colCenterX - vSz.Width / 2f, vY);
+                }
+                else
+                {
+                    // Zero-value bars: still show "0 (0%)" above the empty track
+                    string valStr = "0 (0%)";
+                    var vSz = g.MeasureString(valStr, valFont);
+                    using var vFg = new SolidBrush(Color.FromArgb(156, 163, 175));
+                    g.DrawString(valStr, valFont, vFg, colCenterX - vSz.Width / 2f, chartTopY - vSz.Height - 2);
                 }
 
-                // Label (left)
-                var lSz = g.MeasureString(b.Label, labelFont);
-                g.DrawString(b.Label, labelFont, labelFg,
-                    chartX - lSz.Width - 10, by + barH / 2f - lSz.Height / 2f);
-
-                // Value + pct (right of bar)
-                float pct    = (float)b.Count / total * 100f;
-                string valStr = $"{b.Count}  ({pct:0}%)";
-                var vSz = g.MeasureString(valStr, valFont);
-                using var vFg = new SolidBrush(b.Color);
-                g.DrawString(valStr, valFont, vFg,
-                    chartX + fillW + 8, by + barH / 2f - vSz.Height / 2f);
+                // Category label below the column, wrapped if needed
+                DrawWrappedLabel(b.Label, colCenterX, chartTopY + chartH + 6, colWidth - 6);
             }
         }
 

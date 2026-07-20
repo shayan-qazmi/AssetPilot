@@ -49,7 +49,7 @@ namespace Inventory_Management_System.Forms
                     item.LocationName,
                     item.Building,
                     item.RoomNumber,
-                    item.AllocatedPerson ?? ""
+                    item.RoomName ?? ""
                 );
             }
         }
@@ -124,7 +124,7 @@ namespace Inventory_Management_System.Forms
                 $"\"{row.Cells["Name"]?.Value}\"",
                 $"\"{row.Cells["Building"]?.Value}\"",
                 $"\"{row.Cells["RoomNumber"]?.Value}\"",
-                $"\"{row.Cells["AllocatedPerson"]?.Value}\""));
+                $"\"{row.Cells["RoomName"]?.Value}\""));
         }
 
         System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
