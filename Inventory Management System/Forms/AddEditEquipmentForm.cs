@@ -24,53 +24,65 @@ namespace Inventory_Management_System.Forms
         private string? _originalStatus;
         private bool _suppressStatusEvent = false;
 
+        // ── Picture state ──────────────────────────────────────────────
+        // The relative path (e.g. "Images/Equipment/xxxx.png") of a picture
+        // the user just picked in this session but hasn't saved yet.
+        private string? _stagedPicturePath;
+        // The relative path already on the equipment record when the form
+        // opened (edit mode only) — used to know what to clean up on disk.
+        private string? _originalPicturePathOnLoad;
+        private bool _pictureRemoved = false;
+
         // ── Form controls ───────────────────────────────────────────────
-        private TextBox       txtName           = null!;
-        private TextBox       txtMake           = null!;
-        private TextBox       txtModel          = null!;
-        private TextBox       txtSerialNumber   = null!;
-        private ComboBox      cmbStatus         = null!;
-        private DateTimePicker dtpPurchaseDate  = null!;
-        private ComboBox      cmbCategory       = null!;
-        private TextBox       txtDescription    = null!;
-        private TextBox       txtVendorName     = null!;
-        private ComboBox      cmbConditionGrade = null!;
-        private CheckBox      chkWarrantyExpiry = null!;
+        private TextBox txtName = null!;
+        private TextBox txtMake = null!;
+        private TextBox txtModel = null!;
+        private TextBox txtSerialNumber = null!;
+        private ComboBox cmbStatus = null!;
+        private DateTimePicker dtpPurchaseDate = null!;
+        private ComboBox cmbCategory = null!;
+        private TextBox txtDescription = null!;
+        private TextBox txtVendorName = null!;
+        private ComboBox cmbConditionGrade = null!;
+        private CheckBox chkWarrantyExpiry = null!;
         private DateTimePicker dtpWarrantyExpiry = null!;
-        private TextBox       txtNotes          = null!;
-        private Label?        lblLocationValue  = null;
-        private TextBox       txtProcurementType = null!;
-        private Button        btnSave           = null!;
-        private Button        btnCancel         = null!;
+        private TextBox txtNotes = null!;
+        private Label? lblLocationValue = null;
+        private TextBox txtProcurementType = null!;
+        private Label lblPictureStatus = null!;
+        private Button btnPickPicture = null!;
+        private Button btnRemovePicture = null!;
+        private Button btnSave = null!;
+        private Button btnCancel = null!;
 
         // ── Layout constants (matching EquipmentDetailPopup) ───────────────
-        private const int DialogW     = 860;
-        private const int OuterPad    = 20;
-        private const int HeaderH     = 52;
-        private const int ColLeft     = 20;
-        private const int ColRight    = 440;
-        private const int ColW        = 390;
-        private const int FieldX      = 155;   // input start inside a row panel
-        private const int LabelW      = 148;
-        private const int InputW      = 215;
-        private const int RowH        = 38;
-        private const int MultiRowH   = 88;
-        private const int SectionGap  = 14;
+        private const int DialogW = 860;
+        private const int OuterPad = 20;
+        private const int HeaderH = 52;
+        private const int ColLeft = 20;
+        private const int ColRight = 440;
+        private const int ColW = 390;
+        private const int FieldX = 155;   // input start inside a row panel
+        private const int LabelW = 148;
+        private const int InputW = 215;
+        private const int RowH = 38;
+        private const int MultiRowH = 88;
+        private const int SectionGap = 14;
 
         // ── Colors (same as EquipmentDetailPopup) ─────────────────────────
-        private static readonly Color BgPage      = Color.FromArgb(245, 247, 250);
-        private static readonly Color CardBg      = Color.White;
-        private static readonly Color CardBorder  = Color.FromArgb(220, 225, 230);
-        private static readonly Color SectionClr  = Color.FromArgb(46, 125, 50);
-        private static readonly Color RowEven     = Color.White;
-        private static readonly Color RowOdd      = Color.FromArgb(248, 250, 248);
+        private static readonly Color BgPage = Color.FromArgb(245, 247, 250);
+        private static readonly Color CardBg = Color.White;
+        private static readonly Color CardBorder = Color.FromArgb(220, 225, 230);
+        private static readonly Color SectionClr = Color.FromArgb(46, 125, 50);
+        private static readonly Color RowEven = Color.White;
+        private static readonly Color RowOdd = Color.FromArgb(248, 250, 248);
         private static readonly Color SeparatorClr = Color.FromArgb(234, 237, 241);
 
         public AddEditEquipmentForm(Equipment? equipment = null)
         {
-            _equipment          = equipment ?? new Equipment { CurrentStatus = "in_store" };
-            _isEditMode         = equipment != null;
-            _equipmentService   = new EquipmentService();
+            _equipment = equipment ?? new Equipment { CurrentStatus = "in_store" };
+            _isEditMode = equipment != null;
+            _equipmentService = new EquipmentService();
             _maintenanceService = new MaintenanceService();
 
             InitializeUI();
@@ -87,28 +99,28 @@ namespace Inventory_Management_System.Forms
         // ══════════════════════════════════════════════════════════════════
         private void InitializeUI()
         {
-            Text            = _isEditMode ? "Edit Equipment" : "Add Equipment";
-            StartPosition   = FormStartPosition.CenterParent;
+            Text = _isEditMode ? "Edit Equipment" : "Add Equipment";
+            StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox     = false;
-            MinimizeBox     = false;
-            BackColor       = BgPage;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            BackColor = BgPage;
 
             // ── Header strip ─────────────────────────────────────────────
             var header = new Panel
             {
-                Dock      = DockStyle.Top,
-                Height    = HeaderH,
+                Dock = DockStyle.Top,
+                Height = HeaderH,
                 BackColor = ThemeHelper.Header,
             };
             var lblTitle = new Label
             {
-                Text      = $"  {(_isEditMode ? "Edit" : "Add")} Equipment",
-                Dock      = DockStyle.Fill,
-                Font      = new Font("Segoe UI", 11.5f, FontStyle.Bold, GraphicsUnit.Point),
+                Text = $"  {(_isEditMode ? "Edit" : "Add")} Equipment",
+                Dock = DockStyle.Fill,
+                Font = new Font("Segoe UI", 11.5f, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = Color.White,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding   = new Padding(8, 0, 0, 0),
+                Padding = new Padding(8, 0, 0, 0),
             };
             header.Controls.Add(lblTitle);
             Controls.Add(header);
@@ -117,8 +129,8 @@ namespace Inventory_Management_System.Forms
             var card = new Panel
             {
                 BackColor = CardBg,
-                Location  = new Point(OuterPad, HeaderH + OuterPad),
-                Width     = DialogW - OuterPad * 2,
+                Location = new Point(OuterPad, HeaderH + OuterPad),
+                Width = DialogW - OuterPad * 2,
             };
             card.Paint += DrawCardBorder;
             Controls.Add(card);
@@ -128,10 +140,10 @@ namespace Inventory_Management_System.Forms
             AddSectionHeader(card, "Equipment Identification", ColLeft, ref yL);
             bool altL = false;
 
-            txtName         = AddFieldRow(card, "Name *",          ColLeft, ref yL, ref altL);
-            txtMake         = AddFieldRow(card, "Make",            ColLeft, ref yL, ref altL);
-            txtModel        = AddFieldRow(card, "Model",           ColLeft, ref yL, ref altL);
-            txtSerialNumber = AddFieldRow(card, "Serial Number",   ColLeft, ref yL, ref altL);
+            txtName = AddFieldRow(card, "Name *", ColLeft, ref yL, ref altL);
+            txtMake = AddFieldRow(card, "Make", ColLeft, ref yL, ref altL);
+            txtModel = AddFieldRow(card, "Model", ColLeft, ref yL, ref altL);
+            txtSerialNumber = AddFieldRow(card, "Serial Number", ColLeft, ref yL, ref altL);
 
             cmbStatus = AddComboRow(card, "Current Status", ColLeft, ref yL, ref altL,
                 new[] { "In Store", "Allocated", "Decommissioned", "Under Repair" });
@@ -148,7 +160,7 @@ namespace Inventory_Management_System.Forms
             cmbCategory = AddComboRow(card, "Category", ColLeft, ref yL, ref altL,
                 BuildCategoryItems());
 
-         // Location info (edit mode) or hint note (add mode)
+            // Location info (edit mode) or hint note (add mode)
             if (_isEditMode)
             {
                 lblLocationValue = AddReadonlyLabelRow(card, "Current Location", ColLeft, ref yL, ref altL);
@@ -163,14 +175,17 @@ namespace Inventory_Management_System.Forms
                     ColLeft, ref yL, ref altL);
             }
 
+            // Optional equipment picture (jpg/png/pdf)
+            AddPictureRow(card, ColLeft, ref yL, ref altL);
+
             // ════ RIGHT COLUMN — Additional Details ════
             int yR = SectionGap;
             AddSectionHeader(card, "Additional Details", ColRight, ref yR);
             bool altR = false;
 
-            txtDescription    = AddMultilineRow(card, "Description",      ColRight, ref yR, ref altR);
-            txtVendorName     = AddFieldRow(card,    "Vendor Name",        ColRight, ref yR, ref altR);
-            cmbConditionGrade = AddComboRow(card,    "Condition Grade",    ColRight, ref yR, ref altR,
+            txtDescription = AddMultilineRow(card, "Description", ColRight, ref yR, ref altR);
+            txtVendorName = AddFieldRow(card, "Vendor Name", ColRight, ref yR, ref altR);
+            cmbConditionGrade = AddComboRow(card, "Condition Grade", ColRight, ref yR, ref altR,
                 new[] { "", "New", "Good", "Fair", "Poor", "Unserviceable" });
 
             AddWarrantyRow(card, ColRight, ref yR, ref altR);
@@ -196,11 +211,11 @@ namespace Inventory_Management_System.Forms
 
             btnSave = new Button
             {
-                Text     = "Save",
-                Size     = new Size(100, 34),
+                Text = "Save",
+                Size = new Size(100, 34),
                 Location = new Point(DialogW / 2 - 110, btnY),
-                Font     = ThemeHelper.FontBold,
-                Cursor   = Cursors.Hand,
+                Font = ThemeHelper.FontBold,
+                Cursor = Cursors.Hand,
             };
             ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
@@ -208,19 +223,156 @@ namespace Inventory_Management_System.Forms
 
             btnCancel = new Button
             {
-                Text     = "Cancel",
-                Size     = new Size(100, 34),
+                Text = "Cancel",
+                Size = new Size(100, 34),
                 Location = new Point(DialogW / 2 + 10, btnY),
-                Font     = ThemeHelper.FontDefault,
-                Cursor   = Cursors.Hand,
+                Font = ThemeHelper.FontDefault,
+                Cursor = Cursors.Hand,
             };
             ThemeHelper.StyleSecondaryButton(btnCancel);
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
             Controls.Add(btnCancel);
 
-            ClientSize   = new Size(DialogW, btnY + 34 + OuterPad);
+            ClientSize = new Size(DialogW, btnY + 34 + OuterPad);
             AcceptButton = btnSave;
             CancelButton = btnCancel;
+
+            // Clean up any newly-staged (not-yet-saved) picture file if the
+            // dialog is closed without saving — via Cancel button or the
+            // window's own close (X) button.
+            this.FormClosing += (s, e) =>
+            {
+                if (DialogResult != DialogResult.OK)
+                    CleanupStagedFileIfAny();
+            };
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        //  PICTURE ROW (optional — jpg/png/pdf)
+        // ══════════════════════════════════════════════════════════════════
+        private void AddPictureRow(Panel card, int x, ref int y, ref bool isAlt)
+        {
+            var pnl = MakeRowPanel(card, "Picture", x, RowH, ref y, ref isAlt);
+
+            lblPictureStatus = new Label
+            {
+                Location = new Point(FieldX, 0),
+                Size = new Size(100, RowH),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = ThemeHelper.FontSmall,
+                ForeColor = ThemeHelper.TextSecondary,
+                Text = "No picture",
+                AutoEllipsis = true,
+            };
+            pnl.Controls.Add(lblPictureStatus);
+
+            btnPickPicture = new Button
+            {
+                Text = "📎 Choose",
+                Location = new Point(FieldX + 104, 5),
+                Size = new Size(75, 28),
+                Font = ThemeHelper.FontSmall,
+                Cursor = Cursors.Hand,
+            };
+            ThemeHelper.StyleSecondaryButton(btnPickPicture);
+            btnPickPicture.Click += BtnPickPicture_Click;
+            pnl.Controls.Add(btnPickPicture);
+
+            btnRemovePicture = new Button
+            {
+                Text = "✕",
+                Location = new Point(FieldX + 183, 5),
+                Size = new Size(28, 28),
+                Font = ThemeHelper.FontSmall,
+                Cursor = Cursors.Hand,
+                Visible = false,
+            };
+            ThemeHelper.StyleDangerButton(btnRemovePicture);
+            btnRemovePicture.Click += BtnRemovePicture_Click;
+            pnl.Controls.Add(btnRemovePicture);
+        }
+
+        private void BtnPickPicture_Click(object? sender, EventArgs e)
+        {
+            using var ofd = new OpenFileDialog
+            {
+                Filter = "Images and PDF|*.jpg;*.jpeg;*.png;*.pdf|JPEG Image|*.jpg;*.jpeg|PNG Image|*.png|PDF Document|*.pdf",
+                Title = "Select Equipment Picture",
+            };
+            if (ofd.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                string picturesDir = System.IO.Path.Combine(Application.StartupPath, "Images", "Equipment");
+                System.IO.Directory.CreateDirectory(picturesDir);
+
+                string ext = System.IO.Path.GetExtension(ofd.FileName);
+                string fileName = $"{Guid.NewGuid():N}{ext}";
+                string destPath = System.IO.Path.Combine(picturesDir, fileName);
+                System.IO.File.Copy(ofd.FileName, destPath, overwrite: true);
+
+                // If the user is replacing a choice they already staged this
+                // session (before saving), clean up the previous staged file.
+                CleanupStagedFileIfAny();
+
+                _stagedPicturePath = System.IO.Path.Combine("Images", "Equipment", fileName);
+                _pictureRemoved = false;
+                UpdatePictureStatusLabel();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not attach picture: " + ex.Message, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void BtnRemovePicture_Click(object? sender, EventArgs e)
+        {
+            CleanupStagedFileIfAny();
+            _stagedPicturePath = null;
+            _pictureRemoved = true;
+            UpdatePictureStatusLabel();
+        }
+
+        private void CleanupStagedFileIfAny()
+        {
+            DeleteFileIfExists(_stagedPicturePath);
+            _stagedPicturePath = null;
+        }
+
+        private static void DeleteFileIfExists(string? relativePath)
+        {
+            if (string.IsNullOrEmpty(relativePath)) return;
+            try
+            {
+                string full = System.IO.Path.Combine(Application.StartupPath, relativePath);
+                if (System.IO.File.Exists(full)) System.IO.File.Delete(full);
+            }
+            catch { /* best-effort cleanup — never block the user for this */ }
+        }
+
+        private void UpdatePictureStatusLabel()
+        {
+            if (_pictureRemoved)
+            {
+                lblPictureStatus.Text = "No picture";
+                btnRemovePicture.Visible = false;
+            }
+            else if (!string.IsNullOrEmpty(_stagedPicturePath))
+            {
+                lblPictureStatus.Text = System.IO.Path.GetFileName(_stagedPicturePath);
+                btnRemovePicture.Visible = true;
+            }
+            else if (!string.IsNullOrEmpty(_originalPicturePathOnLoad))
+            {
+                lblPictureStatus.Text = System.IO.Path.GetFileName(_originalPicturePathOnLoad);
+                btnRemovePicture.Visible = true;
+            }
+            else
+            {
+                lblPictureStatus.Text = "No picture";
+                btnRemovePicture.Visible = false;
+            }
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -259,47 +411,60 @@ namespace Inventory_Management_System.Forms
         {
             using var dlg = new Form
             {
-                Text            = "Log Maintenance Issue",
-                Size            = new Size(420, 320),
+                Text = "Log Maintenance Issue",
+                Size = new Size(420, 320),
                 FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox     = false,
-                MinimizeBox     = false,
-                StartPosition   = FormStartPosition.CenterParent,
-                BackColor       = CardBg,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = CardBg,
             };
 
             var lblIssue = new Label
             {
-                Text = "Issue Description *:", Location = new Point(20, 16), AutoSize = true,
-                Font = ThemeHelper.FontBold, ForeColor = ThemeHelper.TextSecondary
+                Text = "Issue Description *:",
+                Location = new Point(20, 16),
+                AutoSize = true,
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary
             };
             var txtIssue = new TextBox
             {
-                Location = new Point(20, 38), Size = new Size(360, 70),
-                Multiline = true, ScrollBars = ScrollBars.Vertical
+                Location = new Point(20, 38),
+                Size = new Size(360, 70),
+                Multiline = true,
+                ScrollBars = ScrollBars.Vertical
             };
             ThemeHelper.StyleTextBox(txtIssue);
 
             var lblServicedBy = new Label
             {
-                Text = "Serviced By / Vendor:", Location = new Point(20, 118), AutoSize = true,
-                Font = ThemeHelper.FontBold, ForeColor = ThemeHelper.TextSecondary
+                Text = "Serviced By / Vendor:",
+                Location = new Point(20, 118),
+                AutoSize = true,
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary
             };
             var txtServicedBy = new TextBox { Location = new Point(20, 140), Size = new Size(360, 24) };
             ThemeHelper.StyleTextBox(txtServicedBy);
 
             var lblCost = new Label
             {
-                Text = "Estimated Cost:", Location = new Point(20, 174), AutoSize = true,
-                Font = ThemeHelper.FontBold, ForeColor = ThemeHelper.TextSecondary
+                Text = "Estimated Cost:",
+                Location = new Point(20, 174),
+                AutoSize = true,
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary
             };
             var txtCost = new TextBox { Location = new Point(20, 196), Size = new Size(360, 24) };
             ThemeHelper.StyleTextBox(txtCost);
 
             var lblError = new Label
             {
-                Location = new Point(20, 226), Size = new Size(360, 20),
-                ForeColor = ThemeHelper.Danger, Font = ThemeHelper.FontSmall
+                Location = new Point(20, 226),
+                Size = new Size(360, 20),
+                ForeColor = ThemeHelper.Danger,
+                Font = ThemeHelper.FontSmall
             };
 
             var btnOk = new Button { Text = "OK", Location = new Point(200, 252), Size = new Size(85, 32) };
@@ -385,42 +550,53 @@ namespace Inventory_Management_System.Forms
 
             using var dlg = new Form
             {
-                Text            = "Resolve Maintenance Issue",
-                Size            = new Size(380, 240),
+                Text = "Resolve Maintenance Issue",
+                Size = new Size(380, 240),
                 FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox     = false,
-                MinimizeBox     = false,
-                StartPosition   = FormStartPosition.CenterParent,
-                BackColor       = CardBg,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = CardBg,
             };
 
             var lblDate = new Label
             {
-                Text = "Resolution Date:", Location = new Point(20, 16), AutoSize = true,
-                Font = ThemeHelper.FontBold, ForeColor = ThemeHelper.TextSecondary
+                Text = "Resolution Date:",
+                Location = new Point(20, 16),
+                AutoSize = true,
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary
             };
             var dtpResolved = new DateTimePicker
             {
-                Location = new Point(20, 38), Size = new Size(320, 24),
-                Format = DateTimePickerFormat.Short, Value = DateTime.Today
+                Location = new Point(20, 38),
+                Size = new Size(320, 24),
+                Format = DateTimePickerFormat.Short,
+                Value = DateTime.Today
             };
 
             var lblCost = new Label
             {
-                Text = "Final Cost:", Location = new Point(20, 74), AutoSize = true,
-                Font = ThemeHelper.FontBold, ForeColor = ThemeHelper.TextSecondary
+                Text = "Final Cost:",
+                Location = new Point(20, 74),
+                AutoSize = true,
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary
             };
             var txtFinalCost = new TextBox
             {
-                Location = new Point(20, 96), Size = new Size(320, 24),
+                Location = new Point(20, 96),
+                Size = new Size(320, 24),
                 Text = openRecord.Cost.HasValue ? openRecord.Cost.Value.ToString("0.##") : ""
             };
             ThemeHelper.StyleTextBox(txtFinalCost);
 
             var lblError = new Label
             {
-                Location = new Point(20, 126), Size = new Size(320, 20),
-                ForeColor = ThemeHelper.Danger, Font = ThemeHelper.FontSmall
+                Location = new Point(20, 126),
+                Size = new Size(320, 20),
+                ForeColor = ThemeHelper.Danger,
+                Font = ThemeHelper.FontSmall
             };
 
             var btnOk = new Button { Text = "OK", Location = new Point(160, 156), Size = new Size(85, 32) };
@@ -492,10 +668,10 @@ namespace Inventory_Management_System.Forms
             pnl.Controls.Add(accent);
             var lbl = new Label
             {
-                Text      = title,
-                Location  = new Point(10, 7),
-                AutoSize  = true,
-                Font      = new Font("Segoe UI", 10f, FontStyle.Bold, GraphicsUnit.Point),
+                Text = title,
+                Location = new Point(10, 7),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 10f, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = SectionClr,
             };
             pnl.Controls.Add(lbl);
@@ -526,8 +702,8 @@ namespace Inventory_Management_System.Forms
 
             var cmb = new ComboBox
             {
-                Location      = new Point(FieldX, 6),
-                Width         = InputW,
+                Location = new Point(FieldX, 6),
+                Width = InputW,
                 DropDownStyle = ComboBoxStyle.DropDownList,
             };
             cmb.Items.AddRange(items);
@@ -544,8 +720,8 @@ namespace Inventory_Management_System.Forms
             var dtp = new DateTimePicker
             {
                 Location = new Point(FieldX, 6),
-                Width    = InputW,
-                Format   = DateTimePickerFormat.Short,
+                Width = InputW,
+                Format = DateTimePickerFormat.Short,
             };
             pnl.Controls.Add(dtp);
             return dtp;
@@ -561,10 +737,10 @@ namespace Inventory_Management_System.Forms
 
             var txt = new TextBox
             {
-                Location   = new Point(FieldX, 6),
-                Width      = InputW,
-                Height     = MultiRowH - 14,
-                Multiline  = true,
+                Location = new Point(FieldX, 6),
+                Width = InputW,
+                Height = MultiRowH - 14,
+                Multiline = true,
                 ScrollBars = ScrollBars.Vertical,
             };
             ThemeHelper.StyleTextBox(txt);
@@ -579,10 +755,10 @@ namespace Inventory_Management_System.Forms
 
             var lbl = new Label
             {
-                Location  = new Point(FieldX, 0),
-                Size      = new Size(InputW, RowH),
+                Location = new Point(FieldX, 0),
+                Size = new Size(InputW, RowH),
                 TextAlign = ContentAlignment.MiddleLeft,
-                Font      = ThemeHelper.FontDefault,
+                Font = ThemeHelper.FontDefault,
                 ForeColor = ThemeHelper.TextPrimary,
             };
             pnl.Controls.Add(lbl);
@@ -596,11 +772,11 @@ namespace Inventory_Management_System.Forms
 
             var lbl = new Label
             {
-                Text      = hint,
-                Location  = new Point(8, 6),
-                Width     = ColW - 16,
-                Height    = 32,
-                Font      = ThemeHelper.FontSmall,
+                Text = hint,
+                Location = new Point(8, 6),
+                Width = ColW - 16,
+                Height = 32,
+                Font = ThemeHelper.FontSmall,
                 ForeColor = ThemeHelper.TextSecondary,
                 BackColor = Color.Transparent,
             };
@@ -614,11 +790,11 @@ namespace Inventory_Management_System.Forms
 
             chkWarrantyExpiry = new CheckBox
             {
-                Text      = "Warranty Expiry:",
-                Location  = new Point(8, 9),
-                AutoSize  = true,
-                Checked   = false,
-                Font      = ThemeHelper.FontBold,
+                Text = "Warranty Expiry:",
+                Location = new Point(8, 9),
+                AutoSize = true,
+                Checked = false,
+                Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextSecondary,
                 BackColor = Color.Transparent,
             };
@@ -627,9 +803,9 @@ namespace Inventory_Management_System.Forms
             dtpWarrantyExpiry = new DateTimePicker
             {
                 Location = new Point(FieldX, 7),
-                Width    = InputW,
-                Format   = DateTimePickerFormat.Short,
-                Enabled  = false,
+                Width = InputW,
+                Format = DateTimePickerFormat.Short,
+                Enabled = false,
             };
             pnl.Controls.Add(dtpWarrantyExpiry);
 
@@ -643,8 +819,8 @@ namespace Inventory_Management_System.Forms
         {
             var pnl = new Panel
             {
-                Location  = new Point(x, y),
-                Size      = new Size(ColW, h),
+                Location = new Point(x, y),
+                Size = new Size(ColW, h),
                 BackColor = isAlt ? RowOdd : RowEven,
             };
             pnl.Paint += (_, e) =>
@@ -657,10 +833,10 @@ namespace Inventory_Management_System.Forms
             {
                 var lbl = new Label
                 {
-                    Text      = labelText + ":",
-                    Location  = new Point(8, 0),
-                    Size      = new Size(LabelW, h),
-                    Font      = ThemeHelper.FontBold,
+                    Text = labelText + ":",
+                    Location = new Point(8, 0),
+                    Size = new Size(LabelW, h),
+                    Font = ThemeHelper.FontBold,
                     ForeColor = ThemeHelper.TextSecondary,
                     TextAlign = ContentAlignment.MiddleLeft,
                 };
@@ -668,28 +844,28 @@ namespace Inventory_Management_System.Forms
             }
 
             card.Controls.Add(pnl);
-            y     += h;
-            isAlt  = !isAlt;
+            y += h;
+            isAlt = !isAlt;
             return pnl;
         }
 
         // ══════════════════════════════════════════════════════════════════
         private static string FormatStatus(string raw) => raw switch
         {
-            "in_store"       => "In Store",
-            "allocated"      => "Allocated",
+            "in_store" => "In Store",
+            "allocated" => "Allocated",
             "decommissioned" => "Decommissioned",
-            "under_repair"   => "Under Repair",
-            _                => raw
+            "under_repair" => "Under Repair",
+            _ => raw
         };
 
         private static string UnformatStatus(string display) => display switch
         {
-            "In Store"       => "in_store",
-            "Allocated"      => "allocated",
+            "In Store" => "in_store",
+            "Allocated" => "allocated",
             "Decommissioned" => "decommissioned",
-            "Under Repair"   => "under_repair",
-            _                => display
+            "Under Repair" => "under_repair",
+            _ => display
         };
 
         // ══════════════════════════════════════════════════════════════════
@@ -708,9 +884,10 @@ namespace Inventory_Management_System.Forms
         {
             if (!_isEditMode)
             {
-                cmbStatus.SelectedIndex         = 0;
-                cmbCategory.SelectedIndex       = 0;
+                cmbStatus.SelectedIndex = 0;
+                cmbCategory.SelectedIndex = 0;
                 cmbConditionGrade.SelectedIndex = 0;
+                UpdatePictureStatusLabel();
                 return;
             }
 
@@ -725,38 +902,41 @@ namespace Inventory_Management_System.Forms
             }
             catch { }
 
-            txtName.Text            = _equipment.Name;
-            txtMake.Text            = _equipment.Make;
-            txtModel.Text           = _equipment.Model;
-            txtSerialNumber.Text    = _equipment.SerialNumber;
+            txtName.Text = _equipment.Name;
+            txtMake.Text = _equipment.Make;
+            txtModel.Text = _equipment.Model;
+            txtSerialNumber.Text = _equipment.SerialNumber;
 
             // Suppress the transition-detection event while we programmatically
             // set the initial status from loaded data — this is not a user-driven
             // status change and must never trigger the maintenance modal.
             _suppressStatusEvent = true;
-            cmbStatus.SelectedItem  = FormatStatus(_equipment.CurrentStatus);
+            cmbStatus.SelectedItem = FormatStatus(_equipment.CurrentStatus);
             _suppressStatusEvent = false;
 
             if (_equipment.PurchaseDate.HasValue)
                 dtpPurchaseDate.Value =
                     _equipment.PurchaseDate.Value.ToDateTime(TimeOnly.MinValue);
 
-            cmbCategory.SelectedItem       = _equipment.Category ?? "";
-            txtDescription.Text            = _equipment.Description ?? "";
-            txtVendorName.Text             = _equipment.VendorName ?? "";
+            cmbCategory.SelectedItem = _equipment.Category ?? "";
+            txtDescription.Text = _equipment.Description ?? "";
+            txtVendorName.Text = _equipment.VendorName ?? "";
             cmbConditionGrade.SelectedItem = _equipment.ConditionGrade ?? "";
-            txtNotes.Text                  = _equipment.Notes ?? "";
+            txtNotes.Text = _equipment.Notes ?? "";
 
             if (_equipment.WarrantyExpiry.HasValue)
             {
                 chkWarrantyExpiry.Checked = true;
                 dtpWarrantyExpiry.Enabled = true;
-                dtpWarrantyExpiry.Value   =
+                dtpWarrantyExpiry.Value =
                     _equipment.WarrantyExpiry.Value.ToDateTime(TimeOnly.MinValue);
             }
 
             txtProcurementType.Text =
                 _equipmentService.GetProcurementTypeName(_equipment.ProcurementTypeId) ?? "";
+
+            _originalPicturePathOnLoad = _equipment.PicturePath;
+            UpdatePictureStatusLabel();
 
             if (_isEditMode && lblLocationValue != null)
             {
@@ -791,12 +971,12 @@ namespace Inventory_Management_System.Forms
             // Equipment Code and QR Code are no longer entered manually —
             // EquipmentService auto-generates them on Add when left blank,
             // and they are simply left untouched on Update.
-            _equipment.Name           = txtName.Text.Trim();
-            _equipment.Make           = txtMake.Text.Trim();
-            _equipment.Model          = txtModel.Text.Trim();
-            _equipment.SerialNumber   = txtSerialNumber.Text.Trim();
-            _equipment.CurrentStatus  = UnformatStatus(cmbStatus.SelectedItem?.ToString() ?? "In Store");
-            _equipment.PurchaseDate   = DateOnly.FromDateTime(dtpPurchaseDate.Value);
+            _equipment.Name = txtName.Text.Trim();
+            _equipment.Make = txtMake.Text.Trim();
+            _equipment.Model = txtModel.Text.Trim();
+            _equipment.SerialNumber = txtSerialNumber.Text.Trim();
+            _equipment.CurrentStatus = UnformatStatus(cmbStatus.SelectedItem?.ToString() ?? "In Store");
+            _equipment.PurchaseDate = DateOnly.FromDateTime(dtpPurchaseDate.Value);
 
             _equipment.Category =
                 cmbCategory.SelectedItem?.ToString() is { Length: > 0 } cat ? cat : null;
@@ -811,6 +991,23 @@ namespace Inventory_Management_System.Forms
             _equipment.Notes =
                 string.IsNullOrWhiteSpace(txtNotes.Text) ? null : txtNotes.Text.Trim();
 
+            // ── Picture: commit whatever the user staged/removed this session ──
+            if (_pictureRemoved)
+            {
+                DeleteFileIfExists(_originalPicturePathOnLoad);
+                _equipment.PicturePath = null;
+            }
+            else if (!string.IsNullOrEmpty(_stagedPicturePath))
+            {
+                if (!string.IsNullOrEmpty(_originalPicturePathOnLoad) &&
+                    _originalPicturePathOnLoad != _stagedPicturePath)
+                {
+                    DeleteFileIfExists(_originalPicturePathOnLoad);
+                }
+                _equipment.PicturePath = _stagedPicturePath;
+            }
+            // else: no change made this session — leave _equipment.PicturePath as-is.
+
             // Resolve-or-create ProcurementType by typed name (preserves the FK)
             _equipment.ProcurementTypeId = _equipmentService.ResolveProcurementTypeId(txtProcurementType.Text);
 
@@ -822,7 +1019,12 @@ namespace Inventory_Management_System.Forms
                 : _equipmentService.Add(_equipment);
 
             if (result.Success)
+            {
+                // Prevent FormClosing's cleanup handler from deleting the file
+                // we just committed to the database.
+                _stagedPicturePath = null;
                 DialogResult = DialogResult.OK;
+            }
             else
                 MessageBox.Show(result.ErrorMessage, "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -834,7 +1036,7 @@ namespace Inventory_Management_System.Forms
         private void DrawCardBorder(object? sender, PaintEventArgs e)
         {
             if (sender is not Panel pnl) return;
-            var g    = e.Graphics;
+            var g = e.Graphics;
             var rect = new Rectangle(0, 0, pnl.Width - 1, pnl.Height - 1);
 
             using var shadowBrush = new SolidBrush(Color.FromArgb(18, 0, 0, 0));

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 20, 2026 at 01:43 PM
+-- Generation Time: Jul 21, 2026 at 09:18 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -52,7 +52,9 @@ INSERT INTO `allocations` (`id`, `equipment_id`, `employee_id`, `location_id`, `
 (3, 21, 4, 1, 1, 1, '2026-06-23 23:58:07', '2026-06-23 23:58:16', NULL, NULL, 'returned', NULL, NULL),
 (7, 3, 1, 4, 1, 1, '2026-07-06 13:51:33', '2026-07-06 13:51:43', '2027-07-22', '2026-07-09', 'returned', NULL, NULL),
 (9, 26, 1, 3, 1, 1, '2026-07-07 00:47:36', '2026-07-07 00:47:41', '2026-07-08', '2026-07-14', 'returned', NULL, NULL),
-(12, 26, 4, 5, 1, 1, '2026-07-15 14:18:19', '2026-07-15 14:18:27', NULL, NULL, 'approved', NULL, NULL);
+(12, 26, 4, 5, 1, 1, '2026-07-15 14:18:19', '2026-07-15 14:18:27', NULL, '2026-07-21', 'returned', NULL, NULL),
+(13, 26, 6, 4, 1, 1, '2026-07-20 23:49:35', '2026-07-20 23:49:35', NULL, NULL, 'approved', NULL, 12),
+(14, 3, 1, 1, 1, 1, '2026-07-21 00:00:23', '2026-07-21 00:00:35', '2026-07-22', NULL, 'approved', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -90,6 +92,18 @@ CREATE TABLE `categories` (
   `name` varchar(100) NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `categories`
+--
+
+INSERT INTO `categories` (`id`, `name`, `created_at`) VALUES
+(2, 'IT Equipment', '2026-07-20 11:55:22'),
+(3, 'Accessory', '2026-07-20 11:56:33'),
+(5, 'Other', '2026-07-20 11:58:23'),
+(6, 'Furniture', '2026-07-20 11:58:38'),
+(7, 'Rented', '2026-07-20 11:58:56'),
+(10, 'New', '2026-07-21 04:48:05');
 
 -- --------------------------------------------------------
 
@@ -148,20 +162,22 @@ CREATE TABLE `equipment` (
   `current_allocation_id` int(11) DEFAULT NULL COMMENT 'Reference to active allocation',
   `notes` text DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp(),
-  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `picture_path` varchar(500) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `equipment`
 --
 
-INSERT INTO `equipment` (`id`, `equipment_code`, `qr_code`, `name`, `make`, `model`, `category`, `description`, `vendor_name`, `condition_grade`, `warranty_expiry`, `serial_number`, `purchase_date`, `price`, `procurement_type_id`, `created_by_user_id`, `current_status`, `current_location_id`, `current_employee_id`, `current_allocation_id`, `notes`, `created_at`, `updated_at`) VALUES
-(3, 'EQ001', 'QR001', 'Dell Latitude', 'Dell', '5400', 'Rented', 'minor dent on edge', 'Ali', 'Good', '2027-12-01', 'SN12345', '2026-06-24', NULL, 1, 1, 'allocated', NULL, NULL, NULL, 'pin pack', '2026-06-11 09:25:51', '2026-07-20 11:24:55'),
-(5, 'EQ002', 'QR002', 'Lenovo Thinkbook', 'Lenovo', '6900', 'IT Equipment', NULL, NULL, 'Poor', NULL, 'ASR34R', '2026-06-17', NULL, 6, 1, 'in_store', NULL, NULL, NULL, NULL, '2026-06-19 18:43:48', '2026-07-15 11:34:39'),
-(21, 'EQ003', 'QR003', 'MacBook', 'Apple', '231', 'Furniture', NULL, NULL, NULL, NULL, 'SN1324', '2026-06-09', NULL, 1, 1, 'under_repair', NULL, NULL, NULL, NULL, '2026-06-24 04:57:09', '2026-07-20 06:59:05'),
-(22, 'EQ004', 'QR004', 'Dell EliteBook', 'HP', '8973', 'Accessory', NULL, NULL, 'Unserviceable', NULL, 'FP63G', '2026-06-24', NULL, 1, 1, 'decommissioned', NULL, NULL, NULL, NULL, '2026-06-24 05:09:16', '2026-07-15 07:56:55'),
-(26, 'EQ005', 'QR005', 'Barcode Scanner', 'deli', '14952', 'Other', '2D plug and plau Barcode Scanner.', 'Zia', 'New', '2027-07-07', 'A26480111949', '2026-07-03', NULL, 1, 1, 'allocated', NULL, NULL, NULL, 'Purchased by Sir Zia, for IMS', '2026-07-07 05:26:29', '2026-07-20 06:58:35'),
-(28, 'EQ006', 'QR006', 'Keyboard', 'Lenovo', '26555', 'IT Equipment', 'yes', 'fahad', 'New', NULL, 'PI234H5', '2026-07-09', NULL, 4, 1, 'in_store', NULL, NULL, NULL, NULL, '2026-07-10 06:38:17', '2026-07-10 11:46:18');
+INSERT INTO `equipment` (`id`, `equipment_code`, `qr_code`, `name`, `make`, `model`, `category`, `description`, `vendor_name`, `condition_grade`, `warranty_expiry`, `serial_number`, `purchase_date`, `price`, `procurement_type_id`, `created_by_user_id`, `current_status`, `current_location_id`, `current_employee_id`, `current_allocation_id`, `notes`, `created_at`, `updated_at`, `picture_path`) VALUES
+(3, 'EQ001', 'QR001', 'Dell Latitude', 'Dell', '5400', 'Rented', 'minor dent on edge', 'Ali', 'Good', '2027-12-01', 'SN12345', '2026-06-24', NULL, 1, 1, 'in_store', NULL, NULL, NULL, 'pin pack', '2026-06-11 09:25:51', '2026-07-21 06:35:45', 'Images\\Equipment\\076403a12ef744d3b0f8518cec96dd11.pdf'),
+(5, 'EQ002', 'QR002', 'Lenovo Thinkbook', 'Lenovo', '6900', 'IT Equipment', NULL, NULL, 'Poor', NULL, 'ASR34R', '2026-06-17', NULL, 6, 1, 'in_store', NULL, NULL, NULL, NULL, '2026-06-19 18:43:48', '2026-07-21 06:36:33', 'Images\\Equipment\\63397a1346be4297833e3f56fa312e77.png'),
+(21, 'EQ003', 'QR003', 'MacBook', 'Apple', '231', 'Furniture', NULL, NULL, NULL, NULL, 'SN1324', '2026-06-09', NULL, 1, 1, 'under_repair', NULL, NULL, NULL, NULL, '2026-06-24 04:57:09', '2026-07-20 06:59:05', NULL),
+(22, 'EQ004', 'QR004', 'Dell EliteBook', 'HP', '8973', 'Accessory', NULL, NULL, 'Unserviceable', NULL, 'FP63G', '2026-06-24', NULL, 1, 1, 'decommissioned', NULL, NULL, NULL, NULL, '2026-06-24 05:09:16', '2026-07-15 07:56:55', NULL),
+(26, 'EQ005', 'QR005', 'Barcode Scanner', 'deli', '14952', 'Other', '2D plug and plau Barcode Scanner.', 'Zia', 'New', '2027-07-07', 'A26480111949', '2026-07-03', NULL, 1, 1, 'allocated', NULL, NULL, NULL, 'Purchased by Sir Zia, for IMS', '2026-07-07 05:26:29', '2026-07-20 06:58:35', NULL),
+(28, 'EQ006', 'QR006', 'Keyboard', 'Lenovo', '26555', 'IT Equipment', 'yes', 'fahad', 'New', NULL, 'PI234H5', '2026-07-09', NULL, 4, 1, 'in_store', NULL, NULL, NULL, NULL, '2026-07-10 06:38:17', '2026-07-10 11:46:18', NULL),
+(30, 'EQ007', 'QR007', 'Mouse', 'Dell', '2448u', 'New', NULL, NULL, NULL, NULL, '23RWFWE4', '2026-07-21', NULL, NULL, 1, 'in_store', NULL, NULL, NULL, NULL, '2026-07-21 04:48:45', '2026-07-21 04:48:54', NULL);
 
 -- --------------------------------------------------------
 
@@ -302,7 +318,18 @@ INSERT INTO `equipment_logs` (`id`, `equipment_id`, `action_type`, `changed_by_u
 (123, 5, 'location_changed', 1, 'EQ002 - Lenovo Thinkbook - in_store', 'EQ002 - Lenovo Thinkbook - in_store', NULL, '2026-07-15 18:34:39'),
 (124, 26, 'location_changed', 1, 'EQ005 - Barcode Scanner - allocated', 'EQ005 - Barcode Scanner - allocated', NULL, '2026-07-20 01:58:35'),
 (125, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - allocated', 'EQ001 - Dell Latitude - allocated', NULL, '2026-07-20 01:58:50'),
-(126, 21, 'location_changed', 1, 'EQ003 - MacBook - under_repair', 'EQ003 - MacBook - under_repair', NULL, '2026-07-20 01:59:05');
+(126, 21, 'location_changed', 1, 'EQ003 - MacBook - under_repair', 'EQ003 - MacBook - under_repair', NULL, '2026-07-20 01:59:05'),
+(127, 30, 'equipment_created', 1, NULL, 'Created: EQ007 - Mouse', NULL, '2026-07-20 23:48:45'),
+(128, 30, 'location_changed', 1, 'EQ007 - Mouse - in_store', 'EQ007 - Mouse - in_store', NULL, '2026-07-20 23:48:54'),
+(129, 26, 'transferred', 1, 'Employee 4', 'Employee 6', NULL, '2026-07-20 23:49:35'),
+(130, 3, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 1', NULL, '2026-07-21 00:00:24'),
+(131, 3, 'allocation_approved', 1, 'pending', 'approved', NULL, '2026-07-21 00:00:35'),
+(132, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - in_store', 'EQ001 - Dell Latitude - in_store', NULL, '2026-07-21 01:25:34'),
+(133, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - in_store', 'EQ001 - Dell Latitude - in_store', NULL, '2026-07-21 01:29:50'),
+(134, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - in_store', 'EQ001 - Dell Latitude - in_store', NULL, '2026-07-21 01:30:10'),
+(135, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - in_store', 'EQ001 - Dell Latitude - in_store', NULL, '2026-07-21 01:35:18'),
+(136, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - in_store', 'EQ001 - Dell Latitude - in_store', NULL, '2026-07-21 01:35:45'),
+(137, 5, 'location_changed', 1, 'EQ002 - Lenovo Thinkbook - in_store', 'EQ002 - Lenovo Thinkbook - in_store', NULL, '2026-07-21 01:36:33');
 
 -- --------------------------------------------------------
 
@@ -433,7 +460,8 @@ INSERT INTO `transactions` (`transaction_id`, `equipment_id`, `transaction_type`
 (3, 3, 'Check-Out', 'Kazmi', 'Engineering', 'Administrator', '2026-07-15 11:04:35', '2026-07-22', '2026-07-20', 'Completed', 'Good', 'Good', '', '2026-07-15 11:04:35'),
 (4, 3, 'Check-Out', 'asd', 'DAS', 'Administrator', '2026-07-20 07:41:41', '2026-07-27', '2026-07-20', 'Completed', 'Good', 'Good', '', '2026-07-20 07:41:41'),
 (5, 3, 'Check-Out', 'Asad', 'HR', 'Administrator', '2026-07-20 07:55:27', '2026-07-27', '2026-07-20', 'Completed', 'Good', 'Good', '', '2026-07-20 07:55:27'),
-(6, 3, 'Check-Out', 'ali', 'QR', 'Administrator', '2026-07-20 11:24:55', '2026-07-28', NULL, 'Pending', 'Good', NULL, 'return tommorow', '2026-07-20 11:24:55');
+(6, 3, 'Check-Out', 'ali', 'QR', 'Administrator', '2026-07-20 11:24:55', '2026-07-28', '2026-07-21', 'Completed', 'Good', 'Good', '', '2026-07-20 11:24:55'),
+(7, 3, 'Check-Out', 'asda', 'zxcz', 'Administrator', '2026-07-21 05:17:54', '2026-07-28', '2026-07-21', 'Completed', 'Good', 'Good', '', '2026-07-21 05:17:54');
 
 -- --------------------------------------------------------
 
@@ -610,7 +638,7 @@ ALTER TABLE `user_roles`
 -- AUTO_INCREMENT for table `allocations`
 --
 ALTER TABLE `allocations`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `app_settings`
@@ -622,7 +650,7 @@ ALTER TABLE `app_settings`
 -- AUTO_INCREMENT for table `categories`
 --
 ALTER TABLE `categories`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `employees`
@@ -634,7 +662,7 @@ ALTER TABLE `employees`
 -- AUTO_INCREMENT for table `equipment`
 --
 ALTER TABLE `equipment`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=31;
 
 --
 -- AUTO_INCREMENT for table `equipment_location_history`
@@ -646,7 +674,7 @@ ALTER TABLE `equipment_location_history`
 -- AUTO_INCREMENT for table `equipment_logs`
 --
 ALTER TABLE `equipment_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=127;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=138;
 
 --
 -- AUTO_INCREMENT for table `locations`
@@ -676,7 +704,7 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `transactions`
 --
 ALTER TABLE `transactions`
-  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `transaction_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `users`

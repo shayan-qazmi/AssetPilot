@@ -14,22 +14,19 @@ namespace Inventory_Management_System.Forms
 {
     public partial class AllocationForm : Form
     {
-        private readonly AllocationService  _allocationService  = new();
-        private readonly EquipmentService   _equipmentService   = new();
-        private readonly EmployeeService    _employeeService    = new();
-        private readonly LocationService    _locationService    = new();
-        private readonly AuditService       _audit              = new();
+        private readonly AllocationService _allocationService = new();
+        private readonly EquipmentService _equipmentService = new();
+        private readonly EmployeeService _employeeService = new();
+        private readonly LocationService _locationService = new();
+        private readonly AuditService _audit = new();
 
         // Full (unpaged) list of formal Allocation entities — used by the
-        // live-suggestion dropdown and by dedup logic. Unchanged in shape
-        // from before this change.
-        private List<Allocation>            _suggestSourceAllocations = new();
+        // live-suggestion dropdown and by dedup logic.
+        private List<Allocation> _suggestSourceAllocations = new();
 
         // Unified (Allocation + Check In/Out) rows, for display only.
-        // _allSourceRows = full unfiltered/unpaged unified list.
-        // _allRows       = current page (or full filtered set when a search filter is active).
-        private List<AllocationRow>         _allSourceRows = new();
-        private List<AllocationRow>         _allRows       = new();
+        private List<AllocationRow> _allSourceRows = new();
+        private List<AllocationRow> _allRows = new();
 
         private EntitySuggestHelper<Allocation>? _suggest;
 
@@ -47,16 +44,16 @@ namespace Inventory_Management_System.Forms
             // For Check In/Out-sourced rows this is the negative of the
             // Transaction.TransactionId (never collides with a real
             // Allocation Id, which is always positive).
-            public int    Id             { get; set; }
-            public string Source         { get; set; } = "Allocation"; // "Allocation" | "Check In/Out"
-            public string EquipmentCode  { get; set; } = "—";
-            public string EquipmentName  { get; set; } = "—";
-            public string Employee       { get; set; } = "—";
-            public string Location       { get; set; } = "—";
-            public DateTime SortDate     { get; set; }
-            public string DateAllocated  { get; set; } = "—";
+            public int Id { get; set; }
+            public string Source { get; set; } = "Allocation"; // "Allocation" | "Check In/Out"
+            public string EquipmentCode { get; set; } = "—";
+            public string EquipmentName { get; set; } = "—";
+            public string Employee { get; set; } = "—";
+            public string Location { get; set; } = "—";
+            public DateTime SortDate { get; set; }
+            public string DateAllocated { get; set; } = "—";
             public string ExpectedReturn { get; set; } = "—";
-            public string Status         { get; set; } = "—";
+            public string Status { get; set; } = "—";
 
             // Non-null only for Allocation-sourced rows. This is what the
             // Approve/Return/Delete buttons operate on.
@@ -82,7 +79,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleToolbarPanel(panelTop);
             ThemeHelper.StyleButton(btnAdd);
             ThemeHelper.StyleButton(btnApprove, Color.FromArgb(25, 118, 210));
-            ThemeHelper.StyleButton(btnReturn,  Color.FromArgb(245, 124, 0));
+            ThemeHelper.StyleButton(btnReturn, Color.FromArgb(245, 124, 0));
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnSelectAll);
             ThemeHelper.StyleSecondaryButton(btnExport);
@@ -94,16 +91,13 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleDataGridView(dgvAllocation);
             panelBottom.BackColor = Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
-            lblRowCount.Font      = ThemeHelper.FontSmall;
+            lblRowCount.Font = ThemeHelper.FontSmall;
         }
 
         // ── Live fuzzy-suggestion dropdown (same UX as QR Scanner / Check-In-Out) ──
-        // NOTE: intentionally scoped to formal Allocation records only. Extending
-        // this strongly-typed helper to a mixed Allocation/Transaction type would
-        // require a larger refactor of EntitySuggestHelper<T> for comparatively
-        // little benefit, since the primary search box below already covers both
-        // sources. The grid's own search/filter (txtSearch_TextChanged) DOES cover
-        // both sources — see RefreshGrid().
+        // NOTE: intentionally scoped to formal Allocation records only. The
+        // grid's own search/filter (txtSearch_TextChanged) covers both sources
+        // — see RefreshGrid().
         private void SetupSuggestions()
         {
             try
@@ -183,37 +177,37 @@ namespace Inventory_Management_System.Forms
                                 !approvedEquipmentIds.Contains(t.EquipmentId))
                     .Select(t => new AllocationRow
                     {
-                        Id             = -t.TransactionId,
-                        Source         = "Check In/Out",
-                        EquipmentCode  = t.Equipment?.EquipmentCode ?? "—",
-                        EquipmentName  = t.Equipment?.Name ?? "—",
-                        Employee       = string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
+                        Id = -t.TransactionId,
+                        Source = "Check In/Out",
+                        EquipmentCode = t.Equipment?.EquipmentCode ?? "—",
+                        EquipmentName = t.Equipment?.Name ?? "—",
+                        Employee = string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
                         // Transaction has no Location FK — Department is the
                         // closest available field.
-                        Location       = string.IsNullOrWhiteSpace(t.Department) ? "—" : t.Department,
-                        SortDate       = t.TransactionDate,
-                        DateAllocated  = t.TransactionDate.ToString("yyyy-MM-dd"),
+                        Location = string.IsNullOrWhiteSpace(t.Department) ? "—" : t.Department,
+                        SortDate = t.TransactionDate,
+                        DateAllocated = t.TransactionDate.ToString("yyyy-MM-dd"),
                         ExpectedReturn = t.ExpectedReturn?.ToString("yyyy-MM-dd") ?? "—",
-                        Status         = t.Status ?? "—",
-                        AllocationRef  = null,
-                        TransactionId  = t.TransactionId
+                        Status = t.Status ?? "—",
+                        AllocationRef = null,
+                        TransactionId = t.TransactionId
                     })
                     .ToList();
 
                 var allocationRows = _suggestSourceAllocations.Select(a => new AllocationRow
                 {
-                    Id             = a.Id,
-                    Source         = "Allocation",
-                    EquipmentCode  = a.Equipment?.EquipmentCode ?? "—",
-                    EquipmentName  = a.Equipment?.Name ?? "—",
-                    Employee       = a.Employee?.FullName ?? "—",
-                    Location       = a.Location?.LocationName ?? "—",
-                    SortDate       = a.AllocationDate,
-                    DateAllocated  = a.AllocationDate.ToString("yyyy-MM-dd"),
+                    Id = a.Id,
+                    Source = "Allocation",
+                    EquipmentCode = a.Equipment?.EquipmentCode ?? "—",
+                    EquipmentName = a.Equipment?.Name ?? "—",
+                    Employee = a.Employee?.FullName ?? "—",
+                    Location = a.Location?.LocationName ?? "—",
+                    SortDate = a.AllocationDate,
+                    DateAllocated = a.AllocationDate.ToString("yyyy-MM-dd"),
                     ExpectedReturn = a.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—",
-                    Status         = a.Status,
-                    AllocationRef  = a,
-                    TransactionId  = null
+                    Status = a.Status,
+                    AllocationRef = a,
+                    TransactionId = null
                 }).ToList();
 
                 _allSourceRows = allocationRows
@@ -265,10 +259,10 @@ namespace Inventory_Management_System.Forms
                 var filtered = _allRows.Where(r =>
                     FuzzySearchHelper.IsFuzzyMatch(r.EquipmentCode, filter) ||
                     FuzzySearchHelper.IsFuzzyMatch(r.EquipmentName, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(r.Employee,      filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(r.Location,      filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(r.Status,        filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(r.Source,        filter))
+                    FuzzySearchHelper.IsFuzzyMatch(r.Employee, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(r.Location, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(r.Status, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(r.Source, filter))
                 .OrderByDescending(r => Math.Max(
                     FuzzySearchHelper.FuzzyScore(r.EquipmentCode, filter),
                     Math.Max(
@@ -364,8 +358,7 @@ namespace Inventory_Management_System.Forms
         }
 
         // Existing action-button logic continues to operate ONLY on real
-        // Allocation records — returns null for Check In/Out-sourced rows,
-        // exactly like it did before this row could even be selected.
+        // Allocation records — returns null for Check In/Out-sourced rows.
         private Allocation? GetSelectedAllocation()
         {
             return GetSelectedRow()?.AllocationRef;
@@ -381,16 +374,16 @@ namespace Inventory_Management_System.Forms
             bool isCheckInOutSelected = row != null && row.AllocationRef == null;
 
             btnApprove.Enabled = !isCheckInOutSelected;
-            btnReturn.Enabled  = !isCheckInOutSelected;
-            btnDelete.Enabled  = !isCheckInOutSelected;
+            btnReturn.Enabled = !isCheckInOutSelected;
+            btnDelete.Enabled = !isCheckInOutSelected;
         }
 
         private void btnAdd_Click(object sender, EventArgs e)
         {
             using var frm = new AddAllocationForm(
                 _equipmentService.GetAll().Data ?? new(),
-                _employeeService.GetAll().Data  ?? new(),
-                _locationService.GetAll().Data  ?? new());
+                _employeeService.GetAll().Data ?? new(),
+                _locationService.GetAll().Data ?? new());
 
             if (frm.ShowDialog() != DialogResult.OK) return;
 
@@ -415,12 +408,24 @@ namespace Inventory_Management_System.Forms
             try
             {
                 using var db = new InventoryDbContext();
+
+                bool isCheckedOut = db.Transactions.Any(t =>
+                    t.EquipmentId == alloc.EquipmentId &&
+                    (t.Status == "Pending" || t.Status == "Overdue"));
+
+                if (isCheckedOut)
+                {
+                    MessageBox.Show("This equipment is currently checked out via Check In/Out and cannot be approved until it is checked back in.",
+                        "Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
                 var a = db.Allocations
                     .Include(x => x.Equipment)
                     .FirstOrDefault(x => x.Id == alloc.Id);
                 if (a == null) return;
-                a.Status           = "approved";
-                a.ApprovalDate     = DateTime.UtcNow;
+                a.Status = "approved";
+                a.ApprovalDate = DateTime.UtcNow;
                 a.ApprovedByUserId = 1;
                 if (a.Equipment != null)
                     a.Equipment.CurrentStatus = "allocated";
@@ -530,7 +535,7 @@ namespace Inventory_Management_System.Forms
             {
                 using var sfd = new SaveFileDialog
                 {
-                    Filter   = "CSV files|*.csv",
+                    Filter = "CSV files|*.csv",
                     FileName = $"Allocations_{DateTime.Now:yyyyMMdd_HHmm}.csv"
                 };
                 if (sfd.ShowDialog() != DialogResult.OK) return;
@@ -541,9 +546,9 @@ namespace Inventory_Management_System.Forms
                 {
                     string E(object? v) => $"\"{v?.ToString()?.Replace("\"", "\"\"") ?? ""}\"";
                     sb.AppendLine(string.Join(",",
-                        E(row.Cells["AllocationID"].Value),  E(row.Cells["EquipmentCode"].Value),
+                        E(row.Cells["AllocationID"].Value), E(row.Cells["EquipmentCode"].Value),
                         E(row.Cells["EquipmentName"].Value), E(row.Cells["Employee"].Value),
-                        E(row.Cells["Location"].Value),      E(row.Cells["DateAllocated"].Value),
+                        E(row.Cells["Location"].Value), E(row.Cells["DateAllocated"].Value),
                         E(row.Cells["ExpectedReturn"].Value), E(row.Cells["Status"].Value),
                         E(row.Cells["Source"].Value)));
                 }
@@ -563,30 +568,41 @@ namespace Inventory_Management_System.Forms
         }
     }
 
-    // ── Add Allocation Dialog — unchanged ─────────────────────────────────
+    // ── Add Allocation Dialog ──────────────────────────────────────────────
     public class AddAllocationForm : Form
     {
         public Allocation? Result { get; private set; }
 
         private readonly List<Equipment> _equipment;
-        private readonly List<Employee>  _employees;
-        private readonly List<Location>  _locations;
+        private readonly List<Employee> _employees;
+        private readonly List<Location> _locations;
 
-        private ComboBox       cmbEquipment = null!;
-        private ComboBox       cmbEmployee  = null!;
-        private ComboBox       cmbLocation  = null!;
-        private DateTimePicker dtpExpected  = null!;
-        private CheckBox       chkExpected  = null!;
-        private Button         btnSave      = null!;
-        private Button         btnCancel    = null!;
+        private ComboBox cmbEquipment = null!;
+        private ComboBox cmbEmployee = null!;
+        private ComboBox cmbLocation = null!;
+        private DateTimePicker dtpExpected = null!;
+        private CheckBox chkExpected = null!;
+        private Button btnSave = null!;
+        private Button btnCancel = null!;
 
         public AddAllocationForm(List<Equipment> equipment, List<Employee> employees, List<Location> locations)
         {
             using (var db = new InventoryDbContext())
             {
-                _equipment = equipment.Where(e => e.CurrentStatus == "in_store" ||
-                                                 (e.CurrentStatus == "allocated" &&
-                                                  !db.Allocations.Any(a => a.EquipmentId == e.Id && a.Status == "approved"))).ToList();
+                // Equipment currently mid-Check-Out (Pending/Overdue Transaction)
+                // must be excluded regardless of CurrentStatus — otherwise it can
+                // be formally allocated to someone else while still checked out
+                // to another person via the Check In/Out screen (data conflict).
+                var checkedOutEquipmentIds = new HashSet<int>(
+                    db.Transactions
+                        .Where(t => t.Status == "Pending" || t.Status == "Overdue")
+                        .Select(t => t.EquipmentId));
+
+                _equipment = equipment.Where(e =>
+                    !checkedOutEquipmentIds.Contains(e.Id) &&
+                    (e.CurrentStatus == "in_store" ||
+                     (e.CurrentStatus == "allocated" &&
+                      !db.Allocations.Any(a => a.EquipmentId == e.Id && a.Status == "approved")))).ToList();
             }
             _employees = employees.Where(e => e.IsActive).ToList();
             _locations = locations;
@@ -595,11 +611,11 @@ namespace Inventory_Management_System.Forms
 
         private void BuildUI()
         {
-            Text            = "New Allocation";
-            Size            = new Size(420, 380);
-            StartPosition   = FormStartPosition.CenterParent;
+            Text = "New Allocation";
+            Size = new Size(420, 380);
+            StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox     = false;
+            MaximizeBox = false;
             ThemeHelper.ApplyFormBackground(this);
             AutoScroll = true;
 
@@ -611,38 +627,38 @@ namespace Inventory_Management_System.Forms
                 Controls.Add(lbl);
                 y += 22;
                 ctrl.Location = new Point(20, y);
-                ctrl.Width    = 360;
+                ctrl.Width = 360;
                 Controls.Add(ctrl);
                 y += 38;
             }
 
             cmbEquipment = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbEquipment.DisplayMember = "Name";
-            cmbEquipment.ValueMember   = "Id";
-            cmbEquipment.DataSource    = _equipment;
+            cmbEquipment.ValueMember = "Id";
+            cmbEquipment.DataSource = _equipment;
             ThemeHelper.StyleComboBox(cmbEquipment);
             AddRow("Equipment (available only):", cmbEquipment);
 
             cmbEmployee = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbEmployee.DisplayMember = "FullName";
-            cmbEmployee.ValueMember   = "Id";
-            cmbEmployee.DataSource    = _employees;
+            cmbEmployee.ValueMember = "Id";
+            cmbEmployee.DataSource = _employees;
             ThemeHelper.StyleComboBox(cmbEmployee);
             AddRow("Employee:", cmbEmployee);
 
             cmbLocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbLocation.DisplayMember = "LocationName";
-            cmbLocation.ValueMember   = "Id";
-            cmbLocation.DataSource    = _locations;
+            cmbLocation.ValueMember = "Id";
+            cmbLocation.DataSource = _locations;
             ThemeHelper.StyleComboBox(cmbLocation);
             AddRow("Location:", cmbLocation);
 
             chkExpected = new CheckBox
             {
-                Text      = "Set expected return date",
-                Location  = new Point(20, y),
-                AutoSize  = true,
-                Font      = ThemeHelper.FontDefault,
+                Text = "Set expected return date",
+                Location = new Point(20, y),
+                AutoSize = true,
+                Font = ThemeHelper.FontDefault,
                 ForeColor = ThemeHelper.TextPrimary
             };
             chkExpected.CheckedChanged += (s, e) => dtpExpected.Enabled = chkExpected.Checked;
@@ -651,10 +667,11 @@ namespace Inventory_Management_System.Forms
 
             dtpExpected = new DateTimePicker
             {
-                Location = new Point(20, y), Width = 360,
-                Format   = DateTimePickerFormat.Short,
-                Enabled  = false,
-                MinDate  = DateTime.Today.AddDays(1)
+                Location = new Point(20, y),
+                Width = 360,
+                Format = DateTimePickerFormat.Short,
+                Enabled = false,
+                MinDate = DateTime.Today.AddDays(1)
             };
             Controls.Add(dtpExpected);
             y += 44;
@@ -669,7 +686,7 @@ namespace Inventory_Management_System.Forms
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
             Controls.Add(btnCancel);
 
-            ClientSize   = new Size(400, y + 70);
+            ClientSize = new Size(400, y + 70);
             AcceptButton = btnSave;
             CancelButton = btnCancel;
         }
@@ -685,12 +702,12 @@ namespace Inventory_Management_System.Forms
 
             Result = new Allocation
             {
-                EquipmentId        = (int)cmbEquipment.SelectedValue,
-                EmployeeId         = (int)cmbEmployee.SelectedValue,
-                LocationId         = (int)cmbLocation.SelectedValue,
-                Status             = "pending",
-                AllocationDate     = DateTime.UtcNow,
-                AllocatedByUserId  = 1,
+                EquipmentId = (int)cmbEquipment.SelectedValue,
+                EmployeeId = (int)cmbEmployee.SelectedValue,
+                LocationId = (int)cmbLocation.SelectedValue,
+                Status = "pending",
+                AllocationDate = DateTime.UtcNow,
+                AllocatedByUserId = 1,
                 ExpectedReturnDate = chkExpected.Checked
                     ? DateOnly.FromDateTime(dtpExpected.Value) : null
             };

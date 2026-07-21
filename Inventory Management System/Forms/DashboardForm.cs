@@ -13,6 +13,18 @@ using Inventory_Management_System.Services;
 
 namespace Inventory_Management_System
 {
+    // Double-buffered panel to eliminate flicker/jitter during chart animations.
+    internal class DoubleBufferedPanel : Panel
+    {
+        public DoubleBufferedPanel()
+        {
+            SetStyle(ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.AllPaintingInWmPaint |
+                     ControlStyles.UserPaint, true);
+            UpdateStyles();
+        }
+    }
+
     public partial class DashboardForm : Form
     {
         private Form?   activeForm      = null;
@@ -49,6 +61,7 @@ namespace Inventory_Management_System
         private float _donutAnimProgress = 1f;
         private const int AnimTickIntervalMs = 15;
         private const int CenterCardIndex = 3; // "Under Repair"
+        private float _barAnimProgress = 1f;
 
         private enum CardAnimKind { Slide, Bounce }
 
@@ -235,6 +248,7 @@ namespace Inventory_Management_System
                 _animTimer = null;
                 _cardAnims = new List<CardAnimState>();
                 _donutAnimProgress = 0f;
+                _barAnimProgress = 0f;
 
                 using var db = new InventoryDbContext();
 
@@ -454,6 +468,16 @@ namespace Inventory_Management_System
                 allDone = false;
             }
 
+            if (_barAnimProgress < 1f)
+            {
+                float raw = Math.Min(1f, _barAnimProgress + 0.02f);
+                _barAnimProgress = raw >= 1f ? 1f : 1f - MathF.Pow(1f - raw, 3f);
+                if (_barAnimProgress > 0.999f) _barAnimProgress = 1f;
+                _panelBar?.Invalidate();
+                _panelLine?.Invalidate();
+                allDone = false;
+            }
+
             if (allDone)
             {
                 _animTimer?.Stop();
@@ -483,7 +507,7 @@ namespace Inventory_Management_System
                 _panelCharts = null;
             }
 
-            _panelCharts = new Panel
+            _panelCharts = new DoubleBufferedPanel
             {
                 Name       = "panelCharts",
                 BackColor  = Color.FromArgb(240, 244, 240),
@@ -572,7 +596,7 @@ namespace Inventory_Management_System
         // ════════════════════════════════════════════════════════════════
         private static Panel MakeChartCard(string title)
         {
-            var card = new Panel { BackColor = Color.White };
+            var card = new DoubleBufferedPanel { BackColor = Color.White };
 
             card.Paint += (s, e) =>
             {
@@ -768,8 +792,10 @@ namespace Inventory_Management_System
                 using var trackPath = RoundedRectF(new RectangleF(barX, chartTopY, barWidth, chartH), 5f);
                 g.FillPath(bgBar, trackPath);
 
-                // Filled bar, growing upward from the bottom
-                float fillH = maxVal == 0 ? 0 : Math.Max(b.Count > 0 ? barWidth * 0.4f : 0, (float)b.Count / maxVal * chartH);
+                // Filled bar, growing upward from the bottom — animated from 0 to full height
+                float targetFillH = maxVal == 0 ? 0 : Math.Max(b.Count > 0 ? barWidth * 0.4f : 0, (float)b.Count / maxVal * chartH);
+                float fillH = targetFillH * _barAnimProgress;
+
                 if (fillH > 0)
                 {
                     float barY = chartTopY + (chartH - fillH);
@@ -858,14 +884,22 @@ namespace Inventory_Management_System
             {
                 var   cat   = _categoryBreakdown[i];
                 Color color = palette[i % palette.Length];
-                float by    = chartY + i * rowH + (rowH - barH) / 2f;
+                // Slide-up entrance: each row starts offset below its final position
+                // and eases upward to 0 offset, using the same _barAnimProgress curve
+                // driving the other charts.
+                float rowDelay = i * 0.08f; // stagger start slightly per row
+                float rowProgress = Math.Clamp((_barAnimProgress - rowDelay) / (1f - rowDelay), 0f, 1f);
+                float verticalOffset = (1f - rowProgress) * 24f;
+                float by = chartY + i * rowH + (rowH - barH) / 2f + verticalOffset;
 
                 // Background track
                 using var trackPath = RoundedRectF(new RectangleF(chartX, by, chartW, barH), 5f);
                 g.FillPath(bgBar, trackPath);
 
-                // Filled bar (gradient, identical style to PaintBarChart)
+                // Filled bar (gradient, identical style to PaintBarChart) — full width immediately,
+                // the row itself slides up into place instead (see verticalOffset below).
                 float fillW = maxVal == 0 ? 0 : Math.Max(barH, (float)cat.Count / maxVal * chartW);
+
                 if (fillW > 0)
                 {
                     using var grad = new LinearGradientBrush(

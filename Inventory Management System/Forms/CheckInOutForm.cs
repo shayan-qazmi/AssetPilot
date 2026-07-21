@@ -372,6 +372,20 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
+            using (var checkDb = new InventoryDbContext())
+            {
+                bool hasPendingAllocation = checkDb.Allocations.Any(a =>
+                    a.EquipmentId == _scannedEquipment.Id &&
+                    (a.Status == "pending" || a.Status == "approved"));
+
+                if (hasPendingAllocation)
+                {
+                    MessageBox.Show("This equipment has a pending or approved formal Allocation and cannot be checked out here until that is resolved.",
+                        "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+
             if (string.IsNullOrWhiteSpace(txtIssuedTo.Text))
             {
                 MessageBox.Show("Please enter the name of the person this item is being issued to.",

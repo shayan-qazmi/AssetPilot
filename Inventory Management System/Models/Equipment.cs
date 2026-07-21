@@ -54,5 +54,6 @@ public partial class Equipment
 
     public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
 
+    public string? PicturePath { get; set; }
     public virtual ICollection<MaintenanceRecord> MaintenanceRecords { get; set; } = new List<MaintenanceRecord>();
 }

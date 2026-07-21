@@ -34,7 +34,25 @@ namespace Inventory_Management_System.Forms
             SetupToolbarLayout();
             LoadCategoryFilter();
             LoadEquipment();
+
+            flowToolbar.Layout += FlowToolbar_Layout;
         }
+
+        private bool _updatingToolbarHeight = false;
+
+        private void FlowToolbar_Layout(object? sender, LayoutEventArgs e)
+        {
+            if (_updatingToolbarHeight) return;
+
+            int needed = flowToolbar.GetPreferredSize(new Size(panelTop.ClientSize.Width, 0)).Height;
+            if (panelTop.Height != needed)
+            {
+                _updatingToolbarHeight = true;
+                panelTop.Height = needed;
+                _updatingToolbarHeight = false;
+            }
+        }
+
 
         // ── Toolbar layout ─────────────────────────────────────────────────
         // Restores the original designer dimensions for the buttons so text is
@@ -957,6 +975,7 @@ namespace Inventory_Management_System.Forms
                 LoadEquipment(txtSearch.Text.Trim());
             }
         }
+  
 
         private void btnNextPage_Click(object sender, EventArgs e)
         {

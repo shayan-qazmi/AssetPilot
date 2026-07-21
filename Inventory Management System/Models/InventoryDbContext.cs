@@ -203,6 +203,10 @@ public partial class InventoryDbContext : DbContext
 
         modelBuilder.Entity<Equipment>(entity =>
         {
+            entity.Property(e => e.PicturePath)
+                .HasMaxLength(500)
+                .HasColumnName("picture_path");
+
             entity.HasKey(e => e.Id).HasName("PRIMARY");
 
             entity.ToTable("equipment");

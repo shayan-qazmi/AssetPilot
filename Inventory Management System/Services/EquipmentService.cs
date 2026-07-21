@@ -297,6 +297,7 @@ namespace Inventory_Management_System.Services
                 existing.WarrantyExpiry = equipment.WarrantyExpiry;
                 existing.Notes          = equipment.Notes;
                 existing.ProcurementTypeId = equipment.ProcurementTypeId;
+                existing.PicturePath = equipment.PicturePath;   
 
                 db.SaveChanges();
 

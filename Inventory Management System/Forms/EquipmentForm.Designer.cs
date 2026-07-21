@@ -46,15 +46,14 @@ namespace Inventory_Management_System.Forms
             SuspendLayout();
 
             // ── panelTop ──────────────────────────────────────────────────
-            panelTop.Dock         = System.Windows.Forms.DockStyle.Top;
-            panelTop.AutoSize     = true;
-            panelTop.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
-            panelTop.MinimumSize  = new System.Drawing.Size(0, 60);
-            panelTop.Name         = "panelTop";
+            panelTop.Dock = System.Windows.Forms.DockStyle.Top;
+            panelTop.AutoSize = false;
+            panelTop.Height = 60;
+            panelTop.Name = "panelTop";
             panelTop.Controls.Add(flowToolbar);
 
             // ── flowToolbar ───────────────────────────────────────────────
-            flowToolbar.Dock          = System.Windows.Forms.DockStyle.Fill;
+            flowToolbar.Dock          = System.Windows.Forms.DockStyle.Top;
             flowToolbar.FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight;
             flowToolbar.WrapContents  = true;
             flowToolbar.AutoSize      = true;
