@@ -15,9 +15,14 @@ namespace Inventory_Management_System.Forms
     public partial class ReturnsForm : Form
     {
         private readonly AllocationService _allocationService = new();
-        private readonly AuditService      _audit             = new();
-        private List<Allocation>           _allReturns        = new();
+        private readonly AuditService _audit = new();
+        private List<Allocation> _allReturns = new();
         private EntitySuggestHelper<Allocation>? _suggest;
+
+        private int _currentPage = 1;
+        private int _pageSize = 25;
+        private int _totalPages = 1;
+        private int _totalMatchingCount = 0;
 
         public ReturnsForm()
         {
@@ -37,10 +42,13 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleTextBox(txtSearch);
+            ThemeHelper.StyleComboBox(cmbPageSize);
+            ThemeHelper.StyleSecondaryButton(btnPrevPage);
+            ThemeHelper.StyleSecondaryButton(btnNextPage);
             ThemeHelper.StyleDataGridView(dgvReturns);
             panelBottom.BackColor = Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
-            lblRowCount.Font      = ThemeHelper.FontSmall;
+            lblRowCount.Font = ThemeHelper.FontSmall;
         }
 
         // ── Live fuzzy-suggestion dropdown (same UX as QR Scanner / Check-In-Out) ──
@@ -55,10 +63,12 @@ namespace Inventory_Management_System.Forms
                     scoreFn: (a, term) => Math.Max(
                         FuzzySearchHelper.FuzzyScoreCode(a.Equipment?.EquipmentCode, term),
                         Math.Max(
-                            FuzzySearchHelper.FuzzyScore(a.Equipment?.Name, term),
+                            FuzzySearchHelper.FuzzyScoreCode(a.Equipment?.QrCode, term),
                             Math.Max(
-                                FuzzySearchHelper.FuzzyScore(a.Employee?.FullName, term),
-                                FuzzySearchHelper.FuzzyScore(a.ActualReturnDate?.ToString("yyyy-MM-dd"), term)))),
+                                FuzzySearchHelper.FuzzyScore(a.Equipment?.Name, term),
+                                Math.Max(
+                                    FuzzySearchHelper.FuzzyScore(a.Employee?.FullName, term),
+                                    FuzzySearchHelper.FuzzyScore(a.ActualReturnDate?.ToString("yyyy-MM-dd"), term))))),
                     line1Selector: a => $"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name}",
                     line2Selector: a => $"{a.Employee?.FullName ?? "—"} • {a.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—"}");
                 _suggest.LoadItems(_allReturns);
@@ -85,15 +95,16 @@ namespace Inventory_Management_System.Forms
         // ── Display-only view-model row combining Allocation returns + Check In/Out completions
         private class ReturnRow
         {
-            public int    Id            { get; set; }
-            public string Source        { get; set; } = "Allocation"; // "Allocation" | "Check In/Out"
+            public int Id { get; set; }
+            public string Source { get; set; } = "Allocation"; // "Allocation" | "Check In/Out"
+            public string QrCode { get; set; } = "—";
             public string EquipmentCode { get; set; } = "—";
             public string EquipmentName { get; set; } = "—";
-            public string Employee      { get; set; } = "—";
-            public DateTime SortDate    { get; set; }
-            public string ReturnDate    { get; set; } = "—";
-            public string Condition     { get; set; } = "—";
-            public int    DurationDays  { get; set; }
+            public string Employee { get; set; } = "—";
+            public DateTime SortDate { get; set; }
+            public string ReturnDate { get; set; } = "—";
+            public string Condition { get; set; } = "—";
+            public int DurationDays { get; set; }
             public Allocation? AllocationRef { get; set; } // non-null only for Allocation-sourced rows
         }
 
@@ -120,15 +131,16 @@ namespace Inventory_Management_System.Forms
                         : DateTime.Today;
                     return new ReturnRow
                     {
-                        Id            = item.Id,
-                        Source        = "Allocation",
+                        Id = item.Id,
+                        Source = "Allocation",
+                        QrCode = string.IsNullOrWhiteSpace(item.Equipment?.QrCode) ? "—" : item.Equipment!.QrCode,
                         EquipmentCode = item.Equipment?.EquipmentCode ?? "—",
                         EquipmentName = item.Equipment?.Name ?? "—",
-                        Employee      = item.Employee?.FullName ?? "—",
-                        SortDate      = returnDate,
-                        ReturnDate    = item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
-                        Condition     = item.Equipment?.ConditionGrade ?? "—",
-                        DurationDays  = (returnDate - item.AllocationDate).Days,
+                        Employee = item.Employee?.FullName ?? "—",
+                        SortDate = returnDate,
+                        ReturnDate = item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
+                        Condition = item.Equipment?.ConditionGrade ?? "—",
+                        DurationDays = (returnDate - item.AllocationDate).Days,
                         AllocationRef = item
                     };
                 }).ToList();
@@ -143,15 +155,16 @@ namespace Inventory_Management_System.Forms
                     var returnDate = t.ActualReturn!.Value.ToDateTime(TimeOnly.MinValue);
                     return new ReturnRow
                     {
-                        Id            = -t.TransactionId,
-                        Source        = "Check In/Out",
+                        Id = -t.TransactionId,
+                        Source = "Check In/Out",
+                        QrCode = string.IsNullOrWhiteSpace(t.Equipment?.QrCode) ? "—" : t.Equipment!.QrCode,
                         EquipmentCode = t.Equipment?.EquipmentCode ?? "—",
                         EquipmentName = t.Equipment?.Name ?? "—",
-                        Employee      = string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
-                        SortDate      = returnDate,
-                        ReturnDate    = t.ActualReturn?.ToString("yyyy-MM-dd") ?? "—",
-                        Condition     = t.ConditionAfter ?? "—",
-                        DurationDays  = (returnDate - t.TransactionDate).Days,
+                        Employee = string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
+                        SortDate = returnDate,
+                        ReturnDate = t.ActualReturn?.ToString("yyyy-MM-dd") ?? "—",
+                        Condition = t.ConditionAfter ?? "—",
+                        DurationDays = (returnDate - t.TransactionDate).Days,
                         AllocationRef = null
                     };
                 }).ToList();
@@ -174,14 +187,15 @@ namespace Inventory_Management_System.Forms
         {
             dgvReturns.Rows.Clear();
 
-            var items = string.IsNullOrWhiteSpace(filter)
+            var matched = string.IsNullOrWhiteSpace(filter)
                 ? _allReturnRows
                 : _allReturnRows.Where(r =>
                     FuzzySearchHelper.IsFuzzyMatch(r.EquipmentCode, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(r.QrCode, filter) ||
                     FuzzySearchHelper.IsFuzzyMatch(r.EquipmentName, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(r.Employee,      filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(r.ReturnDate,    filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(r.Source,        filter))
+                    FuzzySearchHelper.IsFuzzyMatch(r.Employee, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(r.ReturnDate, filter) ||
+                    FuzzySearchHelper.IsFuzzyMatch(r.Source, filter))
                 .OrderByDescending(r => Math.Max(
                     FuzzySearchHelper.FuzzyScore(r.EquipmentCode, filter),
                     Math.Max(
@@ -189,10 +203,20 @@ namespace Inventory_Management_System.Forms
                         FuzzySearchHelper.FuzzyScore(r.Employee, filter))))
                 .ToList();
 
-            foreach (var item in items)
+            _totalMatchingCount = matched.Count;
+            _totalPages = Math.Max(1, (int)Math.Ceiling(_totalMatchingCount / (double)_pageSize));
+            if (_currentPage > _totalPages) _currentPage = _totalPages;
+
+            var pageItems = matched
+                .Skip((_currentPage - 1) * _pageSize)
+                .Take(_pageSize)
+                .ToList();
+
+            foreach (var item in pageItems)
             {
                 int rowIdx = dgvReturns.Rows.Add(
                     item.Id,
+                    item.QrCode,
                     item.EquipmentCode,
                     item.EquipmentName,
                     item.Employee,
@@ -211,7 +235,10 @@ namespace Inventory_Management_System.Forms
                 sourceCell.Style.Font = ThemeHelper.FontBold;
             }
 
-            lblRowCount.Text = $"Showing {dgvReturns.Rows.Count} of {_allReturnRows.Count} returns";
+            lblRowCount.Text = $"Showing {pageItems.Count} of {_totalMatchingCount} returns";
+            lblPageIndicator.Text = $"Page {_currentPage} of {Math.Max(1, _totalPages)}";
+            btnPrevPage.Enabled = _currentPage > 1;
+            btnNextPage.Enabled = _currentPage < _totalPages;
         }
 
         private Allocation? GetSelectedReturn()
@@ -249,11 +276,11 @@ namespace Inventory_Management_System.Forms
 
                 if (alloc == null) { MessageBox.Show("Allocation not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
 
-                alloc.Status           = "returned";
+                alloc.Status = "returned";
                 alloc.ActualReturnDate = frm.ReturnDate;
                 if (alloc.Equipment != null)
                 {
-                    alloc.Equipment.CurrentStatus  = "in_store";
+                    alloc.Equipment.CurrentStatus = "in_store";
                     alloc.Equipment.ConditionGrade = frm.ConditionGrade;
                 }
                 db.SaveChanges();
@@ -306,7 +333,7 @@ namespace Inventory_Management_System.Forms
                 var alloc = db.Allocations.Include(a => a.Equipment).FirstOrDefault(a => a.Id == ret.Id);
                 if (alloc == null) { MessageBox.Show("Return record not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
                 string oldValue = $"{alloc.Equipment?.EquipmentCode} - returned";
-                alloc.Status           = "approved";
+                alloc.Status = "approved";
                 alloc.ActualReturnDate = null;
                 if (alloc.Equipment != null) alloc.Equipment.CurrentStatus = "allocated";
                 db.SaveChanges();
@@ -323,11 +350,39 @@ namespace Inventory_Management_System.Forms
         private void btnRefresh_Click(object sender, EventArgs e)
         {
             txtSearch.Text = string.Empty;
+            _currentPage = 1;
             LoadReturns();
         }
 
         private void txtSearch_TextChanged(object sender, EventArgs e)
-            => RefreshGrid(txtSearch.Text.Trim());
+        {
+            _currentPage = 1;
+            RefreshGrid(txtSearch.Text.Trim());
+        }
+
+        private void cmbPageSize_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (int.TryParse(cmbPageSize.SelectedItem?.ToString(), out int size))
+            {
+                _pageSize = size;
+                _currentPage = 1;
+                RefreshGrid(txtSearch.Text.Trim());
+            }
+        }
+
+        private void btnPrevPage_Click(object sender, EventArgs e)
+        {
+            if (_currentPage <= 1) return;
+            _currentPage--;
+            RefreshGrid(txtSearch.Text.Trim());
+        }
+
+        private void btnNextPage_Click(object sender, EventArgs e)
+        {
+            if (_currentPage >= _totalPages) return;
+            _currentPage++;
+            RefreshGrid(txtSearch.Text.Trim());
+        }
 
         private void btnExport_Click(object sender, EventArgs e)
         {
@@ -335,20 +390,21 @@ namespace Inventory_Management_System.Forms
             {
                 using var sfd = new SaveFileDialog
                 {
-                    Filter   = "CSV files|*.csv",
+                    Filter = "CSV files|*.csv",
                     FileName = $"Returns_{DateTime.Now:yyyyMMdd_HHmm}.csv"
                 };
                 if (sfd.ShowDialog() != DialogResult.OK) return;
 
                 var sb = new StringBuilder();
-                sb.AppendLine("Return ID,Equipment Code,Equipment Name,Returned By,Return Date,Condition");
+                sb.AppendLine("Return ID,QR Code,Equipment Code,Equipment Name,Returned By,Return Date,Condition");
                 foreach (DataGridViewRow row in dgvReturns.Rows)
                 {
                     string E(object? v) => $"\"{v?.ToString()?.Replace("\"", "\"\"") ?? ""}\"";
                     sb.AppendLine(string.Join(",",
-                        E(row.Cells["ReturnID"].Value),      E(row.Cells["EquipmentCode"].Value),
-                        E(row.Cells["EquipmentName"].Value), E(row.Cells["Employee"].Value),
-                        E(row.Cells["ReturnDate"].Value),    E(row.Cells["Condition"].Value)));
+                        E(row.Cells["ReturnID"].Value), E(row.Cells["QRCode"].Value),
+                        E(row.Cells["EquipmentCode"].Value), E(row.Cells["EquipmentName"].Value),
+                        E(row.Cells["Employee"].Value), E(row.Cells["ReturnDate"].Value),
+                        E(row.Cells["Condition"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
                 MessageBox.Show("Exported successfully.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -369,35 +425,35 @@ namespace Inventory_Management_System.Forms
     // ── Process Return Dialog — unchanged ─────────────────────────────────
     public class ProcessReturnForm : Form
     {
-        public int      AllocationId   { get; private set; }
-        public DateOnly ReturnDate     { get; private set; }
-        public string   ConditionGrade { get; private set; } = "Good";
+        public int AllocationId { get; private set; }
+        public DateOnly ReturnDate { get; private set; }
+        public string ConditionGrade { get; private set; } = "Good";
 
         private readonly List<Allocation> _allocations;
-        private readonly bool             _isEdit;
+        private readonly bool _isEdit;
 
-        private ComboBox       cmbAllocation = null!;
+        private ComboBox cmbAllocation = null!;
         private DateTimePicker dtpReturnDate = null!;
-        private ComboBox       cmbCondition  = null!;
-        private Button         btnSave       = null!;
-        private Button         btnCancel     = null!;
+        private ComboBox cmbCondition = null!;
+        private Button btnSave = null!;
+        private Button btnCancel = null!;
 
         private static readonly string[] Conditions = { "New", "Good", "Fair", "Poor", "Unserviceable" };
 
         public ProcessReturnForm(List<Allocation> allocations, bool isEdit, Allocation? existing = null)
         {
             _allocations = allocations;
-            _isEdit      = isEdit;
+            _isEdit = isEdit;
             BuildUI(existing);
         }
 
         private void BuildUI(Allocation? existing)
         {
-            Text            = _isEdit ? "Edit Return" : "Process Return";
-            Size            = new Size(460, 310);
-            StartPosition   = FormStartPosition.CenterParent;
+            Text = _isEdit ? "Edit Return" : "Process Return";
+            Size = new Size(460, 310);
+            StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox     = false;
+            MaximizeBox = false;
             ThemeHelper.ApplyFormBackground(this);
 
             int y = 20;
@@ -408,15 +464,15 @@ namespace Inventory_Management_System.Forms
                 Controls.Add(lbl);
                 y += 22;
                 ctrl.Location = new Point(20, y);
-                ctrl.Width    = 400;
+                ctrl.Width = 400;
                 Controls.Add(ctrl);
                 y += 42;
             }
 
             cmbAllocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbAllocation.DisplayMember = "AllocationDisplay";
-            cmbAllocation.ValueMember   = "Id";
-            cmbAllocation.DataSource    = _allocations.Select(a => new
+            cmbAllocation.ValueMember = "Id";
+            cmbAllocation.DataSource = _allocations.Select(a => new
             {
                 a.Id,
                 AllocationDisplay = $"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name} → {a.Employee?.FullName}"
@@ -427,9 +483,9 @@ namespace Inventory_Management_System.Forms
 
             dtpReturnDate = new DateTimePicker
             {
-                Format  = DateTimePickerFormat.Short,
+                Format = DateTimePickerFormat.Short,
                 MaxDate = DateTime.Today,
-                Value   = existing?.ActualReturnDate.HasValue == true
+                Value = existing?.ActualReturnDate.HasValue == true
                     ? existing.ActualReturnDate.Value.ToDateTime(TimeOnly.MinValue)
                     : DateTime.Today
             };
@@ -452,7 +508,7 @@ namespace Inventory_Management_System.Forms
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
             Controls.Add(btnCancel);
 
-            ClientSize   = new Size(440, y + 70);
+            ClientSize = new Size(440, y + 70);
             AcceptButton = btnSave;
             CancelButton = btnCancel;
         }
@@ -461,10 +517,10 @@ namespace Inventory_Management_System.Forms
         {
             if (cmbAllocation.SelectedValue == null) { MessageBox.Show("Please select an allocation.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
             if (cmbCondition.SelectedItem == null) { MessageBox.Show("Please select a condition grade.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-            AllocationId   = (int)cmbAllocation.SelectedValue;
-            ReturnDate     = DateOnly.FromDateTime(dtpReturnDate.Value);
+            AllocationId = (int)cmbAllocation.SelectedValue;
+            ReturnDate = DateOnly.FromDateTime(dtpReturnDate.Value);
             ConditionGrade = cmbCondition.SelectedItem.ToString()!;
-            DialogResult   = DialogResult.OK;
+            DialogResult = DialogResult.OK;
         }
     }
 }

@@ -36,9 +36,12 @@ namespace Inventory_Management_System.Forms
         private int _totalPages = 1;
         private int _totalMatchingCount = 0;
 
-        // ── Toolbar wrap/resize fix — mirrors EquipmentForm.cs's fix so the
-        // toolbar row wraps to a second line properly instead of hiding
-        // behind the grid when the window is resized narrow. ──────────────
+        // Tracks a genuine user mouse-click on a grid row, as opposed to the
+        // WinForms quirk where a DataGridView silently re-selects its first
+        // row/cell purely from receiving focus (which previously caused
+        // "Allocate" to falsely preselect equipment nobody actually chose).
+        private bool _userClickedGridRow = false;
+
         private bool _updatingToolbarHeight = false;
 
         private void FlowToolbar_Layout(object? sender, LayoutEventArgs e)
@@ -58,6 +61,7 @@ namespace Inventory_Management_System.Forms
         {
             public int Id { get; set; }
             public string Source { get; set; } = "Allocation"; // "Allocation" | "Check In/Out" | "Available"
+            public string QrCode { get; set; } = "—";
             public string EquipmentCode { get; set; } = "—";
             public string EquipmentName { get; set; } = "—";
             public string SerialNumber { get; set; } = "—";
@@ -83,6 +87,13 @@ namespace Inventory_Management_System.Forms
             SetupSuggestions();
 
             dgvAllocation.SelectionChanged += (s, e) => UpdateActionButtonsForSelection();
+
+            // Only a genuine mouse click on a data row counts as the user
+            // "selecting" it for the Allocate-preselect feature below.
+            dgvAllocation.CellClick += (s, e) =>
+            {
+                if (e.RowIndex >= 0) _userClickedGridRow = true;
+            };
 
             flowToolbar.Layout += FlowToolbar_Layout;
         }
@@ -141,12 +152,6 @@ namespace Inventory_Management_System.Forms
             flow.Controls.SetChildIndex(cmbEquipmentFilter, flow.Controls.IndexOf(btnRefresh) + 1);
         }
 
-        // "Available" equipment rows — now checks Allocations/Transactions
-        // directly instead of trusting Equipment.CurrentStatus, since that
-        // field can go stale (e.g. an equipment with an approved Allocation
-        // but CurrentStatus still showing "in_store"). This mirrors the same
-        // fix applied to AddAllocationForm's eligibility filter below, so
-        // both views agree on what's actually available.
         private List<AllocationRow> GetAvailableEquipmentRows()
         {
             try
@@ -174,6 +179,7 @@ namespace Inventory_Management_System.Forms
                     {
                         Id = -(2_000_000 + e.Id),
                         Source = "Available",
+                        QrCode = string.IsNullOrWhiteSpace(e.QrCode) ? "—" : e.QrCode,
                         EquipmentCode = e.EquipmentCode,
                         EquipmentName = e.Name,
                         SerialNumber = string.IsNullOrWhiteSpace(e.SerialNumber) ? "—" : e.SerialNumber,
@@ -291,6 +297,7 @@ namespace Inventory_Management_System.Forms
                     {
                         Id = -t.TransactionId,
                         Source = "Check In/Out",
+                        QrCode = string.IsNullOrWhiteSpace(t.Equipment?.QrCode) ? "—" : t.Equipment!.QrCode,
                         EquipmentCode = t.Equipment?.EquipmentCode ?? "—",
                         EquipmentName = t.Equipment?.Name ?? "—",
                         SerialNumber = t.Equipment?.SerialNumber ?? "—",
@@ -311,6 +318,7 @@ namespace Inventory_Management_System.Forms
                 {
                     Id = a.Id,
                     Source = "Allocation",
+                    QrCode = string.IsNullOrWhiteSpace(a.Equipment?.QrCode) ? "—" : a.Equipment!.QrCode,
                     EquipmentCode = a.Equipment?.EquipmentCode ?? "—",
                     EquipmentName = a.Equipment?.Name ?? "—",
                     SerialNumber = a.Equipment?.SerialNumber ?? "—",
@@ -365,6 +373,7 @@ namespace Inventory_Management_System.Forms
             dgvAllocation.Columns["AllocationID"].Visible = !isAvailableView;
             dgvAllocation.Columns["Status"].Visible = !isAvailableView;
             dgvAllocation.Columns["Source"].Visible = !isAvailableView;
+            dgvAllocation.Columns["QRCode"].Visible = isAvailableView;
             dgvAllocation.Columns["SerialNumber"].Visible = isAvailableView;
             dgvAllocation.Columns["Make"].Visible = isAvailableView;
             dgvAllocation.Columns["Model"].Visible = isAvailableView;
@@ -380,7 +389,8 @@ namespace Inventory_Management_System.Forms
                     : available.Where(r =>
                         FuzzySearchHelper.IsFuzzyMatch(r.EquipmentCode, filter) ||
                         FuzzySearchHelper.IsFuzzyMatch(r.EquipmentName, filter) ||
-                        FuzzySearchHelper.IsFuzzyMatch(r.SerialNumber, filter))
+                        FuzzySearchHelper.IsFuzzyMatch(r.SerialNumber, filter) ||
+                        FuzzySearchHelper.IsFuzzyMatch(r.QrCode, filter))
                       .ToList();
 
                 totalMatching = items.Count;
@@ -441,6 +451,7 @@ namespace Inventory_Management_System.Forms
             {
                 int rowIdx = dgvAllocation.Rows.Add(
                     item.Id,
+                    item.QrCode,
                     item.EquipmentCode,
                     item.EquipmentName,
                     item.SerialNumber,
@@ -503,11 +514,9 @@ namespace Inventory_Management_System.Forms
                 }
             }
 
-            // Prevent the grid's automatic first-row selection from being picked up
-            // as a real user selection — Allocate should only preselect equipment
-            // when the user actually clicked a row.
             dgvAllocation.ClearSelection();
             dgvAllocation.CurrentCell = null;
+            _userClickedGridRow = false;
 
             lblRowCount.Text = $"Showing {items.Count} of {totalMatching} records";
             lblPageIndicator.Text = $"Page {_currentPage} of {Math.Max(1, _totalPages)}";
@@ -539,15 +548,19 @@ namespace Inventory_Management_System.Forms
             btnDelete.Enabled = !isCheckInOutSelected;
         }
 
-        // Pre-selects the equipment matching the currently-selected grid row
-        // (if any) inside the New Allocation popup — e.g. selecting an
-        // "Available" row and clicking Allocate now opens the dialog with
-        // that equipment already chosen.
+        // Only preselects equipment in the New Allocation dialog if the user
+        // actually clicked a grid row this session (see _userClickedGridRow) —
+        // fixes the false-positive preselect caused by the grid's default
+        // focus-driven row highlighting.
         private void btnAdd_Click(object sender, EventArgs e)
         {
-            var selectedRow = GetSelectedRow();
-            string? preselectCode = selectedRow?.EquipmentCode;
-            if (preselectCode == "—") preselectCode = null;
+            string? preselectCode = null;
+            if (_userClickedGridRow)
+            {
+                var selectedRow = GetSelectedRow();
+                preselectCode = selectedRow?.EquipmentCode;
+                if (preselectCode == "—") preselectCode = null;
+            }
 
             using var frm = new AddAllocationForm(
                 _equipmentService.GetAll().Data ?? new(),
@@ -711,17 +724,18 @@ namespace Inventory_Management_System.Forms
                 if (sfd.ShowDialog() != DialogResult.OK) return;
 
                 var sb = new StringBuilder();
-                sb.AppendLine("ID,Equipment Code,Equipment Name,Serial Number,Make,Model,Employee,Location,Date Allocated,Expected Return,Status,Source");
+                sb.AppendLine("ID,QR Code,Equipment Code,Equipment Name,Serial Number,Make,Model,Employee,Location,Date Allocated,Expected Return,Status,Source");
                 foreach (DataGridViewRow row in dgvAllocation.Rows)
                 {
                     string E(object? v) => $"\"{v?.ToString()?.Replace("\"", "\"\"") ?? ""}\"";
                     sb.AppendLine(string.Join(",",
-                        E(row.Cells["AllocationID"].Value), E(row.Cells["EquipmentCode"].Value),
-                        E(row.Cells["EquipmentName"].Value), E(row.Cells["SerialNumber"].Value),
-                        E(row.Cells["Make"].Value), E(row.Cells["Model"].Value),
-                        E(row.Cells["Employee"].Value), E(row.Cells["Location"].Value),
-                        E(row.Cells["DateAllocated"].Value), E(row.Cells["ExpectedReturn"].Value),
-                        E(row.Cells["Status"].Value), E(row.Cells["Source"].Value)));
+                        E(row.Cells["AllocationID"].Value), E(row.Cells["QRCode"].Value),
+                        E(row.Cells["EquipmentCode"].Value), E(row.Cells["EquipmentName"].Value),
+                        E(row.Cells["SerialNumber"].Value), E(row.Cells["Make"].Value),
+                        E(row.Cells["Model"].Value), E(row.Cells["Employee"].Value),
+                        E(row.Cells["Location"].Value), E(row.Cells["DateAllocated"].Value),
+                        E(row.Cells["ExpectedReturn"].Value), E(row.Cells["Status"].Value),
+                        E(row.Cells["Source"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
                 MessageBox.Show("Exported successfully.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -772,20 +786,11 @@ namespace Inventory_Management_System.Forms
 
             using (var db = new InventoryDbContext())
             {
-                // Equipment currently mid-Check-Out (Pending/Overdue Transaction)
-                // must be excluded regardless of CurrentStatus.
                 var checkedOutEquipmentIds = new HashSet<int>(
                     db.Transactions
                         .Where(t => t.Status == "Pending" || t.Status == "Overdue")
                         .Select(t => t.EquipmentId));
 
-                // Fixed: previously this only excluded equipment with an
-                // *approved* allocation when CurrentStatus == "allocated" —
-                // if CurrentStatus was stale (e.g. still "in_store" despite
-                // having an approved Allocation), the equipment slipped
-                // through and later failed at save time. Now checks for any
-                // pending OR approved Allocation directly, independent of
-                // CurrentStatus.
                 var activelyAllocatedEquipmentIds = new HashSet<int>(
                     db.Allocations
                         .Where(a => a.Status == "pending" || a.Status == "approved")
@@ -825,7 +830,6 @@ namespace Inventory_Management_System.Forms
                 y += 38;
             }
 
-            // ── Category filter ──────────────────────────────────────────
             cmbCategoryFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             var categoryNames = new CategoryService().GetAll().Data?.Select(c => c.Name)
                 ?? Enumerable.Empty<string>();
@@ -841,12 +845,10 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleComboBox(cmbCategoryFilter);
             AddRow("Filter by Category:", cmbCategoryFilter);
 
-            // ── Equipment search-by-code/name/serial ────────────────────────
             txtEquipmentSearch = new TextBox { PlaceholderText = "Search by equipment code, name, or serial…" };
             ThemeHelper.StyleTextBox(txtEquipmentSearch);
             AddRow("Find Equipment:", txtEquipmentSearch);
 
-            // ── Equipment — browsable dropdown, filtered by category ────────
             cmbEquipment = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbEquipment.DisplayMember = "DisplayText";
             cmbEquipment.ValueMember = "Id";
@@ -860,23 +862,30 @@ namespace Inventory_Management_System.Forms
                 hostForm: this,
                 onSelected: eq =>
                 {
-                    // Ensure the picked equipment is present in the currently
-                    // filtered dropdown regardless of the active category filter.
                     if (cmbCategoryFilter.SelectedItem?.ToString() != "All Categories")
                         cmbCategoryFilter.SelectedItem = "All Categories"; // triggers RefreshEquipmentDropdown
                     cmbEquipment.SelectedValue = eq.Id;
+
+                    // Explicitly write the picked item back into the search box.
+                    // Without this, selecting via keyboard (arrow keys + Enter)
+                    // left the field blank and the underlying selection did not
+                    // visibly stick — mirrors the same fix already applied to
+                    // the Employee search box below.
+                    txtEquipmentSearch.Text = $"{eq.EquipmentCode} — {eq.Name}";
+                    txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
                 },
-                scoreFn: (eq, term) => Math.Max(
+       scoreFn: (eq, term) => Math.Max(
                     FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, term),
                     Math.Max(
-                        FuzzySearchHelper.FuzzyScore(eq.Name, term),
-                        FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, term))),
+                        FuzzySearchHelper.FuzzyScoreCode(eq.QrCode, term),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScore(eq.Name, term),
+                            FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, term)))),
                 line1Selector: eq => $"{eq.EquipmentCode} — {eq.Name}",
                 line2Selector: eq => string.IsNullOrWhiteSpace(eq.SerialNumber)
                     ? (eq.Category ?? "—") : $"S/N: {eq.SerialNumber}");
             _equipmentSuggest.LoadItems(_equipment);
 
-            // ── Employee search-by-code ────────────────────────────────────
             txtEmployeeSearch = new TextBox { PlaceholderText = "Search by employee code or name…" };
             ThemeHelper.StyleTextBox(txtEmployeeSearch);
             AddRow("Find Employee:", txtEmployeeSearch);
@@ -938,10 +947,6 @@ namespace Inventory_Management_System.Forms
             Controls.Add(btnCancel);
 
             ClientSize = new Size(400, y + 70);
-            // Intentionally no AcceptButton: with one set, pressing Enter to pick
-            // a suggestion from EntitySuggestHelper's popup also fires
-            // btnSave.Click for the same keystroke. Allocate must only run from
-            // an explicit button click.
             CancelButton = btnCancel;
         }
 
@@ -959,13 +964,10 @@ namespace Inventory_Management_System.Forms
                 DisplayText = $"{e.EquipmentCode} — {e.Name}" +
                               (string.IsNullOrWhiteSpace(e.SerialNumber) ? "" : $" (S/N: {e.SerialNumber})")
             }).ToList();
-            cmbEquipment.SelectedIndex = -1; // don't auto-pick the first equipment
+            cmbEquipment.SelectedIndex = -1;
 
             _equipmentSuggest?.LoadItems(filtered);
 
-            // Apply row-selection preselect (once) — if the equipment the
-            // user had selected in the background grid before clicking
-            // Allocate is present in the currently eligible list, pick it.
             if (!_preselectApplied && !string.IsNullOrWhiteSpace(_preselectEquipmentCode))
             {
                 var match = filtered.FirstOrDefault(e => e.EquipmentCode == _preselectEquipmentCode);

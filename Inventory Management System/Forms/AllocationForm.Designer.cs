@@ -120,6 +120,7 @@ namespace Inventory_Management_System.Forms
             dgvAllocation.MultiSelect = true;
             dgvAllocation.Name = "dgvAllocation";
             dgvAllocation.Columns.Add("AllocationID", "ID");
+            dgvAllocation.Columns.Add("QRCode", "QR Code");
             dgvAllocation.Columns.Add("EquipmentCode", "Equipment Code");
             dgvAllocation.Columns.Add("EquipmentName", "Equipment Name");
             dgvAllocation.Columns.Add("SerialNumber", "Serial Number");

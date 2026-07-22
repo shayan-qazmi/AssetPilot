@@ -140,10 +140,10 @@ namespace Inventory_Management_System.Forms
             AddSectionHeader(card, "Equipment Identification", ColLeft, ref yL);
             bool altL = false;
 
-            txtName = AddFieldRow(card, "Name *", ColLeft, ref yL, ref altL);
+            txtName = AddFieldRow(card, "Name * ", ColLeft, ref yL, ref altL);
             txtMake = AddFieldRow(card, "Make", ColLeft, ref yL, ref altL);
             txtModel = AddFieldRow(card, "Model", ColLeft, ref yL, ref altL);
-            txtSerialNumber = AddFieldRow(card, "Serial Number", ColLeft, ref yL, ref altL);
+            txtSerialNumber = AddFieldRow(card, "Serial Number * ", ColLeft, ref yL, ref altL);
 
             cmbStatus = AddComboRow(card, "Current Status", ColLeft, ref yL, ref altL,
                  new[] { "In Store", "Decommissioned", "Under Repair" });
