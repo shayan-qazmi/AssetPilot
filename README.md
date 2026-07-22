@@ -61,9 +61,9 @@ Q Inventory is a Windows desktop application that helps organizations track phys
 | Screen | Description |
 |---|---|
 | <img width="980" height="668" alt="image" src="https://github.com/user-attachments/assets/0858e828-165b-4124-a6ac-7bc54e99d7ba" />| Login screen |
-| <img width="1919" height="1029" alt="image" src="https://github.com/user-attachments/assets/737f24b6-0799-4b0d-bf4c-140b22272b68" />| Dashboard with charts |
+| <img width="1919" height="1032" alt="image" src="https://github.com/user-attachments/assets/502d51c6-d9ed-4a55-b728-e60779b9a356" />| Dashboard with charts |
 | <img width="1919" height="1029" alt="image" src="https://github.com/user-attachments/assets/d857625c-175e-488e-a428-2d8b9e113622" />| Equipment management |
-| <img width="1914" height="1020" alt="image" src="https://github.com/user-attachments/assets/f4f85c97-6a7b-42c4-813b-6f84f7fe54e3" />| Add/Edit Equipment (with category, vendor, condition, warranty fields) |
+| <img width="1919" height="1031" alt="image" src="https://github.com/user-attachments/assets/fbf6e242-9dff-4b33-aa9f-74fc8c16bad1" />| Add/Edit Equipment (with category, vendor, condition, warranty fields) |
 | <img width="1919" height="1031" alt="image" src="https://github.com/user-attachments/assets/a2c99255-a304-49d0-9bb5-699bf5920042" />| Allocation workflow |
 | <img width="1919" height="1032" alt="image" src="https://github.com/user-attachments/assets/1dcb070b-21ee-42f2-8b4c-9c7fd4e656fe" />| Check In / Check Out |
 | <img width="1919" height="1029" alt="image" src="https://github.com/user-attachments/assets/942f9ad1-0099-4e13-9f83-625c356d3a9f" />| QR Scanner with history |
