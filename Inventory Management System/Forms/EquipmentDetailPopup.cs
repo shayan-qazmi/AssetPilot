@@ -351,9 +351,20 @@ namespace Inventory_Management_System.Forms
         // ── Opens the picture in a small popup (images) or the OS default
         // viewer (PDFs, since building an in-app PDF renderer is out of scope
         // for this feature). ──────────────────────────────────────────────
-        private void ShowPicture(string relativePath)
+        private void ShowPicture(string storedValue)
         {
-            string fullPath = System.IO.Path.Combine(Application.StartupPath, relativePath);
+            string fullPath;
+            try
+            {
+                NetworkShareHelper.EnsureConnected();
+                fullPath = NetworkPaths.GetEquipmentPictureFullPath(storedValue);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Could not connect to the shared picture folder: " + ex.Message,
+                    "Network Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
 
             if (!System.IO.File.Exists(fullPath))
             {
@@ -402,12 +413,9 @@ namespace Inventory_Management_System.Forms
                 BackColor = Color.Black,
             };
 
-            // Cap the initial window size to something reasonable while
-            // preserving the image's aspect ratio, but still allow the user
-            // to resize/maximize afterward.
             int maxW = 900, maxH = 700;
             double scale = Math.Min((double)maxW / img.Width, (double)maxH / img.Height);
-            if (scale > 1) scale = 1; // never upscale small images
+            if (scale > 1) scale = 1;
             int initW = Math.Max(300, (int)(img.Width * scale));
             int initH = Math.Max(200, (int)(img.Height * scale));
 
@@ -419,7 +427,7 @@ namespace Inventory_Management_System.Forms
                 BackColor = Color.Black,
             };
             frm.Controls.Add(pic);
-            frm.ClientSize = new Size(initW, initH + 20); // small buffer for title bar rendering quirks
+            frm.ClientSize = new Size(initW, initH + 20);
 
             frm.FormClosed += (s, e) => img?.Dispose();
             frm.ShowDialog(this);

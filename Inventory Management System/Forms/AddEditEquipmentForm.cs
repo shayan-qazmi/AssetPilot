@@ -146,8 +146,12 @@ namespace Inventory_Management_System.Forms
             txtSerialNumber = AddFieldRow(card, "Serial Number", ColLeft, ref yL, ref altL);
 
             cmbStatus = AddComboRow(card, "Current Status", ColLeft, ref yL, ref altL,
-                new[] { "In Store", "Allocated", "Decommissioned", "Under Repair" });
+                 new[] { "In Store", "Decommissioned", "Under Repair" });
             cmbStatus.SelectedIndexChanged += CmbStatus_SelectedIndexChanged;
+
+            AddHintRow(card,
+                "💡 Allocation is handled from the Allocation screen",
+                ColLeft, ref yL, ref altL);
 
             if (!_isEditMode)
             {
@@ -303,19 +307,17 @@ namespace Inventory_Management_System.Forms
 
             try
             {
-                string picturesDir = System.IO.Path.Combine(Application.StartupPath, "Images", "Equipment");
-                System.IO.Directory.CreateDirectory(picturesDir);
+                NetworkShareHelper.EnsureConnected();
+                System.IO.Directory.CreateDirectory(NetworkPaths.EquipmentPicturesDir);
 
                 string ext = System.IO.Path.GetExtension(ofd.FileName);
                 string fileName = $"{Guid.NewGuid():N}{ext}";
-                string destPath = System.IO.Path.Combine(picturesDir, fileName);
+                string destPath = System.IO.Path.Combine(NetworkPaths.EquipmentPicturesDir, fileName);
                 System.IO.File.Copy(ofd.FileName, destPath, overwrite: true);
 
-                // If the user is replacing a choice they already staged this
-                // session (before saving), clean up the previous staged file.
                 CleanupStagedFileIfAny();
 
-                _stagedPicturePath = System.IO.Path.Combine("Images", "Equipment", fileName);
+                _stagedPicturePath = fileName; // store bare filename now, not a local relative path
                 _pictureRemoved = false;
                 UpdatePictureStatusLabel();
             }
@@ -340,12 +342,13 @@ namespace Inventory_Management_System.Forms
             _stagedPicturePath = null;
         }
 
-        private static void DeleteFileIfExists(string? relativePath)
+        private static void DeleteFileIfExists(string? storedValue)
         {
-            if (string.IsNullOrEmpty(relativePath)) return;
+            if (string.IsNullOrEmpty(storedValue)) return;
             try
             {
-                string full = System.IO.Path.Combine(Application.StartupPath, relativePath);
+                NetworkShareHelper.EnsureConnected();
+                string full = NetworkPaths.GetEquipmentPictureFullPath(storedValue);
                 if (System.IO.File.Exists(full)) System.IO.File.Delete(full);
             }
             catch { /* best-effort cleanup — never block the user for this */ }
@@ -403,7 +406,17 @@ namespace Inventory_Management_System.Forms
         private void RevertStatusTo(string status)
         {
             _suppressStatusEvent = true;
-            cmbStatus.SelectedItem = FormatStatus(status);
+            string formattedStatus = FormatStatus(_equipment.CurrentStatus);
+            if (!cmbStatus.Items.Contains(formattedStatus))
+            {
+                // Equipment is currently Allocated or Decommissioned — those
+                // states are no longer chosen from this form, but we still
+                // need to display the real status. Add it as a locked,
+                // read-only entry rather than silently dropping it.
+                cmbStatus.Items.Add(formattedStatus);
+                cmbStatus.Enabled = false;
+            }
+            cmbStatus.SelectedItem = formattedStatus;
             _suppressStatusEvent = false;
         }
 

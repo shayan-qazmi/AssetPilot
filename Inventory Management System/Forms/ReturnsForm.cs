@@ -53,7 +53,7 @@ namespace Inventory_Management_System.Forms
                     hostForm: this,
                     onSelected: a => SelectReturnRow(a.Id),
                     scoreFn: (a, term) => Math.Max(
-                        FuzzySearchHelper.FuzzyScore(a.Equipment?.EquipmentCode, term),
+                        FuzzySearchHelper.FuzzyScoreCode(a.Equipment?.EquipmentCode, term),
                         Math.Max(
                             FuzzySearchHelper.FuzzyScore(a.Equipment?.Name, term),
                             Math.Max(

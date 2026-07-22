@@ -206,19 +206,18 @@ namespace Inventory_Management_System.Helpers
                 return;
             }
 
-            // Score and rank by equipment code OR name — take the better score
             var scored = _allEquipment
-                .Select(eq => new
-                {
-                    Equipment = eq,
-                    Score     = Math.Max(
-                        FuzzySearchHelper.FuzzyScore(eq.EquipmentCode, query),
-                        FuzzySearchHelper.FuzzyScore(eq.Name, query))
-                })
-                .Where(x => x.Score > -10000)                 // exclude non-matches
-                .OrderByDescending(x => x.Score)
-                .Take(MaxSuggestions)
-                .ToList();
+                 .Select(eq => new
+                 {
+                     Equipment = eq,
+                     Score = Math.Max(
+                         FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, query),
+                         FuzzySearchHelper.FuzzyScore(eq.Name, query))
+                 })
+                 .Where(x => x.Score > -10000)
+                 .OrderByDescending(x => x.Score)
+                 .Take(MaxSuggestions)
+                 .ToList();
 
             if (scored.Count == 0)
             {

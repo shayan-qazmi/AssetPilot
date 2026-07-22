@@ -6,9 +6,6 @@ namespace Inventory_Management_System.Helpers
 {
     public static class FuzzySearchHelper
     {
-        /// <summary>
-        /// Determines if the query matches the source string using substring or Levenshtein distance.
-        /// </summary>
         public static bool IsFuzzyMatch(string? source, string query, int maxDistance = 2)
         {
             if (string.IsNullOrWhiteSpace(query)) return true;
@@ -17,13 +14,10 @@ namespace Inventory_Management_System.Helpers
             string srcLower = source.ToLowerInvariant();
             string qryLower = query.ToLowerInvariant().Trim();
 
-            // Fast pass: Substring check
             if (srcLower.Contains(qryLower)) return true;
 
-            // Compute Levenshtein distance for the entire string
             int minDistance = GetLevenshteinDistance(srcLower, qryLower);
 
-            // Compute Levenshtein distance for individual tokens in the source
             var tokens = srcLower.Split(new[] { ' ', '-', '_', '/' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var token in tokens)
             {
@@ -37,9 +31,6 @@ namespace Inventory_Management_System.Helpers
             return minDistance <= maxDistance;
         }
 
-        /// <summary>
-        /// Calculates a relevance score for ordering search results. Higher is better.
-        /// </summary>
         public static int FuzzyScore(string? source, string query)
         {
             if (string.IsNullOrWhiteSpace(query)) return 0;
@@ -48,25 +39,21 @@ namespace Inventory_Management_System.Helpers
             string srcLower = source.ToLowerInvariant();
             string qryLower = query.ToLowerInvariant().Trim();
 
-            // Exact match
             if (srcLower == qryLower)
             {
                 return 10000;
             }
 
-            // Starts with
             if (srcLower.StartsWith(qryLower))
             {
                 return 9000 - (srcLower.Length - qryLower.Length);
             }
 
-            // Contains
             if (srcLower.Contains(qryLower))
             {
                 return 8000 - (srcLower.Length - qryLower.Length);
             }
 
-            // Levenshtein distance calculation
             int minDistance = GetLevenshteinDistance(srcLower, qryLower);
             var tokens = srcLower.Split(new[] { ' ', '-', '_', '/' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var token in tokens)
@@ -82,6 +69,28 @@ namespace Inventory_Management_System.Helpers
             {
                 return 5000 - (minDistance * 1000) - (srcLower.Length - qryLower.Length);
             }
+
+            return -10000;
+        }
+
+        /// <summary>
+        /// Strict scoring for structured identifier fields (equipment codes,
+        /// employee codes, QR codes, etc.) where a small edit-distance does NOT
+        /// imply relevance — "EQ008" and "EQ001" differ by one character but are
+        /// completely different records. This skips the Levenshtein fallback
+        /// entirely and only rewards exact, prefix, or substring matches.
+        /// </summary>
+        public static int FuzzyScoreCode(string? source, string query)
+        {
+            if (string.IsNullOrWhiteSpace(query)) return 0;
+            if (source == null) return -10000;
+
+            string srcLower = source.ToLowerInvariant();
+            string qryLower = query.ToLowerInvariant().Trim();
+
+            if (srcLower == qryLower) return 10000;
+            if (srcLower.StartsWith(qryLower)) return 9000 - (srcLower.Length - qryLower.Length);
+            if (srcLower.Contains(qryLower)) return 8000 - (srcLower.Length - qryLower.Length);
 
             return -10000;
         }

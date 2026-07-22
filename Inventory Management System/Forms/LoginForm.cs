@@ -88,11 +88,11 @@ namespace Inventory_Management_System.Forms
 
         private void DrawPersonImage(Graphics g, float cx, float groundY, float scale, float breathe)
         {
-            float imgH = 500f * scale * breathe;
+            float imgH = 380f * scale * breathe;
             float imgW = imgH * ((float)_personImage!.Width / _personImage.Height);
 
             float px = cx - imgW / 2f;
-            float py = groundY - imgH + 20f * scale;
+            float py = groundY - imgH + 55f * scale;
 
             g.DrawImage(_personImage, px, py, imgW, imgH);
         }

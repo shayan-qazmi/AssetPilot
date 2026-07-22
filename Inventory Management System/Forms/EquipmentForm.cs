@@ -154,7 +154,7 @@ namespace Inventory_Management_System.Forms
                 _activeCategory = selected == "All Categories" ? "" : selected;
                 ApplyFilters();
             };
-
+               
             // Insert cmbCategory right after cmbSelectMode in the flow
             flow.Controls.Add(cmbCategory);
             flow.Controls.SetChildIndex(cmbCategory, flow.Controls.IndexOf(cmbSelectMode) + 1);

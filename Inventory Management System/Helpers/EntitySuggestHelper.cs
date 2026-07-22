@@ -210,9 +210,15 @@ namespace Inventory_Management_System.Helpers
 
             HideDropdown();
 
+            // Clear the box rather than filling it with the composite "line1"
+            // label. This TextBox typically doubles as a live-filter box in the
+            // host form (e.g. AllocationForm's search bar), so leaving a label
+            // like "EQ008 — Phase Modulator" in place would immediately
+            // re-trigger that filter with text that was never meant to be
+            // searched — it's a display label, not a query — producing an
+            // empty grid right after a successful selection.
             _suppressTextChanged = true;
-            _textBox.Text = _line1(selected);
-            _textBox.SelectionStart = _textBox.Text.Length;
+            _textBox.Text = string.Empty;
             _suppressTextChanged = false;
 
             _textBox.Focus();
