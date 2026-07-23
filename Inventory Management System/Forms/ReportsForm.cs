@@ -25,12 +25,24 @@ namespace Inventory_Management_System.Forms
         private string _activeEquipmentCategory = "All Categories";
         private DataGridView _preview = null!;
         private Label _previewTitle = null!;
+        private string _companyName = "Q-Inventory";
 
         public ReportsForm()
         {
             InitializeComponent();
             ApplyTheme();
             BuildPreviewArea();
+            LoadCompanyName();
+        }
+
+        private void LoadCompanyName()
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                _companyName = db.AppSettings.FirstOrDefault()?.CompanyName ?? "Q-Inventory";
+            }
+            catch { /* fall back to default already set */ }
         }
 
         private void ApplyTheme()
@@ -143,8 +155,8 @@ namespace Inventory_Management_System.Forms
             _currentReport = "Equipment";
             _activeEquipmentCategory = category;
             _previewTitle.Text = category == "All Categories"
-                ? "Equipment Inventory Report"
-                : $"Equipment Inventory Report - {category}";
+             ? $"Equipment Inventory Report — {_companyName}"
+             : $"Equipment Inventory Report - {category} — {_companyName}";
 
             var result = _equipmentService.GetAll();
             if (!result.Success)
@@ -155,12 +167,13 @@ namespace Inventory_Management_System.Forms
 
             _preview.Columns.Clear();
             _preview.Rows.Clear();
-            _preview.Columns.Add("Code",     "Equipment Code");
-            _preview.Columns.Add("Name",     "Name");
-            _preview.Columns.Add("Make",     "Make");
-            _preview.Columns.Add("Model",    "Model");
-            _preview.Columns.Add("Serial",   "Serial Number");
-            _preview.Columns.Add("Status",   "Status");
+            _preview.Columns.Add("Code", "Equipment Code");
+            _preview.Columns.Add("QRCode", "QR Code");
+            _preview.Columns.Add("Name", "Name");
+            _preview.Columns.Add("Make", "Make");
+            _preview.Columns.Add("Model", "Model");
+            _preview.Columns.Add("Serial", "Serial Number");
+            _preview.Columns.Add("Status", "Status");
             _preview.Columns.Add("Location", "Location");
             _preview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
@@ -179,8 +192,8 @@ namespace Inventory_Management_System.Forms
                     .FirstOrDefault(a => a.Status == "approved")?.Location?.LocationName ?? "—";
 
                 int rowIdx = _preview.Rows.Add(
-                    item.EquipmentCode, item.Name, item.Make ?? "—", item.Model ?? "—",
-                    item.SerialNumber, item.CurrentStatus, location);
+       item.EquipmentCode, item.QrCode ?? "—", item.Name, item.Make ?? "—", item.Model ?? "—",
+       item.SerialNumber, item.CurrentStatus, location);
 
                 var statusCell = _preview.Rows[rowIdx].Cells["Status"];
                 statusCell.Style.ForeColor = item.CurrentStatus switch
@@ -198,7 +211,7 @@ namespace Inventory_Management_System.Forms
         private void btnEmployeeReport_Click(object sender, EventArgs e)
         {
             _currentReport = "Employee";
-            _previewTitle.Text = "Employee Allocation Summary";
+            _previewTitle.Text = $"Employee Allocation Summary — {_companyName}";
 
             var empResult = _employeeService.GetAll();
             var allocResult = _allocationService.GetAll();
@@ -211,9 +224,11 @@ namespace Inventory_Management_System.Forms
 
             _preview.Columns.Clear();
             _preview.Rows.Clear();
-            _preview.Columns.Add("Employee",   "Employee");
+            _preview.Columns.Add("EmpCode", "Employee Code");
+            _preview.Columns.Add("Employee", "Employee");
             _preview.Columns.Add("Department", "Department");
-            _preview.Columns.Add("ActiveCount","Items Currently Held");
+            _preview.Columns.Add("Email", "Email");
+            _preview.Columns.Add("ActiveCount", "Items Currently Held");
             _preview.Columns.Add("TotalCount", "Total Ever Allocated");
             _preview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
@@ -227,14 +242,14 @@ namespace Inventory_Management_System.Forms
 
                 if (totalCount == 0) continue; // skip employees with no history
 
-                _preview.Rows.Add(emp.FullName, emp.Department ?? "—", activeCount, totalCount);
+                _preview.Rows.Add(emp.EmployeeCode ?? "—", emp.FullName, emp.Department ?? "—", emp.Email ?? "—", activeCount, totalCount);
             }
         }
 
         private void btnAllocationReport_Click(object sender, EventArgs e)
         {
             _currentReport = "Allocation";
-            _previewTitle.Text = "Active Allocations Report";
+            _previewTitle.Text = $"Active Allocations Report — {_companyName}";
 
             var result = _allocationService.GetAll();
             if (!result.Success)
@@ -245,13 +260,14 @@ namespace Inventory_Management_System.Forms
 
             _preview.Columns.Clear();
             _preview.Rows.Clear();
-            _preview.Columns.Add("Code",     "Equipment Code");
-            _preview.Columns.Add("Name",     "Equipment Name");
+            _preview.Columns.Add("Code", "Equipment Code");
+            _preview.Columns.Add("QRCode", "QR Code");
+            _preview.Columns.Add("Name", "Equipment Name");
             _preview.Columns.Add("Employee", "Allocated To");
             _preview.Columns.Add("Location", "Location");
-            _preview.Columns.Add("Date",     "Allocated On");
+            _preview.Columns.Add("Date", "Allocated On");
             _preview.Columns.Add("Expected", "Expected Return");
-            _preview.Columns.Add("Status",   "Status");
+            _preview.Columns.Add("Status", "Status");
             _preview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
             foreach (var item in (result.Data ?? new List<Allocation>())
@@ -259,9 +275,10 @@ namespace Inventory_Management_System.Forms
             {
                 int rowIdx = _preview.Rows.Add(
                     item.Equipment?.EquipmentCode ?? "—",
-                    item.Equipment?.Name          ?? "—",
-                    item.Employee?.FullName        ?? "—",
-                    item.Location?.LocationName    ?? "—",
+                    item.Equipment?.QrCode ?? "—",
+                    item.Equipment?.Name ?? "—",
+                    item.Employee?.FullName ?? "—",
+                    item.Location?.LocationName ?? "—",
                     item.AllocationDate.ToString("yyyy-MM-dd"),
                     item.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—",
                     item.Status);
@@ -275,7 +292,7 @@ namespace Inventory_Management_System.Forms
         private void btnReturnReport_Click(object sender, EventArgs e)
         {
             _currentReport = "Return";
-            _previewTitle.Text = "Returns History Report";
+            _previewTitle.Text = $"Returns History Report — {_companyName}";    
 
             var result = _allocationService.GetAll();
             if (!result.Success)
@@ -286,10 +303,11 @@ namespace Inventory_Management_System.Forms
 
             _preview.Columns.Clear();
             _preview.Rows.Clear();
-            _preview.Columns.Add("Code",     "Equipment Code");
-            _preview.Columns.Add("Name",     "Equipment Name");
+            _preview.Columns.Add("Code", "Equipment Code");
+            _preview.Columns.Add("QRCode", "QR Code");
+            _preview.Columns.Add("Name", "Equipment Name");
             _preview.Columns.Add("Employee", "Returned By");
-            _preview.Columns.Add("Allocated","Allocated On");
+            _preview.Columns.Add("Allocated", "Allocated On");
             _preview.Columns.Add("Returned", "Return Date");
             _preview.Columns.Add("Duration", "Duration (days)");
             _preview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
@@ -302,12 +320,13 @@ namespace Inventory_Management_System.Forms
                 int duration = (returnDate - item.AllocationDate).Days;
 
                 int rowIdx = _preview.Rows.Add(
-                    item.Equipment?.EquipmentCode ?? "—",
-                    item.Equipment?.Name          ?? "—",
-                    item.Employee?.FullName        ?? "—",
-                    item.AllocationDate.ToString("yyyy-MM-dd"),
-                    item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
-                    duration);
+        item.Equipment?.EquipmentCode ?? "—",
+        item.Equipment?.QrCode ?? "—",
+        item.Equipment?.Name ?? "—",
+        item.Employee?.FullName ?? "—",
+        item.AllocationDate.ToString("yyyy-MM-dd"),
+        item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
+        duration);
 
                 if (duration > 30)
                     _preview.Rows[rowIdx].Cells["Duration"].Style.ForeColor = ThemeHelper.Warning;
@@ -336,17 +355,22 @@ namespace Inventory_Management_System.Forms
                 using var wb = new XLWorkbook();
                 var ws = wb.Worksheets.Add(_currentReport);
 
-                for (int c = 0; c < _preview.Columns.Count; c++)
-                    ws.Cell(1, c + 1).Value = _preview.Columns[c].HeaderText;
+                ws.Cell(1, 1).Value = _companyName;
+                ws.Range(1, 1, 1, _preview.Columns.Count).Merge();
+                ws.Cell(1, 1).Style.Font.Bold = true;
+                ws.Cell(1, 1).Style.Font.FontSize = 13;
 
-                var headerRange = ws.Range(1, 1, 1, _preview.Columns.Count);
+                for (int c = 0; c < _preview.Columns.Count; c++)
+                    ws.Cell(2, c + 1).Value = _preview.Columns[c].HeaderText;
+
+                var headerRange = ws.Range(2, 1, 2, _preview.Columns.Count);
                 headerRange.Style.Font.Bold = true;
                 headerRange.Style.Fill.BackgroundColor = XLColor.FromArgb(46, 125, 50);
                 headerRange.Style.Font.FontColor = XLColor.White;
 
                 for (int r = 0; r < _preview.Rows.Count; r++)
                     for (int c = 0; c < _preview.Columns.Count; c++)
-                        ws.Cell(r + 2, c + 1).Value = _preview.Rows[r].Cells[c].Value?.ToString() ?? "";
+                        ws.Cell(r + 3, c + 1).Value = _preview.Rows[r].Cells[c].Value?.ToString() ?? "";
 
                 ws.Columns().AdjustToContents();
                 wb.SaveAs(sfd.FileName);
@@ -398,7 +422,9 @@ namespace Inventory_Management_System.Forms
                     using var rowFont    = new Font("Segoe UI", 9, FontStyle.Regular);
 
                     g.DrawString($"{_currentReport} Report", titleFont, Brushes.Black, leftMargin, y);
-                    y += 30;
+                    y += 22;
+                    g.DrawString(_companyName, headerFont, Brushes.DimGray, leftMargin, y);
+                    y += 22;
                     g.DrawString($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm}", rowFont, Brushes.Gray, leftMargin, y);
                     y += 28;
 

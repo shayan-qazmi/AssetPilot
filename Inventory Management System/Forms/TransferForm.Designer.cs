@@ -87,15 +87,15 @@ namespace Inventory_Management_System.Forms
             dgvTransfer.ReadOnly = true;
             dgvTransfer.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             dgvTransfer.Name = "dgvTransfer";
-            dgvTransfer.Columns.Add("TransferID", "Transfer ID");
+            dgvTransfer.CellDoubleClick += dgvTransfer_CellDoubleClick;
+            dgvTransfer.Columns.Add("AllocationId", "AllocationId"); // hidden, used to identify the row
             dgvTransfer.Columns.Add("QRCode", "QR Code");
             dgvTransfer.Columns.Add("EquipmentCode", "Equipment Code");
             dgvTransfer.Columns.Add("EquipmentName", "Equipment Name");
-            dgvTransfer.Columns.Add("FromEmployee", "From Employee");
-            dgvTransfer.Columns.Add("ToEmployee", "To Employee");
-            dgvTransfer.Columns.Add("FromLocation", "From Location");
-            dgvTransfer.Columns.Add("ToLocation", "To Location");
-            dgvTransfer.Columns.Add("TransferDate", "Transfer Date");
+            dgvTransfer.Columns.Add("CurrentEmployee", "Currently With");
+            dgvTransfer.Columns.Add("CurrentLocation", "Current Location");
+            dgvTransfer.Columns.Add("AllocatedSince", "Allocated Since");
+            dgvTransfer.Columns["AllocationId"].Visible = false;
 
             panelBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
             panelBottom.Height = 40;

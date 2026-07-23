@@ -19,7 +19,7 @@ namespace Inventory_Management_System.Forms
         private readonly EmployeeService _employeeService = new();
         private readonly LocationService _locationService = new();
         private readonly AuditService _audit = new();
-        private List<Allocation> _allTransfers = new();
+        private List<Allocation> _allAllocations = new(); // currently allocated equipment
 
         private int _currentPage = 1;
         private int _pageSize = 25;
@@ -30,7 +30,7 @@ namespace Inventory_Management_System.Forms
         {
             InitializeComponent();
             ApplyTheme();
-            LoadTransfers();
+            LoadAllocatedEquipment();
         }
 
         private void ApplyTheme()
@@ -50,29 +50,25 @@ namespace Inventory_Management_System.Forms
             lblRowCount.Font = ThemeHelper.FontSmall;
         }
 
-        // ── Load with full includes ───────────────────────────────────────
-        private void LoadTransfers()
+        // ── Load all currently allocated equipment ──────────────────────────
+        private void LoadAllocatedEquipment()
         {
             try
             {
                 using var db = new InventoryDbContext();
-                _allTransfers = db.Allocations
-                    .Where(a => a.PreviousAllocationId != null)
+                _allAllocations = db.Allocations
+                    .Where(a => a.Status == "approved")
                     .Include(a => a.Equipment)
                     .Include(a => a.Employee)
                     .Include(a => a.Location)
-                    .Include(a => a.PreviousAllocation)
-                        .ThenInclude(p => p!.Employee)
-                    .Include(a => a.PreviousAllocation)
-                        .ThenInclude(p => p!.Location)
-                    .OrderByDescending(a => a.AllocationDate)
+                    .OrderBy(a => a.Equipment!.EquipmentCode)
                     .ToList();
 
                 RefreshGrid();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error loading transfers: " + ex.Message, "Error",
+                MessageBox.Show("Error loading allocated equipment: " + ex.Message, "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -81,24 +77,34 @@ namespace Inventory_Management_System.Forms
         {
             dgvTransfer.Rows.Clear();
 
-            var matched = string.IsNullOrWhiteSpace(filter)
-                ? _allTransfers
-                : _allTransfers.Where(a =>
-                    FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.EquipmentCode, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.QrCode, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.Name, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.Employee?.FullName, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.Location?.LocationName, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.PreviousAllocation?.Employee?.FullName, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(a.AllocationDate.ToString("yyyy-MM-dd"), filter))
-                .OrderByDescending(a => Math.Max(
-                    FuzzySearchHelper.FuzzyScore(a.Equipment?.EquipmentCode, filter),
-                    Math.Max(
-                        FuzzySearchHelper.FuzzyScore(a.Equipment?.Name, filter),
-                        Math.Max(
-                            FuzzySearchHelper.FuzzyScore(a.Employee?.FullName, filter),
-                            FuzzySearchHelper.FuzzyScore(a.PreviousAllocation?.Employee?.FullName, filter)))))
-                .ToList();
+            List<Allocation> matched;
+            if (string.IsNullOrWhiteSpace(filter))
+            {
+                matched = _allAllocations;
+            }
+            else
+            {
+                // Scanned/typed codes need an exact substring match — fuzzy matching
+                // lets "QR001" incorrectly match QR002, QR005, etc.
+                var codeMatches = _allAllocations.Where(a =>
+                    (!string.IsNullOrEmpty(a.Equipment?.QrCode) &&
+                        a.Equipment.QrCode.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(a.Equipment?.EquipmentCode) &&
+                        a.Equipment.EquipmentCode.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+
+                matched = codeMatches.Count > 0
+                    ? codeMatches
+                    : _allAllocations.Where(a =>
+                        FuzzySearchHelper.IsFuzzyMatch(a.Equipment?.Name, filter) ||
+                        FuzzySearchHelper.IsFuzzyMatch(a.Employee?.FullName, filter) ||
+                        FuzzySearchHelper.IsFuzzyMatch(a.Location?.LocationName, filter) ||
+                        FuzzySearchHelper.IsFuzzyMatch(a.AllocationDate.ToString("yyyy-MM-dd"), filter))
+                        .OrderByDescending(a => Math.Max(
+                            FuzzySearchHelper.FuzzyScore(a.Equipment?.Name, filter),
+                            FuzzySearchHelper.FuzzyScore(a.Employee?.FullName, filter)))
+                        .ToList();
+            }
 
             _totalMatchingCount = matched.Count;
             _totalPages = Math.Max(1, (int)Math.Ceiling(_totalMatchingCount / (double)_pageSize));
@@ -116,21 +122,36 @@ namespace Inventory_Management_System.Forms
                     string.IsNullOrWhiteSpace(item.Equipment?.QrCode) ? "—" : item.Equipment!.QrCode,
                     item.Equipment?.EquipmentCode ?? "—",
                     item.Equipment?.Name ?? "—",
-                    item.PreviousAllocation?.Employee?.FullName ?? "—",
                     item.Employee?.FullName ?? "—",
-                    item.PreviousAllocation?.Location?.LocationName ?? "—",
                     item.Location?.LocationName ?? "—",
                     item.AllocationDate.ToString("yyyy-MM-dd")
                 );
             }
 
-            lblRowCount.Text = $"Showing {pageItems.Count} of {_totalMatchingCount} transfers";
+            lblRowCount.Text = $"Showing {pageItems.Count} of {_totalMatchingCount} allocated items";
             lblPageIndicator.Text = $"Page {_currentPage} of {Math.Max(1, _totalPages)}";
             btnPrevPage.Enabled = _currentPage > 1;
             btnNextPage.Enabled = _currentPage < _totalPages;
         }
 
+        // ── Toolbar "New Transfer" — pick from full active list ─────────────
         private void btnTransfer_Click(object sender, EventArgs e)
+        {
+            OpenTransferDialog(preselectedAllocationId: null);
+        }
+
+        // ── Double-click a row — jump straight to that item's transfer ──────
+        private void dgvTransfer_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            var idValue = dgvTransfer.Rows[e.RowIndex].Cells["AllocationId"].Value;
+            if (idValue == null || !int.TryParse(idValue.ToString(), out int allocationId)) return;
+
+            OpenTransferDialog(preselectedAllocationId: allocationId);
+        }
+
+        // ── Shared dialog + save logic for both entry points ─────────────────
+        private void OpenTransferDialog(int? preselectedAllocationId)
         {
             try
             {
@@ -151,7 +172,8 @@ namespace Inventory_Management_System.Forms
                 using var frm = new TransferDialog(
                     activeAllocations,
                     _employeeService.GetAll().Data ?? new(),
-                    _locationService.GetAll().Data ?? new());
+                    _locationService.GetAll().Data ?? new(),
+                    preselectedAllocationId);
 
                 if (frm.ShowDialog() != DialogResult.OK) return;
 
@@ -180,7 +202,7 @@ namespace Inventory_Management_System.Forms
                 _audit.Log(oldAlloc.EquipmentId, AuditService.ActionTransferred,
                     $"Employee {oldAlloc.EmployeeId}", $"Employee {frm.NewEmployeeId}");
 
-                LoadTransfers();
+                LoadAllocatedEquipment();
                 MessageBox.Show("Equipment transferred successfully.", "Transfer Complete",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
@@ -195,7 +217,7 @@ namespace Inventory_Management_System.Forms
         {
             txtSearch.Text = string.Empty;
             _currentPage = 1;
-            LoadTransfers();
+            LoadAllocatedEquipment();
         }
 
         private void txtSearch_TextChanged(object sender, EventArgs e)
@@ -235,21 +257,19 @@ namespace Inventory_Management_System.Forms
                 using var sfd = new SaveFileDialog
                 {
                     Filter = "CSV files|*.csv",
-                    FileName = $"Transfers_{DateTime.Now:yyyyMMdd_HHmm}.csv"
+                    FileName = $"AllocatedEquipment_{DateTime.Now:yyyyMMdd_HHmm}.csv"
                 };
                 if (sfd.ShowDialog() != DialogResult.OK) return;
 
                 var sb = new StringBuilder();
-                sb.AppendLine("Transfer ID,QR Code,Equipment Code,Equipment Name,From Employee,To Employee,From Location,To Location,Transfer Date");
+                sb.AppendLine("QR Code,Equipment Code,Equipment Name,Currently With,Current Location,Allocated Since");
                 foreach (DataGridViewRow row in dgvTransfer.Rows)
                 {
                     string E(object? v) => $"\"{v?.ToString()?.Replace("\"", "\"\"") ?? ""}\"";
                     sb.AppendLine(string.Join(",",
-                        E(row.Cells["TransferID"].Value), E(row.Cells["QRCode"].Value),
-                        E(row.Cells["EquipmentCode"].Value), E(row.Cells["EquipmentName"].Value),
-                        E(row.Cells["FromEmployee"].Value), E(row.Cells["ToEmployee"].Value),
-                        E(row.Cells["FromLocation"].Value), E(row.Cells["ToLocation"].Value),
-                        E(row.Cells["TransferDate"].Value)));
+                        E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
+                        E(row.Cells["EquipmentName"].Value), E(row.Cells["CurrentEmployee"].Value),
+                        E(row.Cells["CurrentLocation"].Value), E(row.Cells["AllocatedSince"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
                 MessageBox.Show("Exported successfully.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -261,7 +281,7 @@ namespace Inventory_Management_System.Forms
         }
     }
 
-    // ── Transfer Dialog — unchanged ───────────────────────────────────────
+    // ── Transfer Dialog — now supports preselecting an equipment/allocation ──
     public class TransferDialog : Form
     {
         public int OldAllocationId { get; private set; }
@@ -277,12 +297,15 @@ namespace Inventory_Management_System.Forms
         private readonly List<Allocation> _allocations;
         private readonly List<Employee> _employees;
         private readonly List<Location> _locations;
+        private readonly int? _preselectedAllocationId;
 
-        public TransferDialog(List<Allocation> allocations, List<Employee> employees, List<Location> locations)
+        public TransferDialog(List<Allocation> allocations, List<Employee> employees, List<Location> locations,
+            int? preselectedAllocationId = null)
         {
             _allocations = allocations;
             _employees = employees;
             _locations = locations;
+            _preselectedAllocationId = preselectedAllocationId;
             BuildUI();
         }
 
@@ -319,6 +342,12 @@ namespace Inventory_Management_System.Forms
             }).ToList();
             ThemeHelper.StyleComboBox(cmbAllocation);
             AddRow("Equipment to transfer:", cmbAllocation);
+
+            if (_preselectedAllocationId.HasValue)
+            {
+                cmbAllocation.SelectedValue = _preselectedAllocationId.Value;
+                cmbAllocation.Enabled = false; // double-clicked a specific item — lock it in
+            }
 
             cmbEmployee = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbEmployee.DisplayMember = "FullName";

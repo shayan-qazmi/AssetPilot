@@ -57,10 +57,14 @@ namespace Inventory_Management_System.Forms
             try
             {
                 _suggest = new EntitySuggestHelper<Allocation>(
-                    textBox: txtSearch,
-                    hostForm: this,
-                    onSelected: a => SelectReturnRow(a.Id),
-                    scoreFn: (a, term) => Math.Max(
+       textBox: txtSearch,
+       hostForm: this,
+       onSelected: a =>
+       {
+           var row = _allReturnRows.FirstOrDefault(r => r.AllocationRef != null && r.AllocationRef.Id == a.Id);
+           if (row != null) ShowOnlyReturnRow(row);
+       },
+                       scoreFn: (a, term) => Math.Max(
                         FuzzySearchHelper.FuzzyScoreCode(a.Equipment?.EquipmentCode, term),
                         Math.Max(
                             FuzzySearchHelper.FuzzyScoreCode(a.Equipment?.QrCode, term),
@@ -90,6 +94,32 @@ namespace Inventory_Management_System.Forms
                     break;
                 }
             }
+        }
+
+        private void ShowOnlyReturnRow(ReturnRow item)
+        {
+            dgvReturns.Rows.Clear();
+
+            int rowIdx = dgvReturns.Rows.Add(
+                item.Id, item.QrCode, item.EquipmentCode, item.EquipmentName,
+                item.Employee, item.ReturnDate, item.Condition, item.Source);
+
+            if (item.DurationDays > 30)
+                dgvReturns.Rows[rowIdx].Cells["ReturnDate"].Style.ForeColor = ThemeHelper.Warning;
+
+            var sourceCell = dgvReturns.Rows[rowIdx].Cells["Source"];
+            sourceCell.Style.ForeColor = item.Source == "Check In/Out"
+                ? Color.FromArgb(25, 118, 210)
+                : Color.FromArgb(107, 114, 128);
+            sourceCell.Style.Font = ThemeHelper.FontBold;
+
+            dgvReturns.ClearSelection();
+            dgvReturns.Rows[0].Selected = true;
+
+            lblRowCount.Text = "Showing 1 of 1 returns";
+            lblPageIndicator.Text = "Page 1 of 1";
+            btnPrevPage.Enabled = false;
+            btnNextPage.Enabled = false;
         }
 
         // ── Display-only view-model row combining Allocation returns + Check In/Out completions
@@ -187,21 +217,32 @@ namespace Inventory_Management_System.Forms
         {
             dgvReturns.Rows.Clear();
 
-            var matched = string.IsNullOrWhiteSpace(filter)
-                ? _allReturnRows
-                : _allReturnRows.Where(r =>
-                    FuzzySearchHelper.IsFuzzyMatch(r.EquipmentCode, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(r.QrCode, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(r.EquipmentName, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(r.Employee, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(r.ReturnDate, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(r.Source, filter))
-                .OrderByDescending(r => Math.Max(
-                    FuzzySearchHelper.FuzzyScore(r.EquipmentCode, filter),
-                    Math.Max(
-                        FuzzySearchHelper.FuzzyScore(r.EquipmentName, filter),
-                        FuzzySearchHelper.FuzzyScore(r.Employee, filter))))
-                .ToList();
+            List<ReturnRow> matched;
+            if (string.IsNullOrWhiteSpace(filter))
+            {
+                matched = _allReturnRows;
+            }
+            else
+            {
+                // Scanned/typed codes need an exact substring match — fuzzy matching
+                // lets "QR001" incorrectly match QR002, QR005, etc.
+                var codeMatches = _allReturnRows.Where(r =>
+                    (!string.IsNullOrEmpty(r.QrCode) && r.QrCode.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(r.EquipmentCode) && r.EquipmentCode.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+
+                matched = codeMatches.Count > 0
+                    ? codeMatches
+                    : _allReturnRows.Where(r =>
+                        FuzzySearchHelper.IsFuzzyMatch(r.EquipmentName, filter) ||
+                        FuzzySearchHelper.IsFuzzyMatch(r.Employee, filter) ||
+                        FuzzySearchHelper.IsFuzzyMatch(r.ReturnDate, filter) ||
+                        FuzzySearchHelper.IsFuzzyMatch(r.Source, filter))
+                        .OrderByDescending(r => Math.Max(
+                            FuzzySearchHelper.FuzzyScore(r.EquipmentName, filter),
+                            FuzzySearchHelper.FuzzyScore(r.Employee, filter)))
+                        .ToList();
+            }
 
             _totalMatchingCount = matched.Count;
             _totalPages = Math.Max(1, (int)Math.Ceiling(_totalMatchingCount / (double)_pageSize));

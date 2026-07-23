@@ -22,11 +22,13 @@ namespace Inventory_Management_System.Forms
 
         private List<Allocation> _suggestSourceAllocations = new();
 
+        // Full in-memory set of Allocation + Check-In/Out sourced rows
+        // (does NOT include "Available" rows — those are queried fresh
+        // each RefreshGrid call via GetAvailableEquipmentRows()).
         private List<AllocationRow> _allSourceRows = new();
-        private List<AllocationRow> _allRows = new();
 
         private ComboBox cmbEquipmentFilter = null!;
-        private string _activeStatusFilter = "Available";
+        private string _activeStatusFilter = "All";
         private List<AllocationRow> _lastRenderedRows = new();
 
         private EntitySuggestHelper<Allocation>? _suggest;
@@ -36,10 +38,6 @@ namespace Inventory_Management_System.Forms
         private int _totalPages = 1;
         private int _totalMatchingCount = 0;
 
-        // Tracks a genuine user mouse-click on a grid row, as opposed to the
-        // WinForms quirk where a DataGridView silently re-selects its first
-        // row/cell purely from receiving focus (which previously caused
-        // "Allocate" to falsely preselect equipment nobody actually chose).
         private bool _userClickedGridRow = false;
 
         private bool _updatingToolbarHeight = false;
@@ -88,8 +86,6 @@ namespace Inventory_Management_System.Forms
 
             dgvAllocation.SelectionChanged += (s, e) => UpdateActionButtonsForSelection();
 
-            // Only a genuine mouse click on a data row counts as the user
-            // "selecting" it for the Allocate-preselect feature below.
             dgvAllocation.CellClick += (s, e) =>
             {
                 if (e.RowIndex >= 0) _userClickedGridRow = true;
@@ -112,13 +108,14 @@ namespace Inventory_Management_System.Forms
                 ForeColor = Color.White,
                 Font = ThemeHelper.FontBold,
                 DrawMode = DrawMode.OwnerDrawFixed,
-                DropDownWidth = 220
+                DropDownWidth = 230
             };
 
             cmbEquipmentFilter.Items.Add("Equipment: All");
+            cmbEquipmentFilter.Items.Add("Equipment: Available");
             cmbEquipmentFilter.Items.Add("Equipment: Allocated");
             cmbEquipmentFilter.Items.Add("Equipment: Pending");
-            cmbEquipmentFilter.SelectedIndex = 0;
+            cmbEquipmentFilter.SelectedIndex = 0; // "Equipment: All" by default
 
             cmbEquipmentFilter.DrawItem += (s, e) =>
             {
@@ -139,9 +136,10 @@ namespace Inventory_Management_System.Forms
             {
                 _activeStatusFilter = cmbEquipmentFilter.SelectedItem?.ToString() switch
                 {
+                    "Equipment: Available" => "Available",
                     "Equipment: Allocated" => "Allocated",
                     "Equipment: Pending" => "Pending",
-                    _ => "Available"
+                    _ => "All"
                 };
                 _currentPage = 1;
                 RefreshGrid(txtSearch.Text.Trim());
@@ -152,6 +150,8 @@ namespace Inventory_Management_System.Forms
             flow.Controls.SetChildIndex(cmbEquipmentFilter, flow.Controls.IndexOf(btnRefresh) + 1);
         }
 
+        // Equipment with no active Allocation and no active Check-Out —
+        // queried fresh each call rather than cached, so it's always current.
         private List<AllocationRow> GetAvailableEquipmentRows()
         {
             try
@@ -202,6 +202,18 @@ namespace Inventory_Management_System.Forms
             }
         }
 
+        // "All" = every equipment item regardless of status — union of
+        // active Allocation/Check-In-Out rows and unallocated Available rows.
+        // No duplicates are possible since GetAvailableEquipmentRows()
+        // already excludes anything with an active allocation/checkout.
+        private List<AllocationRow> GetAllCombinedRows()
+        {
+            return _allSourceRows
+                .Concat(GetAvailableEquipmentRows())
+                .OrderByDescending(r => r.SortDate)
+                .ToList();
+        }
+
         private void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
@@ -228,18 +240,24 @@ namespace Inventory_Management_System.Forms
             try
             {
                 _suggest = new EntitySuggestHelper<Allocation>(
-                    textBox: txtSearch,
-                    hostForm: this,
-                    onSelected: a => SelectAllocationRow(a.Id),
-                    scoreFn: (a, term) => Math.Max(
+      textBox: txtSearch,
+      hostForm: this,
+      onSelected: a =>
+      {
+          var row = _allSourceRows.FirstOrDefault(r => r.AllocationRef != null && r.AllocationRef.Id == a.Id);
+          if (row != null) ShowOnlyAllocationRow(row);
+      },
+                      scoreFn: (a, term) => Math.Max(
                         FuzzySearchHelper.FuzzyScoreCode(a.Equipment?.EquipmentCode, term),
                         Math.Max(
-                            FuzzySearchHelper.FuzzyScore(a.Equipment?.Name, term),
+                            FuzzySearchHelper.FuzzyScoreCode(a.Equipment?.QrCode, term),
                             Math.Max(
-                                FuzzySearchHelper.FuzzyScore(a.Employee?.FullName, term),
+                                FuzzySearchHelper.FuzzyScore(a.Equipment?.Name, term),
                                 Math.Max(
-                                    FuzzySearchHelper.FuzzyScore(a.Location?.LocationName, term),
-                                    FuzzySearchHelper.FuzzyScore(a.Status, term))))),
+                                    FuzzySearchHelper.FuzzyScore(a.Employee?.FullName, term),
+                                    Math.Max(
+                                        FuzzySearchHelper.FuzzyScore(a.Location?.LocationName, term),
+                                        FuzzySearchHelper.FuzzyScore(a.Status, term)))))),
                     line1Selector: a => $"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name}",
                     line2Selector: a => $"{a.Employee?.FullName ?? "—"} • {a.Status}");
                 _suggest.LoadItems(_suggestSourceAllocations);
@@ -263,6 +281,78 @@ namespace Inventory_Management_System.Forms
             }
         }
 
+        private void ShowOnlyAllocationRow(AllocationRow item)
+        {
+            dgvAllocation.Rows.Clear();
+            _lastRenderedRows = new List<AllocationRow> { item };
+
+            int rowIdx = dgvAllocation.Rows.Add(
+                item.Id, item.QrCode, item.EquipmentCode, item.EquipmentName,
+                item.SerialNumber, item.Make, item.Model, item.Employee, item.Location,
+                item.DateAllocated, item.ExpectedReturn, item.Status, item.Source);
+
+            var statusCell = dgvAllocation.Rows[rowIdx].Cells["Status"];
+            switch (item.Status)
+            {
+                case "approved":
+                    statusCell.Style.BackColor = Color.FromArgb(200, 230, 201);
+                    statusCell.Style.ForeColor = Color.FromArgb(27, 94, 32);
+                    break;
+                case "pending":
+                case "Pending":
+                    statusCell.Style.BackColor = Color.FromArgb(255, 249, 196);
+                    statusCell.Style.ForeColor = Color.FromArgb(130, 100, 0);
+                    break;
+                case "rejected":
+                    statusCell.Style.BackColor = Color.FromArgb(255, 205, 210);
+                    statusCell.Style.ForeColor = Color.FromArgb(183, 28, 28);
+                    break;
+                case "returned":
+                    statusCell.Style.BackColor = Color.FromArgb(224, 224, 224);
+                    statusCell.Style.ForeColor = Color.FromArgb(66, 66, 66);
+                    break;
+                case "Overdue":
+                    statusCell.Style.BackColor = Color.FromArgb(255, 205, 210);
+                    statusCell.Style.ForeColor = Color.FromArgb(183, 28, 28);
+                    break;
+                case "available":
+                    statusCell.Style.BackColor = Color.FromArgb(224, 231, 255);
+                    statusCell.Style.ForeColor = Color.FromArgb(63, 81, 181);
+                    break;
+            }
+            statusCell.Style.Font = ThemeHelper.FontBold;
+
+            var sourceCell = dgvAllocation.Rows[rowIdx].Cells["Source"];
+            if (item.Source == "Check In/Out")
+            {
+                sourceCell.Style.ForeColor = Color.FromArgb(25, 118, 210);
+                sourceCell.Style.Font = ThemeHelper.FontBold;
+            }
+            else if (item.Source == "Available")
+            {
+                sourceCell.Style.ForeColor = Color.FromArgb(94, 53, 177);
+                sourceCell.Style.Font = ThemeHelper.FontBold;
+            }
+            else
+            {
+                sourceCell.Style.ForeColor = Color.FromArgb(107, 114, 128);
+                sourceCell.Style.Font = ThemeHelper.FontDefault;
+            }
+
+            dgvAllocation.ClearSelection();
+            dgvAllocation.Rows[0].Selected = true;
+
+            lblRowCount.Text = "Showing 1 of 1 records";
+            lblPageIndicator.Text = "Page 1 of 1";
+            btnPrevPage.Enabled = false;
+            btnNextPage.Enabled = false;
+
+            UpdateActionButtonsForSelection();
+        }
+
+        // Loads the underlying Allocation/Check-In-Out data from the DB.
+        // Pagination/filtering/rendering all happen in RefreshGrid, which
+        // is the single source of truth for what's on screen.
         private void LoadAllocations(string filter = "")
         {
             try
@@ -339,22 +429,6 @@ namespace Inventory_Management_System.Forms
                     .OrderByDescending(r => r.SortDate)
                     .ToList();
 
-                if (string.IsNullOrWhiteSpace(filter))
-                {
-                    _totalMatchingCount = _allSourceRows.Count;
-                    _totalPages = Math.Max(1, (int)Math.Ceiling(_totalMatchingCount / (double)_pageSize));
-                    if (_currentPage > _totalPages) _currentPage = _totalPages;
-
-                    _allRows = _allSourceRows
-                        .Skip((_currentPage - 1) * _pageSize)
-                        .Take(_pageSize)
-                        .ToList();
-                }
-                else
-                {
-                    _allRows = _allSourceRows;
-                }
-
                 _suggest?.LoadItems(_suggestSourceAllocations);
                 RefreshGrid(filter);
             }
@@ -369,81 +443,66 @@ namespace Inventory_Management_System.Forms
         {
             dgvAllocation.Rows.Clear();
 
-            bool isAvailableView = _activeStatusFilter == "Available";
-            dgvAllocation.Columns["AllocationID"].Visible = !isAvailableView;
-            dgvAllocation.Columns["Status"].Visible = !isAvailableView;
-            dgvAllocation.Columns["Source"].Visible = !isAvailableView;
-            dgvAllocation.Columns["QRCode"].Visible = isAvailableView;
-            dgvAllocation.Columns["SerialNumber"].Visible = isAvailableView;
-            dgvAllocation.Columns["Make"].Visible = isAvailableView;
-            dgvAllocation.Columns["Model"].Visible = isAvailableView;
+            bool hasSearch = !string.IsNullOrWhiteSpace(filter);
 
-            List<AllocationRow> items;
-            int totalMatching;
-
-            if (_activeStatusFilter == "Available")
+            // A search term overrides the status tab entirely — searching
+            // for a QR/equipment code must find it regardless of whether
+            // it's currently available, allocated, pending, or checked out.
+            List<AllocationRow> baseline;
+            if (hasSearch)
             {
-                var available = GetAvailableEquipmentRows();
-                items = string.IsNullOrWhiteSpace(filter)
-                    ? available
-                    : available.Where(r =>
-                        FuzzySearchHelper.IsFuzzyMatch(r.EquipmentCode, filter) ||
-                        FuzzySearchHelper.IsFuzzyMatch(r.EquipmentName, filter) ||
-                        FuzzySearchHelper.IsFuzzyMatch(r.SerialNumber, filter) ||
-                        FuzzySearchHelper.IsFuzzyMatch(r.QrCode, filter))
-                      .ToList();
-
-                totalMatching = items.Count;
-                _totalPages = 1;
-                _currentPage = 1;
+                baseline = GetAllCombinedRows();
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(filter))
+                baseline = _activeStatusFilter switch
                 {
-                    items = _allRows;
-                    totalMatching = _totalMatchingCount;
-                    _totalPages = Math.Max(1, (int)Math.Ceiling(totalMatching / (double)_pageSize));
-                }
-                else
-                {
-                    var filtered = _allRows.Where(r =>
-                        FuzzySearchHelper.IsFuzzyMatch(r.EquipmentCode, filter) ||
-                        FuzzySearchHelper.IsFuzzyMatch(r.EquipmentName, filter) ||
-                        FuzzySearchHelper.IsFuzzyMatch(r.Employee, filter) ||
-                        FuzzySearchHelper.IsFuzzyMatch(r.Location, filter) ||
-                        FuzzySearchHelper.IsFuzzyMatch(r.Status, filter) ||
-                        FuzzySearchHelper.IsFuzzyMatch(r.Source, filter))
-                    .OrderByDescending(r => Math.Max(
-                        FuzzySearchHelper.FuzzyScore(r.EquipmentCode, filter),
-                        Math.Max(
+                    "Available" => GetAvailableEquipmentRows(),
+                    "Allocated" => _allSourceRows.Where(r => string.Equals(r.Status, "approved", StringComparison.OrdinalIgnoreCase)).ToList(),
+                    "Pending" => _allSourceRows.Where(r => string.Equals(r.Status, "pending", StringComparison.OrdinalIgnoreCase)).ToList(),
+                    _ => GetAllCombinedRows() // "All"
+                };
+            }
+
+            List<AllocationRow> matched;
+            if (hasSearch)
+            {
+                // Scanned/typed codes need an exact substring match — fuzzy matching
+                // lets "QR001" incorrectly match QR002, QR005, etc.
+                var codeMatches = baseline.Where(r =>
+                    (!string.IsNullOrEmpty(r.QrCode) && r.QrCode.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(r.EquipmentCode) && r.EquipmentCode.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(r.SerialNumber) && r.SerialNumber.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+
+                matched = codeMatches.Count > 0
+                    ? codeMatches
+                    : baseline.Where(r =>
+                            FuzzySearchHelper.IsFuzzyMatch(r.EquipmentName, filter) ||
+                            FuzzySearchHelper.IsFuzzyMatch(r.Employee, filter) ||
+                            FuzzySearchHelper.IsFuzzyMatch(r.Location, filter) ||
+                            FuzzySearchHelper.IsFuzzyMatch(r.Status, filter) ||
+                            FuzzySearchHelper.IsFuzzyMatch(r.Source, filter))
+                        .OrderByDescending(r => Math.Max(
                             FuzzySearchHelper.FuzzyScore(r.EquipmentName, filter),
                             Math.Max(
                                 FuzzySearchHelper.FuzzyScore(r.Employee, filter),
-                                Math.Max(
-                                    FuzzySearchHelper.FuzzyScore(r.Location, filter),
-                                    Math.Max(
-                                        FuzzySearchHelper.FuzzyScore(r.Status, filter),
-                                        FuzzySearchHelper.FuzzyScore(r.Source, filter)))))))
-                    .ToList();
-
-                    totalMatching = filtered.Count;
-                    _totalPages = Math.Max(1, (int)Math.Ceiling(totalMatching / (double)_pageSize));
-                    if (_currentPage > _totalPages) _currentPage = _totalPages;
-
-                    items = filtered
-                        .Skip((_currentPage - 1) * _pageSize)
-                        .Take(_pageSize)
+                                FuzzySearchHelper.FuzzyScore(r.Location, filter))))
                         .ToList();
-                }
-
-                if (_activeStatusFilter == "Allocated")
-                    items = items.Where(r => string.Equals(r.Status, "approved", StringComparison.OrdinalIgnoreCase)).ToList();
-                else if (_activeStatusFilter == "Pending")
-                    items = items.Where(r => string.Equals(r.Status, "pending", StringComparison.OrdinalIgnoreCase)).ToList();
-
-                totalMatching = items.Count;
             }
+            else
+            {
+                matched = baseline;
+            }
+
+            _totalMatchingCount = matched.Count;
+            _totalPages = Math.Max(1, (int)Math.Ceiling(_totalMatchingCount / (double)_pageSize));
+            if (_currentPage > _totalPages) _currentPage = _totalPages;
+
+            var items = matched
+                .Skip((_currentPage - 1) * _pageSize)
+                .Take(_pageSize)
+                .ToList();
 
             _lastRenderedRows = items;
 
@@ -518,7 +577,7 @@ namespace Inventory_Management_System.Forms
             dgvAllocation.CurrentCell = null;
             _userClickedGridRow = false;
 
-            lblRowCount.Text = $"Showing {items.Count} of {totalMatching} records";
+            lblRowCount.Text = $"Showing {items.Count} of {_totalMatchingCount} records";
             lblPageIndicator.Text = $"Page {_currentPage} of {Math.Max(1, _totalPages)}";
             btnPrevPage.Enabled = _currentPage > 1;
             btnNextPage.Enabled = _currentPage < _totalPages;
@@ -548,10 +607,6 @@ namespace Inventory_Management_System.Forms
             btnDelete.Enabled = !isCheckInOutSelected;
         }
 
-        // Only preselects equipment in the New Allocation dialog if the user
-        // actually clicked a grid row this session (see _userClickedGridRow) —
-        // fixes the false-positive preselect caused by the grid's default
-        // focus-driven row highlighting.
         private void btnAdd_Click(object sender, EventArgs e)
         {
             string? preselectCode = null;
@@ -676,7 +731,7 @@ namespace Inventory_Management_System.Forms
         private void txtSearch_TextChanged(object sender, EventArgs e)
         {
             _currentPage = 1;
-            LoadAllocations(txtSearch.Text.Trim());
+            RefreshGrid(txtSearch.Text.Trim());
         }
 
         private void cmbPageSize_SelectedIndexChanged(object sender, EventArgs e)
@@ -685,10 +740,7 @@ namespace Inventory_Management_System.Forms
             {
                 _pageSize = size;
                 _currentPage = 1;
-                if (string.IsNullOrWhiteSpace(txtSearch.Text))
-                    LoadAllocations();
-                else
-                    RefreshGrid(txtSearch.Text.Trim());
+                RefreshGrid(txtSearch.Text.Trim());
             }
         }
 
@@ -696,20 +748,14 @@ namespace Inventory_Management_System.Forms
         {
             if (_currentPage <= 1) return;
             _currentPage--;
-            if (string.IsNullOrWhiteSpace(txtSearch.Text))
-                LoadAllocations();
-            else
-                RefreshGrid(txtSearch.Text.Trim());
+            RefreshGrid(txtSearch.Text.Trim());
         }
 
         private void btnNextPage_Click(object sender, EventArgs e)
         {
             if (_currentPage >= _totalPages) return;
             _currentPage++;
-            if (string.IsNullOrWhiteSpace(txtSearch.Text))
-                LoadAllocations();
-            else
-                RefreshGrid(txtSearch.Text.Trim());
+            RefreshGrid(txtSearch.Text.Trim());
         }
 
         private void btnExport_Click(object sender, EventArgs e)
@@ -866,15 +912,10 @@ namespace Inventory_Management_System.Forms
                         cmbCategoryFilter.SelectedItem = "All Categories"; // triggers RefreshEquipmentDropdown
                     cmbEquipment.SelectedValue = eq.Id;
 
-                    // Explicitly write the picked item back into the search box.
-                    // Without this, selecting via keyboard (arrow keys + Enter)
-                    // left the field blank and the underlying selection did not
-                    // visibly stick — mirrors the same fix already applied to
-                    // the Employee search box below.
                     txtEquipmentSearch.Text = $"{eq.EquipmentCode} — {eq.Name}";
                     txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
                 },
-       scoreFn: (eq, term) => Math.Max(
+                scoreFn: (eq, term) => Math.Max(
                     FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, term),
                     Math.Max(
                         FuzzySearchHelper.FuzzyScoreCode(eq.QrCode, term),

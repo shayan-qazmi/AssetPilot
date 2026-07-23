@@ -76,22 +76,29 @@ namespace Inventory_Management_System.Forms
                         return;
                     }
 
-                    var fullMatches = (result.Data ?? new List<Employee>())
-                        .Where(e => FuzzySearchHelper.IsFuzzyMatch(e.EmployeeCode, searchTerm)
-                                 || FuzzySearchHelper.IsFuzzyMatch(e.FullName,     searchTerm)
-                                 || FuzzySearchHelper.IsFuzzyMatch(e.Department,   searchTerm)
-                                 || FuzzySearchHelper.IsFuzzyMatch(e.Email,        searchTerm)
-                                 || FuzzySearchHelper.IsFuzzyMatch(e.Phone,        searchTerm))
-                        .OrderByDescending(e => Math.Max(
-                            FuzzySearchHelper.FuzzyScore(e.EmployeeCode, searchTerm),
-                            Math.Max(
+                    var allEmployees = result.Data ?? new List<Employee>();
+
+                    // Scanned/typed codes need an exact substring match — fuzzy matching
+                    // lets "EMP004" incorrectly match EMP001, EMP002, etc.
+                    var codeMatches = allEmployees.Where(e =>
+                        (!string.IsNullOrEmpty(e.EmployeeCode) && e.EmployeeCode.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)))
+                        .ToList();
+
+                    var fullMatches = codeMatches.Count > 0
+                        ? codeMatches
+                        : allEmployees.Where(e => FuzzySearchHelper.IsFuzzyMatch(e.FullName, searchTerm)
+                                                || FuzzySearchHelper.IsFuzzyMatch(e.Department, searchTerm)
+                                                || FuzzySearchHelper.IsFuzzyMatch(e.Email, searchTerm)
+                                                || FuzzySearchHelper.IsFuzzyMatch(e.Phone, searchTerm))
+                            .OrderByDescending(e => Math.Max(
                                 FuzzySearchHelper.FuzzyScore(e.FullName, searchTerm),
                                 Math.Max(
                                     FuzzySearchHelper.FuzzyScore(e.Department, searchTerm),
                                     Math.Max(
                                         FuzzySearchHelper.FuzzyScore(e.Email, searchTerm),
-                                        FuzzySearchHelper.FuzzyScore(e.Phone, searchTerm))))))
-                        .ToList();
+                                        FuzzySearchHelper.FuzzyScore(e.Phone, searchTerm)))))
+                            .ToList();
+
                     _totalPages = Math.Max(1, (int)Math.Ceiling(fullMatches.Count / (double)_pageSize));
                     if (_currentPage > _totalPages) _currentPage = _totalPages;
 

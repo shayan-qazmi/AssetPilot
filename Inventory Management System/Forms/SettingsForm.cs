@@ -191,20 +191,38 @@ private string? _mysqlPath;
 
             _lblWatermark = new Label
             {
-                Text      = "Developed by 🐙shayan-qazmi",
-                Font      = new Font("Segoe UI", 8f, FontStyle.Regular),
+                Text = "Developed by 🐙shayan-qazmi",
+                Font = new Font("Segoe UI", 8f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(150, 150, 150),
                 BackColor = Color.Transparent,
-                AutoSize  = true,
-                Anchor    = AnchorStyles.Bottom | AnchorStyles.Right,
-                Location  = new Point(1020, 723)
+                AutoSize = true,
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right
             };
             Controls.Add(_lblWatermark);
             _lblWatermark.BringToFront();
+            PositionWatermark();
+
+            // Recompute from the actual ClientSize/label size on every resize
+            // and whenever the label's measured size changes (different DPI
+            // or text-scaling settings on another PC change the label's
+            // rendered width/height for the same text) — this keeps it
+            // pinned to the true bottom-right corner on any screen, instead
+            // of a fixed pixel offset that only matched one specific screen.
+            this.Resize += (s, e) => PositionWatermark();
+            _lblWatermark.SizeChanged += (s, e) => PositionWatermark();
 
             // Activate General by default
             _activeNavBtn = navBtns[0];
             ShowSection(_panelGeneral, navBtns[0], navBtns);
+        }
+
+        private void PositionWatermark()
+        {
+            if (_lblWatermark == null) return;
+            const int margin = 12;
+            _lblWatermark.Location = new Point(
+                ClientSize.Width - _lblWatermark.Width - margin,
+                ClientSize.Height - _lblWatermark.Height - margin);
         }
 
         private void ShowSection(Panel panel, Button btn, List<Button> allBtns)
