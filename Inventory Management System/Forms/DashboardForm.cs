@@ -253,7 +253,15 @@ namespace Inventory_Management_System
                 using var db = new InventoryDbContext();
 
                 int totalEquipment = db.Equipment.Count();
-                _cntAllocated      = db.Equipment.Count(e => e.CurrentStatus == "allocated");
+                var checkedOutIds = db.Transactions
+      .Where(t => t.Status == "Pending" || t.Status == "Overdue")
+      .Select(t => t.EquipmentId);
+
+                var activelyAllocatedIds = db.Allocations
+                    .Where(a => a.Status == "pending" || a.Status == "approved")
+                    .Select(a => a.EquipmentId);
+
+                _cntAllocated = checkedOutIds.Union(activelyAllocatedIds).Distinct().Count();
                 _cntInStore        = db.Equipment.Count(e => e.CurrentStatus == "in_store");
                 _cntUnderRepair    = db.Equipment.Count(e => e.CurrentStatus == "under_repair");
                 _cntDecommission   = db.Equipment.Count(e => e.CurrentStatus == "decommissioned");

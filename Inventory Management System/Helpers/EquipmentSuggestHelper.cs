@@ -207,14 +207,16 @@ namespace Inventory_Management_System.Helpers
             }
 
             var scored = _allEquipment
-                 .Select(eq => new
-                 {
-                     Equipment = eq,
-                     Score = Math.Max(
-                         FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, query),
-                         FuzzySearchHelper.FuzzyScore(eq.Name, query))
-                 })
-                 .Where(x => x.Score > -10000)
+      .Select(eq => new
+      {
+          Equipment = eq,
+          Score = Math.Max(
+              FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, query),
+              Math.Max(
+                  FuzzySearchHelper.FuzzyScoreCode(eq.QrCode, query),
+                  FuzzySearchHelper.FuzzyScore(eq.Name, query)))
+      })
+                  .Where(x => x.Score > -10000)
                  .OrderByDescending(x => x.Score)
                  .Take(MaxSuggestions)
                  .ToList();

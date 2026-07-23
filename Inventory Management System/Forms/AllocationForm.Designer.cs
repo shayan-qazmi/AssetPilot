@@ -120,6 +120,7 @@ namespace Inventory_Management_System.Forms
             dgvAllocation.MultiSelect = true;
             dgvAllocation.Name = "dgvAllocation";
             dgvAllocation.Columns.Add("AllocationID", "ID");
+            dgvAllocation.Columns["AllocationID"].Visible = false;
             dgvAllocation.Columns.Add("QRCode", "QR Code");
             dgvAllocation.Columns.Add("EquipmentCode", "Equipment Code");
             dgvAllocation.Columns.Add("EquipmentName", "Equipment Name");
@@ -132,6 +133,7 @@ namespace Inventory_Management_System.Forms
             dgvAllocation.Columns.Add("ExpectedReturn", "Expected Return");
             dgvAllocation.Columns.Add("Status", "Status");
             dgvAllocation.Columns.Add("Source", "Source");
+            dgvAllocation.Columns.Add("AllocatedBy", "Allocated By");
 
             panelBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
             panelBottom.Height = 40;

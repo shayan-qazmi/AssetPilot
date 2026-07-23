@@ -71,6 +71,7 @@ namespace Inventory_Management_System.Forms
             public string DateAllocated { get; set; } = "—";
             public string ExpectedReturn { get; set; } = "—";
             public string Status { get; set; } = "—";
+            public string AllocatedBy { get; set; } = "—";
 
             public Allocation? AllocationRef { get; set; }
             public int? TransactionId { get; set; }
@@ -287,9 +288,9 @@ namespace Inventory_Management_System.Forms
             _lastRenderedRows = new List<AllocationRow> { item };
 
             int rowIdx = dgvAllocation.Rows.Add(
-                item.Id, item.QrCode, item.EquipmentCode, item.EquipmentName,
-                item.SerialNumber, item.Make, item.Model, item.Employee, item.Location,
-                item.DateAllocated, item.ExpectedReturn, item.Status, item.Source);
+                       item.Id, item.QrCode, item.EquipmentCode, item.EquipmentName,
+                       item.SerialNumber, item.Make, item.Model, item.Employee, item.Location,
+                       item.DateAllocated, item.ExpectedReturn, item.Status, item.Source, item.AllocatedBy);
 
             var statusCell = dgvAllocation.Rows[rowIdx].Cells["Status"];
             switch (item.Status)
@@ -360,11 +361,12 @@ namespace Inventory_Management_System.Forms
                 using var db = new InventoryDbContext();
 
                 var allocQuery = db.Allocations
-                    .Where(a => a.Status != "returned")
-                    .Include(a => a.Equipment)
-                    .Include(a => a.Employee)
-                    .Include(a => a.Location)
-                    .OrderByDescending(a => a.AllocationDate);
+                       .Where(a => a.Status != "returned")
+                       .Include(a => a.Equipment)
+                       .Include(a => a.Employee)
+                       .Include(a => a.Location)
+                       .Include(a => a.AllocatedByUser)
+                       .OrderByDescending(a => a.AllocationDate);
 
                 _suggestSourceAllocations = allocQuery.ToList();
 
@@ -395,10 +397,11 @@ namespace Inventory_Management_System.Forms
                         Model = t.Equipment?.Model ?? "—",
                         Employee = string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
                         Location = string.IsNullOrWhiteSpace(t.Department) ? "—" : t.Department,
+                        AllocatedBy = string.IsNullOrWhiteSpace(t.OperatorName) ? "—" : t.OperatorName,
                         SortDate = t.TransactionDate,
                         DateAllocated = t.TransactionDate.ToString("yyyy-MM-dd"),
                         ExpectedReturn = t.ExpectedReturn?.ToString("yyyy-MM-dd") ?? "—",
-                        Status = t.Status ?? "—",
+                        Status = t.Status == "Overdue" ? "Overdue" : "approved",
                         AllocationRef = null,
                         TransactionId = t.TransactionId
                     })
@@ -416,6 +419,7 @@ namespace Inventory_Management_System.Forms
                     Model = a.Equipment?.Model ?? "—",
                     Employee = a.Employee?.FullName ?? "—",
                     Location = a.Location?.LocationName ?? "—",
+                    AllocatedBy = a.AllocatedByUser?.FullName ?? "—",
                     SortDate = a.AllocationDate,
                     DateAllocated = a.AllocationDate.ToString("yyyy-MM-dd"),
                     ExpectedReturn = a.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—",
@@ -509,20 +513,21 @@ namespace Inventory_Management_System.Forms
             foreach (var item in items)
             {
                 int rowIdx = dgvAllocation.Rows.Add(
-                    item.Id,
-                    item.QrCode,
-                    item.EquipmentCode,
-                    item.EquipmentName,
-                    item.SerialNumber,
-                    item.Make,
-                    item.Model,
-                    item.Employee,
-                    item.Location,
-                    item.DateAllocated,
-                    item.ExpectedReturn,
-                    item.Status,
-                    item.Source
-                );
+                       item.Id,
+                       item.QrCode,
+                       item.EquipmentCode,
+                       item.EquipmentName,
+                       item.SerialNumber,
+                       item.Make,
+                       item.Model,
+                       item.Employee,
+                       item.Location,
+                       item.DateAllocated,
+                       item.ExpectedReturn,
+                       item.Status,
+                       item.Source,
+                       item.AllocatedBy
+                   );
 
                 var statusCell = dgvAllocation.Rows[rowIdx].Cells["Status"];
                 switch (item.Status)
@@ -770,7 +775,7 @@ namespace Inventory_Management_System.Forms
                 if (sfd.ShowDialog() != DialogResult.OK) return;
 
                 var sb = new StringBuilder();
-                sb.AppendLine("ID,QR Code,Equipment Code,Equipment Name,Serial Number,Make,Model,Employee,Location,Date Allocated,Expected Return,Status,Source");
+                sb.AppendLine("ID,QR Code,Equipment Code,Equipment Name,Serial Number,Make,Model,Employee,Location,Date Allocated,Expected Return,Status,Source,Allocated By");
                 foreach (DataGridViewRow row in dgvAllocation.Rows)
                 {
                     string E(object? v) => $"\"{v?.ToString()?.Replace("\"", "\"\"") ?? ""}\"";
@@ -781,7 +786,7 @@ namespace Inventory_Management_System.Forms
                         E(row.Cells["Model"].Value), E(row.Cells["Employee"].Value),
                         E(row.Cells["Location"].Value), E(row.Cells["DateAllocated"].Value),
                         E(row.Cells["ExpectedReturn"].Value), E(row.Cells["Status"].Value),
-                        E(row.Cells["Source"].Value)));
+                        E(row.Cells["Source"].Value), E(row.Cells["AllocatedBy"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
                 MessageBox.Show("Exported successfully.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1036,7 +1041,7 @@ namespace Inventory_Management_System.Forms
                 LocationId = (int)cmbLocation.SelectedValue,
                 Status = "pending",
                 AllocationDate = DateTime.UtcNow,
-                AllocatedByUserId = 1,
+                AllocatedByUserId = AuthService.CurrentUserId,  
                 ExpectedReturnDate = chkExpected.Checked
                     ? DateOnly.FromDateTime(dtpExpected.Value) : null
             };
