@@ -140,15 +140,16 @@ namespace Inventory_Management_System.Forms
             dgvLogs.SelectionMode       = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             dgvLogs.Name                = "dgvLogs";
 
-            var colId   = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "ID",        HeaderText = "Log ID",         FillWeight = 6 };
-            var colEq   = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Equipment", HeaderText = "Equipment Code", FillWeight = 12 };
-            var colAct  = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Action",    HeaderText = "Action",         FillWeight = 18 };
-            var colUser = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "User",      HeaderText = "Changed By",     FillWeight = 14 };
-            var colOld  = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "OldValue",  HeaderText = "Previous Value", FillWeight = 20 };
-            var colNew  = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "NewValue",  HeaderText = "New Value",      FillWeight = 20 };
-            var colDate = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Date",      HeaderText = "Timestamp",      FillWeight = 14 };
+            var colId = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "ID", HeaderText = "Log ID", FillWeight = 6 };
+            var colEq = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Equipment", HeaderText = "Equipment Code", FillWeight = 12 };
+            var colQr = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "QRCode", HeaderText = "QR Code", FillWeight = 10 };
+            var colAct = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Action", HeaderText = "Action", FillWeight = 18 };
+            var colUser = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "User", HeaderText = "Changed By", FillWeight = 14 };
+            var colOld = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "OldValue", HeaderText = "Previous Value", FillWeight = 18 };
+            var colNew = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "NewValue", HeaderText = "New Value", FillWeight = 18 };
+            var colDate = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Date", HeaderText = "Timestamp", FillWeight = 14 };
 
-            dgvLogs.Columns.AddRange(colId, colEq, colAct, colUser, colOld, colNew, colDate);
+            dgvLogs.Columns.AddRange(colId, colEq, colQr, colAct, colUser, colOld, colNew, colDate);
 
             // ── LogsForm ──────────────────────────────────────────────────
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);

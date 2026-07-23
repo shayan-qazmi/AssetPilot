@@ -99,27 +99,30 @@ namespace Inventory_Management_System.Forms
             }
             else
             {
-                filtered = _allLogs.Where(l =>
-                    FuzzySearchHelper.IsFuzzyMatch(l.Equipment?.EquipmentCode, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(l.ActionType, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(l.ChangedByUser?.FullName, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(l.OldValue, filter) ||
-                    FuzzySearchHelper.IsFuzzyMatch(l.NewValue, filter)
-                )
-                .OrderByDescending(l => Math.Max(
-                    FuzzySearchHelper.FuzzyScore(l.Equipment?.EquipmentCode, filter),
-                    Math.Max(
-                        FuzzySearchHelper.FuzzyScore(l.ActionType, filter),
-                        Math.Max(
-                            FuzzySearchHelper.FuzzyScore(l.ChangedByUser?.FullName, filter),
+                // Scanned/typed codes need an exact substring match — fuzzy matching
+                // lets "EQ003" incorrectly match EQ001, EQ002, etc.
+                var codeMatches = _allLogs.Where(l =>
+                    (!string.IsNullOrEmpty(l.Equipment?.EquipmentCode) &&
+                        l.Equipment.EquipmentCode.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(l.Equipment?.QrCode) &&
+                        l.Equipment.QrCode.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+                    .ToList();
+
+                filtered = codeMatches.Count > 0
+                    ? codeMatches
+                    : _allLogs.Where(l =>
+                            FuzzySearchHelper.IsFuzzyMatch(l.ActionType, filter) ||
+                            FuzzySearchHelper.IsFuzzyMatch(l.ChangedByUser?.FullName, filter) ||
+                            FuzzySearchHelper.IsFuzzyMatch(l.OldValue, filter) ||
+                            FuzzySearchHelper.IsFuzzyMatch(l.NewValue, filter))
+                        .OrderByDescending(l => Math.Max(
+                            FuzzySearchHelper.FuzzyScore(l.ActionType, filter),
                             Math.Max(
-                                FuzzySearchHelper.FuzzyScore(l.OldValue, filter),
-                                FuzzySearchHelper.FuzzyScore(l.NewValue, filter)
-                            )
-                        )
-                    )
-                ))
-                .ToList();
+                                FuzzySearchHelper.FuzzyScore(l.ChangedByUser?.FullName, filter),
+                                Math.Max(
+                                    FuzzySearchHelper.FuzzyScore(l.OldValue, filter),
+                                    FuzzySearchHelper.FuzzyScore(l.NewValue, filter)))))
+                        .ToList();
 
                 totalMatching = filtered.Count;
                 _totalPages = Math.Max(1, (int)Math.Ceiling(totalMatching / (double)_pageSize));
@@ -134,14 +137,15 @@ namespace Inventory_Management_System.Forms
             foreach (var item in filtered)
             {
                 int rowIdx = dgvLogs.Rows.Add(
-                    item.Id,
-                    item.Equipment?.EquipmentCode ?? "—",
-                    FormatAction(item.ActionType),
-                    item.ChangedByUser?.FullName ?? "System",
-                    item.OldValue ?? "",
-                    item.NewValue ?? "",
-                    item.CreatedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
-                );
+      item.Id,
+      item.Equipment?.EquipmentCode ?? "—",
+      item.Equipment?.QrCode ?? "—",
+      FormatAction(item.ActionType),
+      item.ChangedByUser?.FullName ?? "System",
+      item.OldValue ?? "",
+      item.NewValue ?? "",
+      item.CreatedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
+  );
 
                 var row = dgvLogs.Rows[rowIdx];
                 var actionCell = row.Cells["Action"];
@@ -259,7 +263,7 @@ namespace Inventory_Management_System.Forms
                 if (dlg.ShowDialog() != DialogResult.OK) return;
 
                 var sb = new StringBuilder();
-                sb.AppendLine("Log ID,Equipment Code,Action,Changed By,Previous Value,New Value,Timestamp");
+                sb.AppendLine("Log ID,Equipment Code,QR Code,Action,Changed By,Previous Value,New Value,Timestamp");
 
                 foreach (DataGridViewRow row in dgvLogs.Rows)
                 {
@@ -267,6 +271,7 @@ namespace Inventory_Management_System.Forms
                     sb.AppendLine(string.Join(",",
                         Escape(row.Cells["ID"].Value),
                         Escape(row.Cells["Equipment"].Value),
+                        Escape(row.Cells["QRCode"].Value),
                         Escape(row.Cells["Action"].Value),
                         Escape(row.Cells["User"].Value),
                         Escape(row.Cells["OldValue"].Value),
