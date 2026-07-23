@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jul 21, 2026 at 09:18 AM
+-- Generation Time: Jul 23, 2026 at 08:59 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -53,8 +53,24 @@ INSERT INTO `allocations` (`id`, `equipment_id`, `employee_id`, `location_id`, `
 (7, 3, 1, 4, 1, 1, '2026-07-06 13:51:33', '2026-07-06 13:51:43', '2027-07-22', '2026-07-09', 'returned', NULL, NULL),
 (9, 26, 1, 3, 1, 1, '2026-07-07 00:47:36', '2026-07-07 00:47:41', '2026-07-08', '2026-07-14', 'returned', NULL, NULL),
 (12, 26, 4, 5, 1, 1, '2026-07-15 14:18:19', '2026-07-15 14:18:27', NULL, '2026-07-21', 'returned', NULL, NULL),
-(13, 26, 6, 4, 1, 1, '2026-07-20 23:49:35', '2026-07-20 23:49:35', NULL, NULL, 'approved', NULL, 12),
-(14, 3, 1, 1, 1, 1, '2026-07-21 00:00:23', '2026-07-21 00:00:35', '2026-07-22', NULL, 'approved', NULL, NULL);
+(13, 26, 6, 4, 1, 1, '2026-07-20 23:49:35', '2026-07-20 23:49:35', NULL, NULL, 'returned', NULL, 12),
+(14, 3, 1, 1, 1, 1, '2026-07-21 00:00:23', '2026-07-21 00:00:35', '2026-07-22', NULL, 'returned', NULL, NULL),
+(15, 31, 7, 3, 1, 1, '2026-07-21 04:59:13', '2026-07-21 05:00:53', NULL, NULL, 'returned', NULL, NULL),
+(16, 31, 7, 3, 1, 1, '2026-07-21 05:09:58', '2026-07-21 05:10:03', NULL, '2026-07-21', 'returned', NULL, NULL),
+(17, 31, 4, 3, 1, 1, '2026-07-21 05:10:35', '2026-07-21 05:10:35', NULL, '2026-07-21', 'returned', NULL, 16),
+(18, 31, 1, 5, 1, 1, '2026-07-21 05:14:33', '2026-07-21 05:14:33', NULL, NULL, 'returned', NULL, 17),
+(19, 5, 1, 1, 1, NULL, '2026-07-22 02:21:10', NULL, NULL, NULL, 'returned', NULL, NULL),
+(20, 28, 1, 1, 1, NULL, '2026-07-22 02:40:41', NULL, NULL, NULL, 'returned', NULL, NULL),
+(21, 3, 1, 1, 1, NULL, '2026-07-22 02:41:10', NULL, NULL, NULL, 'returned', NULL, NULL),
+(22, 26, 1, 1, 1, NULL, '2026-07-22 02:42:31', NULL, NULL, NULL, 'returned', NULL, NULL),
+(23, 3, 1, 1, 1, NULL, '2026-07-22 02:43:32', NULL, NULL, NULL, 'returned', NULL, NULL),
+(24, 3, 6, 3, 1, 1, '2026-07-22 02:44:12', '2026-07-22 02:44:17', NULL, NULL, 'returned', NULL, NULL),
+(25, 3, 1, 1, 1, NULL, '2026-07-22 02:47:49', NULL, NULL, NULL, 'returned', NULL, NULL),
+(26, 3, 1, 1, 1, NULL, '2026-07-22 02:48:11', NULL, NULL, NULL, 'returned', NULL, NULL),
+(27, 5, 1, 1, 1, NULL, '2026-07-22 02:50:07', NULL, NULL, NULL, 'returned', NULL, NULL),
+(28, 3, 1, 1, 1, NULL, '2026-07-22 02:58:24', NULL, NULL, NULL, 'returned', NULL, NULL),
+(29, 26, 6, 3, 1, 1, '2026-07-22 04:35:01', '2026-07-22 04:35:06', NULL, NULL, 'approved', NULL, NULL),
+(30, 5, 6, 1, 1, 1, '2026-07-22 04:36:08', '2026-07-22 04:36:21', NULL, NULL, 'approved', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -79,7 +95,7 @@ CREATE TABLE `app_settings` (
 --
 
 INSERT INTO `app_settings` (`id`, `company_name`, `theme`, `db_server`, `db_name`, `updated_at`, `printer_name`, `label_width_mm`, `label_height_mm`) VALUES
-(1, 'QuantumRonics', 'Light', 'localhost', 'inventory_management', '2026-07-15 10:01:02', '', 62, 29);
+(1, 'QuantumRonics', 'Light', 'localhost', 'inventory_management', '2026-07-22 10:10:18', '', 62, 29);
 
 -- --------------------------------------------------------
 
@@ -102,8 +118,8 @@ INSERT INTO `categories` (`id`, `name`, `created_at`) VALUES
 (3, 'Accessory', '2026-07-20 11:56:33'),
 (5, 'Other', '2026-07-20 11:58:23'),
 (6, 'Furniture', '2026-07-20 11:58:38'),
-(7, 'Rented', '2026-07-20 11:58:56'),
-(10, 'New', '2026-07-21 04:48:05');
+(13, 'Quantum Hardware', '2026-07-22 04:40:54'),
+(14, 'Desktop Workstations', '2026-07-22 04:42:49');
 
 -- --------------------------------------------------------
 
@@ -131,7 +147,8 @@ CREATE TABLE `employees` (
 INSERT INTO `employees` (`id`, `employee_code`, `full_name`, `department`, `email`, `phone`, `default_location_id`, `is_active`, `created_at`, `updated_at`) VALUES
 (1, 'EMP001', 'Shayan', 'IT', 'shayan@gmail.com', '0987654', NULL, 1, '2026-06-10 10:12:19', '2026-06-24 05:06:57'),
 (4, 'EMP002', 'Fahad', 'QR', 'fahad@gmail.com', '11223344', NULL, 1, '2026-06-17 10:57:05', '2026-06-17 10:57:05'),
-(6, 'EMP003', 'Zia', 'IT', 'zia@gmail.com', '6435634', NULL, 1, '2026-07-20 07:30:30', '2026-07-20 07:30:30');
+(6, 'EMP003', 'Zia', 'IT', 'zia@gmail.com', '6435634', NULL, 1, '2026-07-20 07:30:30', '2026-07-20 07:30:30'),
+(7, 'EMP004', 'Haseeb', 'HR', 'hj@hjsajklhda', '201512654', NULL, 1, '2026-07-21 09:57:53', '2026-07-21 09:57:53');
 
 -- --------------------------------------------------------
 
@@ -171,13 +188,14 @@ CREATE TABLE `equipment` (
 --
 
 INSERT INTO `equipment` (`id`, `equipment_code`, `qr_code`, `name`, `make`, `model`, `category`, `description`, `vendor_name`, `condition_grade`, `warranty_expiry`, `serial_number`, `purchase_date`, `price`, `procurement_type_id`, `created_by_user_id`, `current_status`, `current_location_id`, `current_employee_id`, `current_allocation_id`, `notes`, `created_at`, `updated_at`, `picture_path`) VALUES
-(3, 'EQ001', 'QR001', 'Dell Latitude', 'Dell', '5400', 'Rented', 'minor dent on edge', 'Ali', 'Good', '2027-12-01', 'SN12345', '2026-06-24', NULL, 1, 1, 'in_store', NULL, NULL, NULL, 'pin pack', '2026-06-11 09:25:51', '2026-07-21 06:35:45', 'Images\\Equipment\\076403a12ef744d3b0f8518cec96dd11.pdf'),
-(5, 'EQ002', 'QR002', 'Lenovo Thinkbook', 'Lenovo', '6900', 'IT Equipment', NULL, NULL, 'Poor', NULL, 'ASR34R', '2026-06-17', NULL, 6, 1, 'in_store', NULL, NULL, NULL, NULL, '2026-06-19 18:43:48', '2026-07-21 06:36:33', 'Images\\Equipment\\63397a1346be4297833e3f56fa312e77.png'),
+(3, 'EQ001', 'QR001', 'Dell Latitude', 'Dell', '5400', 'IT Equipment', 'minor dent on edge', 'Ali', 'Good', '2027-12-01', 'SN12345', '2026-06-24', NULL, 1, 1, 'in_store', NULL, NULL, NULL, 'pin pack', '2026-06-11 09:25:51', '2026-07-22 07:44:28', 'Images\\Equipment\\076403a12ef744d3b0f8518cec96dd11.pdf'),
+(5, 'EQ002', 'QR002', 'Lenovo Thinkbook', 'Lenovo', '6900', 'IT Equipment', NULL, NULL, 'Poor', NULL, 'ASR34R', '2026-06-17', NULL, 6, 1, 'allocated', NULL, NULL, NULL, NULL, '2026-06-19 18:43:48', '2026-07-22 09:36:21', 'Images\\Equipment\\63397a1346be4297833e3f56fa312e77.png'),
 (21, 'EQ003', 'QR003', 'MacBook', 'Apple', '231', 'Furniture', NULL, NULL, NULL, NULL, 'SN1324', '2026-06-09', NULL, 1, 1, 'under_repair', NULL, NULL, NULL, NULL, '2026-06-24 04:57:09', '2026-07-20 06:59:05', NULL),
 (22, 'EQ004', 'QR004', 'Dell EliteBook', 'HP', '8973', 'Accessory', NULL, NULL, 'Unserviceable', NULL, 'FP63G', '2026-06-24', NULL, 1, 1, 'decommissioned', NULL, NULL, NULL, NULL, '2026-06-24 05:09:16', '2026-07-15 07:56:55', NULL),
-(26, 'EQ005', 'QR005', 'Barcode Scanner', 'deli', '14952', 'Other', '2D plug and plau Barcode Scanner.', 'Zia', 'New', '2027-07-07', 'A26480111949', '2026-07-03', NULL, 1, 1, 'allocated', NULL, NULL, NULL, 'Purchased by Sir Zia, for IMS', '2026-07-07 05:26:29', '2026-07-20 06:58:35', NULL),
+(26, 'EQ005', 'QR005', 'Barcode Scanner', 'deli', '14952', 'Other', '2D plug and plau Barcode Scanner.', 'Zia', 'New', '2027-07-07', 'A26480111949', '2026-07-03', NULL, 1, 1, 'allocated', NULL, NULL, NULL, 'Purchased by Sir Zia, for IMS', '2026-07-07 05:26:29', '2026-07-22 09:35:06', NULL),
 (28, 'EQ006', 'QR006', 'Keyboard', 'Lenovo', '26555', 'IT Equipment', 'yes', 'fahad', 'New', NULL, 'PI234H5', '2026-07-09', NULL, 4, 1, 'in_store', NULL, NULL, NULL, NULL, '2026-07-10 06:38:17', '2026-07-10 11:46:18', NULL),
-(30, 'EQ007', 'QR007', 'Mouse', 'Dell', '2448u', 'New', NULL, NULL, NULL, NULL, '23RWFWE4', '2026-07-21', NULL, NULL, 1, 'in_store', NULL, NULL, NULL, NULL, '2026-07-21 04:48:45', '2026-07-21 04:48:54', NULL);
+(31, 'EQ008', 'QR008', 'Phase Modulator', 'Photoniic', '14224', 'Quantum Hardware', NULL, NULL, 'New', '2027-04-28', 'HJK4546', '2026-07-21', NULL, NULL, 1, 'in_store', NULL, NULL, NULL, NULL, '2026-07-21 09:39:03', '2026-07-22 07:40:50', 'Images\\Equipment\\76a3242e484748c997deb8ede391c6b7.png'),
+(32, 'EQ009', 'QR009', 'Dell Latitude', 'Dell', '5400', 'Desktop Workstations', NULL, 'ABC Shop', 'Good', NULL, 'SN12346', '2026-07-21', NULL, NULL, 1, 'in_store', NULL, NULL, NULL, NULL, '2026-07-21 09:46:08', '2026-07-22 04:57:07', 'Images\\Equipment\\fd13b7d67e084d31aa7d3f9fcb07cf29.png');
 
 -- --------------------------------------------------------
 
@@ -319,8 +337,6 @@ INSERT INTO `equipment_logs` (`id`, `equipment_id`, `action_type`, `changed_by_u
 (124, 26, 'location_changed', 1, 'EQ005 - Barcode Scanner - allocated', 'EQ005 - Barcode Scanner - allocated', NULL, '2026-07-20 01:58:35'),
 (125, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - allocated', 'EQ001 - Dell Latitude - allocated', NULL, '2026-07-20 01:58:50'),
 (126, 21, 'location_changed', 1, 'EQ003 - MacBook - under_repair', 'EQ003 - MacBook - under_repair', NULL, '2026-07-20 01:59:05'),
-(127, 30, 'equipment_created', 1, NULL, 'Created: EQ007 - Mouse', NULL, '2026-07-20 23:48:45'),
-(128, 30, 'location_changed', 1, 'EQ007 - Mouse - in_store', 'EQ007 - Mouse - in_store', NULL, '2026-07-20 23:48:54'),
 (129, 26, 'transferred', 1, 'Employee 4', 'Employee 6', NULL, '2026-07-20 23:49:35'),
 (130, 3, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 1', NULL, '2026-07-21 00:00:24'),
 (131, 3, 'allocation_approved', 1, 'pending', 'approved', NULL, '2026-07-21 00:00:35'),
@@ -329,7 +345,51 @@ INSERT INTO `equipment_logs` (`id`, `equipment_id`, `action_type`, `changed_by_u
 (134, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - in_store', 'EQ001 - Dell Latitude - in_store', NULL, '2026-07-21 01:30:10'),
 (135, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - in_store', 'EQ001 - Dell Latitude - in_store', NULL, '2026-07-21 01:35:18'),
 (136, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - in_store', 'EQ001 - Dell Latitude - in_store', NULL, '2026-07-21 01:35:45'),
-(137, 5, 'location_changed', 1, 'EQ002 - Lenovo Thinkbook - in_store', 'EQ002 - Lenovo Thinkbook - in_store', NULL, '2026-07-21 01:36:33');
+(137, 5, 'location_changed', 1, 'EQ002 - Lenovo Thinkbook - in_store', 'EQ002 - Lenovo Thinkbook - in_store', NULL, '2026-07-21 01:36:33'),
+(138, 31, 'equipment_created', 1, NULL, 'Created: EQ008 - Phase Modulator', NULL, '2026-07-21 04:39:03'),
+(139, 32, 'equipment_created', 1, NULL, 'Created: EQ009 - Dell Latitude', NULL, '2026-07-21 04:46:08'),
+(140, 31, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 7', NULL, '2026-07-21 04:59:13'),
+(141, 31, 'allocation_approved', 1, 'pending', 'approved', NULL, '2026-07-21 05:00:53'),
+(142, 31, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-21 05:06:51'),
+(143, 31, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 7', NULL, '2026-07-21 05:09:58'),
+(144, 31, 'allocation_approved', 1, 'pending', 'approved', NULL, '2026-07-21 05:10:03'),
+(145, 31, 'transferred', 1, 'Employee 7', 'Employee 4', NULL, '2026-07-21 05:10:35'),
+(146, 31, 'transferred', 1, 'Employee 4', 'Employee 1', NULL, '2026-07-21 05:14:33'),
+(148, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - in_store', 'EQ001 - Dell Latitude - in_store', NULL, '2026-07-21 23:40:08'),
+(149, 31, 'location_changed', 1, 'EQ008 - Phase Modulator - allocated', 'EQ008 - Phase Modulator - allocated', NULL, '2026-07-21 23:40:31'),
+(150, 32, 'location_changed', 1, 'EQ009 - Dell Latitude - in_store', 'EQ009 - Dell Latitude - in_store', NULL, '2026-07-21 23:57:07'),
+(151, 31, 'location_changed', 1, 'EQ008 - Phase Modulator - allocated', 'EQ008 - Phase Modulator - allocated', NULL, '2026-07-21 23:57:23'),
+(152, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - in_store', 'EQ001 - Dell Latitude - allocated', NULL, '2026-07-22 01:03:30'),
+(153, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - allocated', 'EQ001 - Dell Latitude - decommissioned', NULL, '2026-07-22 01:03:47'),
+(154, 3, 'location_changed', 1, 'EQ001 - Dell Latitude - decommissioned', 'EQ001 - Dell Latitude - in_store', NULL, '2026-07-22 02:00:42'),
+(155, 5, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 1', NULL, '2026-07-22 02:21:10'),
+(156, 28, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 1', NULL, '2026-07-22 02:40:41'),
+(157, 3, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:40:47'),
+(158, 31, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:40:50'),
+(159, 26, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:40:54'),
+(160, 3, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 1', NULL, '2026-07-22 02:41:10'),
+(161, 26, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 1', NULL, '2026-07-22 02:42:31'),
+(162, 5, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:42:47'),
+(163, 28, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:42:51'),
+(164, 3, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:42:54'),
+(165, 26, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:42:58'),
+(166, 3, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 1', NULL, '2026-07-22 02:43:32'),
+(167, 3, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:43:51'),
+(168, 3, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 6', NULL, '2026-07-22 02:44:12'),
+(169, 3, 'allocation_approved', 1, 'pending', 'approved', NULL, '2026-07-22 02:44:17'),
+(170, 3, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:44:28'),
+(171, 3, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 1', NULL, '2026-07-22 02:47:49'),
+(172, 3, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:47:56'),
+(173, 3, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 1', NULL, '2026-07-22 02:48:11'),
+(174, 5, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 1', NULL, '2026-07-22 02:50:07'),
+(175, 3, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:50:17'),
+(176, 5, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:50:20'),
+(177, 3, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 1', NULL, '2026-07-22 02:58:24'),
+(178, 3, 'allocation_returned', 1, 'allocated', 'in_store', NULL, '2026-07-22 02:58:34'),
+(179, 26, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 6', NULL, '2026-07-22 04:35:01'),
+(180, 26, 'allocation_approved', 1, 'pending', 'approved', NULL, '2026-07-22 04:35:06'),
+(181, 5, 'allocation_requested', 1, NULL, 'Allocated to Employee ID 6', NULL, '2026-07-22 04:36:08'),
+(182, 5, 'allocation_approved', 1, 'pending', 'approved', NULL, '2026-07-22 04:36:21');
 
 -- --------------------------------------------------------
 
@@ -638,7 +698,7 @@ ALTER TABLE `user_roles`
 -- AUTO_INCREMENT for table `allocations`
 --
 ALTER TABLE `allocations`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=31;
 
 --
 -- AUTO_INCREMENT for table `app_settings`
@@ -650,19 +710,19 @@ ALTER TABLE `app_settings`
 -- AUTO_INCREMENT for table `categories`
 --
 ALTER TABLE `categories`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `employees`
 --
 ALTER TABLE `employees`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `equipment`
 --
 ALTER TABLE `equipment`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=31;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
 
 --
 -- AUTO_INCREMENT for table `equipment_location_history`
@@ -674,7 +734,7 @@ ALTER TABLE `equipment_location_history`
 -- AUTO_INCREMENT for table `equipment_logs`
 --
 ALTER TABLE `equipment_logs`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=138;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=183;
 
 --
 -- AUTO_INCREMENT for table `locations`
