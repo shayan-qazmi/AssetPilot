@@ -191,7 +191,7 @@ namespace Inventory_Management_System
                 panelMenu.Controls.Add(lbl);
                 panelMenu.Controls.SetChildIndex(lbl, 0);
             }
-            lbl.Text = $"{AuthService.CurrentFullName}  •  {AuthService.CurrentRole}";
+            lbl.Text = AuthService.CurrentFullName;
         }
 
         private void ApplyRolePermissions()

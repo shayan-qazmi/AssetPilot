@@ -218,6 +218,14 @@ namespace Inventory_Management_System.Forms
                     db.Users.Add(entity);
                 }
 
+                string newEmail = string.IsNullOrWhiteSpace(txtEmail.Text) ? null : txtEmail.Text.Trim();
+                if (!string.IsNullOrWhiteSpace(newEmail) &&
+                    db.Users.Any(u => u.Email == newEmail && u.Id != _user.Id))
+                {
+                    lblStatus.Text = "Email is already in use by another user.";
+                    return;
+                }
+
                 entity.Username = txtUsername.Text.Trim();
                 entity.FullName = txtFullName.Text.Trim();
                 entity.Email    = string.IsNullOrWhiteSpace(txtEmail.Text) ? null : txtEmail.Text.Trim();
@@ -259,7 +267,8 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                lblStatus.Text = "Error: " + ex.Message;
+                string detail = ex.InnerException?.Message ?? ex.Message;
+                lblStatus.Text = "Error: " + detail;
             }
         }
 
