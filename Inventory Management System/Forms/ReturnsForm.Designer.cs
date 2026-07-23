@@ -105,6 +105,7 @@ namespace Inventory_Management_System.Forms
             dgvReturns.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             dgvReturns.Name = "dgvReturns";
             dgvReturns.Columns.Add("ReturnID", "Return ID");
+            dgvReturns.Columns["ReturnID"].Visible = false;
             dgvReturns.Columns.Add("QRCode", "QR Code");
             dgvReturns.Columns.Add("EquipmentCode", "Equipment Code");
             dgvReturns.Columns.Add("EquipmentName", "Equipment Name");
@@ -112,6 +113,7 @@ namespace Inventory_Management_System.Forms
             dgvReturns.Columns.Add("ReturnDate", "Return Date");
             dgvReturns.Columns.Add("Condition", "Condition");
             dgvReturns.Columns.Add("Source", "Source");
+            dgvReturns.Columns.Add("Overdue", "Returned Late");
 
             panelBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
             panelBottom.Height = 40;

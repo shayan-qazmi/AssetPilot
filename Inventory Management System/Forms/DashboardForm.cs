@@ -293,7 +293,7 @@ namespace Inventory_Management_System
                     (title:"Allocated",          value:_cntAllocated.ToString(),     color:Color.FromArgb(245, 124, 0),   icon:"📋"),
                     (title:"In Stock",           value:_cntInStore.ToString(),       color:Color.FromArgb(56,  142, 60),  icon:"✅"),
                     (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(33,  150, 243), icon:"🔧"),
-                    (title:"Overdue",            value:overdueCount.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️"),
+(title:"Currently Overdue",  value:overdueCount.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️"),
                     (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68,  68),  icon:"🚫"),
                     (title:"Total Employees",    value:_cntEmployees.ToString(),     color:Color.FromArgb(123, 31,  162), icon:"👤"),
                 };
@@ -392,7 +392,7 @@ namespace Inventory_Management_System
                         "Allocated"        => btnAllocation_Click,
                         "In Stock"         => btnEquipment_Click,
                         "Under Repair"     => btnEquipment_Click,
-                        "Overdue"          => btnReturns_Click,
+                        "Currently Overdue" => btnAllocation_Click,
                         "Decommissioned"   => AuthService.IsAdmin ? btnDecommission_Click : null,
                         "Total Employees"  => btnEmployees_Click,
                         _                  => null

@@ -423,7 +423,9 @@ namespace Inventory_Management_System.Forms
                     SortDate = a.AllocationDate,
                     DateAllocated = a.AllocationDate.ToString("yyyy-MM-dd"),
                     ExpectedReturn = a.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—",
-                    Status = a.Status,
+                    Status = (a.Status == "approved" && a.ExpectedReturnDate.HasValue &&
+                              a.ExpectedReturnDate.Value < DateOnly.FromDateTime(DateTime.Today))
+                              ? "Overdue" : a.Status,
                     AllocationRef = a,
                     TransactionId = null
                 }).ToList();
@@ -462,7 +464,7 @@ namespace Inventory_Management_System.Forms
                 baseline = _activeStatusFilter switch
                 {
                     "Available" => GetAvailableEquipmentRows(),
-                    "Allocated" => _allSourceRows.Where(r => string.Equals(r.Status, "approved", StringComparison.OrdinalIgnoreCase)).ToList(),
+                    "Allocated" => _allSourceRows.Where(r => string.Equals(r.Status, "approved", StringComparison.OrdinalIgnoreCase) || string.Equals(r.Status, "Overdue", StringComparison.OrdinalIgnoreCase)).ToList(),
                     "Pending" => _allSourceRows.Where(r => string.Equals(r.Status, "pending", StringComparison.OrdinalIgnoreCase)).ToList(),
                     _ => GetAllCombinedRows() // "All"
                 };

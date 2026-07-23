@@ -101,11 +101,16 @@ namespace Inventory_Management_System.Forms
             dgvReturns.Rows.Clear();
 
             int rowIdx = dgvReturns.Rows.Add(
-                item.Id, item.QrCode, item.EquipmentCode, item.EquipmentName,
-                item.Employee, item.ReturnDate, item.Condition, item.Source);
+                 item.Id, item.QrCode, item.EquipmentCode, item.EquipmentName,
+                 item.Employee, item.ReturnDate, item.Condition, item.Source,
+                 item.IsOverdue ? "Yes" : "No");
 
             if (item.DurationDays > 30)
                 dgvReturns.Rows[rowIdx].Cells["ReturnDate"].Style.ForeColor = ThemeHelper.Warning;
+
+            var overdueCell = dgvReturns.Rows[rowIdx].Cells["Overdue"];
+            overdueCell.Style.Font = ThemeHelper.FontBold;
+            overdueCell.Style.ForeColor = item.IsOverdue ? ThemeHelper.Danger : ThemeHelper.TextSecondary;
 
             var sourceCell = dgvReturns.Rows[rowIdx].Cells["Source"];
             sourceCell.Style.ForeColor = item.Source == "Check In/Out"
@@ -135,6 +140,7 @@ namespace Inventory_Management_System.Forms
             public string ReturnDate { get; set; } = "—";
             public string Condition { get; set; } = "—";
             public int DurationDays { get; set; }
+            public bool IsOverdue { get; set; }
             public Allocation? AllocationRef { get; set; } // non-null only for Allocation-sourced rows
         }
 
@@ -171,8 +177,11 @@ namespace Inventory_Management_System.Forms
                         ReturnDate = item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
                         Condition = item.Equipment?.ConditionGrade ?? "—",
                         DurationDays = (returnDate - item.AllocationDate).Days,
+                        IsOverdue = item.ExpectedReturnDate.HasValue && item.ActualReturnDate.HasValue &&
+                                    item.ActualReturnDate.Value > item.ExpectedReturnDate.Value,
                         AllocationRef = item
-                    };
+                    
+                };
                 }).ToList();
 
                 var completedCheckIns = db.Transactions
@@ -195,6 +204,8 @@ namespace Inventory_Management_System.Forms
                         ReturnDate = t.ActualReturn?.ToString("yyyy-MM-dd") ?? "—",
                         Condition = t.ConditionAfter ?? "—",
                         DurationDays = (returnDate - t.TransactionDate).Days,
+                        IsOverdue = t.ExpectedReturn.HasValue && t.ActualReturn.HasValue &&
+                                    t.ActualReturn.Value > t.ExpectedReturn.Value,
                         AllocationRef = null
                     };
                 }).ToList();
@@ -255,21 +266,26 @@ namespace Inventory_Management_System.Forms
 
             foreach (var item in pageItems)
             {
-                int rowIdx = dgvReturns.Rows.Add(
-                    item.Id,
-                    item.QrCode,
-                    item.EquipmentCode,
-                    item.EquipmentName,
-                    item.Employee,
-                    item.ReturnDate,
-                    item.Condition,
-                    item.Source
-                );
+        int rowIdx = dgvReturns.Rows.Add(
+                          item.Id,
+                          item.QrCode,
+                          item.EquipmentCode,
+                          item.EquipmentName,
+                          item.Employee,
+                          item.ReturnDate,
+                          item.Condition,
+                          item.Source,
+                          item.IsOverdue ? "Yes" : "No"
+                      );
 
-                if (item.DurationDays > 30)
-                    dgvReturns.Rows[rowIdx].Cells["ReturnDate"].Style.ForeColor = ThemeHelper.Warning;
+        if (item.DurationDays > 30)
+            dgvReturns.Rows[rowIdx].Cells["ReturnDate"].Style.ForeColor = ThemeHelper.Warning;
 
-                var sourceCell = dgvReturns.Rows[rowIdx].Cells["Source"];
+        var overdueCell = dgvReturns.Rows[rowIdx].Cells["Overdue"];
+        overdueCell.Style.Font = ThemeHelper.FontBold;
+        overdueCell.Style.ForeColor = item.IsOverdue ? ThemeHelper.Danger : ThemeHelper.TextSecondary;
+
+        var sourceCell = dgvReturns.Rows[rowIdx].Cells["Source"];
                 sourceCell.Style.ForeColor = item.Source == "Check In/Out"
                     ? Color.FromArgb(25, 118, 210)
                     : Color.FromArgb(107, 114, 128);
@@ -437,17 +453,17 @@ namespace Inventory_Management_System.Forms
                 if (sfd.ShowDialog() != DialogResult.OK) return;
 
                 var sb = new StringBuilder();
-                sb.AppendLine("Return ID,QR Code,Equipment Code,Equipment Name,Returned By,Return Date,Condition");
-                foreach (DataGridViewRow row in dgvReturns.Rows)
-                {
-                    string E(object? v) => $"\"{v?.ToString()?.Replace("\"", "\"\"") ?? ""}\"";
-                    sb.AppendLine(string.Join(",",
-                        E(row.Cells["ReturnID"].Value), E(row.Cells["QRCode"].Value),
-                        E(row.Cells["EquipmentCode"].Value), E(row.Cells["EquipmentName"].Value),
-                        E(row.Cells["Employee"].Value), E(row.Cells["ReturnDate"].Value),
-                        E(row.Cells["Condition"].Value)));
-                }
-                System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
+        sb.AppendLine("Return ID,QR Code,Equipment Code,Equipment Name,Returned By,Return Date,Condition,Overdue");
+        foreach (DataGridViewRow row in dgvReturns.Rows)
+        {
+            string E(object? v) => $"\"{v?.ToString()?.Replace("\"", "\"\"") ?? ""}\"";
+            sb.AppendLine(string.Join(",",
+                E(row.Cells["ReturnID"].Value), E(row.Cells["QRCode"].Value),
+                E(row.Cells["EquipmentCode"].Value), E(row.Cells["EquipmentName"].Value),
+                E(row.Cells["Employee"].Value), E(row.Cells["ReturnDate"].Value),
+                E(row.Cells["Condition"].Value), E(row.Cells["Overdue"].Value)));
+        }
+        System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
                 MessageBox.Show("Exported successfully.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
