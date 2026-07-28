@@ -31,6 +31,14 @@ namespace Inventory_Management_System.Forms
             InitializeComponent();
             ApplyTheme();
             LoadAllocatedEquipment();
+
+            // Same fix as AllocationForm — Form.Shown fires once, after WinForms'
+            // automatic first-row selection, so clearing here reliably wins.
+            this.Shown += (s, e) =>
+            {
+                dgvTransfer.ClearSelection();
+                dgvTransfer.CurrentCell = null;
+            };
         }
 
         private void ApplyTheme()
@@ -117,22 +125,40 @@ namespace Inventory_Management_System.Forms
 
             foreach (var item in pageItems)
             {
-                dgvTransfer.Rows.Add(
+                string status = (item.ExpectedReturnDate.HasValue &&
+                                  item.ExpectedReturnDate.Value < DateOnly.FromDateTime(DateTime.Today))
+                                  ? "Overdue" : "approved";
+
+                int rowIdx = dgvTransfer.Rows.Add(
                     item.Id,
                     string.IsNullOrWhiteSpace(item.Equipment?.QrCode) ? "—" : item.Equipment!.QrCode,
                     item.Equipment?.EquipmentCode ?? "—",
                     item.Equipment?.Name ?? "—",
                     item.Employee?.FullName ?? "—",
                     item.Location?.LocationName ?? "—",
-                    item.AllocationDate.ToString("yyyy-MM-dd")
+                    item.AllocationDate.ToString("yyyy-MM-dd"),
+                    status
                 );
+
+                var statusCell = dgvTransfer.Rows[rowIdx].Cells["Status"];
+                if (status == "Overdue")
+                {
+                    statusCell.Style.BackColor = Color.FromArgb(255, 205, 210);
+                    statusCell.Style.ForeColor = Color.FromArgb(183, 28, 28);
+                }
+                else
+                {
+                    statusCell.Style.BackColor = Color.FromArgb(200, 230, 201);
+                    statusCell.Style.ForeColor = Color.FromArgb(27, 94, 32);
+                }
+                statusCell.Style.Font = ThemeHelper.FontBold;
             }
 
             lblRowCount.Text = $"Showing {pageItems.Count} of {_totalMatchingCount} allocated items";
             lblPageIndicator.Text = $"Page {_currentPage} of {Math.Max(1, _totalPages)}";
             btnPrevPage.Enabled = _currentPage > 1;
             btnNextPage.Enabled = _currentPage < _totalPages;
-        }
+        }   
 
         // ── Toolbar "New Transfer" — pick from full active list ─────────────
         private void btnTransfer_Click(object sender, EventArgs e)
@@ -141,10 +167,15 @@ namespace Inventory_Management_System.Forms
         }
 
         // ── Double-click a row — jump straight to that item's transfer ──────
+        // FIX: bounds-check both ends of the row index, and resolve the
+        // AllocationId strictly from the row that was actually clicked
+        // (e.RowIndex), never from SelectedRows[0] or any cached index.
         private void dgvTransfer_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
-            if (e.RowIndex < 0) return;
-            var idValue = dgvTransfer.Rows[e.RowIndex].Cells["AllocationId"].Value;
+            if (e.RowIndex < 0 || e.RowIndex >= dgvTransfer.Rows.Count) return;
+
+            var clickedRow = dgvTransfer.Rows[e.RowIndex];
+            var idValue = clickedRow.Cells["AllocationId"].Value;
             if (idValue == null || !int.TryParse(idValue.ToString(), out int allocationId)) return;
 
             OpenTransferDialog(preselectedAllocationId: allocationId);
@@ -281,13 +312,14 @@ namespace Inventory_Management_System.Forms
         }
     }
 
-    // ── Transfer Dialog — now supports preselecting an equipment/allocation ──
+    // ── Transfer Dialog — now supports live fuzzy search + preselection ──
     public class TransferDialog : Form
     {
         public int OldAllocationId { get; private set; }
         public int NewEmployeeId { get; private set; }
         public int NewLocationId { get; private set; }
 
+        private TextBox txtEquipmentSearch = null!;
         private ComboBox cmbAllocation = null!;
         private ComboBox cmbEmployee = null!;
         private ComboBox cmbLocation = null!;
@@ -298,6 +330,7 @@ namespace Inventory_Management_System.Forms
         private readonly List<Employee> _employees;
         private readonly List<Location> _locations;
         private readonly int? _preselectedAllocationId;
+        private EntitySuggestHelper<Allocation>? _equipmentSuggest;
 
         public TransferDialog(List<Allocation> allocations, List<Employee> employees, List<Location> locations,
             int? preselectedAllocationId = null)
@@ -312,7 +345,7 @@ namespace Inventory_Management_System.Forms
         private void BuildUI()
         {
             Text = "New Transfer";
-            Size = new Size(420, 320);
+            Size = new Size(420, 390);
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -332,21 +365,72 @@ namespace Inventory_Management_System.Forms
                 y += 40;
             }
 
-            cmbAllocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbAllocation.DisplayMember = "DisplayText";
-            cmbAllocation.ValueMember = "Id";
-            cmbAllocation.DataSource = _allocations.Select(a => new
+            // NEW: fuzzy search box, same pattern as the Allocation dialog
+            txtEquipmentSearch = new TextBox { PlaceholderText = "Search by equipment code, name, or serial…" };
+            ThemeHelper.StyleTextBox(txtEquipmentSearch);
+            AddRow("Find Equipment:", txtEquipmentSearch);
+
+            var allocationItems = new List<dynamic>
+{
+    new { Id = 0, DisplayText = "-- Select equipment --" }
+};
+            allocationItems.AddRange(_allocations.Select(a => (dynamic)new
             {
                 a.Id,
                 DisplayText = $"{a.Equipment?.EquipmentCode} → {a.Employee?.FullName}"
-            }).ToList();
+            }));
+
+            cmbAllocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbAllocation.DisplayMember = "DisplayText";
+            cmbAllocation.ValueMember = "Id";
+            cmbAllocation.DataSource = allocationItems;
+            cmbAllocation.SelectedIndexChanged += CmbAllocation_SelectedIndexChanged;
             ThemeHelper.StyleComboBox(cmbAllocation);
             AddRow("Equipment to transfer:", cmbAllocation);
 
             if (_preselectedAllocationId.HasValue)
             {
-                cmbAllocation.SelectedValue = _preselectedAllocationId.Value;
+                var preAlloc = _allocations.FirstOrDefault(a => a.Id == _preselectedAllocationId.Value);
+                if (preAlloc != null)
+                {
+                    cmbAllocation.SelectedValue = _preselectedAllocationId.Value;
+                    txtEquipmentSearch.Text = $"{preAlloc.Equipment?.EquipmentCode} — {preAlloc.Equipment?.Name}";
+                }
+                txtEquipmentSearch.Enabled = false;
                 cmbAllocation.Enabled = false; // double-clicked a specific item — lock it in
+            }
+            else
+            {
+               
+
+                _equipmentSuggest = new EntitySuggestHelper<Allocation>(
+                    textBox: txtEquipmentSearch,
+                    hostForm: this,
+                    onSelected: alloc =>
+                    {
+                        _suppressSync = true;
+                        int index = allocationItems.FindIndex(a => a.Id == alloc.Id);
+                        if (index >= 0)
+                        {
+                            cmbAllocation.SelectedIndex = index;
+                        }
+                        txtEquipmentSearch.Text = $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}";
+                        txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
+                        _suppressSync = false;
+                    },
+                    scoreFn: (alloc, term) => Math.Max(
+                        FuzzySearchHelper.FuzzyScoreCode(alloc.Equipment?.EquipmentCode, term),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScoreCode(alloc.Equipment?.QrCode, term),
+                            Math.Max(
+                                FuzzySearchHelper.FuzzyScore(alloc.Equipment?.Name, term),
+                                FuzzySearchHelper.FuzzyScoreCode(alloc.Equipment?.SerialNumber, term)))),
+                    line1Selector: alloc => $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}",
+                    line2Selector: alloc => string.IsNullOrWhiteSpace(alloc.Equipment?.SerialNumber)
+                        ? $"With: {alloc.Employee?.FullName ?? "—"}"
+                        : $"S/N: {alloc.Equipment.SerialNumber} | With: {alloc.Employee?.FullName ?? "—"}");
+
+                _equipmentSuggest.LoadItems(_allocations);
             }
 
             cmbEmployee = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
@@ -373,9 +457,39 @@ namespace Inventory_Management_System.Forms
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
             Controls.Add(btnCancel);
 
-            ClientSize = new Size(400, y + 70);
+            var lblNote = new Label
+            {
+                Text = "ℹ  After transferring, set a new expected return date\nfrom the Allocations screen.",
+                Location = new Point(20, y + 46),
+                Size = new Size(360, 36),
+                Font = ThemeHelper.FontSmall,
+                ForeColor = ThemeHelper.TextSecondary,
+                BackColor = Color.Transparent
+            };
+            Controls.Add(lblNote);
+
+            ClientSize = new Size(400, y + 100);
             AcceptButton = btnSave;
             CancelButton = btnCancel;
+        }
+
+        private bool _suppressSync = false;
+
+        private void CmbAllocation_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (_suppressSync) return;
+            if (cmbAllocation.SelectedValue == null) return;
+
+            int selectedId = (int)cmbAllocation.SelectedValue;
+            if (selectedId == 0) return; // placeholder — ignore
+
+            var alloc = _allocations.FirstOrDefault(a => a.Id == selectedId);
+            if (alloc == null) return;
+
+            _suppressSync = true;
+            txtEquipmentSearch.Text = $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}";
+            txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
+            _suppressSync = false;
         }
 
         private void BtnSave_Click(object? sender, EventArgs e)
@@ -389,6 +503,12 @@ namespace Inventory_Management_System.Forms
             NewEmployeeId = (int)cmbEmployee.SelectedValue;
             NewLocationId = (int)cmbLocation.SelectedValue;
             DialogResult = DialogResult.OK;
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _equipmentSuggest?.Dispose();
+            base.OnFormClosed(e);
         }
     }
 }

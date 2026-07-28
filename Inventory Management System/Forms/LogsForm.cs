@@ -25,6 +25,12 @@ namespace Inventory_Management_System.Forms
             InitializeComponent();
             ApplyTheme();
             LoadLogs();
+
+            this.Shown += (s, e) =>
+            {
+                dgvLogs.ClearSelection();
+                dgvLogs.CurrentCell = null;
+            };
         }
 
         private void ApplyTheme()

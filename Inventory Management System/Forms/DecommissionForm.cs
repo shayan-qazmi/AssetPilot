@@ -23,6 +23,12 @@ namespace Inventory_Management_System.Forms
             InitializeComponent();
             ApplyTheme();
             LoadDecommissioned();
+
+            this.Shown += (s, e) =>
+            {
+                dgvDecommission.ClearSelection();
+                dgvDecommission.CurrentCell = null;
+            };
         }
 
         private void ApplyTheme()
@@ -98,7 +104,10 @@ namespace Inventory_Management_System.Forms
                         decommOn = log.CreatedAt?.ToString("yyyy-MM-dd") ?? "—";
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "DecommissionForm.LoadData (Log lookup)");
+                }
 
                 int rowIdx = dgvDecommission.Rows.Add(
                     item.EquipmentCode,

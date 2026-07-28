@@ -95,6 +95,7 @@ namespace Inventory_Management_System.Forms
             dgvTransfer.Columns.Add("CurrentEmployee", "Currently With");
             dgvTransfer.Columns.Add("CurrentLocation", "Current Location");
             dgvTransfer.Columns.Add("AllocatedSince", "Allocated Since");
+            dgvTransfer.Columns.Add("Status", "Status");
             dgvTransfer.Columns["AllocationId"].Visible = false;
 
             panelBottom.Dock = System.Windows.Forms.DockStyle.Bottom;

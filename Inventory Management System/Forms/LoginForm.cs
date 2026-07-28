@@ -587,7 +587,10 @@ namespace Inventory_Management_System.Forms
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "LoginForm.LoadRememberedUser");
+            }
         }
 
         private void SaveRememberedUser(string username)
@@ -605,7 +608,10 @@ namespace Inventory_Management_System.Forms
                         System.IO.File.Delete(filePath);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "LoginForm.SaveRememberedUser");
+            }
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)

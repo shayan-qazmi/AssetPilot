@@ -28,6 +28,7 @@ namespace Inventory_Management_System.Forms
         private List<AllocationRow> _allSourceRows = new();
 
         private ComboBox cmbEquipmentFilter = null!;
+        private Button btnEditReturn = null!;
         private string _activeStatusFilter = "All";
         private List<AllocationRow> _lastRenderedRows = new();
 
@@ -82,6 +83,7 @@ namespace Inventory_Management_System.Forms
             InitializeComponent();
             ApplyTheme();
             SetupEquipmentFilterDropdown();
+            SetupEditReturnButton();
             LoadAllocations();
             SetupSuggestions();
 
@@ -91,7 +93,11 @@ namespace Inventory_Management_System.Forms
             {
                 if (e.RowIndex >= 0) _userClickedGridRow = true;
             };
-
+            this.Shown += (s, e) =>
+            {
+                dgvAllocation.ClearSelection();
+                dgvAllocation.CurrentCell = null;
+            };
             flowToolbar.Layout += FlowToolbar_Layout;
         }
 
@@ -153,6 +159,22 @@ namespace Inventory_Management_System.Forms
 
         // Equipment with no active Allocation and no active Check-Out —
         // queried fresh each call rather than cached, so it's always current.
+
+        private void SetupEditReturnButton()
+        {
+            btnEditReturn = new Button
+            {
+                Text = "✏  Edit",
+                Size = btnApprove.Size,           // ← match Approve's exact size instead of guessing
+                Margin = new Padding(4, 4, 0, 0)
+            };
+            ThemeHelper.StyleButton(btnEditReturn, ThemeHelper.Warning);
+            btnEditReturn.Click += btnEditReturn_Click;
+
+            var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
+            flow.Controls.Add(btnEditReturn);
+            flow.Controls.SetChildIndex(btnEditReturn, flow.Controls.IndexOf(btnApprove));
+        }
         private List<AllocationRow> GetAvailableEquipmentRows()
         {
             try
@@ -608,10 +630,60 @@ namespace Inventory_Management_System.Forms
         {
             var row = GetSelectedRow();
             bool isCheckInOutSelected = row != null && row.AllocationRef == null;
+            bool nothingSelected = row == null;
 
             btnApprove.Enabled = !isCheckInOutSelected;
             btnReturn.Enabled = !isCheckInOutSelected;
             btnDelete.Enabled = !isCheckInOutSelected;
+
+            // Editing the return date only makes sense for a real Allocation record
+            // that hasn't already been returned.
+            btnEditReturn.Enabled = !nothingSelected && !isCheckInOutSelected &&
+                !string.Equals(row?.Status, "returned", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void btnEditReturn_Click(object? sender, EventArgs e)
+        {
+            var alloc = GetSelectedAllocation();
+            if (alloc == null)
+            {
+                MessageBox.Show("Select an allocation first.", "No Selection",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            if (alloc.Status == "returned")
+            {
+                MessageBox.Show("Cannot edit the return date of a returned allocation.",
+                    "Not Allowed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            using var frm = new EditExpectedReturnDialog(alloc.ExpectedReturnDate);
+            if (frm.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                using var db = new InventoryDbContext();
+                var a = db.Allocations.FirstOrDefault(x => x.Id == alloc.Id);
+                if (a == null) return;
+
+                string oldVal = alloc.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "none";
+                a.ExpectedReturnDate = frm.SelectedDate;
+                db.SaveChanges();
+
+                _audit.Log(alloc.EquipmentId, "Expected Return Date Updated",
+                    oldVal, frm.SelectedDate?.ToString("yyyy-MM-dd") ?? "none");
+
+                // Overdue/approved status is already derived from ExpectedReturnDate
+                // vs. today in LoadAllocations() — reloading picks up the new status
+                // automatically, no extra logic needed here.
+                LoadAllocations();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Update failed: " + ex.Message, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void btnAdd_Click(object sender, EventArgs e)
@@ -825,6 +897,7 @@ namespace Inventory_Management_System.Forms
         private CheckBox chkExpected = null!;
         private Button btnSave = null!;
         private Button btnCancel = null!;
+       
 
         private ComboBox cmbCategoryFilter = null!;
         private TextBox txtEquipmentSearch = null!;
@@ -1057,4 +1130,89 @@ namespace Inventory_Management_System.Forms
             base.OnFormClosed(e);
         }
     }
+    // ── Edit Expected Return Date Dialog ───────────────────────────────────
+    public class EditExpectedReturnDialog : Form
+    {
+        public DateOnly? SelectedDate { get; private set; }
+
+        private CheckBox chkHasDate = null!;
+        private DateTimePicker dtp = null!;
+
+        public EditExpectedReturnDialog(DateOnly? currentDate)
+        {
+            BuildUI(currentDate);
+        }
+
+        private void BuildUI(DateOnly? currentDate)
+        {
+            Text = "Edit Expected Return Date";
+            Size = new Size(360, 260);
+            StartPosition = FormStartPosition.CenterParent;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            ThemeHelper.ApplyFormBackground(this);
+
+            int y = 20;
+
+            chkHasDate = new CheckBox
+            {
+                Text = "Set expected return date",
+                Location = new Point(20, y),
+                AutoSize = true,
+                Font = ThemeHelper.FontDefault,
+                ForeColor = ThemeHelper.TextPrimary,
+                Checked = currentDate.HasValue
+            };
+            chkHasDate.CheckedChanged += (s, e) => dtp.Enabled = chkHasDate.Checked;
+            Controls.Add(chkHasDate);
+            y += 30;
+
+            dtp = new DateTimePicker
+            {
+                Location = new Point(20, y),
+                Width = 300,
+                Format = DateTimePickerFormat.Short,
+                Enabled = currentDate.HasValue,
+                // No MinDate restriction here (unlike the "new allocation" dialog) —
+                // picking a past date is intentional, since it's how you mark an
+                // allocation overdue for testing/correction purposes.
+                Value = currentDate.HasValue
+                    ? currentDate.Value.ToDateTime(TimeOnly.MinValue)
+                    : DateTime.Today
+            };
+            Controls.Add(dtp);
+            y += 50;
+
+            var lblHint = new Label
+            {
+                Text = "A past date marks this allocation overdue.\nA future (or no) date clears the overdue status.",
+                Location = new Point(20, y),
+                Size = new Size(300, 40),
+                Font = ThemeHelper.FontSmall,
+                ForeColor = ThemeHelper.TextSecondary
+            };
+            Controls.Add(lblHint);
+            y += 54;
+
+            var btnSave = new Button { Text = "Save", Location = new Point(20, y), Size = new Size(140, 36) };
+            ThemeHelper.StyleButton(btnSave);
+            btnSave.Click += (s, e) =>
+            {
+                SelectedDate = chkHasDate.Checked ? DateOnly.FromDateTime(dtp.Value) : (DateOnly?)null;
+                DialogResult = DialogResult.OK;
+            };
+            Controls.Add(btnSave);
+
+            var btnCancel = new Button { Text = "Cancel", Location = new Point(170, y), Size = new Size(140, 36) };
+            ThemeHelper.StyleSecondaryButton(btnCancel);
+            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
+            Controls.Add(btnCancel);
+
+            ClientSize = new Size(340, y + 60);
+            AcceptButton = btnSave;
+            CancelButton = btnCancel;
+        }
+    }
+
 }

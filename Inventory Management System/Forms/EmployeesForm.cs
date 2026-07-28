@@ -25,6 +25,13 @@ namespace Inventory_Management_System.Forms
             _employeeService = new EmployeeService();
             ApplyTheme();
             LoadEmployees();
+
+            this.Shown += (s, e) =>
+            {
+                dgvEmployees.ClearSelection();
+                dgvEmployees.CurrentCell = null;
+            };
+
         }
 
         private void ApplyTheme()

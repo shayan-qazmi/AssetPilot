@@ -16,7 +16,10 @@ namespace Inventory_Management_System
             {
                 new Services.TransactionService().UpdateStatus();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Helpers.Logger.LogError(ex, "Program.Main (TransactionService.UpdateStatus)");
+            }
 
             using var login = new LoginForm();
             if (login.ShowDialog() == DialogResult.OK)

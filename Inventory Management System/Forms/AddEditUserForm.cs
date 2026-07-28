@@ -145,7 +145,10 @@ namespace Inventory_Management_System.Forms
                 if (cmbRole.Items.Count > 0)
                     cmbRole.SelectedIndex = 0;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "AddEditUserForm.LoadRoles");
+            }
         }
 
         private void PopulateFields()
@@ -165,7 +168,10 @@ namespace Inventory_Management_System.Forms
                     if (role != null) cmbRole.SelectedItem = role.RoleName;
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "AddEditUserForm.PopulateFields (UserRole query)");
+            }
         }
 
         private void BtnSave_Click(object? sender, EventArgs e)

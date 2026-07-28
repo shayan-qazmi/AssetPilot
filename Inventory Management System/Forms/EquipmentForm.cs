@@ -36,6 +36,15 @@ namespace Inventory_Management_System.Forms
             LoadEquipment();
 
             flowToolbar.Layout += FlowToolbar_Layout;
+
+            // Same fix as AllocationForm/TransferForm — Form.Shown fires once,
+            // after WinForms' automatic first-row selection, so clearing here
+            // reliably wins instead of racing it.
+            this.Shown += (s, e) =>
+            {
+                dgvEquipment.ClearSelection();
+                dgvEquipment.CurrentCell = null;
+            };
         }
 
         private bool _updatingToolbarHeight = false;
@@ -614,7 +623,10 @@ namespace Inventory_Management_System.Forms
                     var bmp = QRHelper.GenerateQRCode(qrContent, 6);
                     qrItems.Add((eq, bmp));
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "EquipmentForm.btnPrintSelectedQR_Click (GenerateQRCode)");
+                }
             }
 
             if (qrItems.Count == 0)
@@ -655,7 +667,10 @@ namespace Inventory_Management_System.Forms
                     using var db = new InventoryDbContext();
                     companyName = db.AppSettings.FirstOrDefault()?.CompanyName ?? "Q-Inventory";
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "EquipmentForm.PrintPage (AppSettings query)");
+                }
 
                 using var codeFont = new Font("Segoe UI", 7f, FontStyle.Bold);
                 using var nameFont = new Font("Segoe UI", 6f, FontStyle.Regular);
@@ -704,18 +719,30 @@ namespace Inventory_Management_System.Forms
                 pe.HasMorePages = false;
             };
 
-            using var ppd = new PrintPreviewDialog
+            try
             {
-                Document      = pd,
-                Width         = 900,
-                Height        = 700,
-                StartPosition = FormStartPosition.CenterParent,
-                Text          = $"QR Sheet Preview — {qrItems.Count} items"
-            };
-            ppd.ShowDialog();
-
-            foreach (var (_, bmp) in qrItems)
-                bmp.Dispose();
+                using var ppd = new PrintPreviewDialog
+                {
+                    Document = pd,
+                    Width = 900,
+                    Height = 700,
+                    StartPosition = FormStartPosition.CenterParent,
+                    Text = $"QR Sheet Preview — {qrItems.Count} items"
+                };
+                ppd.ShowDialog();
+            }
+            catch (System.Drawing.Printing.InvalidPrinterException)
+            {
+                MessageBox.Show(
+                    "No printer is installed on this machine, so a print preview can't be shown.\n\n" +
+                    "Install a printer (a virtual PDF printer works fine for testing) and try again.",
+                    "No Printer Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally
+            {
+                foreach (var (_, bmp) in qrItems)
+                    bmp.Dispose();
+            }
         }
 
         private void btnShowQR_Click(object sender, EventArgs e)
@@ -755,7 +782,10 @@ namespace Inventory_Management_System.Forms
                 using var db0 = new InventoryDbContext();
                 companyName = db0.AppSettings.FirstOrDefault()?.CompanyName ?? "Q-Inventory";
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "EquipmentForm.ShowSingleQRPreview (AppSettings query)");
+            }
 
             var frm = new Form
             {

@@ -18,7 +18,7 @@ namespace Inventory_Management_System
 
         private void InitializeComponent()
         {
-            panelMenu        = new System.Windows.Forms.Panel();
+            panelMenu = new Inventory_Management_System.DoubleBufferedPanel();
             panelTop         = new System.Windows.Forms.Panel();
             panelDesktop     = new System.Windows.Forms.Panel();
             panelStats       = new System.Windows.Forms.Panel();
@@ -212,7 +212,7 @@ namespace Inventory_Management_System
 
         #endregion
 
-        private System.Windows.Forms.Panel  panelMenu;
+        private Inventory_Management_System.DoubleBufferedPanel panelMenu;
         private System.Windows.Forms.Panel  panelTop;
         private System.Windows.Forms.Panel  panelDesktop;
         private System.Windows.Forms.Panel  panelStats;

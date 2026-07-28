@@ -37,7 +37,7 @@ namespace Inventory_Management_System.Helpers
             _onSelected = onSelected;
 
             // ── Build the floating ListBox ─────────────────────────────────
-            _listBox = new ListBox
+            _listBox = new SuggestionListBox
             {
                 Visible          = false,
                 BorderStyle      = BorderStyle.FixedSingle,
@@ -78,6 +78,20 @@ namespace Inventory_Management_System.Helpers
         {
             _allEquipment = equipment ?? new List<Equipment>();
         }
+
+
+        private sealed class SuggestionListBox : ListBox
+        {
+            protected override bool IsInputKey(Keys keyData)
+            {
+                if (keyData == Keys.Enter || keyData == Keys.Escape ||
+                    keyData == Keys.Up || keyData == Keys.Down)
+                    return true;
+
+                return base.IsInputKey(keyData);
+            }
+        }
+
 
         // ── TextBox events ─────────────────────────────────────────────────
         private void TextBox_TextChanged(object? sender, EventArgs e)

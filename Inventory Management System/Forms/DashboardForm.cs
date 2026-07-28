@@ -58,6 +58,13 @@ namespace Inventory_Management_System
         // ── Card entrance animations ────────────────────────────────────
         private System.Windows.Forms.Timer? _animTimer;
         private List<CardAnimState>? _cardAnims;
+        // ── Sidebar active-indicator (sliding accent bar) ────────────────
+        private Panel? _accentIndicator;
+        private System.Windows.Forms.Timer? _accentTimer;
+        private int _accentStartY;
+        private int _accentTargetY;
+        private float _accentProgress = 1f;
+        private const int AccentBarHeight = 30;
         private float _donutAnimProgress = 1f;
         private const int AnimTickIntervalMs = 15;
         private const int CenterCardIndex = 3; // "Under Repair"
@@ -113,6 +120,17 @@ namespace Inventory_Management_System
 
             panelMenu.BackColor = ThemeHelper.Sidebar;
 
+            panelMenu.Paint += (s, e) =>
+            {
+                using var grad = new LinearGradientBrush(
+                    panelMenu.ClientRectangle,
+                    ThemeHelper.Sidebar,
+                    ControlPaint.Dark(ThemeHelper.Sidebar, 0.12f),
+                    LinearGradientMode.Vertical);
+                e.Graphics.FillRectangle(grad, panelMenu.ClientRectangle);
+            };
+            panelMenu.Invalidate();
+
             // Logo in sidebar
             try
             {
@@ -157,6 +175,13 @@ namespace Inventory_Management_System
             ThemeHelper.StyleSidebarButton(btnCheckInOut);
             ThemeHelper.StyleSidebarButton(btnReports);
             ThemeHelper.StyleSidebarButton(btnSettings);
+                     // Use one shared, animated accent bar instead of each button
+            // drawing its own static one.
+            ThemeHelper.UseGlobalAccentIndicator = true;
+            EnsureAccentIndicator();
+            PositionAccentIndicator(btnDashboard, animate: false);
+
+         
 
             // Logout — keep red
             btnLogout.UseVisualStyleBackColor              = false;
@@ -199,6 +224,68 @@ namespace Inventory_Management_System
             bool isAdmin = AuthService.IsAdmin;
             foreach (var btn in AdminOnlyButtons) btn.Visible = isAdmin;
         }
+
+
+        private void EnsureAccentIndicator()
+        {
+            if (_accentIndicator != null) return;
+
+            _accentIndicator = new Panel
+            {
+                Name = "accentIndicator",
+                Width = 4,
+                Height = AccentBarHeight,
+                BackColor = Color.FromArgb(144, 238, 144)
+            };
+            panelMenu.Controls.Add(_accentIndicator);
+            _accentIndicator.BringToFront();
+        }
+
+        private void PositionAccentIndicator(Button btn, bool animate = true)
+        {
+            if (_accentIndicator == null) return;
+
+            const int targetX = 6; // matches the left-bar offset used by SidebarBtn_PaintAccent
+            int targetY = btn.Top + (btn.Height - AccentBarHeight) / 2;
+
+            if (!animate)
+            {
+                _accentIndicator.Location = new Point(targetX, targetY);
+                _accentIndicator.Visible = true;
+                _accentIndicator.BringToFront();
+                return;
+            }
+
+            _accentTimer?.Stop();
+            _accentTimer?.Dispose();
+
+            _accentStartY = _accentIndicator.Top;
+            _accentTargetY = targetY;
+            _accentProgress = 0f;
+            _accentIndicator.Left = targetX;
+            _accentIndicator.BringToFront();
+
+            _accentTimer = new System.Windows.Forms.Timer { Interval = 12 };
+            _accentTimer.Tick += (s, e) =>
+            {
+                _accentProgress += 0.15f;
+                if (_accentProgress >= 1f)
+                {
+                    _accentProgress = 1f;
+                    _accentIndicator.Top = _accentTargetY;
+                    _accentTimer.Stop();
+                    _accentTimer.Dispose();
+                    _accentTimer = null;
+                }
+                else
+                {
+                    float ease = 1f - MathF.Pow(1f - _accentProgress, 3f);
+                    _accentIndicator.Top = (int)(_accentStartY + (_accentTargetY - _accentStartY) * ease);
+                }
+            };
+            _accentTimer.Start();
+        }
+
 
         private bool EnsureAdmin()
         {
@@ -466,10 +553,9 @@ namespace Inventory_Management_System
                     }
                 }
             }
-
             if (_donutAnimProgress < 1f)
             {
-                float raw = Math.Min(1f, _donutAnimProgress + 0.02f);
+                float raw = Math.Min(1f, _donutAnimProgress + 0.0025f);
                 _donutAnimProgress = raw >= 1f ? 1f : 1f - MathF.Pow(1f - raw, 3f);
                 if (_donutAnimProgress > 0.999f) _donutAnimProgress = 1f;
                 _panelDonut?.Invalidate();
@@ -478,7 +564,7 @@ namespace Inventory_Management_System
 
             if (_barAnimProgress < 1f)
             {
-                float raw = Math.Min(1f, _barAnimProgress + 0.02f);
+                float raw = Math.Min(1f, _barAnimProgress + 0.0025f);
                 _barAnimProgress = raw >= 1f ? 1f : 1f - MathF.Pow(1f - raw, 3f);
                 if (_barAnimProgress > 0.999f) _barAnimProgress = 1f;
                 _panelBar?.Invalidate();
@@ -953,6 +1039,19 @@ namespace Inventory_Management_System
             panelMenu.Region = new Region(path);
         }
 
+        private void AddSidebarDivider(Button afterButton)
+        {
+            var divider = new Panel
+            {
+                Height = 1,
+                Dock = DockStyle.Top,
+                BackColor = Color.FromArgb(40, 255, 255, 255) // soft translucent line on dark green
+            };
+            int index = panelMenu.Controls.IndexOf(afterButton);
+            panelMenu.Controls.Add(divider);
+            panelMenu.Controls.SetChildIndex(divider, index); // sits directly above it in dock order
+        }
+
         private void PaintSidebarShadow(object? sender, PaintEventArgs e)
         {
             using var br = new LinearGradientBrush(
@@ -1014,6 +1113,9 @@ namespace Inventory_Management_System
             btn.Invalidate();
             btn.Update();
             activeNavButton = btn;
+
+
+            PositionAccentIndicator(btn);
         }
 
 

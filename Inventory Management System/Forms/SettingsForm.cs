@@ -37,11 +37,10 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Timer? _sidebarSlideTimer;
         private const int SidebarTargetWidth = 220;
 
-        private static readonly Color SettingsSidebarColor  = Color.FromArgb(27, 51, 36);
-        private static readonly Color SettingsSidebarHover  = Color.FromArgb(40, 74, 52);
-        private static readonly Color SettingsSidebarActive = Color.FromArgb(52, 105, 61);
-
-        // ── User grid + buttons ────────────────────────────────────────
+        private static readonly Color SettingsSidebarColor = Color.FromArgb(250, 250, 247);
+        private static readonly Color SettingsSidebarHover = Color.FromArgb(248, 249, 247);
+        private static readonly Color SettingsSidebarActive = Color.FromArgb(52, 105, 61); // keep active green as-is
+        private static readonly Color SettingsSidebarText = Color.FromArgb(55, 65, 81); // more visibly green, higher contrast        // ── User grid + buttons ────────────────────────────────────────
         private DataGridView dgvUsers      = null!;
         private Button       btnAddUser    = null!;
         private Button       btnEditUser   = null!;
@@ -109,15 +108,20 @@ private string? _mysqlPath;
 
             var sideTitle = new Label
             {
-                Text      = "⚙  Settings",
-                Dock      = DockStyle.Top,
-                Height    = 56,
+                Text = "⚙  SETTINGS",
+                Dock = DockStyle.Top,
+                Height = 50,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding   = new Padding(18, 0, 0, 0),
-                Font      = new Font("Segoe UI", 11f, FontStyle.Bold),
-                ForeColor = Color.White,
-                BackColor = ThemeHelper.Header
+                Padding = new Padding(18, 0, 0, 0),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(74, 85, 104), // muted, not white like an active item
+                BackColor = SettingsSidebarColor            // same as the sidebar background, not Header green
             };
+            sideTitle.Paint += (s, e) =>
+            {
+                using var divider = new Pen(Color.FromArgb(35, 255, 255, 255), 1f);
+                e.Graphics.DrawLine(divider, 0, sideTitle.Height - 1, sideTitle.Width, sideTitle.Height - 1);
+            };  
             // Added to the sidebar AFTER the nav buttons below (see comment there) —
             // this is what pins it to the TOP instead of it rendering as a fake
             // 6th nav item under Categories.
@@ -159,23 +163,42 @@ private string? _mysqlPath;
                 var capturedPanel = panel;
                 var btn = new Button
                 {
-                    Text      = label,
-                    Dock      = DockStyle.Top,
-                    Height    = 46,
+                    Text = label,
+                    Dock = DockStyle.Top,
+                    Height = 46,
                     FlatStyle = FlatStyle.Flat,
                     TextAlign = ContentAlignment.MiddleLeft,
-                    Padding   = new Padding(18, 0, 0, 0),
-                    Font      = ThemeHelper.FontDefault,
-                    ForeColor = ThemeHelper.SidebarText,
+                    Padding = new Padding(18, 0, 0, 0),
+                    Font = ThemeHelper.FontDefault,
+                    ForeColor = SettingsSidebarText,
                     BackColor = SettingsSidebarColor,
-                    Cursor    = Cursors.Hand,
+                    Cursor = Cursors.Hand,
                     UseVisualStyleBackColor = false
                 };
-                btn.FlatAppearance.BorderSize         = 0;
-                btn.FlatAppearance.MouseOverBackColor = SettingsSidebarHover;
+                btn.FlatAppearance.BorderSize = 0;
+                btn.FlatAppearance.MouseOverBackColor = SettingsSidebarColor; // handled manually below instead
 
                 var capturedBtn = btn;
                 btn.Click += (s, e) => ShowSection(capturedPanel, capturedBtn, navBtns);
+
+                btn.MouseEnter += (s, e) =>
+                {
+                    if (btn.Tag as string != "active")
+                    {
+                        ApplyNavPillRegion(btn);
+                        FadeNavButtonColor(btn, btn.BackColor, SettingsSidebarHover);
+                    }
+                };
+                btn.MouseLeave += (s, e) =>
+                {
+                    if (btn.Tag as string != "active")
+                    {
+                        FadeNavButtonColor(btn, btn.BackColor, SettingsSidebarColor);
+                        btn.Region = null;
+                    }
+                };
+                btn.Resize += (s, e) => { if (btn.Tag as string == "active") ApplyNavPillRegion(btn); };
+
                 navBtns.Add(btn);
             }
 
@@ -216,6 +239,56 @@ private string? _mysqlPath;
             ShowSection(_panelGeneral, navBtns[0], navBtns);
         }
 
+        private static void ApplyNavPillRegion(Button btn)
+        {
+            if (btn.Width <= 0 || btn.Height <= 0) return;
+            btn.Parent?.Invalidate(btn.Bounds, true);
+
+            var rect = new Rectangle(10, 4, btn.Width - 20, btn.Height - 8);
+            using var path = new GraphicsPath();
+            int radius = 10;
+            path.AddArc(rect.X, rect.Y, radius, radius, 180, 90);
+            path.AddArc(rect.Right - radius, rect.Y, radius, radius, 270, 90);
+            path.AddArc(rect.Right - radius, rect.Bottom - radius, radius, radius, 0, 90);
+            path.AddArc(rect.X, rect.Bottom - radius, radius, radius, 90, 90);
+            path.CloseFigure();
+            btn.Region = new Region(path);
+            btn.Invalidate();
+        }
+
+        private static readonly Dictionary<Button, System.Windows.Forms.Timer> _navFadeTimers = new();
+
+        private static void FadeNavButtonColor(Button btn, Color from, Color to)
+        {
+            if (_navFadeTimers.TryGetValue(btn, out var existingTimer))
+            {
+                existingTimer.Stop();
+                existingTimer.Dispose();
+                _navFadeTimers.Remove(btn);
+            }
+
+            const int steps = 8;
+            int step = 0;
+            var timer = new System.Windows.Forms.Timer { Interval = 12 };
+            timer.Tick += (s, e) =>
+            {
+                step++;
+                float t = Math.Min(1f, step / (float)steps);
+                btn.BackColor = Color.FromArgb(
+                    (int)(from.R + (to.R - from.R) * t),
+                    (int)(from.G + (to.G - from.G) * t),
+                    (int)(from.B + (to.B - from.B) * t));
+                if (t >= 1f)
+                {
+                    timer.Stop();
+                    timer.Dispose();
+                    _navFadeTimers.Remove(btn);
+                }
+            };
+            _navFadeTimers[btn] = timer;
+            timer.Start();
+        }
+
         private void PositionWatermark()
         {
             if (_lblWatermark == null) return;
@@ -234,15 +307,24 @@ private string? _mysqlPath;
             foreach (var b in allBtns)
             {
                 b.BackColor = SettingsSidebarColor;
-                b.ForeColor = ThemeHelper.SidebarText;
-                b.Font      = ThemeHelper.FontDefault;
+                b.ForeColor = SettingsSidebarText;
+                b.Font = ThemeHelper.FontDefault;
+                b.Tag = null;
+                b.Region = null;
+                // Native hover overlay must match each button's actual resting
+                // color, or hovering the active item flashes it back to the
+                // inactive background — same issue fixed earlier on the main sidebar.
+                b.FlatAppearance.MouseOverBackColor = SettingsSidebarColor;
             }
             btn.BackColor = SettingsSidebarActive;
             btn.ForeColor = Color.White;
-            btn.Font      = ThemeHelper.FontSidebarB;
+            btn.Font = ThemeHelper.FontSidebarB;
+            btn.Tag = "active";
+            btn.FlatAppearance.MouseOverBackColor = SettingsSidebarActive;
+            ApplyNavPillRegion(btn);
             _activeNavBtn = btn;
 
-            if (panel == _panelUsers)      LoadUsers();
+            if (panel == _panelUsers) LoadUsers();
             if (panel == _panelCategories) LoadCategories();
 
             if (_lblWatermark != null)
@@ -562,7 +644,10 @@ private string? _mysqlPath;
                     if (DateTime.TryParse(text, out var dt)) _lastBackupTime = dt;
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "SettingsForm.LoadLastBackupTime");
+            }
         }
 
         private void SaveLastBackupTimeNow()
@@ -575,7 +660,10 @@ private string? _mysqlPath;
                 if (_lblLastBackupValue != null)
                     _lblLastBackupValue.Text = FormatLastBackup();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "SettingsForm.SaveLastBackupTimeNow");
+            }
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -602,7 +690,10 @@ private string? _mysqlPath;
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "SettingsForm.LocateMySqlTool (Config read)");
+            }
 
             string[] commonDirs =
             {
@@ -650,7 +741,10 @@ private string? _mysqlPath;
                 lines.Add(fullPath);
                 File.WriteAllLines(MysqlToolsConfigPath, lines);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "SettingsForm.CacheToolPath");
+            }
         }
         private (string host, string db, string user, string pass)? PromptDbCredentials()
         {

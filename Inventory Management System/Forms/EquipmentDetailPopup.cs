@@ -140,7 +140,10 @@ namespace Inventory_Management_System.Forms
                 if (result.Success && result.Data != null)
                     records = result.Data;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "EquipmentDetailPopup.BuildUI (GetByEquipmentId)");
+            }
 
             if (records.Count == 0)
             {

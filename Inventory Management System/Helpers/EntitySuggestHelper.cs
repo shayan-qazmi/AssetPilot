@@ -12,6 +12,11 @@ namespace Inventory_Management_System.Helpers
     /// dropdown to a TextBox for any entity type T. As the user types, the closest
     /// matches (scored by scoreFn) appear in a floating ListBox below the TextBox.
     /// </summary>
+    /// 
+
+ 
+
+
     public sealed class EntitySuggestHelper<T> : IDisposable where T : class
     {
         private const int MaxSuggestions = 8;
@@ -43,7 +48,7 @@ namespace Inventory_Management_System.Helpers
             _line1      = line1Selector;
             _line2      = line2Selector;
 
-            _listBox = new ListBox
+            _listBox = new SuggestionListBox    
             {
                 Visible        = false,
                 BorderStyle    = BorderStyle.FixedSingle,
@@ -97,6 +102,18 @@ namespace Inventory_Management_System.Helpers
                     HideDropdown();
                     e.Handled = true;
                     break;
+            }
+        }
+
+        private sealed class SuggestionListBox : ListBox
+        {
+            protected override bool IsInputKey(Keys keyData)
+            {
+                if (keyData == Keys.Enter || keyData == Keys.Escape ||
+                    keyData == Keys.Up || keyData == Keys.Down)
+                    return true;
+
+                return base.IsInputKey(keyData);
             }
         }
 

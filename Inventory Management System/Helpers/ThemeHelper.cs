@@ -3,6 +3,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using System.Collections.Generic;
 
 namespace Inventory_Management_System.Helpers
 {
@@ -24,7 +25,7 @@ namespace Inventory_Management_System.Helpers
         public static readonly Color InputBorder   = Color.FromArgb(209, 213, 219);
         public static readonly Color CardBg        = Color.White;
         public static readonly Color CardBorder    = Color.FromArgb(229, 231, 235);
-
+        public static bool UseGlobalAccentIndicator = false;
         // ── Fonts ─────────────────────────────────────────────────────────
         public static readonly Font FontDefault  = new Font("Segoe UI", 9.5f,  FontStyle.Regular, GraphicsUnit.Point);
         public static readonly Font FontBold     = new Font("Segoe UI", 9.5f,  FontStyle.Bold,    GraphicsUnit.Point);
@@ -75,8 +76,13 @@ namespace Inventory_Management_System.Helpers
             btn.ForeColor = active ? Color.White : SidebarText;
             btn.FlatStyle = FlatStyle.Flat;
             btn.FlatAppearance.BorderSize         = 0;
-            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(45, 90, 45);
-            btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(55, 100, 55);
+            // Disabled — our own MouseEnter/MouseLeave handlers (FadeButtonColor) already
+            // drive the hover visual. Leaving these active created two competing hover
+            // systems: WinForms' native FlatAppearance overlay could get stuck "on" when
+            // the mouse moved quickly across buttons whose Region had been custom-clipped,
+            // since our fade code updates BackColor but never touches this separate overlay.
+            btn.FlatAppearance.MouseOverBackColor = btn.BackColor;
+            btn.FlatAppearance.MouseDownBackColor = btn.BackColor;      
             btn.Font      = active ? FontSidebarB : FontSidebar;
             btn.TextAlign = ContentAlignment.MiddleLeft;
             // Indent text to make room for the left accent bar
@@ -97,12 +103,13 @@ namespace Inventory_Management_System.Helpers
 
             if (active)
             {
-                // Pill shape
-                ApplyPillRegion(btn);
+                // Pill shape — elevated (slightly bigger, overshoots edge)
+                ApplyPillRegion(btn, elevated: true);
                 btn.Resize += SidebarBtn_Resize;
 
                 // Left accent bar drawn via Paint
-                btn.Paint += SidebarBtn_PaintAccent;
+                if (!UseGlobalAccentIndicator)
+                    btn.Paint += SidebarBtn_PaintAccent;
             }
             else
             {
@@ -110,7 +117,16 @@ namespace Inventory_Management_System.Helpers
             }
         }
 
-        private static void SidebarBtn_PaintAccent(object? sender, PaintEventArgs e)
+private static void SidebarBtn_Resize(object? sender, EventArgs e)
+{
+    if (sender is Button btn)
+    {
+        bool isActive = btn.Tag is bool a && a;
+        ApplyPillRegion(btn, elevated: isActive);
+    }
+}
+
+private static void SidebarBtn_PaintAccent(object? sender, PaintEventArgs e)
         {
             if (sender is not Button btn) return;
             var g = e.Graphics;
@@ -131,47 +147,45 @@ namespace Inventory_Management_System.Helpers
             g.FillRectangle(barBrush, 6, barY, barW, barH);
         }
 
-        private static void SidebarBtn_Resize(object? sender, EventArgs e)
-        {
-            if (sender is Button btn) ApplyPillRegion(btn);
-        }
+      
 
-        private static void ApplyPillRegion(Button btn)
-        {
-            if (btn.Width <= 0 || btn.Height <= 0) return;
+private static void ApplyPillRegion(Button btn, bool elevated = false)
+{
+    if (btn.Width <= 0 || btn.Height <= 0) return;
 
-            // Inset pill — 6px from left, 4px top/bottom, flush right
-            int padL = 6, padT = 4;
-            var rect = new Rectangle(padL, padT,
-                btn.Width - padL - 1,
-                btn.Height - padT * 2);
+    // Clear previously painted pixels before the region changes —
+    // prevents ghost trails when the mouse moves quickly across buttons.
+    btn.Parent?.Invalidate(btn.Bounds, true);
 
-            var path = new GraphicsPath();
-            int radius = 10;
-            path.AddArc(rect.X,              rect.Y,              radius, radius, 180, 90);
-            path.AddArc(rect.Right - radius, rect.Y,              radius, radius, 270, 90);
-            path.AddArc(rect.Right - radius, rect.Bottom - radius, radius, radius, 0,   90);
-            path.AddArc(rect.X,              rect.Bottom - radius, radius, radius, 90,  90);
-            path.CloseFigure();
-            btn.Region = new Region(path);
-        }
+    int padL = elevated ? 4 : 6;
+    int padT = elevated ? 2 : 4;
+    int bleed = elevated ? 4 : 0; // slight overshoot so active item reads as "raised"
 
-        private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
+    var rect = new Rectangle(padL, padT, btn.Width - padL - 1 + bleed, btn.Height - padT * 2);
+
+    var path = new GraphicsPath();
+    int radius = 10;
+    path.AddArc(rect.X, rect.Y, radius, radius, 180, 90);
+    path.AddArc(rect.Right - radius, rect.Y, radius, radius, 270, 90);
+    path.AddArc(rect.Right - radius, rect.Bottom - radius, radius, radius, 0, 90);
+    path.AddArc(rect.X, rect.Bottom - radius, radius, radius, 90, 90);
+    path.CloseFigure();
+    btn.Region = new Region(path);
+    btn.Invalidate();
+}
+private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
         {
             if (sender is Button btn)
             {
                 bool isActive = btn.Tag is bool a && a;
                 if (isActive)
                 {
-                    // active button retains its active background
                     btn.BackColor = Color.FromArgb(45, 90, 45);
                 }
                 else
                 {
-                    // subtle hover highlight for inactive button
-                    btn.BackColor = ControlPaint.Light(Sidebar, 0.12f);
-                    // show pill shape on hover
                     ApplyPillRegion(btn);
+                    FadeButtonColor(btn, btn.BackColor, ControlPaint.Light(Sidebar, 0.12f));
                 }
             }
         }
@@ -183,17 +197,60 @@ namespace Inventory_Management_System.Helpers
                 bool isActive = btn.Tag is bool a && a;
                 if (!isActive)
                 {
-                    // revert to default inactive styling
-                    btn.BackColor = Sidebar;
-                    btn.Region    = null;
+                    FadeButtonColor(btn, btn.BackColor, Sidebar, onComplete: () =>
+                    {
+                        btn.Parent?.Invalidate(btn.Bounds, true);
+                        btn.Region = null;
+                        btn.Invalidate();
+                    });
                 }
                 else
                 {
-                    // ensure active button retains its pill region and background
                     btn.BackColor = Color.FromArgb(45, 90, 45);
-                    ApplyPillRegion(btn);
+                    ApplyPillRegion(btn, elevated: true);
                 }
             }
+        }
+
+        private static readonly Dictionary<Button, System.Windows.Forms.Timer> _fadeTimers = new();
+
+        private static void FadeButtonColor(Button btn, Color from, Color to, Action? onComplete = null)
+        {
+            // Cancel any fade already in progress for this button — otherwise fast
+            // mouse movement (Enter then Leave in quick succession) starts two
+            // timers racing on the same button, and whichever one's last tick fires
+            // wins, freezing the button on an intermediate color until re-hovered.
+            if (_fadeTimers.TryGetValue(btn, out var existingTimer))
+            {
+                existingTimer.Stop();
+                existingTimer.Dispose();
+                _fadeTimers.Remove(btn);
+            }
+
+            const int steps = 8;
+            const int intervalMs = 12;
+            int step = 0;
+
+            var timer = new System.Windows.Forms.Timer { Interval = intervalMs };
+            timer.Tick += (s, e) =>
+            {
+                step++;
+                float t = Math.Min(1f, step / (float)steps);
+                btn.BackColor = Color.FromArgb(
+                    (int)(from.R + (to.R - from.R) * t),
+                    (int)(from.G + (to.G - from.G) * t),
+                    (int)(from.B + (to.B - from.B) * t));
+
+                if (t >= 1f)
+                {
+                    timer.Stop();
+                    timer.Dispose();
+                    _fadeTimers.Remove(btn);
+                    onComplete?.Invoke();
+                }
+            };
+            _fadeTimers[btn] = timer;
+            timer.Start();
         }
 
         // ── DataGridView ───────────────────────────────────────────────────

@@ -17,6 +17,12 @@ namespace Inventory_Management_System.Forms
             _locationService = new LocationService();
             ApplyTheme();
             LoadLocations();
+
+            this.Shown += (s, e) =>
+            {
+                dgvLocations.ClearSelection();
+                dgvLocations.CurrentCell = null;
+            };
         }
 
         private void ApplyTheme()

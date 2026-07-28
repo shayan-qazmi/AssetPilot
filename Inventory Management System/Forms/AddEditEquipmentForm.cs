@@ -913,7 +913,10 @@ namespace Inventory_Management_System.Forms
                     .FirstOrDefault(e => e.Id == _equipment.Id);
                 if (eq != null) _equipment = eq;
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "AddEditEquipmentForm.PopulateForm (DB reload)");
+            }
 
             txtName.Text = _equipment.Name;
             txtMake.Text = _equipment.Make;

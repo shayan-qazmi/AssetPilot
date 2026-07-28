@@ -30,6 +30,12 @@ namespace Inventory_Management_System.Forms
             ApplyTheme();
             LoadReturns();
             SetupSuggestions();
+
+            this.Shown += (s, e) =>
+            {
+                dgvReturns.ClearSelection();
+                dgvReturns.CurrentCell = null;
+            };
         }
 
         private void ApplyTheme()
