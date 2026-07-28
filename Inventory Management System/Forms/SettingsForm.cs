@@ -19,64 +19,78 @@ namespace Inventory_Management_System.Forms
     public partial class SettingsForm : Form
     {
         private AppSetting? _current;
-        private List<User>  _users = new();
-        private List<Role>  _roles = new();
+        private List<User> _users = new();
+        private List<Role> _roles = new();
         private List<Category> _categories = new();
 
         // ── Section panels ─────────────────────────────────────────────
-        private Panel  _panelGeneral    = null!;
-        private Panel  _panelUsers      = null!;
-        private Panel  _panelPassword   = null!;
-        private Panel  _panelPrinting   = null!;
-        private Panel  _panelCategories = null!;
-        private Button _activeNavBtn    = null!;
-        private Label  _lblWatermark    = null!;
-
+        private Panel _panelGeneral = null!;
+        private Panel _panelUsers = null!;
+        private Panel _panelPassword = null!;
+        private Panel _panelPrinting = null!;
+        private Panel _panelCategories = null!;
+        private Button _activeNavBtn = null!;
+        private Label _lblWatermark = null!;
+        private Panel _pwdStrengthTrack = null!;
         // ── Sidebar (distinct styling + slide-in animation) ─────────────
         private Panel _sidebar = null!;
         private System.Windows.Forms.Timer? _sidebarSlideTimer;
         private const int SidebarTargetWidth = 220;
 
-        private static readonly Color SettingsSidebarColor = Color.FromArgb(250, 250, 247);
-        private static readonly Color SettingsSidebarHover = Color.FromArgb(248, 249, 247);
-        private static readonly Color SettingsSidebarActive = Color.FromArgb(52, 105, 61); // keep active green as-is
-        private static readonly Color SettingsSidebarText = Color.FromArgb(55, 65, 81); // more visibly green, higher contrast        // ── User grid + buttons ────────────────────────────────────────
-        private DataGridView dgvUsers      = null!;
-        private Button       btnAddUser    = null!;
-        private Button       btnEditUser   = null!;
-        private Button       btnToggleUser = null!;
-        private Button       btnDeleteUser = null!;
+        // ─────────────────────────────────────────────────────────────
+        // Modern Fluent-style palette
+        // NOTE: SettingsSidebarText is left exactly as-is (already fixed) —
+        // everything else (backgrounds, shadows, dividers, page bg) is new.
+        // ─────────────────────────────────────────────────────────────
+        private static readonly Color SettingsSidebarColor = Color.White;
+        private static readonly Color SettingsSidebarHover = Color.FromArgb(244, 246, 248);
+        private static readonly Color SettingsSidebarActive = ThemeHelper.Accent;
+        private static readonly Color SettingsSidebarText = Color.FromArgb(55, 65, 81); // UNCHANGED — do not edit
+
+        private static readonly Color SidebarDivider = Color.FromArgb(228, 231, 237);
+        private static readonly Color PageBackground = Color.FromArgb(246, 247, 249);
+        private static readonly Color CardShadowColor = Color.FromArgb(22, 0, 0, 0);
+        private static readonly Color SubtitleColor = Color.FromArgb(120, 125, 135);
+
+        // ── User grid + buttons ────────────────────────────────────────
+        private DataGridView dgvUsers = null!;
+        private Button btnAddUser = null!;
+        private Button btnEditUser = null!;
+        private Button btnToggleUser = null!;
+        private Button btnDeleteUser = null!;
 
         // ── Password fields ────────────────────────────────────────────
         private TextBox txtCurrentPwd = null!;
-        private TextBox txtNewPwd     = null!;
+        private TextBox txtNewPwd = null!;
         private TextBox txtConfirmPwd = null!;
-        private Label   lblPwdStatus  = null!;
+        private Label lblPwdStatus = null!;
+        private Panel _pwdStrengthBar = null!;
+        private Label _lblPwdStrengthText = null!;
 
         // ── Categories fields ────────────────────────────────────────────
-        private TextBox txtNewCategory  = null!;
-        private ListBox lstCategories   = null!;
-        private Label   lblCategoryMsg  = null!;
+        private TextBox txtNewCategory = null!;
+        private ListBox lstCategories = null!;
+        private Label lblCategoryMsg = null!;
 
         // ── General / dirty-check fields ────────────────────────────────
-        private string  _originalCompanyName = "";
-        private Label   _lblSavedPill  = null!;
+        private string _originalCompanyName = "";
+        private Label _lblSavedPill = null!;
 
         // ── System info fields ───────────────────────────────────────────
-        private Label _lblDbValue         = null!;
+        private Label _lblDbValue = null!;
         private Label _lblLastBackupValue = null!;
         private DateTime? _lastBackupTime;
 
-      private static readonly string BackupInfoPath = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-    "QInventory", "lastbackup.txt");
+        private static readonly string BackupInfoPath = Path.Combine(
+      Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+      "QInventory", "lastbackup.txt");
 
-private static readonly string MysqlToolsConfigPath = Path.Combine(
-    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-    "QInventory", "mysqltools.txt");
+        private static readonly string MysqlToolsConfigPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "QInventory", "mysqltools.txt");
 
-private string? _mysqldumpPath;
-private string? _mysqlPath;
+        private string? _mysqldumpPath;
+        private string? _mysqlPath;
 
         public SettingsForm()
         {
@@ -95,16 +109,24 @@ private string? _mysqlPath;
         // ══════════════════════════════════════════════════════════════
         private void BuildUI()
         {
-            BackColor = Color.FromArgb(245, 246, 250);
+            BackColor = PageBackground;
 
-            // ── Left nav sidebar (distinct shade from main app sidebar) ─
+            // ── Left nav sidebar — now white, matching every card ───────
             var sidebar = new Panel
             {
-                Dock      = DockStyle.Left,
-                Width     = 0,                     // animated in on Load
+                Dock = DockStyle.Left,
+                Width = 0,                     // animated in on Load
                 BackColor = SettingsSidebarColor
             };
             _sidebar = sidebar;
+
+            // Subtle 1px divider so the white sidebar still reads as a
+            // distinct panel against the white cards in the content area.
+            sidebar.Paint += (s, e) =>
+            {
+                using var pen = new Pen(SidebarDivider, 1f);
+                e.Graphics.DrawLine(pen, sidebar.Width - 1, 0, sidebar.Width - 1, sidebar.Height);
+            };
 
             var sideTitle = new Label
             {
@@ -119,9 +141,9 @@ private string? _mysqlPath;
             };
             sideTitle.Paint += (s, e) =>
             {
-                using var divider = new Pen(Color.FromArgb(35, 255, 255, 255), 1f);
+                using var divider = new Pen(SidebarDivider, 1f);
                 e.Graphics.DrawLine(divider, 0, sideTitle.Height - 1, sideTitle.Width, sideTitle.Height - 1);
-            };  
+            };
             // Added to the sidebar AFTER the nav buttons below (see comment there) —
             // this is what pins it to the TOP instead of it rendering as a fake
             // 6th nav item under Categories.
@@ -129,20 +151,20 @@ private string? _mysqlPath;
             // ── Content area ───────────────────────────────────────────
             var content = new Panel
             {
-                Dock      = DockStyle.Fill,
-                BackColor = Color.FromArgb(245, 246, 250)
+                Dock = DockStyle.Fill,
+                BackColor = PageBackground
             };
 
             // Build all section panels
-            _panelGeneral    = BuildGeneralPanel();
-            _panelUsers      = BuildUsersPanel();
-            _panelPassword   = BuildPasswordPanel();
-            _panelPrinting   = BuildPrintingPanel();
+            _panelGeneral = BuildGeneralPanel();
+            _panelUsers = BuildUsersPanel();
+            _panelPassword = BuildPasswordPanel();
+            _panelPrinting = BuildPrintingPanel();
             _panelCategories = BuildCategoriesPanel();
 
             foreach (var p in new[] { _panelGeneral, _panelUsers, _panelPassword, _panelPrinting, _panelCategories })
             {
-                p.Dock    = DockStyle.Fill;
+                p.Dock = DockStyle.Fill;
                 p.Visible = false;
                 content.Controls.Add(p);
             }
@@ -165,11 +187,11 @@ private string? _mysqlPath;
                 {
                     Text = label,
                     Dock = DockStyle.Top,
-                    Height = 46,
+                    Height = 52,
                     FlatStyle = FlatStyle.Flat,
                     TextAlign = ContentAlignment.MiddleLeft,
-                    Padding = new Padding(18, 0, 0, 0),
-                    Font = ThemeHelper.FontDefault,
+                    Padding = new Padding(22, 0, 0, 0),
+                    Font = new Font("Segoe UI", 9.25f),
                     ForeColor = SettingsSidebarText,
                     BackColor = SettingsSidebarColor,
                     Cursor = Cursors.Hand,
@@ -214,10 +236,11 @@ private string? _mysqlPath;
 
             _lblWatermark = new Label
             {
-                Text = "Developed by 🐙shayan-qazmi",
-                Font = new Font("Segoe UI", 8f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(150, 150, 150),
+                Text = "Designed & Developed by\n🐙 @shayan-qazmi/📷 @shayanqazmi",
+                Font = new Font("Segoe UI", 8f, FontStyle.Italic),
+                ForeColor = Color.FromArgb(160, 160, 160),
                 BackColor = Color.Transparent,
+                TextAlign = ContentAlignment.MiddleRight,
                 AutoSize = true,
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Right
             };
@@ -246,7 +269,7 @@ private string? _mysqlPath;
 
             var rect = new Rectangle(10, 4, btn.Width - 20, btn.Height - 8);
             using var path = new GraphicsPath();
-            int radius = 10;
+            int radius = 14;
             path.AddArc(rect.X, rect.Y, radius, radius, 180, 90);
             path.AddArc(rect.Right - radius, rect.Y, radius, radius, 270, 90);
             path.AddArc(rect.Right - radius, rect.Bottom - radius, radius, radius, 0, 90);
@@ -308,7 +331,7 @@ private string? _mysqlPath;
             {
                 b.BackColor = SettingsSidebarColor;
                 b.ForeColor = SettingsSidebarText;
-                b.Font = ThemeHelper.FontDefault;
+                b.Font = new Font("Segoe UI", 9.25f);
                 b.Tag = null;
                 b.Region = null;
                 // Native hover overlay must match each button's actual resting
@@ -318,7 +341,7 @@ private string? _mysqlPath;
             }
             btn.BackColor = SettingsSidebarActive;
             btn.ForeColor = Color.White;
-            btn.Font = ThemeHelper.FontSidebarB;
+            btn.Font = new Font("Segoe UI Semibold", 9.5f);
             btn.Tag = "active";
             btn.FlatAppearance.MouseOverBackColor = SettingsSidebarActive;
             ApplyNavPillRegion(btn);
@@ -336,8 +359,8 @@ private string? _mysqlPath;
         // ══════════════════════════════════════════════════════════════
         private void AnimateSidebarIn()
         {
-            const int step = 22;
-            _sidebarSlideTimer = new System.Windows.Forms.Timer { Interval = 8 };
+            const int step = 14;
+            _sidebarSlideTimer = new System.Windows.Forms.Timer { Interval = 10 };
             _sidebarSlideTimer.Tick += (s, e) =>
             {
                 int newWidth = _sidebar.Width + step;
@@ -352,6 +375,8 @@ private string? _mysqlPath;
                 {
                     _sidebar.Width = newWidth;
                 }
+                _sidebar.Invalidate(true);   // forces a full repaint each frame so the old divider line is erased before the new one is drawn
+
             };
             _sidebarSlideTimer.Start();
         }
@@ -363,46 +388,60 @@ private string? _mysqlPath;
         {
             var outer = new Panel
             {
-                BackColor  = Color.FromArgb(245, 246, 250),
+                BackColor = PageBackground,
                 AutoScroll = true
             };
 
             var title = new Label
             {
-                Text      = "⊞  General Settings",
-                Font      = new Font("Segoe UI", 14f, FontStyle.Bold),
+                Text = "General Settings",
+                Font = new Font("Segoe UI Semibold", 16f),
                 ForeColor = ThemeHelper.TextPrimary,
-                AutoSize  = true,
-                Location  = new Point(32, 28)
+                AutoSize = true,
+                Location = new Point(40, 32)
             };
             outer.Controls.Add(title);
+
+            var subtitle = MakeSubtitle("Manage company information and application preferences.", 40, 62);
+            outer.Controls.Add(subtitle);
 
             // ═══ Card 1: Company ═══
             var card = new Panel
             {
-                Location  = new Point(32, 72),
-                Size      = new Size(560, 220),
+                Location = new Point(40, 96),
+                Size = new Size(560, 230),
                 BackColor = Color.White,
-                Padding   = new Padding(0)
+                Padding = new Padding(0)
             };
-            ApplyCardStyle(card);
+            ApplyCardStyle(outer, card);
             outer.Controls.Add(card);
+
+            var cardTitle = new Label
+            {
+                Text = "Company Information",
+                Font = new Font("Segoe UI Semibold", 11f),
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize = true,
+                Location = new Point(24, 20),
+                BackColor = Color.Transparent
+            };
+            card.Controls.Add(cardTitle);
 
             var lblCo = new Label
             {
-                Text      = "Company Name",
-                Font      = ThemeHelper.FontBold,
+                Text = "Company Name",
+                Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextPrimary,
-                AutoSize  = true,
-                Location  = new Point(28, 28),
+                AutoSize = true,
+                Location = new Point(24, 56),
                 BackColor = Color.Transparent
             };
             card.Controls.Add(lblCo);
 
             txtCompany = new TextBox
             {
-                Location = new Point(28, 54),
-                Size     = new Size(490, 28)
+                Location = new Point(24, 80),
+                Size = new Size(490, 28)
             };
             ThemeHelper.StyleTextBox(txtCompany);
             txtCompany.TextChanged += (s, e) => UpdateSaveButtonState();
@@ -410,20 +449,20 @@ private string? _mysqlPath;
 
             var lblHint = new Label
             {
-                Text      = "Appears on printed labels, reports, and exported files.",
-                Font      = ThemeHelper.FontSmall,
-                ForeColor = ThemeHelper.TextSecondary,
-                AutoSize  = true,
-                Location  = new Point(28, 84),
+                Text = "Appears on printed labels, reports, and exported files.",
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = SubtitleColor,
+                AutoSize = true,
+                Location = new Point(24, 112),
                 BackColor = Color.Transparent
             };
             card.Controls.Add(lblHint);
 
             btnSave = new Button
             {
-                Text     = "💾  Save changes",
-                Location = new Point(28, 116),
-                Size     = new Size(160, 36)
+                Text = "💾  Save changes",
+                Location = new Point(24, 148),
+                Size = new Size(160, 38)
             };
             StyleGreenBtn(btnSave);
             btnSave.Click += btnSave_Click;
@@ -431,9 +470,9 @@ private string? _mysqlPath;
 
             btnReset = new Button
             {
-                Text     = "↺  Reset",
-                Location = new Point(200, 116),
-                Size     = new Size(120, 36)
+                Text = "↺  Reset",
+                Location = new Point(196, 148),
+                Size = new Size(120, 38)
             };
             StyleGrayBtn(btnReset);
             btnReset.Click += btnReset_Click;
@@ -441,64 +480,67 @@ private string? _mysqlPath;
 
             _lblSavedPill = new Label
             {
-                Text      = "✓ Saved",
-                Font      = ThemeHelper.FontBold,
+                Text = "✓ Saved",
+                Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.Success,
-                AutoSize  = true,
-                Location  = new Point(334, 126),
+                AutoSize = true,
+                Location = new Point(330, 158),
                 BackColor = Color.Transparent,
-                Visible   = false
+                Visible = false
             };
             card.Controls.Add(_lblSavedPill);
 
             // ═══ Card 2: System ═══
             var sysCard = new Panel
             {
-                Location  = new Point(32, 308),
-                Size      = new Size(560, 200),
+                Location = new Point(40, 344),
+                Size = new Size(560, 208),
                 BackColor = Color.White
             };
-            ApplyCardStyle(sysCard);
+            ApplyCardStyle(outer, sysCard);
             outer.Controls.Add(sysCard);
 
             var lblSysTitle = new Label
             {
-                Text      = "System",
-                Font      = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+                Text = "System",
+                Font = new Font("Segoe UI Semibold", 11f),
                 ForeColor = ThemeHelper.TextPrimary,
-                AutoSize  = true,
-                Location  = new Point(28, 20),
+                AutoSize = true,
+                Location = new Point(24, 20),
                 BackColor = Color.Transparent
             };
             sysCard.Controls.Add(lblSysTitle);
 
+            var lblSysSubtitle = MakeSubtitle("Application version, database connection, and backups.", 24, 44);
+            sysCard.Controls.Add(lblSysSubtitle);
+
             string appVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
 
-            sysCard.Controls.Add(MakeSysInfoLabel("App version", appVersion, 28, 56));
+            sysCard.Controls.Add(MakeSysInfoLabel("App version", appVersion, 24, 66));
 
-            _lblDbValue = MakeSysInfoValueLabel("", 220, 56, 300);
-            sysCard.Controls.Add(MakeSysInfoLabel("Database", "", 220, 56, hideValue: true));
+            _lblDbValue = MakeSysInfoValueLabel("", 220, 66, 300);
+            sysCard.Controls.Add(MakeSysInfoLabel("Database", "", 220, 66, hideValue: true));
             sysCard.Controls.Add(_lblDbValue);
 
-            _lblLastBackupValue = MakeSysInfoValueLabel(FormatLastBackup(), 28, 96, 180);
-            sysCard.Controls.Add(MakeSysInfoLabel("Last backup", "", 28, 96, hideValue: true));
+            _lblLastBackupValue = MakeSysInfoValueLabel(FormatLastBackup(), 24, 106, 180);
+            sysCard.Controls.Add(MakeSysInfoLabel("Last backup", "", 24, 106, hideValue: true));
             sysCard.Controls.Add(_lblLastBackupValue);
 
-            sysCard.Controls.Add(MakeSysInfoLabel("Built by", "@shayanqazmi", 220, 96));
+            sysCard.Controls.Add(MakeSysInfoLabel("Built by", "@shayanqazmi", 220, 106));
 
             var divider = new Panel
             {
-                Location  = new Point(28, 132),
-                Size      = new Size(504, 1),
-                BackColor = ThemeHelper.CardBorder
+                Location = new Point(24, 142),
+                Size = new Size(512, 1),
+                BackColor = SidebarDivider
             };
             sysCard.Controls.Add(divider);
 
             var btnBackupDb = new Button
             {
-                Text     = "⇩  Backup database",
-                Location = new Point(28, 148),
-                Size     = new Size(190, 36)
+                Text = "🗄  Backup database",
+                Location = new Point(24, 158),
+                Size = new Size(190, 38)
             };
             StyleGrayBtn(btnBackupDb);
             btnBackupDb.Click += BtnBackupDb_Click;
@@ -506,9 +548,9 @@ private string? _mysqlPath;
 
             var btnRestoreDb = new Button
             {
-                Text     = "⇧  Restore from file",
-                Location = new Point(228, 148),
-                Size     = new Size(190, 36)
+                Text = "⇧  Restore from file",
+                Location = new Point(224, 158),
+                Size = new Size(190, 38)
             };
             StyleGrayBtn(btnRestoreDb);
             btnRestoreDb.Click += BtnRestoreDb_Click;
@@ -517,40 +559,40 @@ private string? _mysqlPath;
             // ═══ Card 3: Danger zone ═══
             var dangerCard = new Panel
             {
-                Location  = new Point(32, 524),
-                Size      = new Size(560, 150),
+                Location = new Point(40, 568),
+                Size = new Size(560, 156),
                 BackColor = Color.FromArgb(255, 248, 248)
             };
-            ApplyCardStyle(dangerCard, borderColor: Color.FromArgb(252, 165, 165));
+            ApplyCardStyle(outer, dangerCard, borderColor: Color.FromArgb(252, 165, 165));
             outer.Controls.Add(dangerCard);
 
             var lblDangerTitle = new Label
             {
-                Text      = "Danger zone",
-                Font      = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+                Text = "⚠  Danger Zone",
+                Font = new Font("Segoe UI Semibold", 11f),
                 ForeColor = ThemeHelper.Danger,
-                AutoSize  = true,
-                Location  = new Point(28, 20),
+                AutoSize = true,
+                Location = new Point(24, 20),
                 BackColor = Color.Transparent
             };
             dangerCard.Controls.Add(lblDangerTitle);
 
             var lblDangerHint = new Label
             {
-                Text      = "These actions are destructive and cannot be undone.",
-                Font      = ThemeHelper.FontSmall,
-                ForeColor = ThemeHelper.TextSecondary,
-                AutoSize  = true,
-                Location  = new Point(28, 48),
+                Text = "These actions are destructive and cannot be undone. Proceed carefully.",
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = SubtitleColor,
+                AutoSize = true,
+                Location = new Point(24, 50),
                 BackColor = Color.Transparent
             };
             dangerCard.Controls.Add(lblDangerHint);
 
             var btnClearLogs = new Button
             {
-                Text     = "🗑  Clear all logs",
-                Location = new Point(28, 84),
-                Size     = new Size(160, 36)
+                Text = "🗑  Clear all logs",
+                Location = new Point(24, 90),
+                Size = new Size(160, 38)
             };
             StyleDangerOutlineBtn(btnClearLogs);
             btnClearLogs.Click += BtnClearLogs_Click;
@@ -558,9 +600,9 @@ private string? _mysqlPath;
 
             var btnResetData = new Button
             {
-                Text     = "⚠  Reset application data",
-                Location = new Point(198, 84),
-                Size     = new Size(220, 36)
+                Text = "⚠  Reset application data",
+                Location = new Point(196, 90),
+                Size = new Size(220, 38)
             };
             StyleDangerOutlineBtn(btnResetData);
             btnResetData.Click += BtnResetAppData_Click;
@@ -573,11 +615,11 @@ private string? _mysqlPath;
         {
             var lbl = new Label
             {
-                Text      = caption,
-                Font      = ThemeHelper.FontSmall,
+                Text = caption,
+                Font = ThemeHelper.FontSmall,
                 ForeColor = ThemeHelper.TextSecondary,
-                AutoSize  = true,
-                Location  = new Point(x, y),
+                AutoSize = true,
+                Location = new Point(x, y),
                 BackColor = Color.Transparent
             };
             if (!hideValue)
@@ -587,11 +629,11 @@ private string? _mysqlPath;
                 container.Controls.Add(lbl);
                 var valLbl = new Label
                 {
-                    Text      = value,
-                    Font      = ThemeHelper.FontDefault,
+                    Text = value,
+                    Font = ThemeHelper.FontDefault,
                     ForeColor = ThemeHelper.TextPrimary,
-                    AutoSize  = true,
-                    Location  = new Point(0, 16),
+                    AutoSize = true,
+                    Location = new Point(0, 16),
                     BackColor = Color.Transparent
                 };
                 container.Controls.Add(valLbl);
@@ -614,12 +656,12 @@ private string? _mysqlPath;
         {
             return new Label
             {
-                Text      = value,
-                Font      = ThemeHelper.FontDefault,
+                Text = value,
+                Font = ThemeHelper.FontDefault,
                 ForeColor = ThemeHelper.TextPrimary,
-                AutoSize  = false,
-                Size      = new Size(width, 18),
-                Location  = new Point(x, y + 16),
+                AutoSize = false,
+                Size = new Size(width, 18),
+                Location = new Point(x, y + 16),
                 BackColor = Color.Transparent
             };
         }
@@ -714,7 +756,7 @@ private string? _mysqlPath;
 
             using var ofd = new OpenFileDialog
             {
-                Title  = $"Locate {exeName}",
+                Title = $"Locate {exeName}",
                 Filter = "Executable|*.exe"
             };
             if (ofd.ShowDialog() == DialogResult.OK && Path.GetFileName(ofd.FileName)
@@ -730,7 +772,7 @@ private string? _mysqlPath;
         private void CacheToolPath(string exeName, string fullPath)
         {
             if (exeName == "mysqldump.exe") _mysqldumpPath = fullPath;
-            if (exeName == "mysql.exe")     _mysqlPath     = fullPath;
+            if (exeName == "mysql.exe") _mysqlPath = fullPath;
 
             try
             {
@@ -750,27 +792,27 @@ private string? _mysqlPath;
         {
             using var frm = new Form
             {
-                Text            = "Database Credentials",
-                Size            = new Size(360, 300),
+                Text = "Database Credentials",
+                Size = new Size(360, 300),
                 FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox     = false,
-                MinimizeBox     = false,
-                StartPosition   = FormStartPosition.CenterParent,
-                BackColor       = Color.White
+                MaximizeBox = false,
+                MinimizeBox = false,
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = Color.White
             };
 
             int y = 20;
             var txtHost = MakeCredField(frm, "Host", _current?.DbServer ?? "localhost", ref y);
-            var txtDb   = MakeCredField(frm, "Database", _current?.DbName ?? "inventory_management", ref y);
+            var txtDb = MakeCredField(frm, "Database", _current?.DbName ?? "inventory_management", ref y);
             var txtUser = MakeCredField(frm, "Username", "root", ref y);
             var txtPass = MakeCredField(frm, "Password", "", ref y);
             txtPass.UseSystemPasswordChar = true;
 
             var btnOk = new Button
             {
-                Text     = "Continue",
+                Text = "Continue",
                 Location = new Point(60, y + 10),
-                Size     = new Size(110, 32)
+                Size = new Size(110, 32)
             };
             StyleGreenBtn(btnOk);
             btnOk.Click += (s, e) => frm.DialogResult = DialogResult.OK;
@@ -778,9 +820,9 @@ private string? _mysqlPath;
 
             var btnCancel = new Button
             {
-                Text     = "Cancel",
+                Text = "Cancel",
                 Location = new Point(180, y + 10),
-                Size     = new Size(90, 32)
+                Size = new Size(90, 32)
             };
             StyleGrayBtn(btnCancel);
             btnCancel.Click += (s, e) => frm.DialogResult = DialogResult.Cancel;
@@ -788,7 +830,7 @@ private string? _mysqlPath;
 
             frm.AcceptButton = btnOk;
             frm.CancelButton = btnCancel;
-            frm.ClientSize   = new Size(340, y + 60);
+            frm.ClientSize = new Size(340, y + 60);
 
             if (frm.ShowDialog() != DialogResult.OK) return null;
             return (txtHost.Text.Trim(), txtDb.Text.Trim(), txtUser.Text.Trim(), txtPass.Text);
@@ -798,8 +840,11 @@ private string? _mysqlPath;
         {
             frm.Controls.Add(new Label
             {
-                Text = label, Location = new Point(20, y), AutoSize = true,
-                Font = ThemeHelper.FontBold, ForeColor = ThemeHelper.TextPrimary
+                Text = label,
+                Location = new Point(20, y),
+                AutoSize = true,
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextPrimary
             });
             y += 20;
             var txt = new TextBox { Location = new Point(20, y), Size = new Size(300, 26), Text = defaultVal };
@@ -813,8 +858,8 @@ private string? _mysqlPath;
         {
             using var sfd = new SaveFileDialog
             {
-                Filter   = "SQL Files|*.sql",
-                Title    = "Save Database Backup",
+                Filter = "SQL Files|*.sql",
+                Title = "Save Database Backup",
                 FileName = $"qinventory_backup_{DateTime.Now:yyyyMMdd_HHmm}.sql"
             };
             if (sfd.ShowDialog() != DialogResult.OK) return;
@@ -827,12 +872,12 @@ private string? _mysqlPath;
             {
                 var psi = new ProcessStartInfo
                 {
-                    FileName               = LocateMySqlTool("mysqldump.exe") ?? "mysqldump",
-                    Arguments              = $"-h {host} -u {user}{(string.IsNullOrEmpty(pass) ? "" : $" -p{pass}")} {db}",
+                    FileName = LocateMySqlTool("mysqldump.exe") ?? "mysqldump",
+                    Arguments = $"-h {host} -u {user}{(string.IsNullOrEmpty(pass) ? "" : $" -p{pass}")} {db}",
                     RedirectStandardOutput = true,
-                    RedirectStandardError  = true,
-                    UseShellExecute        = false,
-                    CreateNoWindow         = true
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
                 };
 
                 using var proc = Process.Start(psi)!;
@@ -882,12 +927,12 @@ private string? _mysqlPath;
             {
                 var psi = new ProcessStartInfo
                 {
-                    FileName              = LocateMySqlTool("mysql.exe") ?? "mysql",
-                    Arguments             = $"-h {host} -u {user}{(string.IsNullOrEmpty(pass) ? "" : $" -p{pass}")} {db}",
+                    FileName = LocateMySqlTool("mysql.exe") ?? "mysql",
+                    Arguments = $"-h {host} -u {user}{(string.IsNullOrEmpty(pass) ? "" : $" -p{pass}")} {db}",
                     RedirectStandardInput = true,
                     RedirectStandardError = true,
-                    UseShellExecute       = false,
-                    CreateNoWindow        = true
+                    UseShellExecute = false,
+                    CreateNoWindow = true
                 };
 
                 using var proc = Process.Start(psi)!;
@@ -993,21 +1038,21 @@ private string? _mysqlPath;
         {
             using var frm = new Form
             {
-                Text            = "Confirm Destructive Action",
-                Size            = new Size(420, 260),
+                Text = "Confirm Destructive Action",
+                Size = new Size(420, 260),
                 FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox     = false,
-                MinimizeBox     = false,
-                StartPosition   = FormStartPosition.CenterParent,
-                BackColor       = Color.White
+                MaximizeBox = false,
+                MinimizeBox = false,
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = Color.White
             };
 
             var lblMsg = new Label
             {
-                Text      = message,
-                Location  = new Point(20, 18),
-                Size      = new Size(380, 100),
-                Font      = ThemeHelper.FontDefault,
+                Text = message,
+                Location = new Point(20, 18),
+                Size = new Size(380, 100),
+                Font = ThemeHelper.FontDefault,
                 ForeColor = ThemeHelper.TextPrimary
             };
             frm.Controls.Add(lblMsg);
@@ -1018,10 +1063,10 @@ private string? _mysqlPath;
 
             var btnConfirm = new Button
             {
-                Text     = $"Type \"{requiredWord}\" to confirm",
+                Text = $"Type \"{requiredWord}\" to confirm",
                 Location = new Point(20, 166),
-                Size     = new Size(380, 36),
-                Enabled  = false
+                Size = new Size(380, 36),
+                Enabled = false
             };
             StyleDangerOutlineBtn(btnConfirm);
             btnConfirm.BackColor = ThemeHelper.Danger;
@@ -1044,58 +1089,61 @@ private string? _mysqlPath;
         {
             var outer = new Panel
             {
-                BackColor = Color.FromArgb(245, 246, 250)
+                BackColor = PageBackground
             };
 
             var title = new Label
             {
-                Text      = "👥  User Management",
-                Font      = new Font("Segoe UI", 14f, FontStyle.Bold),
+                Text = "User Management",
+                Font = new Font("Segoe UI Semibold", 16f),
                 ForeColor = ThemeHelper.TextPrimary,
-                AutoSize  = true,
-                Location  = new Point(28, 28)
+                AutoSize = true,
+                Location = new Point(40, 32)
             };
             outer.Controls.Add(title);
 
+            var subtitle = MakeSubtitle("Manage application users and permissions.", 40, 62);
+            outer.Controls.Add(subtitle);
+
             var toolbar = new Panel
             {
-                Location  = new Point(28, 72),
-                Size      = new Size(1000, 50),
+                Location = new Point(40, 96),
+                Size = new Size(1000, 50),
                 BackColor = Color.Transparent
             };
 
             btnAddUser = new Button
             {
-                Text     = "➕  Add User",
+                Text = "➕  Add User",
                 Location = new Point(0, 0),
-                Size     = new Size(150, 38)
+                Size = new Size(150, 38)
             };
             StyleGreenBtn(btnAddUser);
             btnAddUser.Click += BtnAddUser_Click;
 
             btnEditUser = new Button
             {
-                Text     = "✏  Edit",
+                Text = "✏  Edit",
                 Location = new Point(164, 0),
-                Size     = new Size(130, 38)
+                Size = new Size(130, 38)
             };
             StyleGrayBtn(btnEditUser);
             btnEditUser.Click += BtnEditUser_Click;
 
             btnToggleUser = new Button
             {
-                Text     = "🔄  Toggle Active",
+                Text = "🔄  Toggle Active",
                 Location = new Point(308, 0),
-                Size     = new Size(160, 38)
+                Size = new Size(160, 38)
             };
             StyleGrayBtn(btnToggleUser);
             btnToggleUser.Click += BtnToggleUser_Click;
 
             btnDeleteUser = new Button
             {
-                Text     = "🗑  Delete User",
+                Text = "🗑  Delete User",
                 Location = new Point(482, 0),
-                Size     = new Size(150, 38)
+                Size = new Size(150, 38)
             };
             StyleRedBtn(btnDeleteUser);
             btnDeleteUser.Click += BtnDeleteUser_Click;
@@ -1108,25 +1156,42 @@ private string? _mysqlPath;
 
             dgvUsers = new DataGridView
             {
-                Location            = new Point(28, 136),
-                Size                = new Size(1100, 480),
-                Anchor              = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
-                AllowUserToAddRows  = false,
-                ReadOnly            = true,
-                SelectionMode       = DataGridViewSelectionMode.FullRowSelect,
-                MultiSelect         = false,
+                Location = new Point(40, 156),
+                Size = new Size(1100, 460),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+                AllowUserToAddRows = false,
+                ReadOnly = true,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                MultiSelect = false,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                BackgroundColor     = Color.White,
-                BorderStyle         = BorderStyle.None
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.None,
+                RowTemplate = { Height = 36 }
             };
             ThemeHelper.StyleDataGridView(dgvUsers);
-            dgvUsers.Columns.Add("ID",       "ID");
+
+            // Commercial-app grid polish: dark header w/ white text, soft
+            // hover highlight, accent selection, subtle zebra striping.
+            dgvUsers.EnableHeadersVisualStyles = false;
+            dgvUsers.ColumnHeadersDefaultCellStyle.BackColor = ThemeHelper.Header;
+            dgvUsers.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            dgvUsers.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI Semibold", 9f);
+            dgvUsers.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
+            dgvUsers.ColumnHeadersHeight = 40;
+            dgvUsers.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+            dgvUsers.DefaultCellStyle.SelectionBackColor = ThemeHelper.Accent;
+            dgvUsers.DefaultCellStyle.SelectionForeColor = Color.White;
+            dgvUsers.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(250, 250, 250);
+            dgvUsers.GridColor = SidebarDivider;
+            dgvUsers.RowHeadersVisible = false;
+
+            dgvUsers.Columns.Add("ID", "ID");
             dgvUsers.Columns.Add("Username", "Username");
             dgvUsers.Columns.Add("FullName", "Full Name");
-            dgvUsers.Columns.Add("Email",    "Email");
-            dgvUsers.Columns.Add("Role",     "Role");
-            dgvUsers.Columns.Add("Status",   "Status");
-            dgvUsers.Columns["ID"].FillWeight     = 30;
+            dgvUsers.Columns.Add("Email", "Email");
+            dgvUsers.Columns.Add("Role", "Role");
+            dgvUsers.Columns.Add("Status", "Status");
+            dgvUsers.Columns["ID"].FillWeight = 30;
             dgvUsers.Columns["Status"].FillWeight = 60;
             outer.Controls.Add(dgvUsers);
 
@@ -1139,28 +1204,31 @@ private string? _mysqlPath;
             dgvUsers.Rows.Clear();
             try
             {
-                using var db  = new InventoryDbContext();
-                _users        = db.Users.ToList();
-                _roles        = db.Roles.ToList();
+                using var db = new InventoryDbContext();
+                _users = db.Users.ToList();
+                _roles = db.Roles.ToList();
                 var userRoles = db.UserRoles.ToList();
 
                 foreach (var u in _users)
                 {
-                    var roleId   = userRoles.FirstOrDefault(ur => ur.UserId == u.Id)?.RoleId;
+                    var roleId = userRoles.FirstOrDefault(ur => ur.UserId == u.Id)?.RoleId;
                     var roleName = _roles.FirstOrDefault(r => r.Id == roleId)?.RoleName ?? "—";
-                    bool active  = u.IsActive == true;
+                    bool active = u.IsActive == true;
 
                     int idx = dgvUsers.Rows.Add(
                         u.Id, u.Username, u.FullName,
                         u.Email ?? "—", roleName,
-                        active ? "Active" : "Inactive");
+                        active ? "🟢 Active" : "🔴 Inactive");
 
                     var row = dgvUsers.Rows[idx];
                     row.Cells["Status"].Style.ForeColor = active ? ThemeHelper.Success : ThemeHelper.Danger;
-                    row.Cells["Status"].Style.Font      = ThemeHelper.FontBold;
+                    row.Cells["Status"].Style.Font = ThemeHelper.FontBold;
                     if (!active)
                         row.DefaultCellStyle.ForeColor = Color.FromArgb(180, 180, 180);
                 }
+
+                dgvUsers.ClearSelection();     // ← add these two lines
+                dgvUsers.CurrentCell = null;
             }
             catch (Exception ex)
             {
@@ -1183,7 +1251,7 @@ private string? _mysqlPath;
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            int id   = Convert.ToInt32(dgvUsers.SelectedRows[0].Cells["ID"].Value);
+            int id = Convert.ToInt32(dgvUsers.SelectedRows[0].Cells["ID"].Value);
             var user = _users.FirstOrDefault(u => u.Id == id);
             if (user == null) return;
             using var form = new AddEditUserForm(user);
@@ -1198,7 +1266,7 @@ private string? _mysqlPath;
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            int id   = Convert.ToInt32(dgvUsers.SelectedRows[0].Cells["ID"].Value);
+            int id = Convert.ToInt32(dgvUsers.SelectedRows[0].Cells["ID"].Value);
             var user = _users.FirstOrDefault(u => u.Id == id);
             if (user == null) return;
 
@@ -1215,8 +1283,8 @@ private string? _mysqlPath;
 
             try
             {
-                using var db  = new InventoryDbContext();
-                var entity    = db.Users.FirstOrDefault(u => u.Id == id);
+                using var db = new InventoryDbContext();
+                var entity = db.Users.FirstOrDefault(u => u.Id == id);
                 if (entity == null) return;
                 entity.IsActive = !(user.IsActive == true);
                 db.SaveChanges();
@@ -1238,7 +1306,7 @@ private string? _mysqlPath;
                 return;
             }
 
-            int id   = Convert.ToInt32(dgvUsers.SelectedRows[0].Cells["ID"].Value);
+            int id = Convert.ToInt32(dgvUsers.SelectedRows[0].Cells["ID"].Value);
             var user = _users.FirstOrDefault(u => u.Id == id);
             if (user == null) return;
 
@@ -1255,8 +1323,8 @@ private string? _mysqlPath;
 
             try
             {
-                using var db     = new InventoryDbContext();
-                var entity       = db.Users.FirstOrDefault(u => u.Id == id);
+                using var db = new InventoryDbContext();
+                var entity = db.Users.FirstOrDefault(u => u.Id == id);
                 if (entity == null) return;
 
                 var userRoles = db.UserRoles.Where(ur => ur.UserId == id).ToList();
@@ -1286,67 +1354,100 @@ private string? _mysqlPath;
         {
             var outer = new Panel
             {
-                BackColor  = Color.FromArgb(245, 246, 250),
+                BackColor = PageBackground,
                 AutoScroll = true
             };
 
             var title = new Label
             {
-                Text      = "🔒  Change Password",
-                Font      = new Font("Segoe UI", 14f, FontStyle.Bold),
+                Text = "Change Password",
+                Font = new Font("Segoe UI Semibold", 16f),
                 ForeColor = ThemeHelper.TextPrimary,
-                AutoSize  = true,
-                Location  = new Point(32, 28)
+                AutoSize = true,
+                Location = new Point(40, 32)
             };
             outer.Controls.Add(title);
 
+            var subtitle = MakeSubtitle("Update your account password securely.", 40, 62);
+            outer.Controls.Add(subtitle);
+
             var card = new Panel
             {
-                Location  = new Point(32, 72),
-                Size      = new Size(560, 340),
+                Location = new Point(40, 96),
+                Size = new Size(560, 380),
                 BackColor = Color.White
             };
-            ApplyCardStyle(card);
+            ApplyCardStyle(outer, card);
             outer.Controls.Add(card);
 
-            int y = 28;
+            int y = 24;
 
-            card.Controls.Add(MakeLabel("Current Password", 28, y));
+            card.Controls.Add(MakeLabel("Current Password", 24, y));
             y += 26;
-            txtCurrentPwd = MakeTextBox(card, 28, y, 490);
+            txtCurrentPwd = MakeTextBox(card, 24, y, 490);
             txtCurrentPwd.UseSystemPasswordChar = true;
             y += 50;
 
-            card.Controls.Add(MakeLabel("New Password", 28, y));
+            card.Controls.Add(MakeLabel("New Password", 24, y));
             y += 26;
-            txtNewPwd = MakeTextBox(card, 28, y, 490);
+            txtNewPwd = MakeTextBox(card, 24, y, 490);
             txtNewPwd.UseSystemPasswordChar = true;
-            y += 50;
+            txtNewPwd.TextChanged += (s, e) => UpdatePasswordStrength();
+            y += 34;
 
-            card.Controls.Add(MakeLabel("Confirm New Password", 28, y));
+            // Password strength meter — updates live as the user types.
+            _pwdStrengthBar = new Panel
+            {
+                Location = new Point(24, y),
+                Size = new Size(0, 5),
+                BackColor = Color.FromArgb(229, 231, 235)
+            };
+            _pwdStrengthTrack = new Panel
+            {
+                Location = new Point(24, y),
+                Size = new Size(300, 5),
+                BackColor = Color.FromArgb(229, 231, 235),
+                Visible = false
+            };
+            _pwdStrengthTrack.Controls.Add(_pwdStrengthBar);
+            card.Controls.Add(_pwdStrengthTrack);
+
+            _lblPwdStrengthText = new Label
+            {
+                Location = new Point(334, y - 8),
+                AutoSize = true,
+                Font = new Font("Segoe UI", 8f),
+                ForeColor = SubtitleColor,
+                BackColor = Color.Transparent,
+                Text = ""
+            };
+            card.Controls.Add(_lblPwdStrengthText);
+            y += 22;
+
+            card.Controls.Add(MakeLabel("Confirm New Password", 24, y));
             y += 26;
-            txtConfirmPwd = MakeTextBox(card, 28, y, 490);
+            txtConfirmPwd = MakeTextBox(card, 24, y, 490);
             txtConfirmPwd.UseSystemPasswordChar = true;
             y += 50;
 
             lblPwdStatus = new Label
             {
-                Location  = new Point(28, y),
-                AutoSize  = false,
-                Size      = new Size(490, 22),
-                Font      = ThemeHelper.FontSmall,
+                Location = new Point(24, y),
+                AutoSize = false,
+                Size = new Size(490, 22),
+                Font = ThemeHelper.FontSmall,
                 ForeColor = ThemeHelper.Danger,
                 BackColor = Color.Transparent,
-                Text      = ""
+                Text = ""
             };
             card.Controls.Add(lblPwdStatus);
             y += 30;
 
             var btnChange = new Button
             {
-                Text     = "🔒  Change Password",
-                Location = new Point(28, y),
-                Size     = new Size(180, 36)
+                Text = "🔒  Change Password",
+                Location = new Point(24, y),
+                Size = new Size(190, 38)
             };
             StyleGreenBtn(btnChange);
             btnChange.Click += BtnChangePwd_Click;
@@ -1355,13 +1456,63 @@ private string? _mysqlPath;
             return outer;
         }
 
+        /// Live strength meter: weak (red, short) / medium (amber) / strong (green, full).
+        private void UpdatePasswordStrength()
+        {
+            if (_pwdStrengthBar == null) return;
+            string pwd = txtNewPwd.Text;
+            _pwdStrengthTrack.Visible = pwd.Length > 0;   
+
+
+            int score = 0;
+            if (pwd.Length >= 4) score++;
+            if (pwd.Length >= 8) score++;
+            if (pwd.Any(char.IsUpper) && pwd.Any(char.IsLower)) score++;
+            if (pwd.Any(char.IsDigit)) score++;
+            if (pwd.Any(c => !char.IsLetterOrDigit(c))) score++;
+
+            string label;
+            Color color;
+            int widthPct;
+
+            if (pwd.Length == 0)
+            {
+                label = "";
+                color = Color.FromArgb(229, 231, 235);
+                widthPct = 0;
+            }
+            else if (score <= 1)
+            {
+                label = "Weak";
+                color = ThemeHelper.Danger;
+                widthPct = 33;
+            }
+            else if (score <= 3)
+            {
+                label = "Medium";
+                color = Color.FromArgb(217, 119, 6);
+                widthPct = 66;
+            }
+            else
+            {
+                label = "Strong";
+                color = ThemeHelper.Success;
+                widthPct = 100;
+            }
+
+            _lblPwdStrengthText.Text = label;
+            _lblPwdStrengthText.ForeColor = color;
+            _pwdStrengthBar.BackColor = color;
+            _pwdStrengthBar.Size = new Size((int)(300 * widthPct / 100f), 5);
+        }
+
         private void BtnChangePwd_Click(object? sender, EventArgs e)
         {
             lblPwdStatus.ForeColor = ThemeHelper.Danger;
-            lblPwdStatus.Text      = "";
+            lblPwdStatus.Text = "";
 
-            string cur  = txtCurrentPwd.Text;
-            string nw   = txtNewPwd.Text;
+            string cur = txtCurrentPwd.Text;
+            string nw = txtNewPwd.Text;
             string conf = txtConfirmPwd.Text;
 
             if (string.IsNullOrWhiteSpace(cur) || string.IsNullOrWhiteSpace(nw) || string.IsNullOrWhiteSpace(conf))
@@ -1375,20 +1526,21 @@ private string? _mysqlPath;
 
             try
             {
-                using var db  = new InventoryDbContext();
-                var user      = db.Users.FirstOrDefault(u => u.Id == AuthService.CurrentUserId);
+                using var db = new InventoryDbContext();
+                var user = db.Users.FirstOrDefault(u => u.Id == AuthService.CurrentUserId);
                 if (user == null) { lblPwdStatus.Text = "User not found."; return; }
                 if (user.PasswordHash != cur) { lblPwdStatus.Text = "Current password is incorrect."; return; }
 
-                user.PasswordHash  = nw;
+                user.PasswordHash = nw;
                 db.SaveChanges();
 
                 txtCurrentPwd.Text = "";
-                txtNewPwd.Text     = "";
+                txtNewPwd.Text = "";
                 txtConfirmPwd.Text = "";
+                UpdatePasswordStrength();
 
                 lblPwdStatus.ForeColor = ThemeHelper.Success;
-                lblPwdStatus.Text      = "✅ Password changed successfully.";
+                lblPwdStatus.Text = "✅ Password changed successfully.";
             }
             catch (Exception ex)
             {
@@ -1403,42 +1555,68 @@ private string? _mysqlPath;
         {
             var outer = new Panel
             {
-                BackColor  = Color.FromArgb(245, 246, 250),
+                BackColor = PageBackground,
                 AutoScroll = true
             };
 
             var title = new Label
             {
-                Text      = "🖨  Barcode Label Printing",
-                Font      = new Font("Segoe UI", 14f, FontStyle.Bold),
+                Text = "Barcode Label Printing",
+                Font = new Font("Segoe UI Semibold", 16f),
                 ForeColor = ThemeHelper.TextPrimary,
-                AutoSize  = true,
-                Location  = new Point(32, 28)
+                AutoSize = true,
+                Location = new Point(40, 32)
             };
             outer.Controls.Add(title);
 
+            var subtitle = MakeSubtitle("Configure printers and barcode labels.", 40, 62);
+            outer.Controls.Add(subtitle);
+
             var card = new Panel
             {
-                Location  = new Point(32, 72),
-                Size      = new Size(560, 300),
+                Location = new Point(40, 96),
+                Size = new Size(560, 310),
                 BackColor = Color.White
             };
-            ApplyCardStyle(card);
+            ApplyCardStyle(outer, card);
             outer.Controls.Add(card);
 
-            int y = 28;
+            var cardTitle = new Label
+            {
+                Text = "Printer",
+                Font = new Font("Segoe UI Semibold", 11f),
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize = true,
+                Location = new Point(24, 20),
+                BackColor = Color.Transparent
+            };
+            card.Controls.Add(cardTitle);
 
-            card.Controls.Add(MakeLabel("Printer Name", 28, y));
+            int y = 54;
+
+            card.Controls.Add(MakeLabel("Printer Name", 24, y));
             y += 26;
-            txtPrinterName = MakeTextBox(card, 28, y, 490);
+            txtPrinterName = MakeTextBox(card, 24, y, 490);
             txtPrinterName.PlaceholderText = "Leave blank to use default printer";
-            y += 50;
+            y += 42;
 
-            card.Controls.Add(MakeLabel("Label Width (mm)", 28, y));
-            card.Controls.Add(MakeLabel("Label Height (mm)", 260, y));
+            var labelSizeTitle = new Label
+            {
+                Text = "Label Size",
+                Font = new Font("Segoe UI Semibold", 11f),
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize = true,
+                Location = new Point(24, y),
+                BackColor = Color.Transparent
+            };
+            card.Controls.Add(labelSizeTitle);
+            y += 30;
+
+            card.Controls.Add(MakeLabel("Width (mm)", 24, y));
+            card.Controls.Add(MakeLabel("Height (mm)", 260, y));
             y += 26;
 
-            txtLabelWidth = new TextBox { Location = new Point(28, y), Size = new Size(200, 28) };
+            txtLabelWidth = new TextBox { Location = new Point(24, y), Size = new Size(200, 28) };
             ThemeHelper.StyleTextBox(txtLabelWidth);
             txtLabelWidth.Text = "62";
             card.Controls.Add(txtLabelWidth);
@@ -1449,11 +1627,20 @@ private string? _mysqlPath;
             card.Controls.Add(txtLabelHeight);
             y += 54;
 
+            var actionsDivider = new Panel
+            {
+                Location = new Point(24, y),
+                Size = new Size(512, 1),
+                BackColor = SidebarDivider
+            };
+            card.Controls.Add(actionsDivider);
+            y += 16;
+
             btnTestPrint = new Button
             {
-                Text     = "🖨  Test Print Label",
-                Location = new Point(28, y),
-                Size     = new Size(168, 36)
+                Text = "🖨  Test Print Label",
+                Location = new Point(24, y),
+                Size = new Size(168, 38)
             };
             StyleGrayBtn(btnTestPrint);
             btnTestPrint.Click += btnTestPrint_Click;
@@ -1461,9 +1648,9 @@ private string? _mysqlPath;
 
             btnSave = new Button
             {
-                Text     = "💾  Save",
-                Location = new Point(210, y),
-                Size     = new Size(150, 36)
+                Text = "💾  Save",
+                Location = new Point(202, y),
+                Size = new Size(150, 38)
             };
             StyleGreenBtn(btnSave);
             btnSave.Click += btnSave_Click;
@@ -1479,32 +1666,35 @@ private string? _mysqlPath;
         {
             var outer = new Panel
             {
-                BackColor  = Color.FromArgb(245, 246, 250),
+                BackColor = PageBackground,
                 AutoScroll = true
             };
 
             var title = new Label
             {
-                Text      = "🏷  Manage Categories",
-                Font      = new Font("Segoe UI", 14f, FontStyle.Bold),
+                Text = "Manage Categories",
+                Font = new Font("Segoe UI Semibold", 16f),
                 ForeColor = ThemeHelper.TextPrimary,
-                AutoSize  = true,
-                Location  = new Point(32, 28)
+                AutoSize = true,
+                Location = new Point(40, 32)
             };
             outer.Controls.Add(title);
 
+            var subtitle = MakeSubtitle("Organise equipment categories.", 40, 62);
+            outer.Controls.Add(subtitle);
+
             var card = new Panel
             {
-                Location  = new Point(32, 72),
-                Size      = new Size(560, 420),
+                Location = new Point(40, 96),
+                Size = new Size(560, 430),
                 BackColor = Color.White
             };
-            ApplyCardStyle(card);
+            ApplyCardStyle(outer, card);
             outer.Controls.Add(card);
 
-            card.Controls.Add(MakeLabel("New Category Name", 28, 24));
+            card.Controls.Add(MakeLabel("New Category Name", 24, 22));
 
-            txtNewCategory = new TextBox { Location = new Point(28, 50), Size = new Size(360, 28) };
+            txtNewCategory = new TextBox { Location = new Point(24, 48), Size = new Size(360, 28) };
             ThemeHelper.StyleTextBox(txtNewCategory);
             txtNewCategory.KeyDown += (s, e) =>
             {
@@ -1518,9 +1708,9 @@ private string? _mysqlPath;
 
             var btnAdd = new Button
             {
-                Text     = "➕  Add",
-                Location = new Point(398, 49),
-                Size     = new Size(120, 30)
+                Text = "➕  Add",
+                Location = new Point(394, 47),
+                Size = new Size(120, 30)
             };
             StyleGreenBtn(btnAdd);
             btnAdd.Click += BtnAddCategory_Click;
@@ -1528,26 +1718,26 @@ private string? _mysqlPath;
 
             lblCategoryMsg = new Label
             {
-                Location  = new Point(28, 86),
-                AutoSize  = false,
-                Size      = new Size(490, 20),
-                Font      = ThemeHelper.FontSmall,
+                Location = new Point(24, 84),
+                AutoSize = false,
+                Size = new Size(490, 20),
+                Font = ThemeHelper.FontSmall,
                 ForeColor = ThemeHelper.Danger,
                 BackColor = Color.Transparent,
-                Text      = ""
+                Text = ""
             };
             card.Controls.Add(lblCategoryMsg);
 
-            card.Controls.Add(MakeLabel("Existing Categories", 28, 116));
+            card.Controls.Add(MakeLabel("Existing Categories", 24, 116));
 
             lstCategories = new ListBox
             {
-                Location    = new Point(28, 142),
-                Size        = new Size(490, 200),
-                Font        = ThemeHelper.FontDefault,
+                Location = new Point(24, 144),
+                Size = new Size(490, 210),
+                Font = ThemeHelper.FontDefault,
                 BorderStyle = BorderStyle.FixedSingle,
-                DrawMode    = DrawMode.OwnerDrawFixed,
-                ItemHeight  = 30,
+                DrawMode = DrawMode.OwnerDrawFixed,
+                ItemHeight = 32,
                 IntegralHeight = false
             };
             lstCategories.DrawItem += LstCategories_DrawItem;
@@ -1555,9 +1745,9 @@ private string? _mysqlPath;
 
             var btnDelete = new Button
             {
-                Text     = "🗑  Delete Selected",
-                Location = new Point(28, 354),
-                Size     = new Size(170, 34)
+                Text = "🗑  Delete Selected",
+                Location = new Point(24, 368),
+                Size = new Size(170, 36)
             };
             StyleGrayBtn(btnDelete);
             btnDelete.Click += BtnDeleteCategory_Click;
@@ -1638,12 +1828,12 @@ private string? _mysqlPath;
 
             using var numFont = new Font("Segoe UI", 9f, FontStyle.Bold);
             using var numBrush = new SolidBrush(selected ? Color.White : ThemeHelper.TextSecondary);
-            e.Graphics.DrawString($"{e.Index + 1}.", numFont, numBrush, e.Bounds.X + 10, e.Bounds.Y + 6);
+            e.Graphics.DrawString($"{e.Index + 1}.", numFont, numBrush, e.Bounds.X + 12, e.Bounds.Y + 8);
 
             using var txtBrush = new SolidBrush(selected ? Color.White : ThemeHelper.TextPrimary);
-            e.Graphics.DrawString(text, ThemeHelper.FontDefault, txtBrush, e.Bounds.X + 40, e.Bounds.Y + 6);
+            e.Graphics.DrawString(text, ThemeHelper.FontDefault, txtBrush, e.Bounds.X + 42, e.Bounds.Y + 8);
 
-            using var linePen = new Pen(Color.FromArgb(230, 230, 230), 1f);
+            using var linePen = new Pen(SidebarDivider, 1f);
             e.Graphics.DrawLine(linePen, e.Bounds.X, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
 
             e.DrawFocusRectangle();
@@ -1657,27 +1847,27 @@ private string? _mysqlPath;
             try
             {
                 using var db = new InventoryDbContext();
-                _current     = db.AppSettings.FirstOrDefault();
+                _current = db.AppSettings.FirstOrDefault();
 
                 if (_current == null)
                 {
                     _current = new AppSetting
                     {
-                        CompanyName   = "Q-Inventory",
-                        Theme         = "Light",
-                        DbServer      = "localhost",
-                        DbName        = "inventory_management",
-                        PrinterName   = "",
-                        LabelWidthMm  = 62,
+                        CompanyName = "Q-Inventory",
+                        Theme = "Light",
+                        DbServer = "localhost",
+                        DbName = "inventory_management",
+                        PrinterName = "",
+                        LabelWidthMm = 62,
                         LabelHeightMm = 29
                     };
                     db.AppSettings.Add(_current);
                     db.SaveChanges();
                 }
 
-                txtCompany.Text     = _current.CompanyName;
+                txtCompany.Text = _current.CompanyName;
                 txtPrinterName.Text = _current.PrinterName ?? "";
-                txtLabelWidth.Text  = (_current.LabelWidthMm  ?? 62).ToString();
+                txtLabelWidth.Text = (_current.LabelWidthMm ?? 62).ToString();
                 txtLabelHeight.Text = (_current.LabelHeightMm ?? 29).ToString();
 
                 _originalCompanyName = txtCompany.Text.Trim();
@@ -1703,7 +1893,7 @@ private string? _mysqlPath;
                 return;
             }
 
-            if (!int.TryParse(txtLabelWidth.Text,  out int lw) || lw <= 0 ||
+            if (!int.TryParse(txtLabelWidth.Text, out int lw) || lw <= 0 ||
                 !int.TryParse(txtLabelHeight.Text, out int lh) || lh <= 0)
             {
                 MessageBox.Show("Label width and height must be positive numbers.", "Validation",
@@ -1714,22 +1904,22 @@ private string? _mysqlPath;
             try
             {
                 using var db = new InventoryDbContext();
-                var entity   = db.AppSettings.FirstOrDefault() ?? new AppSetting();
-                bool isNew   = entity.Id == 0;
+                var entity = db.AppSettings.FirstOrDefault() ?? new AppSetting();
+                bool isNew = entity.Id == 0;
 
-                entity.CompanyName   = txtCompany.Text.Trim();
-                entity.Theme         = "Light";
-                entity.PrinterName   = txtPrinterName.Text.Trim();
-                entity.LabelWidthMm  = lw;
+                entity.CompanyName = txtCompany.Text.Trim();
+                entity.Theme = "Light";
+                entity.PrinterName = txtPrinterName.Text.Trim();
+                entity.LabelWidthMm = lw;
                 entity.LabelHeightMm = lh;
-                entity.UpdatedAt     = DateTime.Now;
+                entity.UpdatedAt = DateTime.Now;
 
                 if (isNew) db.AppSettings.Add(entity);
                 db.SaveChanges();
                 _current = entity;
 
                 _originalCompanyName = txtCompany.Text.Trim();
-                btnSave.Enabled      = false;
+                btnSave.Enabled = false;
 
                 // From the General/Company card: inline "✓ Saved" confirmation instead of a popup.
                 // The Printing panel reuses this same btnSave/handler, so only show the pill
@@ -1757,9 +1947,9 @@ private string? _mysqlPath;
         private void btnReset_Click(object? sender, EventArgs e)
         {
             if (_current == null) { LoadSettings(); return; }
-            txtCompany.Text     = _current.CompanyName;
+            txtCompany.Text = _current.CompanyName;
             txtPrinterName.Text = _current.PrinterName ?? "";
-            txtLabelWidth.Text  = (_current.LabelWidthMm  ?? 62).ToString();
+            txtLabelWidth.Text = (_current.LabelWidthMm ?? 62).ToString();
             txtLabelHeight.Text = (_current.LabelHeightMm ?? 29).ToString();
 
             _originalCompanyName = txtCompany.Text.Trim();
@@ -1769,7 +1959,7 @@ private string? _mysqlPath;
 
         private void btnTestPrint_Click(object? sender, EventArgs e)
         {
-            if (!int.TryParse(txtLabelWidth.Text,  out int lw) || lw <= 0) lw = 62;
+            if (!int.TryParse(txtLabelWidth.Text, out int lw) || lw <= 0) lw = 62;
             if (!int.TryParse(txtLabelHeight.Text, out int lh) || lh <= 0) lh = 29;
 
             string printerName = txtPrinterName.Text.Trim();
@@ -1778,9 +1968,9 @@ private string? _mysqlPath;
 
             try
             {
-                var gen  = new QRCodeGenerator();
+                var gen = new QRCodeGenerator();
                 var data = gen.CreateQrCode("TEST-LABEL-001", QRCodeGenerator.ECCLevel.Q);
-                var qr   = new QRCode(data);
+                var qr = new QRCode(data);
                 using var bmp = qr.GetGraphic(4);
 
                 var pd = new PrintDocument();
@@ -1793,17 +1983,17 @@ private string? _mysqlPath;
 
                 pd.PrintPage += (s, ev) =>
                 {
-                    var g      = ev.Graphics!;
+                    var g = ev.Graphics!;
                     var bounds = ev.PageBounds;
-                    int qrSz   = Math.Min(bounds.Height - 20, 80);
+                    int qrSz = Math.Min(bounds.Height - 20, 80);
                     g.DrawImage(bmp, new Rectangle(
                         bounds.X + 5, bounds.Y + (bounds.Height - qrSz) / 2, qrSz, qrSz));
                     int tx = bounds.X + qrSz + 12;
                     int tw = bounds.Width - qrSz - 20;
                     using var bf = new Font("Segoe UI", 8f, FontStyle.Bold);
                     using var sf = new Font("Segoe UI", 6.5f);
-                    g.DrawString(companyName,      bf, Brushes.Black,
-                        new RectangleF(tx, bounds.Y + 6,  tw, 18));
+                    g.DrawString(companyName, bf, Brushes.Black,
+                        new RectangleF(tx, bounds.Y + 6, tw, 18));
                     g.DrawString("TEST-LABEL-001", bf, Brushes.Black,
                         new RectangleF(tx, bounds.Y + 22, tw, 18));
                     g.DrawString("Status: In Store", sf, Brushes.DimGray,
@@ -1815,11 +2005,11 @@ private string? _mysqlPath;
 
                 using var ppd = new PrintPreviewDialog
                 {
-                    Document      = pd,
-                    Width         = 600,
-                    Height        = 400,
+                    Document = pd,
+                    Width = 600,
+                    Height = 400,
                     StartPosition = FormStartPosition.CenterParent,
-                    Text          = "Label Preview"
+                    Text = "Label Preview"
                 };
                 ppd.ShowDialog();
             }
@@ -1833,26 +2023,53 @@ private string? _mysqlPath;
         // ══════════════════════════════════════════════════════════════
         //  UI HELPERS
         // ══════════════════════════════════════════════════════════════
-        private static void ApplyCardStyle(Panel card, Color? borderColor = null)
+
+        /// Small grey descriptive line placed under a page or card title
+        /// (e.g. "Manage company information and application preferences.")
+        private static Label MakeSubtitle(string text, int x, int y) => new Label
         {
+            Text = text,
+            Font = new Font("Segoe UI", 9f),
+            ForeColor = SubtitleColor,
+            AutoSize = true,
+            Location = new Point(x, y),
+            BackColor = Color.Transparent
+        };
+
+        /// Rounded card with a 1px border and a soft drop-shadow painted on
+        /// the parent panel behind it (native WinForms controls can't cast
+        /// their own shadow, so the shadow is drawn on `parent` just before
+        /// the card's location, then the card sits on top of it).
+        private static void ApplyCardStyle(Panel parent, Panel card, Color? borderColor = null)
+        {
+            parent.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                var shadowRect = new Rectangle(card.Left + 2, card.Top + 3, card.Width - 1, card.Height - 1);
+                using var shadowPath = RoundedPath(shadowRect, 14);
+                using var shadowBrush = new SolidBrush(CardShadowColor);
+                g.FillPath(shadowBrush, shadowPath);
+            };
+
             card.Paint += (s, e) =>
             {
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 using var path = RoundedPath(
-                    new Rectangle(0, 0, card.Width - 1, card.Height - 1), 12);
+                    new Rectangle(0, 0, card.Width - 1, card.Height - 1), 14);
                 card.Region = new Region(path);
-                using var pen = new Pen(borderColor ?? ThemeHelper.CardBorder, 1f);
+                using var pen = new Pen(borderColor ?? SidebarDivider, 1f);
                 g.DrawPath(pen, path);
             };
         }
 
         private static Label MakeLabel(string text, int x, int y) => new Label
         {
-            Text      = text,
-            AutoSize  = true,
-            Location  = new Point(x, y),
-            Font      = ThemeHelper.FontBold,
+            Text = text,
+            AutoSize = true,
+            Location = new Point(x, y),
+            Font = ThemeHelper.FontBold,
             ForeColor = ThemeHelper.TextPrimary,
             BackColor = Color.Transparent
         };
@@ -1870,10 +2087,10 @@ private string? _mysqlPath;
             btn.BackColor = ThemeHelper.Accent;
             btn.ForeColor = Color.White;
             btn.FlatStyle = FlatStyle.Flat;
-            btn.Font      = ThemeHelper.FontBold;
-            btn.Cursor    = Cursors.Hand;
+            btn.Font = new Font("Segoe UI Semibold", 9f);
+            btn.Cursor = Cursors.Hand;
             btn.UseVisualStyleBackColor = false;
-            btn.FlatAppearance.BorderSize         = 0;
+            btn.FlatAppearance.BorderSize = 0;
             btn.FlatAppearance.MouseOverBackColor = ThemeHelper.Header;
         }
 
@@ -1882,10 +2099,10 @@ private string? _mysqlPath;
             btn.BackColor = Color.FromArgb(243, 244, 246);
             btn.ForeColor = ThemeHelper.TextPrimary;
             btn.FlatStyle = FlatStyle.Flat;
-            btn.Font      = ThemeHelper.FontDefault;
-            btn.Cursor    = Cursors.Hand;
+            btn.Font = new Font("Segoe UI", 9f);
+            btn.Cursor = Cursors.Hand;
             btn.UseVisualStyleBackColor = false;
-            btn.FlatAppearance.BorderSize  = 1;
+            btn.FlatAppearance.BorderSize = 1;
             btn.FlatAppearance.BorderColor = ThemeHelper.InputBorder;
             btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(229, 231, 235);
         }
@@ -1895,10 +2112,10 @@ private string? _mysqlPath;
             btn.BackColor = ThemeHelper.Danger;
             btn.ForeColor = Color.White;
             btn.FlatStyle = FlatStyle.Flat;
-            btn.Font      = ThemeHelper.FontBold;
-            btn.Cursor    = Cursors.Hand;
+            btn.Font = new Font("Segoe UI Semibold", 9f);
+            btn.Cursor = Cursors.Hand;
             btn.UseVisualStyleBackColor = false;
-            btn.FlatAppearance.BorderSize         = 0;
+            btn.FlatAppearance.BorderSize = 0;
             btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(185, 28, 28);
         }
 
@@ -1907,22 +2124,22 @@ private string? _mysqlPath;
             btn.BackColor = Color.White;
             btn.ForeColor = ThemeHelper.Danger;
             btn.FlatStyle = FlatStyle.Flat;
-            btn.Font      = ThemeHelper.FontBold;
-            btn.Cursor    = Cursors.Hand;
+            btn.Font = new Font("Segoe UI Semibold", 9f);
+            btn.Cursor = Cursors.Hand;
             btn.UseVisualStyleBackColor = false;
-            btn.FlatAppearance.BorderSize         = 1;
-            btn.FlatAppearance.BorderColor        = Color.FromArgb(252, 165, 165);
+            btn.FlatAppearance.BorderSize = 1;
+            btn.FlatAppearance.BorderColor = Color.FromArgb(252, 165, 165);
             btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(254, 226, 226);
         }
 
         private static GraphicsPath RoundedPath(Rectangle r, int radius)
         {
             var path = new GraphicsPath();
-            int d    = radius * 2;
-            path.AddArc(r.X,         r.Y,          d, d, 180, 90);
-            path.AddArc(r.Right - d, r.Y,          d, d, 270, 90);
-            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0,   90);
-            path.AddArc(r.X,         r.Bottom - d, d, d, 90,  90);
+            int d = radius * 2;
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
             path.CloseFigure();
             return path;
         }

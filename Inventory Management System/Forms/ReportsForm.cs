@@ -25,6 +25,7 @@ namespace Inventory_Management_System.Forms
         private string _activeEquipmentCategory = "All Categories";
         private DataGridView _preview = null!;
         private Label _previewTitle = null!;
+        private Label _lblWatermark = null!;
         private string _companyName = "Q-Inventory";
 
         public ReportsForm()
@@ -92,6 +93,32 @@ namespace Inventory_Management_System.Forms
             _preview.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
             Controls.Add(_preview);
             _preview.BringToFront();
+
+            _lblWatermark = new Label
+            {
+                Text = "Designed & Developed by\n🐙 @shayan-qazmi/📷 @shayanqazmi",
+                Font = new Font("Segoe UI", 8f, FontStyle.Italic),
+                ForeColor = Color.FromArgb(160, 160, 160),
+                BackColor = Color.Transparent,
+                TextAlign = ContentAlignment.MiddleRight,
+                AutoSize = true,
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right
+            };
+            Controls.Add(_lblWatermark);
+            _lblWatermark.BringToFront();
+            PositionWatermark();
+
+            this.Resize += (s, e) => PositionWatermark();
+            _lblWatermark.SizeChanged += (s, e) => PositionWatermark();
+        }
+
+        private void PositionWatermark()
+        {
+            if (_lblWatermark == null) return;
+            const int margin = 12;
+            _lblWatermark.Location = new Point(
+                ClientSize.Width - _lblWatermark.Width - margin,
+                ClientSize.Height - _lblWatermark.Height - margin);
         }
 
         private void btnEquipmentReport_Click(object sender, EventArgs e)
