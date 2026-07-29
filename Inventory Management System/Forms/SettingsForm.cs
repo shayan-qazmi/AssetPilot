@@ -1089,7 +1089,8 @@ namespace Inventory_Management_System.Forms
         {
             var outer = new Panel
             {
-                BackColor = PageBackground
+                BackColor = PageBackground,
+                AutoScroll = true
             };
 
             var title = new Label
