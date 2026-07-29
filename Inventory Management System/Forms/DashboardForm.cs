@@ -45,10 +45,9 @@ namespace Inventory_Management_System
         private Panel? _panelBar     = null;
         private Panel? _panelLine    = null;
         private Panel? _panelTopRow;   
-        private Panel? _panelBotRow;   
+        private Panel? _panelBotRow;
 
-        private Button[] AdminOnlyButtons => new[] { btnDecommission, btnSettings };
-
+        private Button[] AdminOnlyButtons => new[] { btnDecommission, btnSettings, btnDeletedItems };
         // ── Top bar (yellow, matched to logo) ───────────────────────────────
         private static readonly Color TopBarYellow = Color.FromArgb(0x99, 0xC2, 0x21);
 
@@ -160,6 +159,8 @@ namespace Inventory_Management_System
             }
             catch { lblAppBrand.Text = "Q-Inventory"; lblAppBrand.Visible = true; }
 
+
+
             // Nav buttons
             ThemeHelper.StyleSidebarButton(btnDashboard,   active: true);
             activeNavButton = btnDashboard;
@@ -170,6 +171,7 @@ namespace Inventory_Management_System
             ThemeHelper.StyleSidebarButton(btnReturns);
             ThemeHelper.StyleSidebarButton(btnTransfer);
             ThemeHelper.StyleSidebarButton(btnDecommission);
+            ThemeHelper.StyleSidebarButton(btnDeletedItems);
             ThemeHelper.StyleSidebarButton(btnLogs);
             ThemeHelper.StyleSidebarButton(btnQRScanner);
             ThemeHelper.StyleSidebarButton(btnCheckInOut);
@@ -1195,6 +1197,13 @@ namespace Inventory_Management_System
             if (!EnsureAdmin()) return;
             AnimateTitleTo("Decommission");
             OpenChildForm(new DecommissionForm(), btnDecommission);
+        }
+
+        private void btnDeletedItems_Click(object? sender, EventArgs e)
+        {
+            if (!EnsureAdmin()) return;
+            AnimateTitleTo("Deleted Items");
+            OpenChildForm(new DeletedItemsForm(), btnDeletedItems);
         }
 
         private void btnLogs_Click(object? sender, EventArgs e)

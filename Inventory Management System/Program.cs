@@ -2,6 +2,7 @@
 using System;
 using System.Windows.Forms;
 using Inventory_Management_System.Forms;
+using QuestPDF.Infrastructure;
 
 namespace Inventory_Management_System
 {
@@ -24,6 +25,7 @@ namespace Inventory_Management_System
             using var login = new LoginForm();
             if (login.ShowDialog() == DialogResult.OK)
             {
+                QuestPDF.Settings.License = LicenseType.Community;
                 Application.Run(new DashboardForm());
             }
         }

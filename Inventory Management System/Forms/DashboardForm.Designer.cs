@@ -40,8 +40,9 @@ namespace Inventory_Management_System
             btnQRScanner     = new System.Windows.Forms.Button();
             btnCheckInOut    = new System.Windows.Forms.Button();
             btnReports       = new System.Windows.Forms.Button();
-            btnSettings      = new System.Windows.Forms.Button();
-            btnLogout        = new System.Windows.Forms.Button();
+            btnSettings = new System.Windows.Forms.Button();
+            btnLogout = new System.Windows.Forms.Button();
+            btnDeletedItems = new System.Windows.Forms.Button();
 
             panelMenu.SuspendLayout();
             panelTop.SuspendLayout();
@@ -60,6 +61,7 @@ namespace Inventory_Management_System
             panelMenu.Controls.Add(btnQRScanner);
             panelMenu.Controls.Add(btnLogs);
             panelMenu.Controls.Add(btnDecommission);
+            panelMenu.Controls.Add(btnDeletedItems);
             panelMenu.Controls.Add(btnTransfer);
             panelMenu.Controls.Add(btnReturns);
             panelMenu.Controls.Add(btnAllocation);
@@ -115,15 +117,20 @@ namespace Inventory_Management_System
             btnReturns.Name      = "btnReturns";
             btnReturns.Click    += btnReturns_Click;
 
-            btnTransfer.Dock     = System.Windows.Forms.DockStyle.Top;
-            btnTransfer.Height   = 46; btnTransfer.Text = "🔀  Transfer";
-            btnTransfer.Name     = "btnTransfer";
-            btnTransfer.Click   += btnTransfer_Click;
+            btnTransfer.Dock = System.Windows.Forms.DockStyle.Top;
+            btnTransfer.Height = 46; btnTransfer.Text = "🔀  Transfer";
+            btnTransfer.Name = "btnTransfer";
+            btnTransfer.Click += btnTransfer_Click;
 
-            btnDecommission.Dock   = System.Windows.Forms.DockStyle.Top;
+            btnDecommission.Dock = System.Windows.Forms.DockStyle.Top;
             btnDecommission.Height = 46; btnDecommission.Text = "🗑  Decommission";
-            btnDecommission.Name   = "btnDecommission";
+            btnDecommission.Name = "btnDecommission";
             btnDecommission.Click += btnDecommission_Click;
+
+            btnDeletedItems.Dock = System.Windows.Forms.DockStyle.Top;
+            btnDeletedItems.Height = 46; btnDeletedItems.Text = "♻️  Deleted Items";
+            btnDeletedItems.Name = "btnDeletedItems";
+            btnDeletedItems.Click += btnDeletedItems_Click;
 
             btnLogs.Dock         = System.Windows.Forms.DockStyle.Top;
             btnLogs.Height       = 46; btnLogs.Text = "📋  Logs";
@@ -234,5 +241,6 @@ namespace Inventory_Management_System
         private System.Windows.Forms.Button btnReports;
         private System.Windows.Forms.Button btnSettings;
         private System.Windows.Forms.Button btnLogout;
+        private System.Windows.Forms.Button btnDeletedItems;
     }
 }

@@ -4,19 +4,25 @@ using Inventory_Management_System.Helpers;
 using Inventory_Management_System.Models;
 using Inventory_Management_System.Services;
 using Microsoft.EntityFrameworkCore;
-using System;
+using QuestPDF.Fluent;using System;
 using System.Collections.Generic;
+
 using System.Drawing;
 using System.Drawing.Printing;
 using System.Linq;
 using System.Windows.Forms;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
+using Color = System.Drawing.Color;
+using Size = System.Drawing.Size;
+
 
 namespace Inventory_Management_System.Forms
 {
     public partial class ReportsForm : Form
+
     {
-        private readonly EquipmentService  _equipmentService  = new();
-        private readonly EmployeeService   _employeeService   = new();
+        private readonly EquipmentService _equipmentService = new();
+        private readonly EmployeeService _employeeService = new();
         private readonly AllocationService _allocationService = new();
 
         // Currently selected report — drives both the on-screen preview grid
@@ -50,7 +56,7 @@ namespace Inventory_Management_System.Forms
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleLabel(lblReportType, bold: true, color: ThemeHelper.Accent);
-            ThemeHelper.StyleLabel(lblExport,     bold: true, color: ThemeHelper.Accent);
+            ThemeHelper.StyleLabel(lblExport, bold: true, color: ThemeHelper.Accent);
 
             ThemeHelper.StyleButton(btnEquipmentReport, Color.FromArgb(94, 53, 177));
             ThemeHelper.StyleButton(btnEmployeeReport, Color.FromArgb(123, 31, 162));
@@ -66,22 +72,22 @@ namespace Inventory_Management_System.Forms
         {
             _previewTitle = new Label
             {
-                Location  = new Point(20, 80),
-                Size      = new Size(1160, 30),
-                AutoSize  = false,
+                Location = new Point(20, 80),
+                Size = new Size(1160, 30),
+                AutoSize = false,
                 TextAlign = ContentAlignment.MiddleCenter,
-                Text      = "Select a report above to preview it here.",
-                Font      = ThemeHelper.FontBold,
+                Text = "Select a report above to preview it here.",
+                Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextPrimary,
-                Anchor    = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
             Controls.Add(_previewTitle);
 
             _preview = new DataGridView
             {
                 Location = new Point(20, 120),
-                Size     = new Size(1160, 540),
-                Anchor   = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
+                Size = new Size(1160, 540),
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 AllowUserToAddRows = false,
                 ReadOnly = true,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect
@@ -225,11 +231,11 @@ namespace Inventory_Management_System.Forms
                 var statusCell = _preview.Rows[rowIdx].Cells["Status"];
                 statusCell.Style.ForeColor = item.CurrentStatus switch
                 {
-                    "in_store"       => ThemeHelper.Success,
+                    "in_store" => ThemeHelper.Success,
                     "allocated" => ThemeHelper.Warning,
-                    "under_repair"   => Color.FromArgb(255, 112, 67),
+                    "under_repair" => Color.FromArgb(255, 112, 67),
                     "decommissioned" => ThemeHelper.Danger,
-                    _                => ThemeHelper.TextPrimary
+                    _ => ThemeHelper.TextPrimary
                 };
                 statusCell.Style.Font = ThemeHelper.FontBold;
             }
@@ -265,7 +271,7 @@ namespace Inventory_Management_System.Forms
             {
                 var empAllocs = allocations.Where(a => a.EmployeeId == emp.Id).ToList();
                 int activeCount = empAllocs.Count(a => a.Status == "approved");
-                int totalCount  = empAllocs.Count;
+                int totalCount = empAllocs.Count;
 
                 if (totalCount == 0) continue; // skip employees with no history
 
@@ -319,7 +325,7 @@ namespace Inventory_Management_System.Forms
         private void btnReturnReport_Click(object sender, EventArgs e)
         {
             _currentReport = "Return";
-            _previewTitle.Text = $"Returns History Report — {_companyName}";    
+            _previewTitle.Text = $"Returns History Report — {_companyName}";
 
             var result = _allocationService.GetAll();
             if (!result.Success)
@@ -372,7 +378,7 @@ namespace Inventory_Management_System.Forms
 
             using var sfd = new SaveFileDialog
             {
-                Filter   = "Excel Files|*.xlsx",
+                Filter = "Excel Files|*.xlsx",
                 FileName = $"{_currentReport}_Report_{DateTime.Now:yyyyMMdd_HHmm}.xlsx"
             };
             if (sfd.ShowDialog() != DialogResult.OK) return;
@@ -412,10 +418,10 @@ namespace Inventory_Management_System.Forms
             }
         }
 
-        // ── Export: PDF via Print Preview ──────────────────────────────
-        // Uses Windows' built-in "Microsoft Print to PDF" driver — no new
-        // NuGet package needed. Opens a real print-preview dialog the user
-        // can either print physically or save as a PDF file.
+
+
+
+
         private void btnExportPDF_Click(object sender, EventArgs e)
         {
             if (string.IsNullOrEmpty(_currentReport) || _preview.Columns.Count == 0)
@@ -430,10 +436,7 @@ namespace Inventory_Management_System.Forms
                 var pd = new PrintDocument();
                 int currentRow = 0;
 
-                pd.BeginPrint += (s, ev) =>
-                {
-                    currentRow = 0;
-                };
+                pd.BeginPrint += (s, ev) => { currentRow = 0; };
 
                 pd.PrintPage += (s, ev) =>
                 {
@@ -442,11 +445,11 @@ namespace Inventory_Management_System.Forms
                     float leftMargin = 40f;
                     int colCount = _preview.Columns.Count;
                     float pageWidth = ev.PageBounds.Width - 80f;
-                    float colWidth  = pageWidth / colCount;
+                    float colWidth = pageWidth / colCount;
 
-                    using var titleFont  = new Font("Segoe UI", 16, FontStyle.Bold);
+                    using var titleFont = new Font("Segoe UI", 16, FontStyle.Bold);
                     using var headerFont = new Font("Segoe UI", 9, FontStyle.Bold);
-                    using var rowFont    = new Font("Segoe UI", 9, FontStyle.Regular);
+                    using var rowFont = new Font("Segoe UI", 9, FontStyle.Regular);
 
                     g.DrawString($"{_currentReport} Report", titleFont, Brushes.Black, leftMargin, y);
                     y += 22;
@@ -455,7 +458,6 @@ namespace Inventory_Management_System.Forms
                     g.DrawString($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm}", rowFont, Brushes.Gray, leftMargin, y);
                     y += 28;
 
-                    // Header row
                     float x = leftMargin;
                     for (int c = 0; c < colCount; c++)
                     {
@@ -467,7 +469,6 @@ namespace Inventory_Management_System.Forms
                     g.DrawLine(Pens.Black, leftMargin, y, leftMargin + pageWidth, y);
                     y += 6;
 
-                    // Data rows — paginate when reaching page bottom
                     while (currentRow < _preview.Rows.Count)
                     {
                         if (y > ev.PageBounds.Height - 60)
@@ -494,9 +495,9 @@ namespace Inventory_Management_System.Forms
 
                 using var ppd = new PrintPreviewDialog
                 {
-                    Document    = pd,
-                    Width       = 900,
-                    Height      = 700,
+                    Document = pd,
+                    Width = 900,
+                    Height = 700,
                     StartPosition = FormStartPosition.CenterParent
                 };
                 ppd.ShowDialog();
@@ -507,5 +508,9 @@ namespace Inventory_Management_System.Forms
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+
+        // ── Actual printer step — errors ONLY here if no printer is connected,
+        // exactly matching the original QR-sheet printer-missing behavior.
+       
     }
-}
+    }

@@ -159,6 +159,8 @@ namespace Inventory_Management_System.Forms
             panelUsername.Name         = "panelUsername";
             panelUsername.Controls.Add(lblUserIcon);
             panelUsername.Controls.Add(txtUsername);
+            panelUsername.TabIndex = 0;
+            panelUsername.TabStop = true;
 
             // ── lblUserIcon ───────────────────────────────────────────────
             lblUserIcon.Text      = "👤";
@@ -187,6 +189,7 @@ namespace Inventory_Management_System.Forms
             lblPassword.Font      = new System.Drawing.Font("Segoe UI", 9.5F, System.Drawing.FontStyle.Bold);
             lblPassword.ForeColor = System.Drawing.Color.FromArgb(17, 24, 39);
             lblPassword.Name      = "lblPassword";
+            txtPassword.TabIndex = 1;
 
             // ── panelPassword ─────────────────────────────────────────────
             panelPassword.Location     = new System.Drawing.Point(0, 208);
@@ -199,6 +202,8 @@ namespace Inventory_Management_System.Forms
             panelPassword.Controls.Add(lblPassIcon);
             panelPassword.Controls.Add(txtPassword);
             panelPassword.Controls.Add(lblShowHidePassword);
+            panelPassword.TabIndex = 1;
+            panelPassword.TabStop = true;
 
             // ── lblPassIcon ───────────────────────────────────────────────
             lblPassIcon.Text      = "🔑";
@@ -243,6 +248,7 @@ namespace Inventory_Management_System.Forms
             lblToggleLabel.Name      = "lblToggleLabel";
             lblToggleLabel.Cursor    = System.Windows.Forms.Cursors.Hand;
             lblToggleLabel.Click    += lblToggleLabel_Click;
+          
 
             // Toggle switch panel (drawn in code)
             pnlToggle.Location  = new System.Drawing.Point(0, 260);
@@ -252,6 +258,8 @@ namespace Inventory_Management_System.Forms
             pnlToggle.Cursor    = System.Windows.Forms.Cursors.Hand;
             pnlToggle.Paint    += pnlToggle_Paint;
             pnlToggle.Click    += pnlToggle_Click;
+            pnlToggle.TabIndex = 2;
+
 
             // ── btnLogin (rounded green) ───────────────────────────────────
             // Width/height match panelUsername/panelPassword exactly: 360 x 44.

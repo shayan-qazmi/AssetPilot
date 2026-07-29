@@ -8,6 +8,9 @@ using System.Drawing;
 using System.Drawing.Printing;
 using System.Linq;
 using System.Windows.Forms;
+using Color = System.Drawing.Color;
+using Size = System.Drawing.Size;
+
 
 namespace Inventory_Management_System.Forms
 {
@@ -478,27 +481,50 @@ namespace Inventory_Management_System.Forms
 
         private void btnDelete_Click(object sender, EventArgs e)
         {
-            var eq = GetSelectedEquipment();
-            if (eq == null)
+            var selectedList = GetSelectedEquipmentList();
+
+            if (selectedList.Count == 0)
             {
-                MessageBox.Show("Please select an equipment row to delete.",
+                MessageBox.Show("Please select at least one equipment row to delete.",
                     "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            if (MessageBox.Show(
-                    $"Are you sure you want to delete '{eq.Name}' ({eq.EquipmentCode})?",
-                    "Confirm Delete",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning) != DialogResult.Yes)
+            string confirmMessage = selectedList.Count == 1
+                ? $"Are you sure you want to delete '{selectedList[0].Name}' ({selectedList[0].EquipmentCode})?"
+                : $"Are you sure you want to delete these {selectedList.Count} items?\n\n" +
+                  string.Join("\n", selectedList.Select(eq => $"• {eq.Name} ({eq.EquipmentCode})"));
+
+            if (MessageBox.Show(confirmMessage, "Confirm Delete",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
 
-            var result = _equipmentService.Delete(eq.Id);
-            if (result.Success)
-                LoadEquipment();
+            var failures = new List<string>();
+            int successCount = 0;
+
+            foreach (var eq in selectedList)
+            {
+                var result = _equipmentService.Delete(eq.Id);
+                if (result.Success)
+                    successCount++;
+                else
+                    failures.Add($"{eq.EquipmentCode}: {result.ErrorMessage}");
+            }
+
+            LoadEquipment();
+
+            if (failures.Count == 0)
+            {
+                MessageBox.Show($"{successCount} item(s) deleted successfully.", "Delete Complete",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
             else
-                MessageBox.Show(result.ErrorMessage, "Delete Failed",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            {
+                MessageBox.Show(
+                    $"{successCount} of {selectedList.Count} items deleted.\n\nFailures:\n" +
+                    string.Join("\n", failures),
+                    "Delete Complete with Errors", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private void btnRefresh_Click(object sender, EventArgs e)
@@ -636,20 +662,20 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            const int pageW   = 827;
-            const int pageH   = 1169;
+            const int pageW = 827;
+            const int pageH = 1169;
             const int marginL = 40;
             const int marginT = 40;
-            const int cellW   = 180;
-            const int cellH   = 200;
-            const int cols    = 4;
-            const int qrSize  = 120;
+            const int cellW = 180;
+            const int cellH = 200;
+            const int cols = 4;
+            const int qrSize = 120;
 
             int currentIndex = 0;
 
             using var pd = new PrintDocument();
             pd.DefaultPageSettings.PaperSize = new PaperSize("A4", pageW, pageH);
-            pd.DefaultPageSettings.Margins   = new Margins(marginL, marginL, marginT, marginT);
+            pd.DefaultPageSettings.Margins = new Margins(marginL, marginL, marginT, marginT);
 
             pd.BeginPrint += (ps, pe) =>
             {
@@ -674,10 +700,10 @@ namespace Inventory_Management_System.Forms
 
                 using var codeFont = new Font("Segoe UI", 7f, FontStyle.Bold);
                 using var nameFont = new Font("Segoe UI", 6f, FontStyle.Regular);
-                using var coFont   = new Font("Segoe UI", 5.5f, FontStyle.Regular);
+                using var coFont = new Font("Segoe UI", 5.5f, FontStyle.Regular);
 
-                int col    = 0;
-                int row    = 0;
+                int col = 0;
+                int row = 0;
                 int startX = marginL;
                 int startY = marginT;
 
@@ -701,7 +727,7 @@ namespace Inventory_Management_System.Forms
                     g.DrawImage(bmp, new Rectangle(qrX, qrY, qrSize, qrSize));
 
                     g.DrawString(companyName, coFont, Brushes.DimGray,
-                        new RectangleF(x + 4, qrY + qrSize + 4,  cellW - 8, 16));
+                        new RectangleF(x + 4, qrY + qrSize + 4, cellW - 8, 16));
                     g.DrawString(eq.EquipmentCode, codeFont, Brushes.Black,
                         new RectangleF(x + 4, qrY + qrSize + 18, cellW - 8, 18));
 

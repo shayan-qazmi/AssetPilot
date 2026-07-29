@@ -23,8 +23,9 @@ namespace Inventory_Management_System.Services
             {
                 using var db = new InventoryDbContext();
                 var list = db.Equipment
-                    .Include(e => e.Allocations)
-                        .ThenInclude(a => a.Location)
+      .Where(e => !e.IsDeleted)
+      .Include(e => e.Allocations)
+                          .ThenInclude(a => a.Location)
                     .Include(e => e.ProcurementType)
                     .OrderBy(e => e.EquipmentCode)
                     .ToList();
@@ -42,7 +43,8 @@ namespace Inventory_Management_System.Services
             {
                 using var db = new InventoryDbContext();
                 var query = db.Equipment
-                    .Include(e => e.Allocations)
+    .Where(e => !e.IsDeleted)
+    .Include(e => e.Allocations)
                         .ThenInclude(a => a.Location)
                     .Include(e => e.ProcurementType)
                     .OrderBy(e => e.EquipmentCode);
@@ -73,8 +75,9 @@ namespace Inventory_Management_System.Services
             {
                 using var db = new InventoryDbContext();
                 var eq = db.Equipment
-                    .Include(e => e.Allocations).ThenInclude(a => a.Location)
-                    .Include(e => e.ProcurementType)
+     .Where(e => !e.IsDeleted)
+     .Include(e => e.Allocations).ThenInclude(a => a.Location)
+                     .Include(e => e.ProcurementType)
                     .FirstOrDefault(e => e.Id == id);
                 return eq == null
                     ? ServiceResult<Equipment>.Fail("Equipment not found.")
@@ -94,7 +97,8 @@ namespace Inventory_Management_System.Services
             {
                 using var db = new InventoryDbContext();
                 var allItems = db.Equipment
-                    .Include(e => e.Allocations).ThenInclude(a => a.Location)
+    .Where(e => !e.IsDeleted)
+    .Include(e => e.Allocations).ThenInclude(a => a.Location)
                     .Include(e => e.ProcurementType)
                     .ToList();
 
@@ -318,41 +322,69 @@ namespace Inventory_Management_System.Services
             try
             {
                 using var db = new InventoryDbContext();
-                var existing = db.Equipment
-                    .Include(e => e.Allocations)
-                    .Include(e => e.Transactions)
-                    .FirstOrDefault(e => e.Id == id);
-                if (existing == null)
+                var eq = db.Equipment.FirstOrDefault(e => e.Id == id);
+                if (eq == null)
                     return ServiceResult<bool>.Fail("Equipment not found.");
 
-                // Block if any allocation is currently active (checked out).
-                bool hasActiveAllocation = existing.Allocations
-                    .Any(a => a.Status != null &&
-                              (a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase) ||
-                               a.Status.Equals("pending",  StringComparison.OrdinalIgnoreCase)));
-                if (hasActiveAllocation)
-                    return ServiceResult<bool>.Fail("Cannot delete equipment that is currently allocated.");
-
-                // Block if there's ANY allocation or transaction history at all
-                // (even closed/returned records). Deleting equipment with history
-                // would either fail on the FK constraint or silently destroy the
-                // audit trail. Point the user to Decommission instead, which
-                // retires the equipment while preserving its records.
-                bool hasAnyHistory = existing.Allocations.Any() || existing.Transactions.Any();
-                if (hasAnyHistory)
-                    return ServiceResult<bool>.Fail(
-                        "This equipment has allocation or transaction history and cannot be permanently deleted. " +
-                        "Use Decommission instead to retire it while preserving its records.");
-
-                db.Equipment.Remove(existing);
+                eq.IsDeleted = true;
                 db.SaveChanges();
-
                 return ServiceResult<bool>.Ok(true);
             }
             catch (Exception ex)
             {
-                var innerMsg = ex.InnerException?.Message ?? ex.Message;
-                return ServiceResult<bool>.Fail($"Error deleting equipment: {innerMsg}");
+                return ServiceResult<bool>.Fail("Delete failed: " + ex.Message);
+            }
+        }
+
+        public ServiceResult<bool> Restore(int id)
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var eq = db.Equipment.FirstOrDefault(e => e.Id == id);
+                if (eq == null)
+                    return ServiceResult<bool>.Fail("Equipment not found.");
+
+                eq.IsDeleted = false;
+                db.SaveChanges();
+                return ServiceResult<bool>.Ok(true);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<bool>.Fail("Restore failed: " + ex.Message);
+            }
+        }
+
+
+        public ServiceResult<bool> HardDelete(int id)
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var eq = db.Equipment.FirstOrDefault(e => e.Id == id);
+                if (eq == null)
+                    return ServiceResult<bool>.Fail("Equipment not found.");
+
+                db.Equipment.Remove(eq);
+                db.SaveChanges();
+                return ServiceResult<bool>.Ok(true);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<bool>.Fail("Permanent delete failed: " + ex.Message);
+            }
+        }
+        public ServiceResult<List<Equipment>> GetDeleted()
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var items = db.Equipment.Where(e => e.IsDeleted).Include(e => e.ProcurementType).ToList();
+                return ServiceResult<List<Equipment>>.Ok(items);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<List<Equipment>>.Fail("Load failed: " + ex.Message);
             }
         }
 
