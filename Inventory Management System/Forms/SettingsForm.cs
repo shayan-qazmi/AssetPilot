@@ -30,7 +30,6 @@ namespace Inventory_Management_System.Forms
         private Panel _panelPrinting = null!;
         private Panel _panelCategories = null!;
         private Button _activeNavBtn = null!;
-        private Label _lblWatermark = null!;
         private Panel _pwdStrengthTrack = null!;
         // ── Sidebar (distinct styling + slide-in animation) ─────────────
         private Panel _sidebar = null!;
@@ -234,28 +233,9 @@ namespace Inventory_Management_System.Forms
             Controls.Add(content);
             Controls.Add(sidebar);
 
-            _lblWatermark = new Label
-            {
-                Text = "Designed & Developed by\n🐙 @shayan-qazmi/📷 @shayanqazmi",
-                Font = new Font("Segoe UI", 8f, FontStyle.Italic),
-                ForeColor = Color.FromArgb(160, 160, 160),
-                BackColor = Color.Transparent,
-                TextAlign = ContentAlignment.MiddleRight,
-                AutoSize = true,
-                Anchor = AnchorStyles.Bottom | AnchorStyles.Right
-            };
-            Controls.Add(_lblWatermark);
-            _lblWatermark.BringToFront();
-            PositionWatermark();
+           
 
-            // Recompute from the actual ClientSize/label size on every resize
-            // and whenever the label's measured size changes (different DPI
-            // or text-scaling settings on another PC change the label's
-            // rendered width/height for the same text) — this keeps it
-            // pinned to the true bottom-right corner on any screen, instead
-            // of a fixed pixel offset that only matched one specific screen.
-            this.Resize += (s, e) => PositionWatermark();
-            _lblWatermark.SizeChanged += (s, e) => PositionWatermark();
+
 
             // Activate General by default
             _activeNavBtn = navBtns[0];
@@ -312,14 +292,6 @@ namespace Inventory_Management_System.Forms
             timer.Start();
         }
 
-        private void PositionWatermark()
-        {
-            if (_lblWatermark == null) return;
-            const int margin = 12;
-            _lblWatermark.Location = new Point(
-                ClientSize.Width - _lblWatermark.Width - margin,
-                ClientSize.Height - _lblWatermark.Height - margin);
-        }
 
         private void ShowSection(Panel panel, Button btn, List<Button> allBtns)
         {
@@ -350,8 +322,7 @@ namespace Inventory_Management_System.Forms
             if (panel == _panelUsers) LoadUsers();
             if (panel == _panelCategories) LoadCategories();
 
-            if (_lblWatermark != null)
-                _lblWatermark.BringToFront();
+           
         }
 
         // ══════════════════════════════════════════════════════════════
