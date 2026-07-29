@@ -1,4 +1,4 @@
-#                Q-Inventory 
+#                Q-Inventory Management System
 
 <p align="center">
 <img width="1916" height="1030" alt="image" src="https://github.com/user-attachments/assets/1271357e-fdae-41dc-890f-899432499851" />
