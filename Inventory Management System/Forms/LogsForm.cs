@@ -23,6 +23,7 @@ namespace Inventory_Management_System.Forms
         public LogsForm()
         {
             InitializeComponent();
+            flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
             LoadLogs();
 

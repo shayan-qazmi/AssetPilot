@@ -39,37 +39,50 @@ namespace Inventory_Management_System.Forms
 
             panelTop = new Panel { Dock = DockStyle.Top, Height = 56 };
 
-            btnRestore = new Button { Text = "↩  Restore Selected", Size = new Size(160, 32), Location = new Point(12, 10) };
-            btnDelete = new Button { Text = "🗑  Delete Permanently", Size = new Size(170, 32), Location = new Point(180, 10) };
+            var flowToolbar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Top,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                Padding = new Padding(8, 8, 8, 8)
+            };
+
+            btnRestore = new Button { Text = "↩  Restore Selected", Size = new Size(160, 32), Margin = new Padding(4, 4, 0, 0) };
+            btnDelete = new Button { Text = "🗑  Delete Permanently", Size = new Size(170, 32), Margin = new Padding(4, 4, 0, 0) };
 
             cmbSelectMode = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDown,
                 Text = "Select",
                 Size = new Size(120, 32),
-                Location = new Point(358, 10),
                 Cursor = Cursors.Hand,
-                FlatStyle = FlatStyle.Flat
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(4, 4, 0, 0)
             };
             cmbSelectMode.KeyPress += (s, e) => e.Handled = true;
             cmbSelectMode.Items.Add("Select ✔");
             cmbSelectMode.Items.Add("Select All");
             cmbSelectMode.SelectedIndexChanged += CmbSelectMode_SelectedIndexChanged;
 
-            btnRefresh = new Button { Text = "🔄  Refresh", Size = new Size(100, 32), Location = new Point(486, 10) };
+            btnRefresh = new Button { Text = "🔄  Refresh", Size = new Size(100, 32), Margin = new Padding(4, 4, 0, 0) };
 
             btnRestore.Click += BtnRestore_Click;
             btnDelete.Click += BtnDelete_Click;
             btnRefresh.Click += (s, e) => LoadDeletedItems();
 
-            panelTop.Controls.Add(btnRestore);
-            panelTop.Controls.Add(btnDelete);
-            panelTop.Controls.Add(cmbSelectMode);
-            panelTop.Controls.Add(btnRefresh);
+            flowToolbar.Controls.Add(btnRestore);
+            flowToolbar.Controls.Add(btnDelete);
+            flowToolbar.Controls.Add(cmbSelectMode);
+            flowToolbar.Controls.Add(btnRefresh);
+
+            panelTop.Controls.Add(flowToolbar);
 
             dgv = new DataGridView
             {
                 Dock = DockStyle.Fill,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
                 AllowUserToAddRows = false,
                 ReadOnly = true,
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
@@ -120,6 +133,7 @@ namespace Inventory_Management_System.Forms
             Controls.Add(dgv);
             Controls.Add(lblRowCount);
             Controls.Add(panelTop);
+            flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
         }
 
         private void ApplyTheme()

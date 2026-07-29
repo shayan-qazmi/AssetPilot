@@ -14,6 +14,7 @@ namespace Inventory_Management_System.Forms
         public LocationsForm()
         {
             InitializeComponent();
+            flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             _locationService = new LocationService();
             ApplyTheme();
             LoadLocations();

@@ -277,6 +277,8 @@ private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
             dgv.ColumnHeadersDefaultCellStyle.ForeColor   = Color.White;
             dgv.ColumnHeadersDefaultCellStyle.Font        = FontBold;
             dgv.ColumnHeadersDefaultCellStyle.Padding     = new Padding(4, 0, 4, 0);
+            dgv.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.True;
+            dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgv.EnableHeadersVisualStyles = false;
             dgv.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         }

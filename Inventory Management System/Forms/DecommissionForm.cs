@@ -21,6 +21,7 @@ namespace Inventory_Management_System.Forms
         public DecommissionForm()
         {
             InitializeComponent();
+            flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
             LoadDecommissioned();
 

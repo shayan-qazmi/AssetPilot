@@ -47,8 +47,8 @@ namespace Inventory_Management_System.Forms
 
             // ── panelTop ──────────────────────────────────────────────────
             panelTop.Dock = System.Windows.Forms.DockStyle.Top;
-            panelTop.AutoSize = false;
-            panelTop.Height = 60;
+            panelTop.AutoSize = true;
+            panelTop.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
             panelTop.Name = "panelTop";
             panelTop.Controls.Add(flowToolbar);
 
@@ -190,7 +190,7 @@ namespace Inventory_Management_System.Forms
 
             // ── dgvEquipment ──────────────────────────────────────────────
             dgvEquipment.Dock                  = System.Windows.Forms.DockStyle.Fill;
-            dgvEquipment.AutoSizeColumnsMode   = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.AllCells;
+            dgvEquipment.AutoSizeColumnsMode   = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
             dgvEquipment.AllowUserToAddRows    = false;
             dgvEquipment.ReadOnly              = true;
             dgvEquipment.SelectionMode         = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
@@ -214,8 +214,6 @@ namespace Inventory_Management_System.Forms
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode       = System.Windows.Forms.AutoScaleMode.Font;
             ClientSize          = new System.Drawing.Size(1200, 700);
-            AutoScroll          = true;
-            AutoScrollMinSize   = new System.Drawing.Size(1000, 300);
             Controls.Add(dgvEquipment);
             Controls.Add(panelBottom);
             Controls.Add(panelTop);

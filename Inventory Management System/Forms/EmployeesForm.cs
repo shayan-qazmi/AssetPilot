@@ -22,6 +22,7 @@ namespace Inventory_Management_System.Forms
         public EmployeesForm()
         {
             InitializeComponent();
+            flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             _employeeService = new EmployeeService();
             ApplyTheme();
             LoadEmployees();

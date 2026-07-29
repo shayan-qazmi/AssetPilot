@@ -14,106 +14,120 @@ namespace Inventory_Management_System.Forms
 
         private void InitializeComponent()
         {
-            // Initialize controls
-            this.btnEquipmentReport = new System.Windows.Forms.Button();
-            this.btnEmployeeReport = new System.Windows.Forms.Button();
-            this.btnAllocationReport = new System.Windows.Forms.Button();
-            this.btnReturnReport = new System.Windows.Forms.Button();
-            this.btnExportPDF = new System.Windows.Forms.Button();
-            this.btnExportExcel = new System.Windows.Forms.Button();
-            this.lblReportType = new System.Windows.Forms.Label();
-            this.lblExport = new System.Windows.Forms.Label();
-            this.SuspendLayout();
+            panelTop = new System.Windows.Forms.Panel();
+            lblReportType = new System.Windows.Forms.Label();
+            flowToolbar = new System.Windows.Forms.FlowLayoutPanel();
+            btnEquipmentReport = new System.Windows.Forms.Button();
+            btnEmployeeReport = new System.Windows.Forms.Button();
+            btnAllocationReport = new System.Windows.Forms.Button();
+            btnReturnReport = new System.Windows.Forms.Button();
+            btnExportPDF = new System.Windows.Forms.Button();
+            btnExportExcel = new System.Windows.Forms.Button();
+            lblWatermark = new System.Windows.Forms.Label();
 
-            // btnEquipmentReport
-            this.btnEquipmentReport.Name = "btnEquipmentReport";
-            this.btnEquipmentReport.Text = "🖥 Equipment";
-            this.btnEquipmentReport.Size = new System.Drawing.Size(115, 30);
-            this.btnEquipmentReport.Location = new System.Drawing.Point(20, 20);
-            this.btnEquipmentReport.Click += new System.EventHandler(this.btnEquipmentReport_Click);
+            panelTop.SuspendLayout();
+            flowToolbar.SuspendLayout();
+            SuspendLayout();
 
-            // btnEmployeeReport
-            this.btnEmployeeReport.Name = "btnEmployeeReport";
-            this.btnEmployeeReport.Text = "👤 Employee";
-            this.btnEmployeeReport.Size = new System.Drawing.Size(115, 30);
-            this.btnEmployeeReport.Location = new System.Drawing.Point(145, 20);
-            this.btnEmployeeReport.Click += new System.EventHandler(this.btnEmployeeReport_Click);
+            // ── panelTop ────────────────────────────────────────────────────
+            panelTop.Dock = System.Windows.Forms.DockStyle.Top;
+            panelTop.AutoSize = true;
+            panelTop.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            panelTop.MinimumSize = new System.Drawing.Size(0, 60);
+            panelTop.Name = "panelTop";
+            panelTop.Padding = new System.Windows.Forms.Padding(20, 12, 0, 0);
+            panelTop.Controls.Add(lblReportType);
+            panelTop.Controls.Add(flowToolbar);
+           
 
-            // btnAllocationReport
-            this.btnAllocationReport.Name = "btnAllocationReport";
-            this.btnAllocationReport.Text = "📋 Allocation";
-            this.btnAllocationReport.Size = new System.Drawing.Size(115, 30);
-            this.btnAllocationReport.Location = new System.Drawing.Point(270, 20);
-            this.btnAllocationReport.Click += new System.EventHandler(this.btnAllocationReport_Click);
+            // ── lblReportType ───────────────────────────────────────────────
+            lblReportType.Dock = System.Windows.Forms.DockStyle.Top;
+            lblReportType.Height = 28;
+            lblReportType.Padding = new System.Windows.Forms.Padding(20, 8, 0, 0);
+            lblReportType.Name = "lblReportType";
+            lblReportType.Text = "Select a Report:";
 
-            // btnReturnReport
-            this.btnReturnReport.Name = "btnReturnReport";
-            this.btnReturnReport.Text = "↩ Return";
-            this.btnReturnReport.Size = new System.Drawing.Size(115, 30);
-            this.btnReturnReport.Location = new System.Drawing.Point(395, 20);
-            this.btnReturnReport.Click += new System.EventHandler(this.btnReturnReport_Click);
+            // ── flowToolbar ─────────────────────────────────────────────────
+            flowToolbar.Dock = System.Windows.Forms.DockStyle.Top;
+            flowToolbar.FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight;
+            flowToolbar.WrapContents = true;
+            flowToolbar.AutoSize = true;
+            flowToolbar.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            flowToolbar.Padding = new System.Windows.Forms.Padding(0, 4, 8, 8); 
+            flowToolbar.Name = "flowToolbar";
+            flowToolbar.Controls.Add(btnEquipmentReport);
+            flowToolbar.Controls.Add(btnEmployeeReport);
+            flowToolbar.Controls.Add(btnAllocationReport);
+            flowToolbar.Controls.Add(btnReturnReport);
+            flowToolbar.Controls.Add(btnExportPDF);
+            flowToolbar.Controls.Add(btnExportExcel);
 
-            // btnExportPDF
-            this.btnExportPDF.Name = "btnExportPDF";
-            this.btnExportPDF.Text = "📄 Export PDF";
-            this.btnExportPDF.Size = new System.Drawing.Size(115, 30);
-            this.btnExportPDF.Location = new System.Drawing.Point(520, 20);
-            this.btnExportPDF.Click += new System.EventHandler(this.btnExportPDF_Click);
+            btnEquipmentReport.Name = "btnEquipmentReport";
+            btnEquipmentReport.Text = "🖥 Equipment";
+            btnEquipmentReport.Size = new System.Drawing.Size(115, 32);
+            btnEquipmentReport.Margin = new System.Windows.Forms.Padding(4, 0, 0, 4);
+            btnEquipmentReport.Click += new System.EventHandler(btnEquipmentReport_Click);
 
-            // btnExportExcel
-            this.btnExportExcel.Name = "btnExportExcel";
-            this.btnExportExcel.Text = "📊 Export Excel";
-            this.btnExportExcel.Size = new System.Drawing.Size(115, 30);
-            this.btnExportExcel.Location = new System.Drawing.Point(645, 20);
-            this.btnExportExcel.Click += new System.EventHandler(this.btnExportExcel_Click);
+            btnEmployeeReport.Name = "btnEmployeeReport";
+            btnEmployeeReport.Text = "👤 Employee";
+            btnEmployeeReport.Size = new System.Drawing.Size(115, 32);
+            btnEmployeeReport.Margin = new System.Windows.Forms.Padding(4, 0, 0, 4);
+            btnEmployeeReport.Click += new System.EventHandler(btnEmployeeReport_Click);
 
-            // lblReportType
-            this.lblReportType.Name = "lblReportType";
-            this.lblReportType.Text = "Report Type:";
-            this.lblReportType.AutoSize = true;
-            this.lblReportType.Text = "Select a Report:";
+            btnAllocationReport.Name = "btnAllocationReport";
+            btnAllocationReport.Text = "📋 Allocation";
+            btnAllocationReport.Size = new System.Drawing.Size(115, 32);
+            btnAllocationReport.Margin = new System.Windows.Forms.Padding(4, 0, 0, 4);
+            btnAllocationReport.Click += new System.EventHandler(btnAllocationReport_Click);
 
-            // lblExport
-            this.lblExport.Name = "lblExport";
-            this.lblExport.Text = "Export:";
-            this.lblExport.AutoSize = true;
-            this.lblReportType.Location = new System.Drawing.Point(20, 0);
+            btnReturnReport.Name = "btnReturnReport";
+            btnReturnReport.Text = "↩ Return";
+            btnReturnReport.Size = new System.Drawing.Size(115, 32);
+            btnReturnReport.Margin = new System.Windows.Forms.Padding(4, 0, 0, 4);
+            btnReturnReport.Click += new System.EventHandler(btnReturnReport_Click);
 
-            // lblWatermark
-            this.lblWatermark = new System.Windows.Forms.Label();
-            this.lblWatermark.Name = "lblWatermark";
-            this.lblWatermark.Text = "Developed by 📷@shayanqazmi";
-            this.lblWatermark.Font = new System.Drawing.Font("Segoe UI", 8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
-            this.lblWatermark.ForeColor = System.Drawing.Color.FromArgb(150, 150, 150);
-            this.lblWatermark.BackColor = System.Drawing.Color.Transparent;
-            this.lblWatermark.AutoSize = true;
-            this.lblWatermark.Location = new System.Drawing.Point(1020, 720);
-            this.lblWatermark.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right;
+            btnExportPDF.Name = "btnExportPDF";
+            btnExportPDF.Text = "📄 Export PDF";
+            btnExportPDF.Size = new System.Drawing.Size(115, 32);
+            btnExportPDF.Margin = new System.Windows.Forms.Padding(16, 0, 0, 4);
+            btnExportPDF.Click += new System.EventHandler(btnExportPDF_Click);
 
-            // Form properties
-            this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(1200, 700);
-            this.AutoScroll = true;
-            this.AutoScrollMinSize = new System.Drawing.Size(1160, 680);
-            this.Text = "Reports";
-            this.Name = "ReportsForm";
+            btnExportExcel.Name = "btnExportExcel";
+            btnExportExcel.Text = "📊 Export Excel";
+            btnExportExcel.Size = new System.Drawing.Size(115, 32);
+            btnExportExcel.Margin = new System.Windows.Forms.Padding(4, 0, 0, 4);
+            btnExportExcel.Click += new System.EventHandler(btnExportExcel_Click);
 
-            // Add controls to form
-            this.Controls.Add(this.btnEquipmentReport);
-            this.Controls.Add(this.btnEmployeeReport);
-            this.Controls.Add(this.btnAllocationReport);
-            this.Controls.Add(this.btnReturnReport);
-            this.Controls.Add(this.btnExportPDF);
-            this.Controls.Add(this.btnExportExcel);
-            this.Controls.Add(this.lblReportType);
-            this.Controls.Add(this.lblWatermark);
+            // ── lblWatermark ────────────────────────────────────────────────
+            lblWatermark.Name = "lblWatermark";
+            lblWatermark.Text = "Developed by 📷@shayanqazmi";
+            lblWatermark.Font = new System.Drawing.Font("Segoe UI", 8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
+            lblWatermark.ForeColor = System.Drawing.Color.FromArgb(150, 150, 150);
+            lblWatermark.BackColor = System.Drawing.Color.Transparent;
+            lblWatermark.AutoSize = true;
+            lblWatermark.Dock = System.Windows.Forms.DockStyle.Bottom;
+            lblWatermark.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
+            lblWatermark.Padding = new System.Windows.Forms.Padding(0, 4, 12, 4);
 
-            this.ResumeLayout(false);
-            this.PerformLayout();
+            // ── ReportsForm ─────────────────────────────────────────────────
+            AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
+            AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            ClientSize = new System.Drawing.Size(1200, 700);
+            Text = "Reports";
+            Name = "ReportsForm";
+
+            Controls.Add(lblWatermark);
+            Controls.Add(panelTop);
+
+            flowToolbar.ResumeLayout(false);
+            flowToolbar.PerformLayout();
+            panelTop.ResumeLayout(false);
+            panelTop.PerformLayout();
+            ResumeLayout(false);
         }
 
-        // Control declarations
+        private System.Windows.Forms.Panel panelTop;
+        private System.Windows.Forms.FlowLayoutPanel flowToolbar;
         private System.Windows.Forms.Button btnEquipmentReport;
         private System.Windows.Forms.Button btnEmployeeReport;
         private System.Windows.Forms.Button btnAllocationReport;
@@ -121,7 +135,6 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Button btnExportPDF;
         private System.Windows.Forms.Button btnExportExcel;
         private System.Windows.Forms.Label lblReportType;
-        private System.Windows.Forms.Label lblExport;
         private System.Windows.Forms.Label lblWatermark;
     }
 }

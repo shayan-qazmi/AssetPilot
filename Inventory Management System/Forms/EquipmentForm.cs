@@ -543,6 +543,7 @@ namespace Inventory_Management_System.Forms
 
             if (dgvEquipment.Columns.Contains("ColSelect"))
                 dgvEquipment.Columns["ColSelect"].Visible = false;
+            dgvEquipment.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
             dgvEquipment.MultiSelect = false;
             dgvEquipment.ClearSelection();
