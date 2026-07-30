@@ -132,7 +132,7 @@ Animated cards across the top, each clickable to jump straight to the relevant s
 | Total Employees | Active employee count |
 
 <p align="center">
-<img width="1716" height="265" alt="image" src="https://github.com/user-attachments/assets/622b7acc-306b-494c-812e-a0eb238f1982" />
+<img width="1718" height="273" alt="image" src="https://github.com/user-attachments/assets/1fae2f0d-a3f9-47c8-b2be-70812613a06f" />
 </p>
 
 ### Charts
