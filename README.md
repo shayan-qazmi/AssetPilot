@@ -49,6 +49,7 @@ Q-Inventory tracks every physical item a company owns — laptops, furniture, ac
 - Is it out on a quick informal loan, or a formal tracked allocation?
 - What's happened to it over its lifetime — every repair, transfer, return, and status change?
 - Who made each change, and when?
+- Routine confirmations (save, restore, delete) show as brief toast messages instead of interrupting popups — only destructive actions still require an explicit confirmation dialog.
 
 It covers the full lifecycle: **procurement → storage → allocation → return / transfer → repair → decommission**, with QR-code identification and printable labels throughout.
 
@@ -149,6 +150,13 @@ Every module in the app is reachable from the left sidebar, with an animated sli
 <p align="center">
 <img width="199" height="1031" alt="image" src="https://github.com/user-attachments/assets/c39f6b85-2302-48f8-9036-b097a9bc5337" />
 
+</p>
+
+### Notifications
+A bell icon in the top bar shows live alerts for **Overdue allocations** and **equipment needing Maintenance**, visible from any screen in the app — not just the Dashboard. Clicking it opens a dropdown with the current list.
+
+<p align="center">
+<img src="screenshots/notification-bell.png" alt="Notification bell dropdown" width="400">
 </p>
 
 ---
@@ -389,7 +397,7 @@ Move equipment directly from one employee/location to another, without a separat
 A searchable, chronological record of key actions taken across the app.
 
 - Columns: Equipment Code, QR Code, Action (color-coded by type), Changed By, Previous Value, New Value, Timestamp.
-- Actions logged include: equipment creation, allocation requested/approved/returned, transfers, and decommissions.
+- Actions logged include: equipment creation and edits, allocation requested/approved/returned, transfers, decommissions, employee and location add/edit/delete, and Check-In/Check-Out.
 - Fuzzy search across action type, user, and old/new values.
 - Excel export.
 
@@ -575,7 +583,6 @@ allocated     -->  allocated       (Transfer — new allocation record, status u
 ## Known Limitations
 
 - Passwords are stored and compared as plain text — not hashed. Recommended to add hashing before any real production deployment.
-- Some actions (equipment edits, employee/location changes, check-in/out) do not currently write to the audit log.
 - The connection string is set once in code rather than a separate config file.
 - Several grids load their full dataset for search rather than paging server-side.
 
