@@ -46,11 +46,6 @@ namespace Inventory_Management_System.Helpers
             hostTopPanel.Controls.Add(_bellLabel);
             _bellLabel.BringToFront();
 
-            hostTopPanel.Resize += (s, e) =>
-            {
-                _bellLabel.Location = new Point(hostTopPanel.Width - 60, (hostTopPanel.Height - 44) / 2);
-            };
-
             _badgeLabel = new Label
             {
                 Text = "0",
@@ -75,6 +70,16 @@ namespace Inventory_Management_System.Helpers
             hostTopPanel.Controls.Add(_badgeLabel);
             _badgeLabel.BringToFront();
             PositionBadge();
+
+            // FIX: previously only the bell repositioned on panel resize, so the
+            // badge would be stuck wherever it was placed against the panel's
+            // pre-layout width (e.g. top-left) until the next 60s refresh tick.
+            // Reposition both together on every resize.
+            hostTopPanel.Resize += (s, e) =>
+            {
+                _bellLabel.Location = new Point(hostTopPanel.Width - 60, (hostTopPanel.Height - 44) / 2);
+                PositionBadge();
+            };
 
             _bellLabel.Click += (s, e) => ToggleDropdown(ownerForm);
 
