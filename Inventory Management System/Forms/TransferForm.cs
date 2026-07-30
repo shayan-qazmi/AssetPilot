@@ -77,8 +77,8 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error loading allocated equipment: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+               ToastHelper.Show(this, "Error loading allocated equipment: " + ex.Message, ToastType.Error);
+
             }
         }
 
@@ -196,8 +196,8 @@ namespace Inventory_Management_System.Forms
 
                 if (activeAllocations.Count == 0)
                 {
-                    MessageBox.Show("No allocated equipment available to transfer.",
-                        "No Equipment", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                   ToastHelper.Show(this, "No allocated equipment available to transfer.", ToastType.Info);
+
                     return;
                 }
 
@@ -235,13 +235,13 @@ namespace Inventory_Management_System.Forms
                     $"Employee {oldAlloc.EmployeeId}", $"Employee {frm.NewEmployeeId}");
 
                 LoadAllocatedEquipment();
-                MessageBox.Show("Equipment transferred successfully.", "Transfer Complete",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+             ToastHelper.Show(this, "Equipment transferred successfully.", ToastType.Success);
+
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Transfer failed: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+               ToastHelper.Show(this, "Transfer failed: " + ex.Message, ToastType.Error);
+
             }
         }
 
@@ -304,11 +304,11 @@ namespace Inventory_Management_System.Forms
                         E(row.Cells["CurrentLocation"].Value), E(row.Cells["AllocatedSince"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
-                MessageBox.Show("Exported successfully.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Exported successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Export failed: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                 ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
             }
         }
     }
@@ -497,8 +497,8 @@ namespace Inventory_Management_System.Forms
         {
             if (cmbAllocation.SelectedValue == null || cmbEmployee.SelectedValue == null || cmbLocation.SelectedValue == null)
             {
-                MessageBox.Show("Please fill all fields.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                ToastHelper.Show(this, "Please fill all fields.", ToastType.Warning);
+                 return;
             }
             OldAllocationId = (int)cmbAllocation.SelectedValue;
             NewEmployeeId = (int)cmbEmployee.SelectedValue;

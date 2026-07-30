@@ -148,6 +148,7 @@ namespace Inventory_Management_System.Forms
             var colDate = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Date", HeaderText = "Timestamp", FillWeight = 14 };
 
             dgvLogs.Columns.AddRange(colId, colEq, colQr, colAct, colUser, colOld, colNew, colDate);
+            dgvLogs.ColumnHeaderMouseClick += new System.Windows.Forms.DataGridViewCellMouseEventHandler(this.dgvLogs_ColumnHeaderMouseClick);
 
             // ── LogsForm ──────────────────────────────────────────────────
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);

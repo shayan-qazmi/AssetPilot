@@ -226,8 +226,8 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error loading returns: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+               ToastHelper.Show(this, "Error loading returns: " + ex.Message, ToastType.Error);
+
             }
         }
 
@@ -326,8 +326,8 @@ namespace Inventory_Management_System.Forms
 
                 if (activeAllocations.Count == 0)
                 {
-                    MessageBox.Show("There are no active approved allocations to return.",
-                        "No Active Allocations", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                  ToastHelper.Show(this, "There are no active approved allocations to return.", ToastType.Info);
+
                     return;
                 }
 
@@ -338,7 +338,11 @@ namespace Inventory_Management_System.Forms
                     .Include(a => a.Equipment)
                     .FirstOrDefault(a => a.Id == frm.AllocationId);
 
-                if (alloc == null) { MessageBox.Show("Allocation not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
+                if (alloc == null)
+                {
+                    ToastHelper.Show(this, "Allocation not found.", ToastType.Error);
+                    return; 
+                }
 
                 alloc.Status = "returned";
                 alloc.ActualReturnDate = frm.ReturnDate;
@@ -353,15 +357,19 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Failed to process return: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+               ToastHelper.Show(this, "Failed to process return: " + ex.Message, ToastType.Error);
+
             }
         }
 
         private void BtnEdit_Click(object? sender, EventArgs e)
         {
             var ret = GetSelectedReturn();
-            if (ret == null) { MessageBox.Show("Please select a return to edit.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (ret == null)
+            { 
+                ToastHelper.Show(this, "Please select a return to edit.", ToastType.Warning);
+                return;
+            }
 
             using var frm = new ProcessReturnForm(new List<Allocation> { ret }, isEdit: true, existing: ret);
             if (frm.ShowDialog() != DialogResult.OK) return;
@@ -370,7 +378,11 @@ namespace Inventory_Management_System.Forms
             {
                 using var db = new InventoryDbContext();
                 var alloc = db.Allocations.Include(a => a.Equipment).FirstOrDefault(a => a.Id == ret.Id);
-                if (alloc == null) { MessageBox.Show("Return record not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
+                if (alloc == null)
+                {
+                    ToastHelper.Show(this, "Return record not found.", ToastType.Error);
+                    return;
+                }
                 alloc.ActualReturnDate = frm.ReturnDate;
                 if (alloc.Equipment != null) alloc.Equipment.ConditionGrade = frm.ConditionGrade;
                 db.SaveChanges();
@@ -378,14 +390,18 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Failed to update return: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                 ToastHelper.Show(this, "Failed to undo return: " + ex.Message, ToastType.Error);
             }
         }
 
         private void BtnDelete_Click(object? sender, EventArgs e)
         {
             var ret = GetSelectedReturn();
-            if (ret == null) { MessageBox.Show("Please select a return to delete.", "Delete Return", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (ret == null)
+            {
+                ToastHelper.Show(this, "Please select a return to delete.", ToastType.Warning);
+                return;
+            }
 
             if (MessageBox.Show(
                 $"This will undo the return for '{ret.Equipment?.EquipmentCode} — {ret.Equipment?.Name}', reverting it back to an active allocation. Continue?",
@@ -395,7 +411,11 @@ namespace Inventory_Management_System.Forms
             {
                 using var db = new InventoryDbContext();
                 var alloc = db.Allocations.Include(a => a.Equipment).FirstOrDefault(a => a.Id == ret.Id);
-                if (alloc == null) { MessageBox.Show("Return record not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); return; }
+                if (alloc == null)
+                {
+                    ToastHelper.Show(this, "Return record not found.", ToastType.Error);
+                    return;   // ← ADD THIS
+                }
                 string oldValue = $"{alloc.Equipment?.EquipmentCode} - returned";
                 alloc.Status = "approved";
                 alloc.ActualReturnDate = null;
@@ -407,7 +427,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Failed to undo return: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Failed to update return: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -471,11 +491,11 @@ namespace Inventory_Management_System.Forms
                 E(row.Cells["Condition"].Value), E(row.Cells["Overdue"].Value)));
         }
         System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
-                MessageBox.Show("Exported successfully.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Exported successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Export failed: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                 ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -579,8 +599,11 @@ namespace Inventory_Management_System.Forms
 
         private void BtnSave_Click(object? sender, EventArgs e)
         {
-            if (cmbAllocation.SelectedValue == null) { MessageBox.Show("Please select an allocation.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-            if (cmbCondition.SelectedItem == null) { MessageBox.Show("Please select a condition grade.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (cmbAllocation.SelectedValue == null)
+            { ToastHelper.Show(this, "Please select an allocation.", ToastType.Warning);
+                return; }
+            if (cmbCondition.SelectedItem == null) { ToastHelper.Show(this, "Please select a condition grade.", ToastType.Warning);
+                return; }
             AllocationId = (int)cmbAllocation.SelectedValue;
             ReturnDate = DateOnly.FromDateTime(dtpReturnDate.Value);
             ConditionGrade = cmbCondition.SelectedItem.ToString()!;

@@ -102,6 +102,7 @@ namespace Inventory_Management_System
             // Dashboard's own top strip color — intentionally NOT ThemeHelper.Header,
             // since that color is shared by other forms' header strips.
             panelTop.BackColor    = TopBarYellow;
+            NotificationHelper.AttachBell(panelTop, this);
             lblAppBrand.Dock      = DockStyle.Top;
             lblAppBrand.Height    = 150;
             lblAppBrand.TextAlign = ContentAlignment.MiddleCenter;
@@ -1275,7 +1276,11 @@ namespace Inventory_Management_System
                 {
                     Application.Exit();
                 }
+
             }
+
         }
+
     }
+
 }

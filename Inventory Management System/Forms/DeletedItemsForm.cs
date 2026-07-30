@@ -157,7 +157,7 @@ namespace Inventory_Management_System.Forms
 
             if (!result.Success)
             {
-                MessageBox.Show(result.ErrorMessage, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                 return;
             }
 
@@ -230,8 +230,8 @@ namespace Inventory_Management_System.Forms
             var ids = GetSelectedIds();
             if (ids.Count == 0)
             {
-                MessageBox.Show("Please select at least one item to restore.",
-                    "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Please select at least one item to restore.", ToastType.Info);
+
                 return;
             }
 
@@ -242,8 +242,8 @@ namespace Inventory_Management_System.Forms
             int successCount = ids.Count(id => _equipmentService.Restore(id).Success);
 
             LoadDeletedItems();
-            MessageBox.Show($"{successCount} of {ids.Count} item(s) restored.",
-                "Restore Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+           ToastHelper.Show(this, $"{successCount} of {ids.Count} item(s) restored.", ToastType.Success);
+
         }
 
         private void BtnDelete_Click(object? sender, EventArgs e)
@@ -251,8 +251,8 @@ namespace Inventory_Management_System.Forms
             var ids = GetSelectedIds();
             if (ids.Count == 0)
             {
-                MessageBox.Show("Please select at least one item to permanently delete.",
-                    "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Please select at least one item to permanently delete.", ToastType.Info);
+
                 return;
             }
 
@@ -264,8 +264,8 @@ namespace Inventory_Management_System.Forms
             int successCount = ids.Count(id => _equipmentService.HardDelete(id).Success);
 
             LoadDeletedItems();
-            MessageBox.Show($"{successCount} of {ids.Count} item(s) permanently deleted.",
-                "Delete Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+          ToastHelper.Show(this, $"{successCount} of {ids.Count} item(s) permanently deleted.", ToastType.Success);
+
         }
 
         private void Dgv_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)

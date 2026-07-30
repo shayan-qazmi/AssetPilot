@@ -194,7 +194,7 @@ namespace Inventory_Management_System.Forms
             var result = _equipmentService.GetAll();
             if (!result.Success)
             {
-                MessageBox.Show(result.ErrorMessage, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                 return;
             }
 
@@ -250,8 +250,8 @@ namespace Inventory_Management_System.Forms
             var allocResult = _allocationService.GetAll();
             if (!empResult.Success || !allocResult.Success)
             {
-                MessageBox.Show("Could not load employee/allocation data.", "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+               ToastHelper.Show(this, "Could not load employee/allocation data.", ToastType.Error);
+
                 return;
             }
 
@@ -287,7 +287,8 @@ namespace Inventory_Management_System.Forms
             var result = _allocationService.GetAll();
             if (!result.Success)
             {
-                MessageBox.Show(result.ErrorMessage, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
+
                 return;
             }
 
@@ -330,7 +331,7 @@ namespace Inventory_Management_System.Forms
             var result = _allocationService.GetAll();
             if (!result.Success)
             {
-                MessageBox.Show(result.ErrorMessage, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                 return;
             }
 
@@ -371,8 +372,8 @@ namespace Inventory_Management_System.Forms
         {
             if (string.IsNullOrEmpty(_currentReport) || _preview.Columns.Count == 0)
             {
-                MessageBox.Show("Please select a report first.", "No Report Selected",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+               ToastHelper.Show(this, "Please select a report first.", ToastType.Info);
+
                 return;
             }
 
@@ -408,13 +409,13 @@ namespace Inventory_Management_System.Forms
                 ws.Columns().AdjustToContents();
                 wb.SaveAs(sfd.FileName);
 
-                MessageBox.Show("Report exported successfully.", "Export Complete",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Report exported successfully.", ToastType.Success);
+
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Export failed: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+               ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
+
             }
         }
 
@@ -426,8 +427,8 @@ namespace Inventory_Management_System.Forms
         {
             if (string.IsNullOrEmpty(_currentReport) || _preview.Columns.Count == 0)
             {
-                MessageBox.Show("Please select a report first.", "No Report Selected",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Please select a report first.", ToastType.Info);
+
                 return;
             }
 
@@ -504,8 +505,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Could not generate print preview: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+               ToastHelper.Show(this, "Could not generate print preview: " + ex.Message, ToastType.Error);
             }
         }
 

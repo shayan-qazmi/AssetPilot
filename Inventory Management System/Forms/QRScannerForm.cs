@@ -256,8 +256,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Search failed: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Search failed: " + ex.Message, ToastType.Error);
             }
         }
 

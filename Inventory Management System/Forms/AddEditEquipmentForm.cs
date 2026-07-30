@@ -323,8 +323,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Could not attach picture: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Could not attach picture: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -979,8 +978,7 @@ namespace Inventory_Management_System.Forms
         {
             if (string.IsNullOrWhiteSpace(txtName.Text))
             {
-                MessageBox.Show("Name is required.",
-                    "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ToastHelper.Show(this, "Name is required.", ToastType.Warning);
                 return;
             }
 
@@ -1042,8 +1040,7 @@ namespace Inventory_Management_System.Forms
                 DialogResult = DialogResult.OK;
             }
             else
-                MessageBox.Show(result.ErrorMessage, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
         }
 
         // ══════════════════════════════════════════════════════════════════

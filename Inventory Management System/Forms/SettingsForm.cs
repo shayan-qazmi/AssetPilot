@@ -363,23 +363,14 @@ namespace Inventory_Management_System.Forms
                 AutoScroll = true
             };
 
-            var title = new Label
-            {
-                Text = "General Settings",
-                Font = new Font("Segoe UI Semibold", 16f),
-                ForeColor = ThemeHelper.TextPrimary,
-                AutoSize = true,
-                Location = new Point(40, 32)
-            };
-            outer.Controls.Add(title);
-
-            var subtitle = MakeSubtitle("Manage company information and application preferences.", 40, 62);
-            outer.Controls.Add(subtitle);
+            var (title, subtitle, nextY) = AddSectionHeader(outer, "General Settings",
+         "Manage company information and application preferences.");
+            int headerDelta = nextY - 96;
 
             // ═══ Card 1: Company ═══
             var card = new Panel
             {
-                Location = new Point(40, 96),
+                Location = new Point(40, nextY),
                 Size = new Size(560, 230),
                 BackColor = Color.White,
                 Padding = new Padding(0)
@@ -464,7 +455,7 @@ namespace Inventory_Management_System.Forms
             // ═══ Card 2: System ═══
             var sysCard = new Panel
             {
-                Location = new Point(40, 344),
+                Location = new Point(40, 344 + headerDelta),
                 Size = new Size(560, 208),
                 BackColor = Color.White
             };
@@ -484,7 +475,7 @@ namespace Inventory_Management_System.Forms
 
             var lblSysSubtitle = MakeSubtitle("Application version, database connection, and backups.", 24, 44);
             sysCard.Controls.Add(lblSysSubtitle);
-
+            
             string appVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
 
             sysCard.Controls.Add(MakeSysInfoLabel("App version", appVersion, 24, 66));
@@ -530,7 +521,7 @@ namespace Inventory_Management_System.Forms
             // ═══ Card 3: Danger zone ═══
             var dangerCard = new Panel
             {
-                Location = new Point(40, 568),
+                Location = new Point(40, 568 + headerDelta),
                 Size = new Size(560, 156),
                 BackColor = Color.FromArgb(255, 248, 248)
             };
@@ -860,22 +851,19 @@ namespace Inventory_Management_System.Forms
                 {
                     File.WriteAllText(sfd.FileName, output);
                     SaveLastBackupTimeNow();
-                    MessageBox.Show("Backup completed successfully.", "Backup",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                  ToastHelper.Show(this, "Backup completed successfully.", ToastType.Success);
+
                 }
                 else
                 {
-                    MessageBox.Show("mysqldump did not complete successfully:\n\n" + errors,
-                        "Backup Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                   ToastHelper.Show(this, "mysqldump did not complete successfully:\n\n" + errors, ToastType.Error);
+
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
-                    "Backup failed: " + ex.Message +
-                    "\n\nMake sure mysqldump.exe is installed and available on your system PATH " +
-                    "(it ships with MySQL Server / XAMPP under the bin folder).",
-                    "Backup Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Backup failed: " + ex.Message + "\n\nMake sure mysqldump.exe is installed and available on your system PATH (it ships with MySQL Server / XAMPP under the bin folder).", ToastType.Error);
+
             }
         }
 
@@ -915,21 +903,19 @@ namespace Inventory_Management_System.Forms
 
                 if (proc.ExitCode == 0)
                 {
-                    MessageBox.Show("Database restored successfully. Please restart the application.",
-                        "Restore Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                   ToastHelper.Show(this, "Database restored successfully. Please restart the application.", ToastType.Success);
+
                 }
                 else
                 {
-                    MessageBox.Show("Restore did not complete successfully:\n\n" + errors,
-                        "Restore Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                  ToastHelper.Show(this, "Restore did not complete successfully:\n\n" + errors, ToastType.Error);
+
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
-                    "Restore failed: " + ex.Message +
-                    "\n\nMake sure mysql.exe is installed and available on your system PATH.",
-                    "Restore Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+              ToastHelper.Show(this, "Restore failed: " + ex.Message + "\n\nMake sure mysql.exe is installed and available on your system PATH.", ToastType.Error);
+
             }
         }
 
@@ -949,13 +935,13 @@ namespace Inventory_Management_System.Forms
                 var logs = db.EquipmentLogs.ToList();
                 db.EquipmentLogs.RemoveRange(logs);
                 db.SaveChanges();
-                MessageBox.Show($"{logs.Count} log entries deleted.", "Logs Cleared",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+               ToastHelper.Show(this, $"{logs.Count} log entries deleted.", ToastType.Success);
+
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Could not clear logs: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+               ToastHelper.Show(this, "Could not clear logs: " + ex.Message, ToastType.Error);
+
             }
         }
 
@@ -1000,8 +986,8 @@ namespace Inventory_Management_System.Forms
             if (errors.Count > 0)
                 summary += "\n\nSome tables could not be cleared:\n" + string.Join("\n", errors);
 
-            MessageBox.Show(summary, "Reset Complete",
-                MessageBoxButtons.OK, errors.Count > 0 ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+           ToastHelper.Show(this, summary, errors.Count > 0 ? ToastType.Warning : ToastType.Success);
+
         }
 
         /// Small modal requiring the user to type an exact confirmation word before proceeding.
@@ -1064,22 +1050,13 @@ namespace Inventory_Management_System.Forms
                 AutoScroll = true
             };
 
-            var title = new Label
-            {
-                Text = "User Management",
-                Font = new Font("Segoe UI Semibold", 16f),
-                ForeColor = ThemeHelper.TextPrimary,
-                AutoSize = true,
-                Location = new Point(40, 32)
-            };
-            outer.Controls.Add(title);
-
-            var subtitle = MakeSubtitle("Manage application users and permissions.", 40, 62);
-            outer.Controls.Add(subtitle);
+            var (title, subtitle, nextY) = AddSectionHeader(outer, "User Management",
+             "Manage application users and permissions.");
+            int headerDelta = nextY - 96;
 
             var toolbar = new Panel
             {
-                Location = new Point(40, 96),
+                Location = new Point(40, nextY),
                 Size = new Size(1000, 50),
                 BackColor = Color.Transparent
             };
@@ -1128,7 +1105,7 @@ namespace Inventory_Management_System.Forms
 
             dgvUsers = new DataGridView
             {
-                Location = new Point(40, 156),
+                Location = new Point(40, 156 + headerDelta),
                 Size = new Size(1100, 460),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
                 AllowUserToAddRows = false,
@@ -1204,8 +1181,8 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error loading users: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+               ToastHelper.Show(this, "Error loading users: " + ex.Message, ToastType.Error);
+
             }
         }
 
@@ -1219,8 +1196,8 @@ namespace Inventory_Management_System.Forms
         {
             if (dgvUsers.SelectedRows.Count == 0)
             {
-                MessageBox.Show("Please select a user to edit.", "No Selection",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Please select a user to edit.", ToastType.Info);
+
                 return;
             }
             int id = Convert.ToInt32(dgvUsers.SelectedRows[0].Cells["ID"].Value);
@@ -1234,8 +1211,8 @@ namespace Inventory_Management_System.Forms
         {
             if (dgvUsers.SelectedRows.Count == 0)
             {
-                MessageBox.Show("Please select a user.", "No Selection",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Please select a user.", ToastType.Info);
+
                 return;
             }
             int id = Convert.ToInt32(dgvUsers.SelectedRows[0].Cells["ID"].Value);
@@ -1264,8 +1241,8 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Error: " + ex.Message, ToastType.Error);
+
             }
         }
 
@@ -1284,8 +1261,7 @@ namespace Inventory_Management_System.Forms
 
             if (id == AuthService.CurrentUserId)
             {
-                MessageBox.Show("You cannot delete your own account.", "Not Allowed",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ToastHelper.Show(this, "You cannot delete your own account.", ToastType.Warning);
                 return;
             }
 
@@ -1307,15 +1283,11 @@ namespace Inventory_Management_System.Forms
                 db.SaveChanges();
                 LoadUsers();
 
-                MessageBox.Show($"'{user.Username}' was deleted.", "Deleted",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, $"'{user.Username}' was deleted.", ToastType.Success);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
-                    "Could not delete this user — they may still be referenced elsewhere " +
-                    "(allocations, logs, transactions, etc.).\n\n" + ex.Message,
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Could not delete this user — they may still be referenced elsewhere " + ex.Message, ToastType.Error);
             }
         }
 
@@ -1330,22 +1302,12 @@ namespace Inventory_Management_System.Forms
                 AutoScroll = true
             };
 
-            var title = new Label
-            {
-                Text = "Change Password",
-                Font = new Font("Segoe UI Semibold", 16f),
-                ForeColor = ThemeHelper.TextPrimary,
-                AutoSize = true,
-                Location = new Point(40, 32)
-            };
-            outer.Controls.Add(title);
-
-            var subtitle = MakeSubtitle("Update your account password securely.", 40, 62);
-            outer.Controls.Add(subtitle);
+            var (title, subtitle, nextY) = AddSectionHeader(outer, "Change Password",
+     "Update your account password securely.");
 
             var card = new Panel
             {
-                Location = new Point(40, 96),
+                Location = new Point(40, nextY),
                 Size = new Size(560, 380),
                 BackColor = Color.White
             };
@@ -1531,22 +1493,12 @@ namespace Inventory_Management_System.Forms
                 AutoScroll = true
             };
 
-            var title = new Label
-            {
-                Text = "Barcode Label Printing",
-                Font = new Font("Segoe UI Semibold", 16f),
-                ForeColor = ThemeHelper.TextPrimary,
-                AutoSize = true,
-                Location = new Point(40, 32)
-            };
-            outer.Controls.Add(title);
-
-            var subtitle = MakeSubtitle("Configure printers and barcode labels.", 40, 62);
-            outer.Controls.Add(subtitle);
+            var (title, subtitle, nextY) = AddSectionHeader(outer, "Barcode Label Printing",
+    "Configure printers and barcode labels.");
 
             var card = new Panel
             {
-                Location = new Point(40, 96),
+                Location = new Point(40, nextY),
                 Size = new Size(560, 310),
                 BackColor = Color.White
             };
@@ -1642,22 +1594,12 @@ namespace Inventory_Management_System.Forms
                 AutoScroll = true
             };
 
-            var title = new Label
-            {
-                Text = "Manage Categories",
-                Font = new Font("Segoe UI Semibold", 16f),
-                ForeColor = ThemeHelper.TextPrimary,
-                AutoSize = true,
-                Location = new Point(40, 32)
-            };
-            outer.Controls.Add(title);
-
-            var subtitle = MakeSubtitle("Organise equipment categories.", 40, 62);
-            outer.Controls.Add(subtitle);
+            var (title, subtitle, nextY) = AddSectionHeader(outer, "Manage Categories",
+    "Organise equipment categories.");
 
             var card = new Panel
             {
-                Location = new Point(40, 96),
+                Location = new Point(40, nextY),
                 Size = new Size(560, 430),
                 BackColor = Color.White
             };
@@ -1996,8 +1938,29 @@ namespace Inventory_Management_System.Forms
         //  UI HELPERS
         // ══════════════════════════════════════════════════════════════
 
-        /// Small grey descriptive line placed under a page or card title
-        /// (e.g. "Manage company information and application preferences.")
+        /// Builds a section title + subtitle pair with the subtitle positioned
+        /// relative to the title's ACTUAL rendered height — not a fixed offset.
+        /// Fixes overlap at non-100% DPI/font scaling, where a fixed pixel gap
+        /// no longer matches the title's real height.
+        private static (Label title, Label subtitle, int nextY) AddSectionHeader(
+            Panel outer, string titleText, string subtitleText, int x = 40, int titleY = 32)
+        {
+            var title = new Label
+            {
+                Text = titleText,
+                Font = new Font("Segoe UI Semibold", 16f),
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize = true,
+                Location = new Point(x, titleY)
+            };
+            outer.Controls.Add(title);
+
+            var subtitle = MakeSubtitle(subtitleText, x, title.Bottom + 6);
+            outer.Controls.Add(subtitle);
+
+            return (title, subtitle, subtitle.Bottom + 28);
+        }
+
         private static Label MakeSubtitle(string text, int x, int y) => new Label
         {
             Text = text,

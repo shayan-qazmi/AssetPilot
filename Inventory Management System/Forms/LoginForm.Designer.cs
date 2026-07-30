@@ -240,8 +240,7 @@ namespace Inventory_Management_System.Forms
 
             // ── Toggle row ────────────────────────────────────────────────
             lblToggleLabel.Text      = "Remember Me";
-            lblToggleLabel.AutoSize  = true;
-            lblToggleLabel.Location  = new System.Drawing.Point(64, 270);
+            lblToggleLabel.AutoSize = true;
             lblToggleLabel.Font      = new System.Drawing.Font("Segoe UI", 9.5F);
             lblToggleLabel.ForeColor = System.Drawing.Color.FromArgb(107, 114, 128);
             lblToggleLabel.BackColor = System.Drawing.Color.White;
@@ -334,8 +333,14 @@ namespace Inventory_Management_System.Forms
             {
                 if (panelRight.Width <= 0 || panelRight.Height <= 0) return;
                 panelCard.Location = new System.Drawing.Point(
-                    Math.Max(0, (panelRight.Width  - panelCard.Width)  / 2),
+                    Math.Max(0, (panelRight.Width - panelCard.Width) / 2),
                     Math.Max(0, (panelRight.Height - panelCard.Height) / 2));
+
+                // Vertically center the "Remember Me" label against the toggle's
+                // actual rendered height — fixes drift at non-100% DPI scaling.
+                lblToggleLabel.Location = new System.Drawing.Point(
+                    pnlToggle.Right + 8,
+                    pnlToggle.Top + (pnlToggle.Height - lblToggleLabel.Height) / 2);
             }
 
             panelRight.Resize += (s, e) => CenterCard();

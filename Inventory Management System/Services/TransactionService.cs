@@ -10,6 +10,8 @@ namespace Inventory_Management_System.Services
 {
     public class TransactionService
     {
+        private readonly AuditService _audit = new AuditService();
+
         public ServiceResult<List<Transaction>> GetAll()
         {
             try
@@ -73,7 +75,6 @@ namespace Inventory_Management_System.Services
                 if (equipment == null)
                     return ServiceResult<Transaction>.Fail("Equipment not found.");
 
-                // Validates equipment is not already checked out (status != Pending/in a current transaction)
                 var hasActiveTransaction = db.Transactions.Any(t => t.EquipmentId == transaction.EquipmentId && (t.Status == "Pending" || t.Status == "Overdue"));
                 if (hasActiveTransaction)
                     return ServiceResult<Transaction>.Fail("Equipment is already checked out.");
@@ -87,6 +88,9 @@ namespace Inventory_Management_System.Services
                 equipment.CurrentStatus = "allocated";
 
                 db.SaveChanges();
+
+                _audit.Log(transaction.EquipmentId, AuditService.ActionCheckedOut, "in_store", $"Issued to: {transaction.IssuedTo}");
+
                 return ServiceResult<Transaction>.Ok(transaction);
             }
             catch (Exception ex)
@@ -116,6 +120,9 @@ namespace Inventory_Management_System.Services
                 }
 
                 db.SaveChanges();
+
+                _audit.Log(transaction.EquipmentId, AuditService.ActionCheckedIn, "allocated", $"Condition: {conditionAfter}");
+
                 return ServiceResult<bool>.Ok(true);
             }
             catch (Exception ex)

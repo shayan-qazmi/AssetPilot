@@ -20,6 +20,9 @@ namespace Inventory_Management_System.Forms
         private int _totalPages = 1;
         private int _totalMatchingCount = 0;
 
+        private string _sortColumn = "CreatedAt";
+        private bool _sortAscending = false;
+
         public LogsForm()
         {
             InitializeComponent();
@@ -48,11 +51,43 @@ namespace Inventory_Management_System.Forms
 
             panelBottom.BackColor = Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
-            lblRowCount.Font      = ThemeHelper.FontSmall;
+            lblRowCount.Font = ThemeHelper.FontSmall;
 
             if (dgvLogs.Columns["Action"] != null) dgvLogs.Columns["Action"]!.FillWeight = 22;
             if (dgvLogs.Columns["OldValue"] != null) dgvLogs.Columns["OldValue"]!.FillWeight = 18;
             if (dgvLogs.Columns["NewValue"] != null) dgvLogs.Columns["NewValue"]!.FillWeight = 18;
+        }
+
+        private void dgvLogs_ColumnHeaderMouseClick(object sender, DataGridViewCellMouseEventArgs e)
+        {
+            string columnName = dgvLogs.Columns[e.ColumnIndex].Name;
+
+            string sortKey = columnName switch
+            {
+                "ID" => "Id",
+                "Equipment" => "EquipmentCode",
+                "QRCode" => "QrCode",
+                "Action" => "ActionType",
+                "User" => "ChangedBy",
+                "OldValue" => "OldValue",
+                "NewValue" => "NewValue",
+                "Date" => "CreatedAt",
+                _ => "CreatedAt"
+            };
+
+            if (_sortColumn == sortKey)
+                _sortAscending = !_sortAscending;
+            else
+            {
+                _sortColumn = sortKey;
+                _sortAscending = false;
+            }
+
+            _currentPage = 1;
+            if (string.IsNullOrWhiteSpace(txtSearch.Text))
+                LoadLogs();
+            else
+                RefreshGrid(txtSearch.Text.Trim());
         }
 
         private void LoadLogs(string filter = "")
@@ -60,10 +95,24 @@ namespace Inventory_Management_System.Forms
             try
             {
                 using var db = new InventoryDbContext();
-                var query = db.EquipmentLogs
+
+                IQueryable<EquipmentLog> baseQuery = db.EquipmentLogs
                     .Include(l => l.Equipment)
-                    .Include(l => l.ChangedByUser)
-                    .OrderByDescending(l => l.CreatedAt);
+                    .Include(l => l.ChangedByUser);
+
+                Func<IQueryable<EquipmentLog>, IOrderedQueryable<EquipmentLog>> sortFunc = _sortColumn switch
+                {
+                    "Id" => q => _sortAscending ? q.OrderBy(l => l.Id) : q.OrderByDescending(l => l.Id),
+                    "EquipmentCode" => q => _sortAscending ? q.OrderBy(l => l.Equipment!.EquipmentCode) : q.OrderByDescending(l => l.Equipment!.EquipmentCode),
+                    "QrCode" => q => _sortAscending ? q.OrderBy(l => l.Equipment!.QrCode) : q.OrderByDescending(l => l.Equipment!.QrCode),
+                    "ActionType" => q => _sortAscending ? q.OrderBy(l => l.ActionType) : q.OrderByDescending(l => l.ActionType),
+                    "ChangedBy" => q => _sortAscending ? q.OrderBy(l => l.ChangedByUser!.FullName) : q.OrderByDescending(l => l.ChangedByUser!.FullName),
+                    "OldValue" => q => _sortAscending ? q.OrderBy(l => l.OldValue) : q.OrderByDescending(l => l.OldValue),
+                    "NewValue" => q => _sortAscending ? q.OrderBy(l => l.NewValue) : q.OrderByDescending(l => l.NewValue),
+                    _ => q => _sortAscending ? q.OrderBy(l => l.CreatedAt) : q.OrderByDescending(l => l.CreatedAt)
+                };
+
+                var query = sortFunc(baseQuery);
 
                 if (string.IsNullOrWhiteSpace(filter))
                 {
@@ -198,17 +247,17 @@ namespace Inventory_Management_System.Forms
 
         private static string FormatAction(string? raw) => raw switch
         {
-            "equipment_created"       => "Equipment Created",
-            "location_changed"        => "Location Changed",
-            "allocation_requested"    => "Allocation Requested",
-            "allocation_approved"     => "Allocation Approved",
-            "allocation_rejected"     => "Allocation Rejected",
-            "allocation_returned"     => "Returned to Store",
-            "decommission_requested"  => "Decommission Requested",
-            "decommission_approved"   => "Decommission Approved",
-            "decommission_rejected"   => "Decommission Rejected",
-            "transferred"             => "Transferred",
-            _                         => raw ?? "Unknown"
+            "equipment_created" => "Equipment Created",
+            "location_changed" => "Location Changed",
+            "allocation_requested" => "Allocation Requested",
+            "allocation_approved" => "Allocation Approved",
+            "allocation_rejected" => "Allocation Rejected",
+            "allocation_returned" => "Returned to Store",
+            "decommission_requested" => "Decommission Requested",
+            "decommission_approved" => "Decommission Approved",
+            "decommission_rejected" => "Decommission Rejected",
+            "transferred" => "Transferred",
+            _ => raw ?? "Unknown"
         };
 
         private void btnRefresh_Click(object sender, EventArgs e)
@@ -263,7 +312,7 @@ namespace Inventory_Management_System.Forms
             {
                 using var dlg = new SaveFileDialog
                 {
-                    Filter   = "CSV files (*.csv)|*.csv",
+                    Filter = "CSV files (*.csv)|*.csv",
                     FileName = $"AuditLogs_{DateTime.Now:yyyyMMdd_HHmm}.csv"
                 };
 
@@ -287,13 +336,11 @@ namespace Inventory_Management_System.Forms
                 }
 
                 System.IO.File.WriteAllText(dlg.FileName, sb.ToString());
-                MessageBox.Show($"Logs exported successfully to:\n{dlg.FileName}",
-                    "Export Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, $"Logs exported successfully to:\n{dlg.FileName}", ToastType.Success);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Export failed: " + ex.Message,
-                    "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
             }
         }
     }

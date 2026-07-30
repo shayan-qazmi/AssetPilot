@@ -115,7 +115,7 @@ namespace Inventory_Management_System.Forms
         {
             if (string.IsNullOrWhiteSpace(txtName.Text))
             {
-                MessageBox.Show("Location Name is required.", "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ToastHelper.Show(this, "Location Name is required.", ToastType.Warning);
                 return;
             }
 
@@ -134,7 +134,7 @@ namespace Inventory_Management_System.Forms
             }
             else
             {
-                MessageBox.Show(result.ErrorMessage, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
             }
         }
     }

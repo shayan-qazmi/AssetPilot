@@ -9,7 +9,8 @@ namespace Inventory_Management_System.Services
 {
     public class EmployeeService
     {
-        // ── Paged retrieval ──────────────────────────────────────────────────
+        private readonly AuditService _audit = new AuditService();
+
         public ServiceResult<PagedResult<Employee>> GetPage(int pageNumber, int pageSize)
         {
             try
@@ -36,7 +37,6 @@ namespace Inventory_Management_System.Services
             }
         }
 
-        // ── Fuzzy search (returns full match set; caller pages in memory) ────
         public ServiceResult<List<Employee>> Search(string term)
         {
             try
@@ -84,9 +84,6 @@ namespace Inventory_Management_System.Services
             }
         }
 
-        // ── Auto-generation helper ───────────────────────────────────────────
-        // Mirrors EquipmentService.GenerateEquipmentCode() — sequential,
-        // collision-checked, based on the highest existing "EMP###" number.
         private string GenerateEmployeeCode(InventoryDbContext db)
         {
             var codes = db.Employees
@@ -121,15 +118,11 @@ namespace Inventory_Management_System.Services
 
                 using var db = new InventoryDbContext();
 
-                // Employee Code is no longer typed manually — auto-generate
-                // when blank. If a value was already supplied (e.g. Excel
-                // import), keep it as-is.
                 if (string.IsNullOrWhiteSpace(employee.EmployeeCode))
                     employee.EmployeeCode = GenerateEmployeeCode(db);
                 else
                     employee.EmployeeCode = employee.EmployeeCode.Trim().ToUpper();
 
-                // Safety net — same defensive pattern as EquipmentService.
                 if (db.Employees.Any(e => e.EmployeeCode == employee.EmployeeCode))
                     return ServiceResult<Employee>.Fail($"Employee code '{employee.EmployeeCode}' already exists.");
 
@@ -141,6 +134,9 @@ namespace Inventory_Management_System.Services
 
                 db.Employees.Add(employee);
                 db.SaveChanges();
+
+                _audit.Log(0, AuditService.ActionEmployeeCreated, null, $"{employee.EmployeeCode} - {employee.FullName}");
+
                 return ServiceResult<Employee>.Ok(employee);
             }
             catch (Exception ex)
@@ -167,6 +163,8 @@ namespace Inventory_Management_System.Services
                 var existing = db.Employees.FirstOrDefault(e => e.Id == employee.Id);
                 if (existing == null) return ServiceResult<Employee>.Fail("Employee not found.");
 
+                string oldValue = $"{existing.EmployeeCode} - {existing.FullName}";
+
                 existing.FullName = employee.FullName;
                 existing.EmployeeCode = employee.EmployeeCode;
                 existing.Email = employee.Email;
@@ -177,6 +175,9 @@ namespace Inventory_Management_System.Services
                 existing.UpdatedAt = DateTime.Now;
 
                 db.SaveChanges();
+
+                _audit.Log(0, AuditService.ActionEmployeeUpdated, oldValue, $"{existing.EmployeeCode} - {existing.FullName}");
+
                 return ServiceResult<Employee>.Ok(existing);
             }
             catch (Exception ex)
@@ -199,8 +200,13 @@ namespace Inventory_Management_System.Services
                     return ServiceResult<bool>.Fail("Cannot delete employee with active allocations.");
                 }
 
+                string deletedInfo = $"{existing.EmployeeCode} - {existing.FullName}";
+
                 db.Employees.Remove(existing);
                 db.SaveChanges();
+
+                _audit.Log(0, AuditService.ActionEmployeeDeleted, deletedInfo, null);
+
                 return ServiceResult<bool>.Ok(true);
             }
             catch (Exception ex)

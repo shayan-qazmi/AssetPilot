@@ -65,7 +65,7 @@ namespace Inventory_Management_System.Forms
                     var result = _employeeService.GetPage(_currentPage, _pageSize);
                     if (!result.Success)
                     {
-                        MessageBox.Show(result.ErrorMessage, "Data Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                       ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                         return;
                     }
 
@@ -80,7 +80,8 @@ namespace Inventory_Management_System.Forms
                     var result = _employeeService.GetAll();
                     if (!result.Success)
                     {
-                        MessageBox.Show(result.ErrorMessage, "Data Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                       ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
+
                         return;
                     }
 
@@ -127,8 +128,8 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error loading employees.\n\n" + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Error loading employees.\n\n" + ex.Message, ToastType.Error);
+
             }
         }
 
@@ -274,13 +275,12 @@ namespace Inventory_Management_System.Forms
                 }
 
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
-                MessageBox.Show("Employees exported successfully.", "Export",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Employees exported successfully.", ToastType.Success);
+
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Export failed: {ex.Message}", "Export Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, $"Export failed: {ex.Message}", ToastType.Error);
             }
         }
     }

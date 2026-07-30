@@ -9,6 +9,8 @@ namespace Inventory_Management_System.Services
 {
     public class LocationService
     {
+        private readonly AuditService _audit = new AuditService();
+
         public ServiceResult<List<Location>> GetAll()
         {
             try
@@ -47,6 +49,9 @@ namespace Inventory_Management_System.Services
                 using var db = new InventoryDbContext();
                 db.Locations.Add(location);
                 db.SaveChanges();
+
+                _audit.Log(0, AuditService.ActionLocationCreated, null, location.LocationName);
+
                 return ServiceResult<Location>.Ok(location);
             }
             catch (Exception ex)
@@ -66,12 +71,17 @@ namespace Inventory_Management_System.Services
                 var existing = db.Locations.FirstOrDefault(l => l.Id == location.Id);
                 if (existing == null) return ServiceResult<Location>.Fail("Location not found.");
 
+                string oldValue = existing.LocationName;
+
                 existing.LocationName = location.LocationName;
                 existing.Building = location.Building;
                 existing.RoomNumber = location.RoomNumber;
                 existing.RoomName = location.RoomName;
 
                 db.SaveChanges();
+
+                _audit.Log(0, AuditService.ActionLocationUpdated, oldValue, existing.LocationName);
+
                 return ServiceResult<Location>.Ok(existing);
             }
             catch (Exception ex)
@@ -94,8 +104,13 @@ namespace Inventory_Management_System.Services
                     return ServiceResult<bool>.Fail("Cannot delete location with assigned equipment.");
                 }
 
+                string deletedName = existing.LocationName;
+
                 db.Locations.Remove(existing);
                 db.SaveChanges();
+
+                _audit.Log(0, AuditService.ActionLocationDeleted, deletedName, null);
+
                 return ServiceResult<bool>.Ok(true);
             }
             catch (Exception ex)

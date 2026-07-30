@@ -462,8 +462,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error loading allocations: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Error loading allocations: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -647,16 +646,10 @@ namespace Inventory_Management_System.Forms
             var alloc = GetSelectedAllocation();
             if (alloc == null)
             {
-                MessageBox.Show("Select an allocation first.", "No Selection",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Select an allocation first.", ToastType.Info); 
                 return;
             }
-            if (alloc.Status == "returned")
-            {
-                MessageBox.Show("Cannot edit the return date of a returned allocation.",
-                    "Not Allowed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
+            if (alloc == null) { ToastHelper.Show(this, "Select an allocation first.", ToastType.Info); return; }
 
             using var frm = new EditExpectedReturnDialog(alloc.ExpectedReturnDate);
             if (frm.ShowDialog() != DialogResult.OK) return;
@@ -681,8 +674,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Update failed: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Update failed: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -712,15 +704,14 @@ namespace Inventory_Management_System.Forms
                 LoadAllocations();
             }
             else
-                MessageBox.Show(result.ErrorMessage, "Allocation Failed",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
         }
 
         private void btnApprove_Click(object sender, EventArgs e)
         {
             var alloc = GetSelectedAllocation();
-            if (alloc == null) { MessageBox.Show("Select an allocation first.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
-            if (alloc.Status != "pending") { MessageBox.Show("Only pending allocations can be approved.", "Invalid", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (alloc == null) { ToastHelper.Show(this, "Select an allocation first.", ToastType.Info); return; }
+            if (alloc.Status != "pending") { ToastHelper.Show(this, "Only pending allocations can be approved.", ToastType.Warning); return; }
 
             try
             {
@@ -732,8 +723,7 @@ namespace Inventory_Management_System.Forms
 
                 if (isCheckedOut)
                 {
-                    MessageBox.Show("This equipment is currently checked out via Check In/Out and cannot be approved until it is checked back in.",
-                        "Conflict", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    ToastHelper.Show(this, "This equipment is currently checked out via Check In/Out and cannot be approved until it is checked back in.", ToastType.Warning);
                     return;
                 }
 
@@ -752,18 +742,18 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Approve failed: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Approve failed: " + ex.Message, ToastType.Error);
             }
         }
 
         private void btnReturn_Click(object sender, EventArgs e)
         {
             var alloc = GetSelectedAllocation();
-            if (alloc == null) { MessageBox.Show("Select an allocation first.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
-            if (alloc.Status == "returned") { MessageBox.Show("This allocation is already returned.", "Invalid", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (alloc == null) { ToastHelper.Show(this, "Select an allocation first.", ToastType.Info); return; }
+            if (alloc.Status == "returned") { ToastHelper.Show(this, "This allocation is already returned.", ToastType.Warning); return; }
 
             if (MessageBox.Show($"Return '{alloc.Equipment?.Name}' from '{alloc.Employee?.FullName}'?",
-                "Confirm Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+    "Confirm Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
             var result = _allocationService.Deallocate(alloc.Id);
             if (result.Success)
@@ -772,17 +762,18 @@ namespace Inventory_Management_System.Forms
                 LoadAllocations();
             }
             else
-                MessageBox.Show(result.ErrorMessage, "Return Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Return Failed: " + result.ErrorMessage, ToastType.Error);
         }
 
         private void btnDelete_Click(object sender, EventArgs e)
         {
             var alloc = GetSelectedAllocation();
-            if (alloc == null) { MessageBox.Show("Select an allocation first.", "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information); return; }
-            if (alloc.Status == "approved") { MessageBox.Show("Cannot delete an approved allocation. Return it first.", "Not Allowed", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            if (alloc == null) { ToastHelper.Show(this, "Select an allocation first.", ToastType.Info); return; }
+            if (alloc.Status == "approved") { ToastHelper.Show(this, "Cannot delete an approved allocation. Return it first.", ToastType.Warning); return; }
 
             if (MessageBox.Show("Delete this allocation record?", "Confirm Delete",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+     MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                return;
 
             try
             {
@@ -793,7 +784,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Delete failed: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Delete failed: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -863,11 +854,11 @@ namespace Inventory_Management_System.Forms
                         E(row.Cells["Source"].Value), E(row.Cells["AllocatedBy"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
-                MessageBox.Show("Exported successfully.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Exported successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Export failed: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -1104,8 +1095,7 @@ namespace Inventory_Management_System.Forms
         {
             if (cmbEquipment.SelectedValue == null || _selectedEmployeeId == null || cmbLocation.SelectedValue == null)
             {
-                MessageBox.Show("Please select an equipment and an employee, and choose a location.",
-                    "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ToastHelper.Show(this, "Please select an equipment and an employee, and choose a location.", ToastType.Warning);
                 return;
             }
 

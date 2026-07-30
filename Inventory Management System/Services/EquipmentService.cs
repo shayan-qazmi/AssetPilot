@@ -23,9 +23,9 @@ namespace Inventory_Management_System.Services
             {
                 using var db = new InventoryDbContext();
                 var list = db.Equipment
-      .Where(e => !e.IsDeleted)
-      .Include(e => e.Allocations)
-                          .ThenInclude(a => a.Location)
+                    .Where(e => !e.IsDeleted)
+                    .Include(e => e.Allocations)
+                        .ThenInclude(a => a.Location)
                     .Include(e => e.ProcurementType)
                     .OrderBy(e => e.EquipmentCode)
                     .ToList();
@@ -43,8 +43,8 @@ namespace Inventory_Management_System.Services
             {
                 using var db = new InventoryDbContext();
                 var query = db.Equipment
-    .Where(e => !e.IsDeleted)
-    .Include(e => e.Allocations)
+                    .Where(e => !e.IsDeleted)
+                    .Include(e => e.Allocations)
                         .ThenInclude(a => a.Location)
                     .Include(e => e.ProcurementType)
                     .OrderBy(e => e.EquipmentCode);
@@ -57,10 +57,10 @@ namespace Inventory_Management_System.Services
 
                 return ServiceResult<PagedResult<Equipment>>.Ok(new PagedResult<Equipment>
                 {
-                    Items      = items,
+                    Items = items,
                     TotalCount = totalCount,
                     PageNumber = pageNumber,
-                    PageSize   = pageSize
+                    PageSize = pageSize
                 });
             }
             catch (Exception ex)
@@ -75,9 +75,9 @@ namespace Inventory_Management_System.Services
             {
                 using var db = new InventoryDbContext();
                 var eq = db.Equipment
-     .Where(e => !e.IsDeleted)
-     .Include(e => e.Allocations).ThenInclude(a => a.Location)
-                     .Include(e => e.ProcurementType)
+                    .Where(e => !e.IsDeleted)
+                    .Include(e => e.Allocations).ThenInclude(a => a.Location)
+                    .Include(e => e.ProcurementType)
                     .FirstOrDefault(e => e.Id == id);
                 return eq == null
                     ? ServiceResult<Equipment>.Fail("Equipment not found.")
@@ -90,15 +90,14 @@ namespace Inventory_Management_System.Services
             }
         }
 
-
         public ServiceResult<List<Equipment>> Search(string term)
         {
             try
             {
                 using var db = new InventoryDbContext();
                 var allItems = db.Equipment
-    .Where(e => !e.IsDeleted)
-    .Include(e => e.Allocations).ThenInclude(a => a.Location)
+                    .Where(e => !e.IsDeleted)
+                    .Include(e => e.Allocations).ThenInclude(a => a.Location)
                     .Include(e => e.ProcurementType)
                     .ToList();
 
@@ -130,10 +129,6 @@ namespace Inventory_Management_System.Services
                 return ServiceResult<List<Equipment>>.Fail($"Error searching equipment: {ex.Message}");
             }
         }
-
-        // ── Auto-generation helpers ─────────────────────────────────────────
-        // Equipment Code and QR Code are no longer typed manually in the UI.
-        // These generate sequential, collision-checked identifiers.
 
         private string GenerateEquipmentCode(InventoryDbContext db)
         {
@@ -185,10 +180,6 @@ namespace Inventory_Management_System.Services
             return candidate;
         }
 
-        // ── Procurement Type: resolve-or-create by typed name ───────────────
-        // Supports converting the Add/Edit form's ComboBox to a plain TextBox
-        // while preserving the ProcurementTypeId foreign key relationship.
-
         public int? ResolveProcurementTypeId(string? typeName)
         {
             if (string.IsNullOrWhiteSpace(typeName)) return null;
@@ -217,15 +208,13 @@ namespace Inventory_Management_System.Services
         {
             try
             {
-                // Validation — Equipment Code and QR Code are no longer
-                // required from the caller; they're auto-generated below.
                 if (string.IsNullOrWhiteSpace(equipment.Name))
                     return ServiceResult<Equipment>.Fail("Equipment name is required.");
                 if (string.IsNullOrWhiteSpace(equipment.SerialNumber))
                     return ServiceResult<Equipment>.Fail("Serial number is required.");
 
-                equipment.SerialNumber  = equipment.SerialNumber.Trim().ToUpper();
-                equipment.Name          = equipment.Name.Trim();
+                equipment.SerialNumber = equipment.SerialNumber.Trim().ToUpper();
+                equipment.Name = equipment.Name.Trim();
 
                 using var db = new InventoryDbContext();
 
@@ -237,9 +226,6 @@ namespace Inventory_Management_System.Services
                 if (string.IsNullOrWhiteSpace(equipment.QrCode))
                     equipment.QrCode = GenerateQrCode(db);
 
-                // Uniqueness checks — kept as a safety net even though codes
-                // are now auto-generated (also still applies to bulk imports
-                // via AddRange, which may supply their own codes).
                 if (db.Equipment.Any(e => e.EquipmentCode == equipment.EquipmentCode))
                     return ServiceResult<Equipment>.Fail($"Equipment code '{equipment.EquipmentCode}' already exists.");
                 if (db.Equipment.Any(e => e.SerialNumber == equipment.SerialNumber))
@@ -270,14 +256,13 @@ namespace Inventory_Management_System.Services
                     return ServiceResult<Equipment>.Fail("Equipment name is required.");
 
                 equipment.EquipmentCode = equipment.EquipmentCode.Trim().ToUpper();
-                equipment.SerialNumber  = equipment.SerialNumber?.Trim().ToUpper() ?? string.Empty;
+                equipment.SerialNumber = equipment.SerialNumber?.Trim().ToUpper() ?? string.Empty;
 
                 using var db = new InventoryDbContext();
                 var existing = db.Equipment.FirstOrDefault(e => e.Id == equipment.Id);
                 if (existing == null)
                     return ServiceResult<Equipment>.Fail("Equipment not found.");
 
-                // Uniqueness checks excluding self
                 if (db.Equipment.Any(e => e.EquipmentCode == equipment.EquipmentCode && e.Id != equipment.Id))
                     return ServiceResult<Equipment>.Fail($"Equipment code '{equipment.EquipmentCode}' already exists.");
                 if (db.Equipment.Any(e => e.SerialNumber == equipment.SerialNumber && e.Id != equipment.Id))
@@ -286,26 +271,26 @@ namespace Inventory_Management_System.Services
                 string oldValue = $"{existing.EquipmentCode} - {existing.Name} - {existing.CurrentStatus}";
 
                 existing.EquipmentCode = equipment.EquipmentCode;
-                existing.QrCode        = equipment.QrCode;
-                existing.Name          = equipment.Name;
-                existing.Make          = equipment.Make;
-                existing.Model         = equipment.Model;
-                existing.SerialNumber  = equipment.SerialNumber;
+                existing.QrCode = equipment.QrCode;
+                existing.Name = equipment.Name;
+                existing.Make = equipment.Make;
+                existing.Model = equipment.Model;
+                existing.SerialNumber = equipment.SerialNumber;
                 existing.CurrentStatus = equipment.CurrentStatus;
-                existing.PurchaseDate  = equipment.PurchaseDate;
-                existing.Price         = equipment.Price;
-                existing.Category      = equipment.Category;
-                existing.Description   = equipment.Description;
-                existing.VendorName    = equipment.VendorName;
+                existing.PurchaseDate = equipment.PurchaseDate;
+                existing.Price = equipment.Price;
+                existing.Category = equipment.Category;
+                existing.Description = equipment.Description;
+                existing.VendorName = equipment.VendorName;
                 existing.ConditionGrade = equipment.ConditionGrade;
                 existing.WarrantyExpiry = equipment.WarrantyExpiry;
-                existing.Notes          = equipment.Notes;
+                existing.Notes = equipment.Notes;
                 existing.ProcurementTypeId = equipment.ProcurementTypeId;
-                existing.PicturePath = equipment.PicturePath;   
+                existing.PicturePath = equipment.PicturePath;
 
                 db.SaveChanges();
 
-                _audit.Log(existing.Id, AuditService.ActionLocationChanged,
+                _audit.Log(existing.Id, AuditService.ActionEquipmentUpdated,
                     oldValue, $"{existing.EquipmentCode} - {existing.Name} - {existing.CurrentStatus}");
 
                 return ServiceResult<Equipment>.Ok(existing);
@@ -326,8 +311,13 @@ namespace Inventory_Management_System.Services
                 if (eq == null)
                     return ServiceResult<bool>.Fail("Equipment not found.");
 
+                string deletedInfo = $"{eq.EquipmentCode} - {eq.Name} - {eq.CurrentStatus}";
+
                 eq.IsDeleted = true;
                 db.SaveChanges();
+
+                _audit.Log(eq.Id, AuditService.ActionEquipmentDeleted, deletedInfo, null);
+
                 return ServiceResult<bool>.Ok(true);
             }
             catch (Exception ex)
@@ -347,6 +337,9 @@ namespace Inventory_Management_System.Services
 
                 eq.IsDeleted = false;
                 db.SaveChanges();
+
+                _audit.Log(eq.Id, AuditService.ActionEquipmentRestored, null, $"{eq.EquipmentCode} - {eq.Name} restored");
+
                 return ServiceResult<bool>.Ok(true);
             }
             catch (Exception ex)
@@ -354,7 +347,6 @@ namespace Inventory_Management_System.Services
                 return ServiceResult<bool>.Fail("Restore failed: " + ex.Message);
             }
         }
-
 
         public ServiceResult<bool> HardDelete(int id)
         {
@@ -374,6 +366,7 @@ namespace Inventory_Management_System.Services
                 return ServiceResult<bool>.Fail("Permanent delete failed: " + ex.Message);
             }
         }
+
         public ServiceResult<List<Equipment>> GetDeleted()
         {
             try
@@ -391,7 +384,7 @@ namespace Inventory_Management_System.Services
         public ServiceResult<int> AddRange(IEnumerable<Equipment> items)
         {
             int successCount = 0;
-            var errors       = new List<string>();
+            var errors = new List<string>();
 
             foreach (var item in items)
             {

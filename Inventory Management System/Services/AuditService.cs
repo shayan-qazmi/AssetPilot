@@ -9,17 +9,27 @@ namespace Inventory_Management_System.Services
 {
     public class AuditService
     {
-        // Valid action types matching the DB enum exactly
-        public const string ActionEquipmentCreated       = "equipment_created";
-        public const string ActionLocationChanged        = "location_changed";
-        public const string ActionAllocationRequested    = "allocation_requested";
-        public const string ActionAllocationApproved     = "allocation_approved";
-        public const string ActionAllocationRejected     = "allocation_rejected";
-        public const string ActionAllocationReturned     = "allocation_returned";
-        public const string ActionDecommissionRequested  = "decommission_requested";
-        public const string ActionDecommissionApproved   = "decommission_approved";
-        public const string ActionDecommissionRejected   = "decommission_rejected";
-        public const string ActionTransferred            = "transferred";
+        public const string ActionEquipmentCreated = "equipment_created";
+        public const string ActionEquipmentUpdated = "equipment_updated";
+        public const string ActionLocationChanged = "location_changed";
+        public const string ActionAllocationRequested = "allocation_requested";
+        public const string ActionAllocationApproved = "allocation_approved";
+        public const string ActionAllocationRejected = "allocation_rejected";
+        public const string ActionAllocationReturned = "allocation_returned";
+        public const string ActionDecommissionRequested = "decommission_requested";
+        public const string ActionDecommissionApproved = "decommission_approved";
+        public const string ActionDecommissionRejected = "decommission_rejected";
+        public const string ActionTransferred = "transferred";
+        public const string ActionEmployeeCreated = "employee_created";
+        public const string ActionEmployeeUpdated = "employee_updated";
+        public const string ActionEmployeeDeleted = "employee_deleted";
+        public const string ActionLocationCreated = "location_created";
+        public const string ActionLocationUpdated = "location_updated";
+        public const string ActionLocationDeleted = "location_deleted";
+        public const string ActionCheckedOut = "checked_out";
+        public const string ActionCheckedIn = "checked_in";
+        public const string ActionEquipmentDeleted = "equipment_deleted";
+        public const string ActionEquipmentRestored = "equipment_restored";
 
         private readonly int _systemUserId;
 
@@ -28,9 +38,6 @@ namespace Inventory_Management_System.Services
             _systemUserId = systemUserId;
         }
 
-        /// <summary>
-        /// Writes an audit record to equipment_logs.
-        /// </summary>
         public void Log(int equipmentId, string actionType, string? oldValue = null, string? newValue = null)
         {
             try
@@ -38,12 +45,12 @@ namespace Inventory_Management_System.Services
                 using var db = new InventoryDbContext();
                 var log = new EquipmentLog
                 {
-                    EquipmentId     = equipmentId,
-                    ActionType      = actionType,
+                    EquipmentId = equipmentId,
+                    ActionType = actionType,
                     ChangedByUserId = _systemUserId,
-                    OldValue        = oldValue,
-                    NewValue        = newValue,
-                    CreatedAt       = DateTime.UtcNow
+                    OldValue = oldValue,
+                    NewValue = newValue,
+                    CreatedAt = DateTime.UtcNow
                 };
                 db.EquipmentLogs.Add(log);
                 db.SaveChanges();
@@ -54,9 +61,6 @@ namespace Inventory_Management_System.Services
             }
         }
 
-        /// <summary>
-        /// Returns all audit log entries newest first, with related data loaded.
-        /// </summary>
         public List<EquipmentLog> GetAll()
         {
             try
@@ -74,9 +78,6 @@ namespace Inventory_Management_System.Services
             }
         }
 
-        /// <summary>
-        /// Returns audit logs for a specific equipment item.
-        /// </summary>
         public List<EquipmentLog> GetByEquipment(int equipmentId)
         {
             try

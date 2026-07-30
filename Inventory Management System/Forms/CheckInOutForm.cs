@@ -287,7 +287,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Search failed: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Search failed: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -367,8 +367,7 @@ namespace Inventory_Management_System.Forms
 
             if (_scannedEquipment.CurrentStatus != "in_store")
             {
-                MessageBox.Show($"This equipment is currently not in store (status: {_scannedEquipment.CurrentStatus}) and cannot be checked out.",
-                    "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ToastHelper.Show(this, $"This equipment is currently not in store (status: {_scannedEquipment.CurrentStatus}) and cannot be checked out.", ToastType.Warning);
                 return;
             }
 
@@ -380,16 +379,16 @@ namespace Inventory_Management_System.Forms
 
                 if (hasPendingAllocation)
                 {
-                    MessageBox.Show("This equipment has a pending or approved formal Allocation and cannot be checked out here until that is resolved.",
-                        "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                   ToastHelper.Show(this, "This equipment has a pending or approved formal Allocation and cannot be checked out here until that is resolved.", ToastType.Warning);
+
                     return;
                 }
             }
 
             if (string.IsNullOrWhiteSpace(txtIssuedTo.Text))
             {
-                MessageBox.Show("Please enter the name of the person this item is being issued to.",
-                    "Validation Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+               ToastHelper.Show(this, "Please enter the name of the person this item is being issued to.", ToastType.Warning);
+
                 return;
             }
 
@@ -407,12 +406,12 @@ namespace Inventory_Management_System.Forms
             var res = _transactionService.CheckOut(tx);
             if (res.Success)
             {
-                MessageBox.Show("Check-Out transaction completed successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                Search(); // Refresh UI
+               ToastHelper.Show(this, "Check-Out transaction completed successfully!", ToastType.Success);
+
             }
             else
             {
-                MessageBox.Show(res.ErrorMessage, "Check-Out Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, res.ErrorMessage, ToastType.Error);
             }
         }
 
@@ -422,8 +421,8 @@ namespace Inventory_Management_System.Forms
 
             if (_activeTransaction == null)
             {
-                MessageBox.Show("No active pending check-out transaction was found for this equipment.",
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+               ToastHelper.Show(this, "No active pending check-out transaction was found for this equipment.", ToastType.Warning);
+
                 return;
             }
 
@@ -433,12 +432,12 @@ namespace Inventory_Management_System.Forms
             var res = _transactionService.CheckIn(_activeTransaction.TransactionId, condAfter, remarks);
             if (res.Success)
             {
-                MessageBox.Show("Check-In transaction completed successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Check-In transaction completed successfully!", ToastType.Success);
                 Search(); // Refresh UI
             }
             else
             {
-                MessageBox.Show(res.ErrorMessage, "Check-In Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+             ToastHelper.Show(this, res.ErrorMessage, ToastType.Error);
             }
         }
 

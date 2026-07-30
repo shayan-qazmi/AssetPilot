@@ -51,7 +51,7 @@ namespace Inventory_Management_System.Forms
             var result = _equipmentService.GetAll();
             if (!result.Success)
             {
-                MessageBox.Show(result.ErrorMessage, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                 return;
             }
             _allItems = result.Data?.Where(e => e.CurrentStatus == "decommissioned").ToList() ?? new();
@@ -162,13 +162,13 @@ namespace Inventory_Management_System.Forms
                     oldStatus, frm.Reason);
 
                 LoadDecommissioned();
-                MessageBox.Show($"'{eq.Name}' has been decommissioned.", "Success",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, $"'{eq.Name}' has been decommissioned.", ToastType.Success);
+
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Decommission failed: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+               ToastHelper.Show(this, "Decommission failed: " + ex.Message, ToastType.Error);
+
             }
         }
 
@@ -204,11 +204,12 @@ namespace Inventory_Management_System.Forms
                         E(row.Cells["DecommDate"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
-                MessageBox.Show("Exported successfully.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Exported successfully.", ToastType.Success);
+
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Export failed: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
             }
         }
     }
@@ -294,7 +295,7 @@ namespace Inventory_Management_System.Forms
         {
             if (cmbEquipment.SelectedValue == null)
             {
-                MessageBox.Show("Please select equipment.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ToastHelper.Show(this, "Please select equipment.", ToastType.Warning);
                 return;
             }
 

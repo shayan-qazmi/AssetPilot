@@ -364,15 +364,15 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Could not connect to the shared picture folder: " + ex.Message,
-                    "Network Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+               ToastHelper.Show(this, "Could not connect to the shared picture folder: " + ex.Message, ToastType.Error);
+
                 return;
             }
 
             if (!System.IO.File.Exists(fullPath))
             {
-                MessageBox.Show("The picture file could not be found on disk. It may have been moved or deleted.",
-                    "Picture Missing", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ToastHelper.Show(this, "The picture file could not be found on disk. It may have been moved or deleted.", ToastType.Warning);
+
                 return;
             }
 
@@ -387,8 +387,8 @@ namespace Inventory_Management_System.Forms
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Could not open PDF: " + ex.Message, "Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                   ToastHelper.Show(this, "Could not open PDF: " + ex.Message, ToastType.Error);
+
                 }
                 return;
             }
@@ -401,8 +401,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Could not load picture: " + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            ToastHelper.Show(this, "Could not load picture: " + ex.Message, ToastType.Error);
                 return;
             }
 

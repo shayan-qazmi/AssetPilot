@@ -85,7 +85,7 @@ namespace Inventory_Management_System.Forms
             }
             else
             {
-                MessageBox.Show(result.ErrorMessage ?? "Location not found.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+ToastHelper.Show(this, result.ErrorMessage ?? "Location not found.", ToastType.Error);
             }
         }
 
@@ -102,7 +102,7 @@ namespace Inventory_Management_System.Forms
                 }
                 else
                 {
-                    MessageBox.Show(result.ErrorMessage, "Delete Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                   ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                 }
             }
         }
@@ -135,14 +135,13 @@ namespace Inventory_Management_System.Forms
         }
 
         System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
-        MessageBox.Show("Locations exported successfully.", "Export",
-            MessageBoxButtons.OK, MessageBoxIcon.Information);
-    }
-    catch (Exception ex)
-    {
-        MessageBox.Show($"Export failed: {ex.Message}", "Export Error",
-            MessageBoxButtons.OK, MessageBoxIcon.Error);
-    }
+     ToastHelper.Show(this, "Locations exported successfully.", ToastType.Success);
+
+            }
+            catch (Exception ex)
+            {
+       ToastHelper.Show(this, $"Export failed: {ex.Message}", ToastType.Error);
+            }
 }
     }
 }
