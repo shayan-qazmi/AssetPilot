@@ -38,6 +38,8 @@
 
 **Q-Inventory** is a Windows desktop application for tracking physical IT/office equipment across a company. It covers the full equipment lifecycle: procurement → storage → allocation → return / transfer → decommission.
 
+Routine success confirmations across the app (save, restore, delete) now render as auto-dismissing toast notifications rather than blocking `MessageBox` dialogs. Destructive-action confirmations ("Are you sure?") still use `MessageBox`.
+
 ### Roles
 
 Roles are stored in the `roles` table and linked via `user_roles`. Session identity is cached in `AuthService` (static) for the duration of the session. All forms read `AuthService.CurrentRole` and `AuthService.CurrentUserId`.
@@ -116,6 +118,17 @@ Cards entrance with a bounce animation (`CardAnimState`, driven by `_animTimer` 
 
 Each sidebar button calls `OpenChildForm(new XxxForm())` which docks the form inside `panelContent`. The title bar label is animated character-by-character via `AnimateTitleTo()`.
 
+
+### 3.1 Notification Bell
+
+**Source:** top bar, all screens.
+
+Shows a live count badge for:
+- Overdue allocations (`Allocations WHERE Status == "approved" AND ExpectedReturnDate < today`)
+- Open maintenance records (`MaintenanceRecords WHERE Status != "resolved"`)
+
+Dropdown lists both categories with quick links to the relevant equipment.
+
 ---
 
 ## 4. Equipment
@@ -182,7 +195,7 @@ Each sidebar button calls `OpenChildForm(new XxxForm())` which docks the form in
 
 **Save path:**
 - Add: `db.Equipment.Add(equipment)` + `db.SaveChanges()`, then `AuditService.Log(id, "equipment_created", null, code)` → `equipment_logs`.
-- Edit: loads entity, updates all fields, `db.SaveChanges()`. **No audit log written for edits.**
+- Edit: loads entity, updates all fields, `db.SaveChanges()`, then `AuditService.Log(id, "equipment_updated", oldValue, newValue)` → `equipment_logs`.
 - `CreatedByUserId` is hardcoded to `1` in add mode. The logged-in user id is not used.
 
 **Picture lifecycle:** Staged path stored; on save, old file deleted and new path persisted. On form close (cancel), staged file is deleted.
@@ -218,18 +231,18 @@ Each sidebar button calls `OpenChildForm(new XxxForm())` which docks the form in
 3. Checks code uniqueness against `employees`.
 4. Checks `Email` uniqueness if provided.
 5. `db.Employees.Add` + `SaveChanges`.
-6. **No audit log.**
+6. `_audit.Log(0, "employee_created", null, code + name)` → `equipment_logs`. Note: `EquipmentId` is written as `0` since this action has no associated equipment record.
 
 **`Update(employee)`:**
 1. Validates `FullName`.
 2. Checks `Email` uniqueness (excluding self).
 3. Loads entity, updates: `FullName`, `EmployeeCode`, `Email`, `Department`, `Phone`, `DefaultLocationId`, `IsActive`, `UpdatedAt = DateTime.Now`.
-4. `SaveChanges`. **No audit log.**
+4. `SaveChanges`, then `_audit.Log(0, "employee_updated", oldValue, newValue)` → `equipment_logs`.
 
 **`Delete(id)`:**
 1. Checks `Allocations WHERE EmployeeId = id AND Status = "approved"` — fails if any.
 2. `db.Employees.Remove` + `SaveChanges` — **hard delete from `employees` table.**
-3. **No audit log.** Historical (non-approved) allocation records keep a broken FK.
+3. `_audit.Log(0, "employee_deleted", deletedInfo, null)` → `equipment_logs`. Historical (non-approved) allocation records keep a broken FK.
 
 ---
 
@@ -245,7 +258,7 @@ Each sidebar button calls `OpenChildForm(new XxxForm())` which docks the form in
 
 **Actions:** Add / Edit (via `AddEditLocationForm`) / Delete (via `LocationService.Delete(id)`) / Export CSV.
 
-No search or pagination. **No audit log for any location operation.**
+No search or pagination. Add/Edit/Delete each write to `equipment_logs` via `_audit.Log(0, ...)` (`location_created`/`location_updated`/`location_deleted`), with `EquipmentId` written as `0` since locations have no associated equipment record.
 
 ---
 
@@ -451,6 +464,7 @@ Inline dialog offers Restore / Delete / Cancel for the single row. Same service 
 | Constant | Value written to `action_type` |
 |----------|-------------------------------|
 | `ActionEquipmentCreated` | `equipment_created` |
+| `ActionEquipmentUpdated` | `equipment_updated` |
 | `ActionLocationChanged` | `location_changed` |
 | `ActionAllocationRequested` | `allocation_requested` |
 | `ActionAllocationApproved` | `allocation_approved` |
@@ -460,6 +474,14 @@ Inline dialog offers Restore / Delete / Cancel for the single row. Same service 
 | `ActionDecommissionApproved` | `decommission_approved` |
 | `ActionDecommissionRejected` | `decommission_rejected` |
 | `ActionTransferred` | `transferred` |
+| `ActionCheckedOut` | `checked_out` |
+| `ActionCheckedIn` | `checked_in` |
+| `ActionEmployeeCreated` | `employee_created` |
+| `ActionEmployeeUpdated` | `employee_updated` |
+| `ActionEmployeeDeleted` | `employee_deleted` |
+| `ActionLocationCreated` | `location_created` |
+| `ActionLocationUpdated` | `location_updated` |
+| `ActionLocationDeleted` | `location_deleted` |
 
 ### 12.3 Who Writes Audit Logs
 
@@ -474,8 +496,17 @@ Inline dialog offers Restore / Delete / Cancel for the single row. Same service 
 | Allocation – Edit Expected Return Date | Free string `"Expected Return Date Updated"` |
 | Transfer | `transferred` |
 | Decommission | `decommission_approved` |
+| Check-Out | `checked_out` |
+| Check-In | `checked_in` |
+| Equipment Edit | `equipment_updated` |
+| Employee Add | `employee_created` |
+| Employee Edit | `employee_updated` |
+| Employee Delete | `employee_deleted` |
+| Location Add | `location_created` |
+| Location Edit | `location_updated` |
+| Location Delete | `location_deleted` |
 
-**Not logged:** Equipment edit/delete, Employee CRUD, Location CRUD, soft-delete, restore, hard-delete, Check In, Check Out.
+**Not logged:** Equipment soft-delete, restore, hard-delete.
 
 ### 12.4 LogsForm Data Load
 
@@ -550,6 +581,8 @@ Active transaction loaded: `Transactions WHERE EquipmentId = id AND (Status = "P
 
 **Fields written to `transactions`:** `EquipmentId`, `IssuedTo`, `Department`, `OperatorName` (pre-filled from `AuthService.CurrentFullName`), `ExpectedReturn`, `ConditionBefore`, `Remarks`.
 
+`_audit.Log(equipmentId, "checked_out", "in_store", "Issued to: {IssuedTo}")` → `equipment_logs`.
+
 **No audit log.**
 
 ### 14.4 Check-In — `TransactionService.CheckIn(transactionId, conditionAfter, remarks)`
@@ -560,7 +593,9 @@ Active transaction loaded: `Transactions WHERE EquipmentId = id AND (Status = "P
 4. `Equipment.CurrentStatus = "in_store"`.
 5. `SaveChanges`.
 
-**`Equipment.ConditionGrade` is NOT updated.** Only `Transaction.ConditionAfter` is stored. **No audit log.**
+**`Equipment.ConditionGrade` is NOT updated.** Only `Transaction.ConditionAfter` is stored.
+
+`_audit.Log(equipmentId, "checked_in", "allocated", "Condition: {conditionAfter}")` → `equipment_logs`.
 
 ### 14.5 Overdue Update — `TransactionService.UpdateStatus()`
 
@@ -753,14 +788,14 @@ Roles      (1) --< UserRoles          (N)  [RoleId FK]
 | Action | Module | Tables Written | Audit Log? |
 |--------|--------|----------------|------------|
 | Add Equipment | Equipment | `equipment`, `equipment_logs`, optionally `procurement_types` | ✅ `equipment_created` |
-| Edit Equipment | Equipment | `equipment`, optionally `maintenance_records`, `procurement_types` | ❌ |
+| Edit Equipment | Equipment | `equipment`, `equipment_logs`, optionally `maintenance_records`, `procurement_types` | ✅ `equipment_updated` |
 | Soft Delete | Equipment | `equipment` (`is_deleted`, `deleted_at`) | ❌ |
 | Restore | Deleted Items | `equipment` | ❌ |
 | Hard Delete | Deleted Items | `equipment` (row removed) | ❌ |
-| Add Employee | Employees | `employees` | ❌ |
-| Edit Employee | Employees | `employees` | ❌ |
-| Delete Employee | Employees | `employees` (hard delete) | ❌ |
-| Add / Edit / Delete Location | Locations | `locations` | ❌ |
+| Add Employee | Employees | `employees`, `equipment_logs` | ✅ `employee_created` |
+| Edit Employee | Employees | `employees`, `equipment_logs` | ✅ `employee_updated` |
+| Delete Employee | Employees | `employees` (hard delete), `equipment_logs` | ✅ `employee_deleted` |
+| Add / Edit / Delete Location | Locations | `locations`, `equipment_logs` | ✅ `location_created`/`updated`/`deleted` |
 | Create Allocation | Allocation | `allocations`, `equipment_logs` | ✅ `allocation_requested` |
 | Approve Allocation | Allocation | `allocations`, `equipment`, `equipment_logs` | ✅ `allocation_approved` |
 | Return (Allocation screen) | Allocation | `allocations`, `equipment`, `equipment_logs` | ✅ `allocation_returned` |
@@ -771,8 +806,8 @@ Roles      (1) --< UserRoles          (N)  [RoleId FK]
 | Undo Return | Returns | `allocations`, `equipment`, `equipment_logs` | ✅ `allocation_returned` (misleading) |
 | Transfer | Transfer | `allocations` (×2), `equipment_logs` | ✅ `transferred` |
 | Decommission | Decommission | `equipment`, `equipment_logs` | ✅ `decommission_approved` |
-| Check-Out | Check In/Out | `transactions`, `equipment` | ❌ |
-| Check-In | Check In/Out | `transactions`, `equipment` | ❌ |
+| Check-Out | Check In/Out | `transactions`, `equipment`, `equipment_logs` | ✅ `checked_out` |
+| Check-In | Check In/Out | `transactions`, `equipment`, `equipment_logs` | ✅ `checked_in` |
 | Update Overdue | Check In/Out | `transactions` | ❌ |
 | Add / Toggle / Delete User | Settings | `users`, `user_roles` | ❌ |
 | Change Password | Settings | `users` | ❌ |
@@ -790,21 +825,19 @@ Roles      (1) --< UserRoles          (N)  [RoleId FK]
 |---|-------|--------|
 | 1 | **Passwords stored in plain text** | `Users.PasswordHash` stores raw passwords. No hashing. All comparisons are plain-string equality. |
 | 2 | **`ChangedByUserId` always `1`** | `AuditService` defaults `_systemUserId = 1`. No caller passes `AuthService.CurrentUserId`. All log entries attribute changes to user #1. |
-| 3 | **Equipment Edit writes no audit log** | Status changes, field updates, and location changes are not logged. |
-| 4 | **Check-In / Check-Out write no audit log** | These operations are invisible to the Logs module. |
-| 5 | **Undo Return writes `allocation_returned`** | Same action key as a real return — cannot distinguish undo from return in the logs without reading `OldValue`/`NewValue`. |
-| 6 | **Transfer pollutes Returns view** | The old allocation's `Status = "returned"` causes it to appear in the Returns module grid and Returns History report. |
-| 7 | **`ApprovedByUserId = 1` hardcoded** | Both Approve and Transfer hardcode this. The acting user is never recorded. |
-| 8 | **`AllocationService.Allocate` silently approves** | If `allocation.Status` is empty or blank, it is promoted to `"approved"` without requiring a separate approve step — bypassing the `pending → approved` workflow. |
-| 9 | **"Overdue" is UI-only** | Allocations past their expected return date remain `"approved"` in the DB. The status is computed on every load. |
-| 10 | **Category delete orphans equipment records** | Deleting a category from the `categories` table does not update `Equipment.Category`. Orphaned strings persist and continue to appear in filter dropdowns. |
-| 11 | **Reset application data has no transaction wrapper** | Allocations deleted in one `SaveChanges`, equipment in a second. If the second fails, allocations are gone but equipment remains. |
-| 12 | **Backup password visible in process list** | `mysqldump` password is passed as `-p{pass}` in the command-line argument. |
-| 13 | **Danger Zone Decommission reason lost if logs cleared** | `DecommissionForm` reads the reason from `equipment_logs`. Clearing logs via Settings removes the reason from the decommission view. |
-| 14 | **Returns History Report excludes Check-In/Out completions** | The report only queries `allocations WHERE Status = "returned"`. Completed `transactions` are not shown. |
-| 15 | **Soft delete has no FK guard** | `EquipmentService.Delete` sets `IsDeleted = true` with no check for active allocations or transactions. Allocated equipment can be soft-deleted. |
-| 16 | **LocationsForm has no pagination** | All locations are loaded at once. Will be slow at scale. |
-| 17 | **Employee hard-delete breaks historical allocations** | Non-approved (historical) allocation rows keep the `EmployeeId` FK after the employee is deleted. |
-| 18 | **Audit failure is silently swallowed** | `AuditService.Log` catches all exceptions. If the DB insert fails (connectivity, FK), the triggering operation has already committed and no error is shown. |
-| 19 | **"Expected Return Date Updated" is a free-form string** | Not a defined `AuditService` constant. `LogsForm.FormatAction` has no case for it — it displays verbatim, inconsistent with other formatted action types. |
-| 20 | **`CreatedByUserId = 1` hardcoded in Equipment Add** | The add form sets `_equipment.CreatedByUserId = 1` unconditionally; the session user is not recorded. |
+| 3 | **Undo Return writes `allocation_returned`** | Same action key as a real return — cannot distinguish undo from return in the logs without reading `OldValue`/`NewValue`. |
+| 4 | **Transfer pollutes Returns view** | The old allocation's `Status = "returned"` causes it to appear in the Returns module grid and Returns History report. |
+| 5 | **`ApprovedByUserId = 1` hardcoded** | Both Approve and Transfer hardcode this. The acting user is never recorded. |
+| 6 | **`AllocationService.Allocate` silently approves** | If `allocation.Status` is empty or blank, it is promoted to `"approved"` without requiring a separate approve step — bypassing the `pending → approved` workflow. |
+| 7 | **"Overdue" is UI-only** | Allocations past their expected return date remain `"approved"` in the DB. The status is computed on every load. |
+| 8 | **Category delete orphans equipment records** | Deleting a category from the `categories` table does not update `Equipment.Category`. Orphaned strings persist and continue to appear in filter dropdowns. |
+| 9 | **Reset application data has no transaction wrapper** | Allocations deleted in one `SaveChanges`, equipment in a second. If the second fails, allocations are gone but equipment remains. |
+| 10 | **Backup password visible in process list** | `mysqldump` password is passed as `-p{pass}` in the command-line argument. |
+| 11 | **Danger Zone Decommission reason lost if logs cleared** | `DecommissionForm` reads the reason from `equipment_logs`. Clearing logs via Settings removes the reason from the decommission view. |
+| 12 | **Returns History Report excludes Check-In/Out completions** | The report only queries `allocations WHERE Status = "returned"`. Completed `transactions` are not shown. |
+| 13 | **Soft delete has no FK guard** | `EquipmentService.Delete` sets `IsDeleted = true` with no check for active allocations or transactions. Allocated equipment can be soft-deleted. |
+| 14 | **LocationsForm has no pagination** | All locations are loaded at once. Will be slow at scale. |
+| 15 | **Employee hard-delete breaks historical allocations** | Non-approved (historical) allocation rows keep the `EmployeeId` FK after the employee is deleted. |
+| 16 | **Audit failure is silently swallowed** | `AuditService.Log` catches all exceptions. If the DB insert fails (connectivity, FK), the triggering operation has already committed and no error is shown. |
+| 17 | **"Expected Return Date Updated" is a free-form string** | Not a defined `AuditService` constant. `LogsForm.FormatAction` has no case for it — it displays verbatim, inconsistent with other formatted action types. |
+| 18 | **`CreatedByUserId = 1` hardcoded in Equipment Add** | The add form sets `_equipment.CreatedByUserId = 1` unconditionally; the session user is not recorded. |
