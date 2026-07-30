@@ -156,7 +156,7 @@ Every module in the app is reachable from the left sidebar, with an animated sli
 A bell icon in the top bar shows live alerts for **Overdue allocations** and **equipment needing Maintenance**, visible from any screen in the app — not just the Dashboard. Clicking it opens a dropdown with the current list.
 
 <p align="center">
-<img src="screenshots/notification-bell.png" alt="Notification bell dropdown" width="400">
+<img width="1718" height="261" alt="image" src="https://github.com/user-attachments/assets/b7f37348-6010-4969-9489-c6f6147071b7" />
 </p>
 
 ---
