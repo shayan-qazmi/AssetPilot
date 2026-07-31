@@ -93,6 +93,7 @@ namespace Inventory_Management_System.Forms
             {
                 if (e.RowIndex >= 0) _userClickedGridRow = true;
             };
+            dgvAllocation.CellDoubleClick += dgvAllocation_CellDoubleClick;
             this.Shown += (s, e) =>
             {
                 dgvAllocation.ClearSelection();
@@ -691,6 +692,42 @@ namespace Inventory_Management_System.Forms
                 preselectCode = selectedRow?.EquipmentCode;
                 if (preselectCode == "—") preselectCode = null;
             }
+
+            using var frm = new AddAllocationForm(
+                _equipmentService.GetAll().Data ?? new(),
+                _employeeService.GetAll().Data ?? new(),
+                _locationService.GetAll().Data ?? new(),
+                preselectCode);
+
+            if (frm.ShowDialog() != DialogResult.OK) return;
+
+            var result = _allocationService.Allocate(frm.Result!);
+            if (result.Success)
+            {
+                _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
+                    null, $"Allocated to Employee ID {frm.Result.EmployeeId}");
+                LoadAllocations();
+            }
+            else
+                ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
+        }
+
+        private void dgvAllocation_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.RowIndex >= dgvAllocation.Rows.Count) return;
+
+            var clickedRow = dgvAllocation.Rows[e.RowIndex];
+            var idValue = clickedRow.Cells["AllocationID"].Value;
+            if (idValue == null || !int.TryParse(idValue.ToString(), out int rowId)) return;
+
+            var row = _lastRenderedRows.FirstOrDefault(r => r.Id == rowId);
+            if (row == null) return;
+
+            // Only makes sense for "Available" equipment — an already-allocated
+            // or checked-out row has nothing to allocate.
+            if (row.Source != "Available") return;
+
+            string? preselectCode = row.EquipmentCode == "—" ? null : row.EquipmentCode;
 
             using var frm = new AddAllocationForm(
                 _equipmentService.GetAll().Data ?? new(),
