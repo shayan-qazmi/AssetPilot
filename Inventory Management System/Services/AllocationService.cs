@@ -25,7 +25,7 @@ namespace Inventory_Management_System.Services
             }
             catch (Exception ex)
             {
-                return ServiceResult<List<Allocation>>.Fail($"Error retrieving allocations: {ex.Message}");
+                return ServiceResult<List<Allocation>>.Fail($"Error retrieving allocations: {ex.InnerException?.Message ?? ex.Message}");
             }
         }
 
@@ -40,14 +40,12 @@ namespace Inventory_Management_System.Services
                 if (equipment.CurrentStatus != "in_store" && equipment.CurrentStatus != "allocated")
                     return ServiceResult<Allocation>.Fail("Equipment is not available.");
 
-                // Employee is now optional — only validate it exists if one was actually supplied.
                 if (allocation.EmployeeId.HasValue)
                 {
                     var employeeExists = db.Employees.Any(e => e.Id == allocation.EmployeeId.Value);
                     if (!employeeExists) return ServiceResult<Allocation>.Fail("Selected employee not found.");
                 }
 
-                // Same for Location — optional, only validate if supplied.
                 if (allocation.LocationId.HasValue)
                 {
                     var locationExists = db.Locations.Any(l => l.Id == allocation.LocationId.Value);
@@ -76,7 +74,10 @@ namespace Inventory_Management_System.Services
             }
             catch (Exception ex)
             {
-                return ServiceResult<Allocation>.Fail($"Error creating allocation: {ex.Message}");
+                // The inner exception is the real MySQL/EF error — the outer
+                // message is always the same generic sentence and hides it.
+                string detail = ex.InnerException?.Message ?? ex.Message;
+                return ServiceResult<Allocation>.Fail($"Error creating allocation: {detail}");
             }
         }
 
@@ -101,7 +102,7 @@ namespace Inventory_Management_System.Services
             }
             catch (Exception ex)
             {
-                return ServiceResult<bool>.Fail($"Error deallocating: {ex.Message}");
+                return ServiceResult<bool>.Fail($"Error deallocating: {ex.InnerException?.Message ?? ex.Message}");
             }
         }
 
@@ -115,7 +116,7 @@ namespace Inventory_Management_System.Services
             }
             catch (Exception ex)
             {
-                return ServiceResult<List<Allocation>>.Fail($"Error retrieving allocations: {ex.Message}");
+                return ServiceResult<List<Allocation>>.Fail($"Error retrieving allocations: {ex.InnerException?.Message ?? ex.Message}");
             }
         }
 
@@ -129,7 +130,7 @@ namespace Inventory_Management_System.Services
             }
             catch (Exception ex)
             {
-                return ServiceResult<List<Allocation>>.Fail($"Error retrieving allocations: {ex.Message}");
+                return ServiceResult<List<Allocation>>.Fail($"Error retrieving allocations: {ex.InnerException?.Message ?? ex.Message}");
             }
         }
     }

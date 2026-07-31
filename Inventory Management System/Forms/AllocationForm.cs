@@ -875,6 +875,7 @@ namespace Inventory_Management_System.Forms
 
     // ── Add Allocation Dialog ──────────────────────────────────────────────
     // ── Add Allocation Dialog ──────────────────────────────────────────────
+    // ── Add Allocation Dialog ──────────────────────────────────────────────
     public class AddAllocationForm : Form
     {
         public Allocation? Result { get; private set; }
@@ -885,33 +886,23 @@ namespace Inventory_Management_System.Forms
         private readonly string? _preselectEquipmentCode;
         private bool _preselectApplied = false;
 
+        private int? _selectedEquipmentId;
         private int? _selectedEmployeeId;
+        private int? _selectedLocationId;
 
-        private ComboBox cmbEquipment = null!;
-        private ComboBox cmbLocation = null!;
         private DateTimePicker dtpExpected = null!;
         private CheckBox chkExpected = null!;
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
         private ComboBox cmbCategoryFilter = null!;
+        private ComboBox cmbBuildingFilter = null!;
         private TextBox txtEquipmentSearch = null!;
         private TextBox txtEmployeeSearch = null!;
+        private TextBox txtLocationSearch = null!;
         private EntitySuggestHelper<Equipment>? _equipmentSuggest;
         private EntitySuggestHelper<Employee>? _employeeSuggest;
-
-        private Panel _body = null!;
-
-        private bool _suppressEquipmentSync = false;
-
-        // Wrapper so the location dropdown can offer a genuine "no location"
-        // option — binding directly to List<Location> always has something
-        // selected, which made "location optional" impossible before.
-        private class LocationOption
-        {
-            public int? Id { get; set; }
-            public string LocationName { get; set; } = "";
-        }
+        private EntitySuggestHelper<Location>? _locationSuggest;
 
         public AddAllocationForm(List<Equipment> equipment, List<Employee> employees, List<Location> locations,
             string? preselectEquipmentCode = null)
@@ -941,6 +932,18 @@ namespace Inventory_Management_System.Forms
             BuildUI();
         }
 
+        private static string LocationDisplay(Location l)
+        {
+            string name = string.IsNullOrWhiteSpace(l.LocationName) ? "(unnamed location)" : l.LocationName;
+            bool hasRoomNum = !string.IsNullOrWhiteSpace(l.RoomNumber);
+            bool hasRoomName = !string.IsNullOrWhiteSpace(l.RoomName);
+            if (!hasRoomNum && !hasRoomName) return name;
+
+            string roomPart = hasRoomNum ? $"Room {l.RoomNumber}" : "";
+            if (hasRoomName) roomPart = string.IsNullOrEmpty(roomPart) ? l.RoomName! : $"{roomPart} ({l.RoomName})";
+            return $"{name} — {roomPart}";
+        }
+
         private void BuildUI()
         {
             Text = "New Allocation";
@@ -949,166 +952,141 @@ namespace Inventory_Management_System.Forms
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
             ThemeHelper.ApplyFormBackground(this);
-            ClientSize = new Size(480, 600);
+
+            const int formWidth = 500;
+            const int headerHeight = 84;
+            const int footerHeight = 76;
+            const int contentWidth = formWidth - 60;
+
+            ClientSize = new Size(formWidth, 900); // placeholder — corrected at the very end, no scrolling
 
             // ── Header ──────────────────────────────────────────────
             var pnlHeader = new Panel
             {
-                Dock = DockStyle.Top,
-                Height = 64,
+                Location = new Point(0, 0),
+                Size = new Size(formWidth, headerHeight),
                 BackColor = Color.FromArgb(94, 53, 177)
             };
             pnlHeader.Controls.Add(new Label
             {
-                Text = "New Allocation",
-                Font = new Font("Segoe UI", 14f, FontStyle.Bold),
+                Text = "🖥  New Allocation",
+                Font = new Font("Segoe UI", 15f, FontStyle.Bold),
                 ForeColor = Color.White,
                 AutoSize = true,
-                Location = new Point(24, 10)
+                Location = new Point(24, 14)
             });
             pnlHeader.Controls.Add(new Label
             {
                 Text = "Assign equipment to an employee, a location, or both",
-                Font = new Font("Segoe UI", 9f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(230, 224, 245),
-                AutoSize = true,
-                Location = new Point(24, 39)
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Regular),
+                ForeColor = Color.FromArgb(232, 226, 247),
+                AutoSize = false,
+                Size = new Size(formWidth - 48, 24),
+                Location = new Point(24, 48)
             });
+            Controls.Add(pnlHeader);
 
-            // ── Footer (always visible, independent of scroll) ───────
-            var pnlFooter = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 74,
-                BackColor = Color.FromArgb(249, 250, 251)
-            };
-            pnlFooter.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 1, BackColor = Color.FromArgb(224, 224, 224) });
+            // ── Content — plain panel, NOT scrollable, sized exactly to content ──
+            var body = new Panel { Location = new Point(0, headerHeight), Size = new Size(formWidth, 10) };
+            Controls.Add(body);
 
-            btnCancel = new Button { Text = "Cancel", Size = new Size(150, 40) };
+            // ── Footer ──────────────────────────────────────────────
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = Color.FromArgb(224, 224, 224) });
+
+            btnCancel = new Button { Text = "Cancel", Size = new Size(150, 42) };
             ThemeHelper.StyleSecondaryButton(btnCancel);
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
 
-            btnSave = new Button { Text = "✓  Allocate", Size = new Size(180, 40) };
+            btnSave = new Button { Text = "✓  Allocate", Size = new Size(190, 42) };
             ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
 
+            btnSave.Location = new Point(formWidth - btnSave.Width - 24, 17);
+            btnCancel.Location = new Point(btnSave.Left - btnCancel.Width - 12, 17);
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnSave);
-            btnSave.Location = new Point(ClientSize.Width - btnSave.Width - 24, 17);
-            btnCancel.Location = new Point(btnSave.Left - btnCancel.Width - 12, 17);
-
-            // ── Scrollable body ────────────────────────────────────
-            _body = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
-
-            Controls.Add(pnlHeader);
             Controls.Add(pnlFooter);
-            Controls.Add(_body);
 
-            int y = 20;
+            int y = 22;
 
-            Label SectionHeader(string text)
+            void SectionHeader(string icon, string text)
             {
-                _body.Controls.Add(new Panel
+                body.Controls.Add(new Panel { BackColor = Color.FromArgb(94, 53, 177), Size = new Size(4, 22), Location = new Point(20, y) });
+                body.Controls.Add(new Label
                 {
-                    BackColor = Color.FromArgb(94, 53, 177),
-                    Size = new Size(4, 20),
-                    Location = new Point(20, y + 1)
-                });
-                var lbl = new Label
-                {
-                    Text = text,
-                    Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+                    Text = $"{icon}  {text}",
+                    Font = new Font("Segoe UI", 11.5f, FontStyle.Bold),
                     ForeColor = ThemeHelper.TextPrimary,
                     AutoSize = true,
-                    Location = new Point(32, y)
-                };
-                _body.Controls.Add(lbl);
-                y += 32;
-                return lbl;
+                    Location = new Point(34, y - 1)
+                });
+                y += 34;
             }
 
             void Hint(string text)
             {
-                var lbl = new Label
+                var font = new Font("Segoe UI", 8f, FontStyle.Italic);
+                int textH = TextRenderer.MeasureText(text, font, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak).Height;
+                body.Controls.Add(new Label
                 {
                     Text = text,
-                    Font = new Font("Segoe UI", 8f, FontStyle.Italic),
+                    Font = font,
                     ForeColor = ThemeHelper.TextSecondary,
                     AutoSize = false,
-                    MaximumSize = new Size(420, 0),
-                    Size = new Size(420, 32),
+                    Size = new Size(contentWidth, textH),
                     Location = new Point(20, y)
-                };
-                _body.Controls.Add(lbl);
-                int textH = TextRenderer.MeasureText(text, lbl.Font, new Size(420, int.MaxValue), TextFormatFlags.WordBreak).Height;
-                lbl.Height = textH;
-                y += textH + 10;
+                });
+                y += textH + 12;
             }
 
             Control Field(string label, Control ctrl, string? hint = null, bool required = false)
             {
-                var lbl = new Label { Text = required ? $"{label} *" : label, Location = new Point(20, y), AutoSize = true };
-                ThemeHelper.StyleLabel(lbl, bold: true);
-                _body.Controls.Add(lbl);
+                body.Controls.Add(new Label
+                {
+                    Text = required ? $"{label}  *" : label,
+                    Location = new Point(20, y),
+                    AutoSize = true,
+                    Font = ThemeHelper.FontBold,
+                    ForeColor = ThemeHelper.TextPrimary
+                });
                 y += 22;
 
                 ctrl.Location = new Point(20, y);
-                ctrl.Width = 400;
-                _body.Controls.Add(ctrl);
+                ctrl.Width = contentWidth;
+                body.Controls.Add(ctrl);
                 y += ctrl.Height + 6;
 
                 if (hint != null) Hint(hint);
-                else y += 8;
+                else y += 10;
 
                 return ctrl;
             }
 
-            // ── Equipment section ──────────────────────────────────
-            SectionHeader("Equipment");
+            // ── Equipment ──────────────────────────────────────────
+            SectionHeader("🖥", "Equipment");
 
             cmbCategoryFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
-            var categoryNames = new CategoryService().GetAll().Data?.Select(c => c.Name)
-                ?? Enumerable.Empty<string>();
-            var equipmentCategories = _equipment
-                .Where(e => !string.IsNullOrWhiteSpace(e.Category))
-                .Select(e => e.Category!)
-                .Distinct();
+            var categoryNames = new CategoryService().GetAll().Data?.Select(c => c.Name) ?? Enumerable.Empty<string>();
+            var equipmentCategories = _equipment.Where(e => !string.IsNullOrWhiteSpace(e.Category)).Select(e => e.Category!).Distinct();
             var allCategoryOptions = new List<string> { "All Categories" };
-            allCategoryOptions.AddRange(
-                categoryNames.Union(equipmentCategories, StringComparer.OrdinalIgnoreCase)
-                             .OrderBy(c => c, StringComparer.OrdinalIgnoreCase));
+            allCategoryOptions.AddRange(categoryNames.Union(equipmentCategories, StringComparer.OrdinalIgnoreCase).OrderBy(c => c, StringComparer.OrdinalIgnoreCase));
             cmbCategoryFilter.DataSource = allCategoryOptions;
             ThemeHelper.StyleComboBox(cmbCategoryFilter);
-            Field("Filter by Category", cmbCategoryFilter, "Narrows the equipment list below — optional");
+            Field("Filter by Category", cmbCategoryFilter, "Narrows the search below — optional");
 
-            txtEquipmentSearch = new TextBox { PlaceholderText = "Search by equipment code, name, or serial…" };
+            txtEquipmentSearch = new TextBox { PlaceholderText = "Type a code, name, or serial number…" };
             ThemeHelper.StyleTextBox(txtEquipmentSearch);
-            Field("Find Equipment", txtEquipmentSearch, "Start typing to search, then pick from the suggestions", required: true);
-
-            cmbEquipment = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbEquipment.DisplayMember = "DisplayText";
-            cmbEquipment.ValueMember = "Id";
-            ThemeHelper.StyleComboBox(cmbEquipment);
-            Field("Select Equipment", cmbEquipment, "Only unallocated, in-store equipment is listed", required: true);
-
-            cmbEquipment.SelectedIndexChanged += CmbEquipment_SelectedIndexChanged;
-
-            RefreshEquipmentDropdown();
-            cmbCategoryFilter.SelectedIndexChanged += (s, e) => RefreshEquipmentDropdown();
+            Field("Find Equipment", txtEquipmentSearch, "Only unallocated, in-store equipment appears here", required: true);
 
             _equipmentSuggest = new EntitySuggestHelper<Equipment>(
                 textBox: txtEquipmentSearch,
                 hostForm: this,
                 onSelected: eq =>
                 {
-                    _suppressEquipmentSync = true;
-                    if (cmbCategoryFilter.SelectedItem?.ToString() != "All Categories")
-                        cmbCategoryFilter.SelectedItem = "All Categories";
-                    cmbEquipment.SelectedValue = eq.Id;
-
+                    _selectedEquipmentId = eq.Id;
                     txtEquipmentSearch.Text = $"{eq.EquipmentCode} — {eq.Name}";
                     txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
-                    _suppressEquipmentSync = false;
                 },
                 scoreFn: (eq, term) => Math.Max(
                     FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, term),
@@ -1118,14 +1096,74 @@ namespace Inventory_Management_System.Forms
                             FuzzySearchHelper.FuzzyScore(eq.Name, term),
                             FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, term)))),
                 line1Selector: eq => $"{eq.EquipmentCode} — {eq.Name}",
-                line2Selector: eq => string.IsNullOrWhiteSpace(eq.SerialNumber)
-                    ? (eq.Category ?? "—") : $"S/N: {eq.SerialNumber}");
+                line2Selector: eq => string.IsNullOrWhiteSpace(eq.SerialNumber) ? (eq.Category ?? "—") : $"S/N: {eq.SerialNumber}");
             _equipmentSuggest.LoadItems(_equipment);
 
-            // ── Assign To section ───────────────────────────────────
-            y += 6;
-            SectionHeader("Assign To");
+            cmbCategoryFilter.SelectedIndexChanged += (s, e) =>
+            {
+                string cat = cmbCategoryFilter.SelectedItem?.ToString() ?? "All Categories";
+                var filtered = cat == "All Categories" ? _equipment : _equipment.Where(x => string.Equals(x.Category, cat, StringComparison.OrdinalIgnoreCase)).ToList();
+                _equipmentSuggest?.LoadItems(filtered);
+            };
+
+            txtEquipmentSearch.TextChanged += (s, e) => { if (string.IsNullOrWhiteSpace(txtEquipmentSearch.Text)) _selectedEquipmentId = null; };
+
+            if (!string.IsNullOrWhiteSpace(_preselectEquipmentCode))
+            {
+                var match = _equipment.FirstOrDefault(e => e.EquipmentCode == _preselectEquipmentCode);
+                if (match != null)
+                {
+                    _selectedEquipmentId = match.Id;
+                    txtEquipmentSearch.Text = $"{match.EquipmentCode} — {match.Name}";
+                    _preselectApplied = true;
+                }
+            }
+
+            // ── Assign To ────────────────────────────────────────────
+            y += 8;
+            SectionHeader("👤", "Assign To");
             Hint("Choose an employee, a location, or both — at least one is required.");
+
+            cmbBuildingFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            var buildingNames = _locations.Where(l => !string.IsNullOrWhiteSpace(l.Building)).Select(l => l.Building!).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(b => b);
+            var allBuildingOptions = new List<string> { "All Buildings" };
+            allBuildingOptions.AddRange(buildingNames);
+            cmbBuildingFilter.DataSource = allBuildingOptions;
+            ThemeHelper.StyleComboBox(cmbBuildingFilter);
+            Field("Filter by Building", cmbBuildingFilter, "Narrows the room search below — optional");
+
+            txtLocationSearch = new TextBox { PlaceholderText = "Search by location or room…" };
+            ThemeHelper.StyleTextBox(txtLocationSearch);
+            Field("Find Location / Room", txtLocationSearch, "Optional — pick a specific room if this location has more than one");
+
+            _locationSuggest = new EntitySuggestHelper<Location>(
+                textBox: txtLocationSearch,
+                hostForm: this,
+                onSelected: loc =>
+                {
+                    _selectedLocationId = loc.Id;
+                    txtLocationSearch.Text = LocationDisplay(loc);
+                    txtLocationSearch.SelectionStart = txtLocationSearch.Text.Length;
+                },
+                scoreFn: (loc, term) => Math.Max(
+                    FuzzySearchHelper.FuzzyScore(loc.LocationName, term),
+                    Math.Max(
+                        FuzzySearchHelper.FuzzyScore(loc.Building, term),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScoreCode(loc.RoomNumber, term),
+                            FuzzySearchHelper.FuzzyScore(loc.RoomName, term)))),
+                line1Selector: LocationDisplay,
+                line2Selector: loc => loc.Building ?? "—");
+            _locationSuggest.LoadItems(_locations);
+
+            cmbBuildingFilter.SelectedIndexChanged += (s, e) =>
+            {
+                string b = cmbBuildingFilter.SelectedItem?.ToString() ?? "All Buildings";
+                var filtered = b == "All Buildings" ? _locations : _locations.Where(x => string.Equals(x.Building, b, StringComparison.OrdinalIgnoreCase)).ToList();
+                _locationSuggest?.LoadItems(filtered);
+            };
+
+            txtLocationSearch.TextChanged += (s, e) => { if (string.IsNullOrWhiteSpace(txtLocationSearch.Text)) _selectedLocationId = null; };
 
             txtEmployeeSearch = new TextBox { PlaceholderText = "Search by employee code or name…" };
             ThemeHelper.StyleTextBox(txtEmployeeSearch);
@@ -1140,138 +1178,73 @@ namespace Inventory_Management_System.Forms
                     txtEmployeeSearch.Text = $"{emp.EmployeeCode} — {emp.FullName}";
                     txtEmployeeSearch.SelectionStart = txtEmployeeSearch.Text.Length;
                 },
-                scoreFn: (emp, term) => Math.Max(
-                    FuzzySearchHelper.FuzzyScoreCode(emp.EmployeeCode, term),
-                    FuzzySearchHelper.FuzzyScore(emp.FullName, term)),
+                scoreFn: (emp, term) => Math.Max(FuzzySearchHelper.FuzzyScoreCode(emp.EmployeeCode, term), FuzzySearchHelper.FuzzyScore(emp.FullName, term)),
                 line1Selector: emp => $"{emp.EmployeeCode} — {emp.FullName}",
                 line2Selector: emp => emp.Department ?? "—");
             _employeeSuggest.LoadItems(_employees);
 
-            // Clearing the search box clears the selected employee too, so
-            // "optional" actually behaves as optional once text is removed.
-            txtEmployeeSearch.TextChanged += (s, e) =>
-            {
-                if (string.IsNullOrWhiteSpace(txtEmployeeSearch.Text))
-                    _selectedEmployeeId = null;
-            };
-            cmbLocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbLocation.DisplayMember = "LocationName";
-            cmbLocation.ValueMember = "Id";
-            var locationOptions = new List<LocationOption> { new LocationOption { Id = null, LocationName = "— No location —" } };
-            locationOptions.AddRange(_locations.Select(l => new LocationOption { Id = l.Id, LocationName = l.LocationName }));
-            cmbLocation.DataSource = locationOptions;
-            ThemeHelper.StyleComboBox(cmbLocation);
-            Field("Location", cmbLocation, "Optional — where this equipment will be kept");
-            if (cmbLocation.Items.Count > 0) cmbLocation.SelectedIndex = 0;   // ← moved here, after it's parented
+            txtEmployeeSearch.TextChanged += (s, e) => { if (string.IsNullOrWhiteSpace(txtEmployeeSearch.Text)) _selectedEmployeeId = null; };
 
-            // ── Return Details section ──────────────────────────────
-            y += 6;
-            SectionHeader("Return Details");
+            // ── Expected Return ──────────────────────────────────────
+            y += 8;
+            SectionHeader("📅", "Expected Return");
 
             chkExpected = new CheckBox
             {
-                Text = "Set expected return date",
+                Text = "Set an expected return date",
                 Location = new Point(20, y),
                 AutoSize = true,
                 Font = ThemeHelper.FontDefault,
                 ForeColor = ThemeHelper.TextPrimary
             };
             chkExpected.CheckedChanged += (s, e) => dtpExpected.Enabled = chkExpected.Checked;
-            _body.Controls.Add(chkExpected);
-            y += 30;
+            body.Controls.Add(chkExpected);
+            y += 32;
 
             dtpExpected = new DateTimePicker
             {
                 Location = new Point(20, y),
-                Width = 400,
+                Width = contentWidth,
                 Format = DateTimePickerFormat.Short,
                 Enabled = false,
                 MinDate = DateTime.Today.AddDays(1)
             };
-            _body.Controls.Add(dtpExpected);
+            body.Controls.Add(dtpExpected);
             y += dtpExpected.Height + 6;
             Hint("Optional — leave unchecked if there's no fixed return date");
 
-            y += 10;
-            _body.AutoScrollMinSize = new Size(0, y);
-        }
+            y += 14;
 
-        private void CmbEquipment_SelectedIndexChanged(object? sender, EventArgs e)
-        {
-            if (_suppressEquipmentSync) return;
-            if (cmbEquipment.SelectedValue == null) return;
-
-            int selectedId = (int)cmbEquipment.SelectedValue;
-            var eq = _equipment.FirstOrDefault(x => x.Id == selectedId);
-            if (eq == null) return;
-
-            _suppressEquipmentSync = true;
-            txtEquipmentSearch.Text = $"{eq.EquipmentCode} — {eq.Name}";
-            txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
-            _suppressEquipmentSync = false;
-        }
-
-        private void RefreshEquipmentDropdown()
-        {
-            string selectedCategory = cmbCategoryFilter?.SelectedItem?.ToString() ?? "All Categories";
-
-            var filtered = selectedCategory == "All Categories"
-                ? _equipment
-                : _equipment.Where(e => string.Equals(e.Category, selectedCategory, StringComparison.OrdinalIgnoreCase)).ToList();
-
-            _suppressEquipmentSync = true;
-            cmbEquipment.DataSource = filtered.Select(e => new
-            {
-                e.Id,
-                DisplayText = $"{e.EquipmentCode} — {e.Name}" +
-                              (string.IsNullOrWhiteSpace(e.SerialNumber) ? "" : $" (S/N: {e.SerialNumber})")
-            }).ToList();
-            cmbEquipment.SelectedIndex = -1;
-            _suppressEquipmentSync = false;
-
-            _equipmentSuggest?.LoadItems(filtered);
-
-            if (!_preselectApplied && !string.IsNullOrWhiteSpace(_preselectEquipmentCode))
-            {
-                var match = filtered.FirstOrDefault(e => e.EquipmentCode == _preselectEquipmentCode);
-                if (match != null)
-                {
-                    cmbEquipment.SelectedValue = match.Id;
-                    _preselectApplied = true;
-                }
-            }
+            // ── Final sizing — NO scrolling, dialog grows to fit exactly ──
+            body.Size = new Size(formWidth, y);
+            int totalHeight = headerHeight + y + footerHeight;
+            ClientSize = new Size(formWidth, totalHeight);
+            pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
         }
 
         private void BtnSave_Click(object? sender, EventArgs e)
         {
-            if (cmbEquipment.SelectedValue == null)
+            if (_selectedEquipmentId == null)
             {
-                ToastHelper.Show(this, "Please select an equipment item.", ToastType.Warning);
+                ToastHelper.Show(this, "Please select an equipment item from the suggestions.", ToastType.Warning);
                 return;
             }
 
-            int? locationId = cmbLocation.SelectedValue is int lid ? lid : (int?)null;
-
-            // The actual rule: equipment is required, and AT LEAST ONE of
-            // employee / location must be set — not both, not neither.
-            if (_selectedEmployeeId == null && locationId == null)
+            if (_selectedEmployeeId == null && _selectedLocationId == null)
             {
-                ToastHelper.Show(this,
-                    "Please choose an employee, a location, or both — at least one is required.",
-                    ToastType.Warning);
+                ToastHelper.Show(this, "Please choose an employee, a location, or both — at least one is required.", ToastType.Warning);
                 return;
             }
 
             Result = new Allocation
             {
-                EquipmentId = (int)cmbEquipment.SelectedValue,
+                EquipmentId = _selectedEquipmentId.Value,
                 EmployeeId = _selectedEmployeeId,
-                LocationId = locationId,
+                LocationId = _selectedLocationId,
                 Status = "pending",
                 AllocationDate = DateTime.UtcNow,
                 AllocatedByUserId = AuthService.CurrentUserId,
-                ExpectedReturnDate = chkExpected.Checked
-                    ? DateOnly.FromDateTime(dtpExpected.Value) : null
+                ExpectedReturnDate = chkExpected.Checked ? DateOnly.FromDateTime(dtpExpected.Value) : null
             };
             DialogResult = DialogResult.OK;
         }
@@ -1280,13 +1253,13 @@ namespace Inventory_Management_System.Forms
         {
             _equipmentSuggest?.Dispose();
             _employeeSuggest?.Dispose();
+            _locationSuggest?.Dispose();
             base.OnFormClosed(e);
         }
     }
+
     // ── Edit Expected Return Date Dialog ───────────────────────────────────
-    
-        // ── Edit Expected Return Date Dialog ───────────────────────────────────
-        public class EditExpectedReturnDialog : Form
+    public class EditExpectedReturnDialog : Form
         {
             public DateOnly? SelectedDate { get; private set; }
 

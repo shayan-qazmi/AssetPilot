@@ -21,6 +21,10 @@ namespace Inventory_Management_System.Forms
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
+        private static readonly Color Accent = Color.FromArgb(94, 53, 177);
+        private static readonly Color CardBorder = Color.FromArgb(228, 224, 240);
+        private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
+
         public AddEditLocationForm(Location? location = null)
         {
             _location = location ?? new Location();
@@ -38,64 +42,160 @@ namespace Inventory_Management_System.Forms
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
-
+            this.AutoScroll = false; // never scrolls — sized to fit exactly, same as the Allocation dialog
+            this.Font = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
-            this.AutoScroll = true;
 
-            int y = 20;
+            const int formWidth = 440;
+            const int margin = 28;
+            int contentWidth = formWidth - margin * 2;
 
-            // ── Location Name ─────────────────────────────────────────────
-            Label lblName = new Label() { Text = "Location Name:", Location = new Point(20, y), AutoSize = true };
-            ThemeHelper.StyleLabel(lblName);
-            this.Controls.Add(lblName);
-            y += 25;
-            txtName = new TextBox() { Location = new Point(20, y), Width = 340 };
-            ThemeHelper.StyleTextBox(txtName);
-            this.Controls.Add(txtName);
-            y += 40;
+            // ── Header — auto-sized to its subtitle, never clips ──
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = Accent };
+            this.Controls.Add(pnlHeader);
 
-            // ── Building ──────────────────────────────────────────────────
-            Label lblBuilding = new Label() { Text = "Building:", Location = new Point(20, y), AutoSize = true };
-            ThemeHelper.StyleLabel(lblBuilding);
-            this.Controls.Add(lblBuilding);
-            y += 25;
-            txtBuilding = new TextBox() { Location = new Point(20, y), Width = 340 };
-            ThemeHelper.StyleTextBox(txtBuilding);
-            this.Controls.Add(txtBuilding);
-            y += 40;
+            var lblTitle = new Label
+            {
+                Text = _isEditMode ? "📍  Edit Location" : "📍  Add Location",
+                Font = new Font("Segoe UI", 15.5f, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(margin, 18)
+            };
+            pnlHeader.Controls.Add(lblTitle);
 
-            // ── Room Number ───────────────────────────────────────────────
-            Label lblRoomNumber = new Label() { Text = "Room Number:", Location = new Point(20, y), AutoSize = true };
-            ThemeHelper.StyleLabel(lblRoomNumber);
-            this.Controls.Add(lblRoomNumber);
-            y += 25;
-            txtRoomNumber = new TextBox() { Location = new Point(20, y), Width = 340 };
-            ThemeHelper.StyleTextBox(txtRoomNumber);
-            this.Controls.Add(txtRoomNumber);
-            y += 40;
+            var subtitleFont = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            string subtitleText = "A location can have multiple rooms — add one row per room";
+            var subtitleSize = TextRenderer.MeasureText(
+                subtitleText, subtitleFont, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+            var lblSubtitle = new Label
+            {
+                Text = subtitleText,
+                Font = subtitleFont,
+                ForeColor = Color.FromArgb(230, 224, 245),
+                AutoSize = false,
+                Size = new Size(contentWidth, subtitleSize.Height + 4),
+                Location = new Point(margin, lblTitle.Bottom + 8)
+            };
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Height = lblSubtitle.Bottom + 20;
 
-         // ── Room Name ─────────────────────────────────────────────────
-            Label lblRoomName = new Label() { Text = "Room Name:", Location = new Point(20, y), AutoSize = true };
-            ThemeHelper.StyleLabel(lblRoomName);
-            this.Controls.Add(lblRoomName);
-            y += 25;
-            txtRoomName = new TextBox() { Location = new Point(20, y), Width = 340 };
-            ThemeHelper.StyleTextBox(txtRoomName);
-            this.Controls.Add(txtRoomName);
-            y += 50;
+            // ── Body ──────────────────────────────────────────────
+            var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10) };
+            this.Controls.Add(body);
 
-            // ── Buttons ───────────────────────────────────────────────────
-            btnSave = new Button() { Text = "Save", Location = new Point(200, y), Width = 75 };
-            ThemeHelper.StyleButton(btnSave);
-            btnSave.Click += BtnSave_Click;
-            this.Controls.Add(btnSave);
+            // ── Footer ──────────────────────────────────────────────
+            const int footerHeight = 72;
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
 
-            btnCancel = new Button() { Text = "Cancel", Location = new Point(285, y), Width = 75 };
+            btnCancel = new Button { Text = "Cancel", Size = new Size(120, 42) };
             ThemeHelper.StyleSecondaryButton(btnCancel);
             btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
-            this.Controls.Add(btnCancel);
 
-            this.ClientSize = new Size(380, y + 40);
+            btnSave = new Button { Text = "✓  Save", Size = new Size(150, 42) };
+            ThemeHelper.StyleButton(btnSave, Accent);
+            btnSave.Click += BtnSave_Click;
+
+            btnSave.Location = new Point(formWidth - btnSave.Width - margin, 15);
+            btnCancel.Location = new Point(btnSave.Left - btnCancel.Width - 12, 15);
+            pnlFooter.Controls.Add(btnCancel);
+            pnlFooter.Controls.Add(btnSave);
+            this.Controls.Add(pnlFooter);
+
+            int y = 24;
+
+            void FieldLabel(string label, bool required = false)
+            {
+                body.Controls.Add(new Label
+                {
+                    Text = required ? $"{label}  *" : label,
+                    Location = new Point(margin, y),
+                    AutoSize = true,
+                    Font = ThemeHelper.FontBold,
+                    ForeColor = ThemeHelper.TextPrimary
+                });
+                y += 22;
+            }
+
+            void PlaceControl(Control ctrl)
+            {
+                ctrl.Location = new Point(margin, y);
+                ctrl.Width = contentWidth;
+                if (ctrl.Height < 30) ctrl.Height = 30;
+                body.Controls.Add(ctrl);
+                y += ctrl.Height + 6;
+            }
+
+            void Hint(string text)
+            {
+                var font = new Font("Segoe UI", 8f, FontStyle.Italic);
+                var sz = TextRenderer.MeasureText(text, font, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+                body.Controls.Add(new Label
+                {
+                    Text = text,
+                    Font = font,
+                    ForeColor = MutedText,
+                    AutoSize = false,
+                    Size = new Size(contentWidth, sz.Height + 4),
+                    Location = new Point(margin, y)
+                });
+                y += sz.Height + 4 + 14;
+            }
+
+            FieldLabel("Location Name", required: true);
+            txtName = new TextBox();
+            ThemeHelper.StyleTextBox(txtName);
+            PlaceControl(txtName);
+            Hint("The site or building this belongs to, e.g. \"Main Store\"");
+
+            FieldLabel("Building");
+            txtBuilding = new TextBox();
+            ThemeHelper.StyleTextBox(txtBuilding);
+            PlaceControl(txtBuilding);
+            y += 4;
+
+            // Room Number and Room Name side by side — they describe the
+            // same room, so pairing them reads more clearly than stacking.
+            int halfWidth = (contentWidth - 12) / 2;
+
+            body.Controls.Add(new Label
+            {
+                Text = "Room Number",
+                Location = new Point(margin, y),
+                AutoSize = true,
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextPrimary
+            });
+            body.Controls.Add(new Label
+            {
+                Text = "Room Name",
+                Location = new Point(margin + halfWidth + 12, y),
+                AutoSize = true,
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextPrimary
+            });
+            y += 22;
+
+            txtRoomNumber = new TextBox { Location = new Point(margin, y), Width = halfWidth, Height = 30 };
+            ThemeHelper.StyleTextBox(txtRoomNumber);
+            body.Controls.Add(txtRoomNumber);
+
+            txtRoomName = new TextBox { Location = new Point(margin + halfWidth + 12, y), Width = halfWidth, Height = 30 };
+            ThemeHelper.StyleTextBox(txtRoomName);
+            body.Controls.Add(txtRoomName);
+            y += 36;
+
+            Hint("Both optional — fill in either (or both) to identify a specific room within this location");
+
+            y += 8;
+
+            // ── Final sizing — dialog grows to fit exactly, no scrollbar ──
+            body.Size = new Size(formWidth, y);
+            int totalHeight = pnlHeader.Height + body.Height + footerHeight;
+            this.ClientSize = new Size(formWidth, totalHeight);
+            pnlFooter.Location = new Point(0, this.ClientSize.Height - footerHeight);
+
             this.AcceptButton = btnSave;
             this.CancelButton = btnCancel;
         }
@@ -104,9 +204,9 @@ namespace Inventory_Management_System.Forms
         {
             if (_isEditMode)
             {
-                txtName.Text            = _location.LocationName;
-                txtBuilding.Text        = _location.Building;
-                txtRoomNumber.Text      = _location.RoomNumber;
+                txtName.Text = _location.LocationName;
+                txtBuilding.Text = _location.Building;
+                txtRoomNumber.Text = _location.RoomNumber;
                 txtRoomName.Text = _location.RoomName ?? "";
             }
         }
@@ -119,12 +219,12 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            _location.LocationName    = txtName.Text.Trim();
-            _location.Building        = txtBuilding.Text.Trim();
-            _location.RoomNumber      = txtRoomNumber.Text.Trim();
+            _location.LocationName = txtName.Text.Trim();
+            _location.Building = txtBuilding.Text.Trim();
+            _location.RoomNumber = txtRoomNumber.Text.Trim();
             _location.RoomName = string.IsNullOrWhiteSpace(txtRoomName.Text)
-            ? null
-            : txtRoomName.Text.Trim();
+                ? null
+                : txtRoomName.Text.Trim();
 
             var result = _isEditMode ? _locationService.Update(_location) : _locationService.Add(_location);
 
