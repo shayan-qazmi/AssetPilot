@@ -390,7 +390,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                 ToastHelper.Show(this, "Failed to undo return: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(this, "Failed to update return: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -427,7 +427,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Failed to update return: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(this, "Failed to undo return: " + ex.Message, ToastType.Error);
             }
         }
 

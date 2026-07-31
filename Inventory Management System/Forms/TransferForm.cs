@@ -33,8 +33,6 @@ namespace Inventory_Management_System.Forms
             ApplyTheme();
             LoadAllocatedEquipment();
 
-            // Same fix as AllocationForm — Form.Shown fires once, after WinForms'
-            // automatic first-row selection, so clearing here reliably wins.
             this.Shown += (s, e) =>
             {
                 dgvTransfer.ClearSelection();
@@ -46,7 +44,7 @@ namespace Inventory_Management_System.Forms
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);
-            ThemeHelper.StyleButton(btnTransfer);
+            ThemeHelper.StyleButton(btnTransfer, Color.FromArgb(123, 31, 162));
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleTextBox(txtSearch);
@@ -59,7 +57,6 @@ namespace Inventory_Management_System.Forms
             lblRowCount.Font = ThemeHelper.FontSmall;
         }
 
-        // ── Load all currently allocated equipment ──────────────────────────
         private void LoadAllocatedEquipment()
         {
             try
@@ -77,8 +74,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-               ToastHelper.Show(this, "Error loading allocated equipment: " + ex.Message, ToastType.Error);
-
+                ToastHelper.Show(this, "Error loading allocated equipment: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -93,8 +89,6 @@ namespace Inventory_Management_System.Forms
             }
             else
             {
-                // Scanned/typed codes need an exact substring match — fuzzy matching
-                // lets "QR001" incorrectly match QR002, QR005, etc.
                 var codeMatches = _allAllocations.Where(a =>
                     (!string.IsNullOrEmpty(a.Equipment?.QrCode) &&
                         a.Equipment.QrCode.Contains(filter, StringComparison.OrdinalIgnoreCase)) ||
@@ -159,18 +153,13 @@ namespace Inventory_Management_System.Forms
             lblPageIndicator.Text = $"Page {_currentPage} of {Math.Max(1, _totalPages)}";
             btnPrevPage.Enabled = _currentPage > 1;
             btnNextPage.Enabled = _currentPage < _totalPages;
-        }   
+        }
 
-        // ── Toolbar "New Transfer" — pick from full active list ─────────────
         private void btnTransfer_Click(object sender, EventArgs e)
         {
             OpenTransferDialog(preselectedAllocationId: null);
         }
 
-        // ── Double-click a row — jump straight to that item's transfer ──────
-        // FIX: bounds-check both ends of the row index, and resolve the
-        // AllocationId strictly from the row that was actually clicked
-        // (e.RowIndex), never from SelectedRows[0] or any cached index.
         private void dgvTransfer_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex < 0 || e.RowIndex >= dgvTransfer.Rows.Count) return;
@@ -182,7 +171,6 @@ namespace Inventory_Management_System.Forms
             OpenTransferDialog(preselectedAllocationId: allocationId);
         }
 
-        // ── Shared dialog + save logic for both entry points ─────────────────
         private void OpenTransferDialog(int? preselectedAllocationId)
         {
             try
@@ -196,8 +184,7 @@ namespace Inventory_Management_System.Forms
 
                 if (activeAllocations.Count == 0)
                 {
-                   ToastHelper.Show(this, "No allocated equipment available to transfer.", ToastType.Info);
-
+                    ToastHelper.Show(this, "No allocated equipment available to transfer.", ToastType.Info);
                     return;
                 }
 
@@ -235,13 +222,11 @@ namespace Inventory_Management_System.Forms
                     $"Employee {oldAlloc.EmployeeId}", $"Employee {frm.NewEmployeeId}");
 
                 LoadAllocatedEquipment();
-             ToastHelper.Show(this, "Equipment transferred successfully.", ToastType.Success);
-
+                ToastHelper.Show(this, "Equipment transferred successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
-               ToastHelper.Show(this, "Transfer failed: " + ex.Message, ToastType.Error);
-
+                ToastHelper.Show(this, "Transfer failed: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -308,9 +293,18 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                 ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
             }
         }
+    }
+
+    // ── Small typed option class — replaces the old List<dynamic>, which
+    // WinForms' ComboBox data-binding cannot reliably read DisplayMember/
+    // ValueMember from, causing SelectedValue to silently stay null. ────
+    public class TransferEquipmentOption
+    {
+        public int Id { get; set; }
+        public string DisplayText { get; set; } = "";
     }
 
     // ── Transfer Dialog — now supports live fuzzy search + preselection ──
@@ -332,6 +326,7 @@ namespace Inventory_Management_System.Forms
         private readonly List<Location> _locations;
         private readonly int? _preselectedAllocationId;
         private EntitySuggestHelper<Allocation>? _equipmentSuggest;
+        private List<TransferEquipmentOption> _allocationItems = new();
 
         public TransferDialog(List<Allocation> allocations, List<Employee> employees, List<Location> locations,
             int? preselectedAllocationId = null)
@@ -366,25 +361,29 @@ namespace Inventory_Management_System.Forms
                 y += 40;
             }
 
-            // NEW: fuzzy search box, same pattern as the Allocation dialog
             txtEquipmentSearch = new TextBox { PlaceholderText = "Search by equipment code, name, or serial…" };
             ThemeHelper.StyleTextBox(txtEquipmentSearch);
             AddRow("Find Equipment:", txtEquipmentSearch);
 
-            var allocationItems = new List<dynamic>
-{
-    new { Id = 0, DisplayText = "-- Select equipment --" }
-};
-            allocationItems.AddRange(_allocations.Select(a => (dynamic)new
+            // ── Fallback safety net: if the user types a match but never clicks
+            // the suggestion popup, resolve it from the text when focus leaves
+            // the box, so Save doesn't wrongly block with "fill all fields". ──
+            txtEquipmentSearch.Leave += (s, e) => TryResolveEquipmentFromText();
+
+            _allocationItems = new List<TransferEquipmentOption>
             {
-                a.Id,
+                new TransferEquipmentOption { Id = 0, DisplayText = "-- Select equipment --" }
+            };
+            _allocationItems.AddRange(_allocations.Select(a => new TransferEquipmentOption
+            {
+                Id = a.Id,
                 DisplayText = $"{a.Equipment?.EquipmentCode} → {a.Employee?.FullName}"
             }));
 
             cmbAllocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbAllocation.DisplayMember = "DisplayText";
             cmbAllocation.ValueMember = "Id";
-            cmbAllocation.DataSource = allocationItems;
+            cmbAllocation.DataSource = _allocationItems;
             cmbAllocation.SelectedIndexChanged += CmbAllocation_SelectedIndexChanged;
             ThemeHelper.StyleComboBox(cmbAllocation);
             AddRow("Equipment to transfer:", cmbAllocation);
@@ -398,19 +397,17 @@ namespace Inventory_Management_System.Forms
                     txtEquipmentSearch.Text = $"{preAlloc.Equipment?.EquipmentCode} — {preAlloc.Equipment?.Name}";
                 }
                 txtEquipmentSearch.Enabled = false;
-                cmbAllocation.Enabled = false; // double-clicked a specific item — lock it in
+                cmbAllocation.Enabled = false;
             }
             else
             {
-               
-
                 _equipmentSuggest = new EntitySuggestHelper<Allocation>(
                     textBox: txtEquipmentSearch,
                     hostForm: this,
                     onSelected: alloc =>
                     {
                         _suppressSync = true;
-                        int index = allocationItems.FindIndex(a => a.Id == alloc.Id);
+                        int index = _allocationItems.FindIndex(a => a.Id == alloc.Id);
                         if (index >= 0)
                         {
                             cmbAllocation.SelectedIndex = index;
@@ -482,7 +479,7 @@ namespace Inventory_Management_System.Forms
             if (cmbAllocation.SelectedValue == null) return;
 
             int selectedId = (int)cmbAllocation.SelectedValue;
-            if (selectedId == 0) return; // placeholder — ignore
+            if (selectedId == 0) return;
 
             var alloc = _allocations.FirstOrDefault(a => a.Id == selectedId);
             if (alloc == null) return;
@@ -493,12 +490,39 @@ namespace Inventory_Management_System.Forms
             _suppressSync = false;
         }
 
+        // ── Resolves the typed search text to an allocation and selects it in
+        // cmbAllocation, in case the suggestion popup click never fired. ──
+        private void TryResolveEquipmentFromText()
+        {
+            if (cmbAllocation.SelectedValue != null && (int)cmbAllocation.SelectedValue != 0)
+                return; // already properly selected, nothing to do
+
+            var typed = txtEquipmentSearch.Text.Trim();
+            if (string.IsNullOrEmpty(typed)) return;
+
+            var match = _allocations.FirstOrDefault(a =>
+                string.Equals($"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name}", typed,
+                    StringComparison.OrdinalIgnoreCase));
+
+            if (match == null) return;
+
+            int index = _allocationItems.FindIndex(a => a.Id == match.Id);
+            if (index < 0) return;
+
+            _suppressSync = true;
+            cmbAllocation.SelectedIndex = index;
+            _suppressSync = false;
+        }
+
         private void BtnSave_Click(object? sender, EventArgs e)
         {
-            if (cmbAllocation.SelectedValue == null || cmbEmployee.SelectedValue == null || cmbLocation.SelectedValue == null)
+            TryResolveEquipmentFromText(); // last-chance resolve before validating
+
+            if (cmbAllocation.SelectedValue == null || (int)cmbAllocation.SelectedValue == 0 ||
+                cmbEmployee.SelectedValue == null || cmbLocation.SelectedValue == null)
             {
                 ToastHelper.Show(this, "Please fill all fields.", ToastType.Warning);
-                 return;
+                return;
             }
             OldAllocationId = (int)cmbAllocation.SelectedValue;
             NewEmployeeId = (int)cmbEmployee.SelectedValue;

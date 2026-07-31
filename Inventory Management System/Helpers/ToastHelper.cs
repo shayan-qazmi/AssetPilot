@@ -9,7 +9,9 @@ namespace Inventory_Management_System.Helpers
 
     public static class ToastHelper
     {
-        public static void Show(Form hostForm, string message, ToastType type = ToastType.Success, int durationMs = 2500)
+        private const int MaxContentWidth = 380; // text wraps once it would exceed this
+
+        public static void Show(Form hostForm, string message, ToastType type = ToastType.Success, int durationMs = 3000)
         {
             if (hostForm == null || hostForm.IsDisposed) return;
 
@@ -22,28 +24,37 @@ namespace Inventory_Management_System.Helpers
                 _ => (Color.FromArgb(46, 125, 50), "✓")
             };
 
+            string fullText = $"{icon}  {message}";
+            var font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+
+            // Measure with word-wrap BEFORE creating any controls, so we know
+            // the exact size the toast needs to be — this is what actually
+            // fixes the cutoff (previously nothing ever wrapped or resized).
+            Size measured = TextRenderer.MeasureText(
+                fullText, font, new Size(MaxContentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+
+            int toastWidth = Math.Max(180, Math.Min(MaxContentWidth, measured.Width) + 36);
+            int toastHeight = Math.Max(48, measured.Height + 26);
+
             var toast = new Panel
             {
                 BackColor = bgColor,
-                Size = new Size(0, 48), // width grows to fit text below
+                Size = new Size(toastWidth, toastHeight),
                 Visible = true
             };
 
             var lbl = new Label
             {
-                Text = $"{icon}  {message}",
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                Text = fullText,
+                Font = font,
                 ForeColor = Color.White,
-                AutoSize = true,
                 BackColor = Color.Transparent,
-                Location = new Point(18, 14)
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Size = new Size(toastWidth - 36, toastHeight - 16),
+                Location = new Point(18, 8)
             };
             toast.Controls.Add(lbl);
-
-            // Size the toast to the text, with padding, capped at a max width
-            int textWidth = lbl.PreferredWidth;
-            int toastWidth = Math.Min(420, Math.Max(180, textWidth + 36));
-            toast.Size = new Size(toastWidth, 48);
 
             toast.Paint += (s, e) =>
             {
@@ -60,8 +71,6 @@ namespace Inventory_Management_System.Helpers
 
             PositionToast(hostForm, toast);
 
-            // Fade in
-            toast.BackColor = bgColor;
             var opacity = 0;
             var fadeInTimer = new System.Windows.Forms.Timer { Interval = 15 };
             fadeInTimer.Tick += (s, e) =>
@@ -69,11 +78,9 @@ namespace Inventory_Management_System.Helpers
                 opacity += 25;
                 if (opacity >= 255)
                 {
-                    opacity = 255;
                     fadeInTimer.Stop();
                     fadeInTimer.Dispose();
 
-                    // Hold, then fade out
                     var holdTimer = new System.Windows.Forms.Timer { Interval = durationMs };
                     holdTimer.Tick += (s2, e2) =>
                     {
@@ -95,7 +102,7 @@ namespace Inventory_Management_System.Helpers
             timer.Tick += (s, e) =>
             {
                 step++;
-                toast.Top = startY - step * 2; // slides up slightly while fading
+                toast.Top = startY - step * 2;
                 if (step >= 15)
                 {
                     timer.Stop();
@@ -115,7 +122,6 @@ namespace Inventory_Management_System.Helpers
             const int margin = 24;
             const int spacing = 10;
 
-            // Stack toasts vertically if multiple are showing at once
             int stackOffset = 0;
             foreach (Control c in hostForm.Controls)
             {

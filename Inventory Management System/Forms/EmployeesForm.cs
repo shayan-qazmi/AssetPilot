@@ -199,7 +199,7 @@ namespace Inventory_Management_System.Forms
                         }
                         else
                         {
-                            MessageBox.Show(result.ErrorMessage, "Delete Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                         }
                     }
                 }

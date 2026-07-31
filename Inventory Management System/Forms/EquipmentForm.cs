@@ -24,11 +24,11 @@ namespace Inventory_Management_System.Forms
         private int _totalPages = 1;
 
         // ── Programmatic Dropdown Selection Mode (replacing Select button) ──
-        private ComboBox cmbSelectMode  = null!;
+        private ComboBox cmbSelectMode = null!;
 
         // ── Category filter dropdown ───────────────────────────────────────
-        private ComboBox cmbCategory    = null!;
-        private string   _activeCategory = ""; // empty = All
+        private ComboBox cmbCategory = null!;
+        private string _activeCategory = ""; // empty = All
 
         public EquipmentForm()
         {
@@ -86,7 +86,7 @@ namespace Inventory_Management_System.Forms
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat
             };
-            
+
             // Prevent typing in the DropDown
             cmbSelectMode.KeyPress += (s, e) => e.Handled = true;
 
@@ -132,16 +132,16 @@ namespace Inventory_Management_System.Forms
             // ── Category filter dropdown (between Select and QR Sheet) ──────
             cmbCategory = new ComboBox
             {
-                Name          = "cmbCategory",
+                Name = "cmbCategory",
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Size          = new Size(115, 32),
-                Margin        = new Padding(4, 4, 0, 0),
-                Cursor        = Cursors.Hand,
-                FlatStyle     = FlatStyle.Flat,
-                BackColor     = ThemeHelper.Accent,
-                ForeColor     = Color.White,
-                Font          = ThemeHelper.FontBold,
-                DrawMode      = DrawMode.OwnerDrawFixed,
+                Size = new Size(115, 32),
+                Margin = new Padding(4, 4, 0, 0),
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ThemeHelper.Accent,
+                ForeColor = Color.White,
+                Font = ThemeHelper.FontBold,
+                DrawMode = DrawMode.OwnerDrawFixed,
             };
 
             // Owner-draw to match the Select dropdown style
@@ -166,7 +166,7 @@ namespace Inventory_Management_System.Forms
                 _activeCategory = selected == "All Categories" ? "" : selected;
                 ApplyFilters();
             };
-               
+
             // Insert cmbCategory right after cmbSelectMode in the flow
             flow.Controls.Add(cmbCategory);
             flow.Controls.SetChildIndex(cmbCategory, flow.Controls.IndexOf(cmbSelectMode) + 1);
@@ -226,7 +226,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleDataGridView(dgvEquipment);
             panelBottom.BackColor = Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
-            lblRowCount.Font      = ThemeHelper.FontSmall;
+            lblRowCount.Font = ThemeHelper.FontSmall;
         }
 
         // ── Data ───────────────────────────────────────────────────────────
@@ -238,8 +238,7 @@ namespace Inventory_Management_System.Forms
                 var result = _equipmentService.GetPage(_currentPage, _pageSize);
                 if (!result.Success)
                 {
-                    MessageBox.Show(result.ErrorMessage, "Data Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                     return;
                 }
 
@@ -253,8 +252,7 @@ namespace Inventory_Management_System.Forms
                 var result = _equipmentService.Search(searchTerm);
                 if (!result.Success)
                 {
-                    MessageBox.Show(result.ErrorMessage, "Data Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                     return;
                 }
 
@@ -345,11 +343,11 @@ namespace Inventory_Management_System.Forms
 
                 string formattedStatus = item.CurrentStatus switch
                 {
-                    "in_store"       => "In Store",
-                    "allocated"      => "Allocated",
+                    "in_store" => "In Store",
+                    "allocated" => "Allocated",
                     "decommissioned" => "Decommissioned",
-                    "under_repair"   => "Under Repair",
-                    _                => item.CurrentStatus
+                    "under_repair" => "Under Repair",
+                    _ => item.CurrentStatus
                 };
 
                 int rowIdx = dgvEquipment.Rows.Add(
@@ -387,7 +385,7 @@ namespace Inventory_Management_System.Forms
                         break;
                 }
                 statusCell.Style.ForeColor = Color.White;
-                statusCell.Style.Font      = ThemeHelper.FontBold;
+                statusCell.Style.Font = ThemeHelper.FontBold;
             }
 
             // Maintain automatic full selection when refreshed in Select All mode
@@ -422,7 +420,7 @@ namespace Inventory_Management_System.Forms
                     if (cellValue != null && cellValue is bool b && b)
                     {
                         var code = row.Cells["Code"].Value?.ToString();
-                        var eq   = _allEquipment.FirstOrDefault(e => e.EquipmentCode == code);
+                        var eq = _allEquipment.FirstOrDefault(e => e.EquipmentCode == code);
                         if (eq != null) selected.Add(eq);
                     }
                 }
@@ -433,7 +431,7 @@ namespace Inventory_Management_System.Forms
                 foreach (DataGridViewRow row in dgvEquipment.SelectedRows)
                 {
                     var code = row.Cells["Code"].Value?.ToString();
-                    var eq   = _allEquipment.FirstOrDefault(e => e.EquipmentCode == code);
+                    var eq = _allEquipment.FirstOrDefault(e => e.EquipmentCode == code);
                     if (eq != null) selected.Add(eq);
                 }
             }
@@ -467,8 +465,7 @@ namespace Inventory_Management_System.Forms
             var eq = GetSelectedEquipment();
             if (eq == null)
             {
-                MessageBox.Show("Please select an equipment row to edit.",
-                    "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Please select an equipment row to edit.", ToastType.Info);
                 return;
             }
             using var form = new AddEditEquipmentForm(eq);
@@ -485,8 +482,7 @@ namespace Inventory_Management_System.Forms
 
             if (selectedList.Count == 0)
             {
-                MessageBox.Show("Please select at least one equipment row to delete.",
-                    "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Please select at least one equipment row to delete.", ToastType.Info);
                 return;
             }
 
@@ -495,6 +491,7 @@ namespace Inventory_Management_System.Forms
                 : $"Are you sure you want to delete these {selectedList.Count} items?\n\n" +
                   string.Join("\n", selectedList.Select(eq => $"• {eq.Name} ({eq.EquipmentCode})"));
 
+            // Kept as MessageBox — this is a destructive Yes/No confirmation.
             if (MessageBox.Show(confirmMessage, "Confirm Delete",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
@@ -515,15 +512,14 @@ namespace Inventory_Management_System.Forms
 
             if (failures.Count == 0)
             {
-                MessageBox.Show($"{successCount} item(s) deleted successfully.", "Delete Complete",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, $"{successCount} item(s) deleted successfully.", ToastType.Success);
             }
             else
             {
-                MessageBox.Show(
-                    $"{successCount} of {selectedList.Count} items deleted.\n\nFailures:\n" +
+                ToastHelper.Show(this,
+                    $"{successCount} of {selectedList.Count} items deleted. Failures:\n" +
                     string.Join("\n", failures),
-                    "Delete Complete with Errors", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    ToastType.Warning);
             }
         }
 
@@ -555,15 +551,14 @@ namespace Inventory_Management_System.Forms
         {
             if (_allEquipment.Count == 0)
             {
-                MessageBox.Show("No data to export.", "Export",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "No data to export.", ToastType.Info);
                 return;
             }
 
             using var sfd = new SaveFileDialog
             {
-                Filter   = "Excel Files|*.xlsx",
-                Title    = "Export Equipment",
+                Filter = "Excel Files|*.xlsx",
+                Title = "Export Equipment",
                 FileName = $"Equipment_{DateTime.Now:yyyyMMdd_HHmm}.xlsx"
             };
 
@@ -572,13 +567,11 @@ namespace Inventory_Management_System.Forms
             try
             {
                 ExcelHelper.ExportEquipment(_allEquipment, sfd.FileName);
-                MessageBox.Show("Equipment exported successfully.", "Export",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Equipment exported successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Export failed: {ex.Message}", "Export Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this, $"Export failed: {ex.Message}", ToastType.Error);
             }
         }
 
@@ -635,8 +628,7 @@ namespace Inventory_Management_System.Forms
             var selected = GetSelectedEquipmentList();
             if (selected.Count == 0)
             {
-                MessageBox.Show("Please select at least one equipment item.",
-                    "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Please select at least one equipment item.", ToastType.Info);
                 return;
             }
 
@@ -658,8 +650,7 @@ namespace Inventory_Management_System.Forms
 
             if (qrItems.Count == 0)
             {
-                MessageBox.Show("None of the selected items have a valid QR code.",
-                    "No QR Codes", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ToastHelper.Show(this, "None of the selected items have a valid QR code.", ToastType.Warning);
                 return;
             }
 
@@ -760,10 +751,9 @@ namespace Inventory_Management_System.Forms
             }
             catch (System.Drawing.Printing.InvalidPrinterException)
             {
-                MessageBox.Show(
-                    "No printer is installed on this machine, so a print preview can't be shown.\n\n" +
-                    "Install a printer (a virtual PDF printer works fine for testing) and try again.",
-                    "No Printer Found", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ToastHelper.Show(this,
+                    "No printer is installed on this machine, so a print preview can't be shown. Install a printer (a virtual PDF printer works fine for testing) and try again.",
+                    ToastType.Warning);
             }
             finally
             {
@@ -777,16 +767,14 @@ namespace Inventory_Management_System.Forms
             var eq = GetSelectedEquipment();
             if (eq == null)
             {
-                MessageBox.Show("Please select an equipment row first.",
-                    "No Selection", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Please select an equipment row first.", ToastType.Info);
                 return;
             }
 
             string qrContent = eq.QrCode ?? eq.EquipmentCode;
             if (string.IsNullOrWhiteSpace(qrContent))
             {
-                MessageBox.Show("This equipment has no QR code assigned.",
-                    "No QR Code", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "This equipment has no QR code assigned.", ToastType.Info);
                 return;
             }
 
@@ -797,8 +785,9 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Could not generate QR code: {ex.Message}\n\nMake sure the QRCoder NuGet package is installed.",
-                    "QR Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this,
+                    $"Could not generate QR code: {ex.Message}. Make sure the QRCoder NuGet package is installed.",
+                    ToastType.Error);
                 return;
             }
 
@@ -816,34 +805,34 @@ namespace Inventory_Management_System.Forms
 
             var frm = new Form
             {
-                Text            = $"QR Code — {eq.EquipmentCode}",
-                Size            = new Size(380, 460),
+                Text = $"QR Code — {eq.EquipmentCode}",
+                Size = new Size(380, 460),
                 FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox     = false,
-                MinimizeBox     = false,
-                StartPosition   = FormStartPosition.CenterParent,
-                BackColor       = Color.White
+                MaximizeBox = false,
+                MinimizeBox = false,
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = Color.White
             };
 
             // ── QR image (slightly smaller to leave room for details below) ────
             var pic = new PictureBox
             {
-                Image     = qrBitmap,
-                SizeMode  = PictureBoxSizeMode.Zoom,
-                Size      = new Size(240, 240),
-                Location  = new Point((380 - 240) / 2, 18),
+                Image = qrBitmap,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                Size = new Size(240, 240),
+                Location = new Point((380 - 240) / 2, 18),
                 BackColor = Color.White
             };
 
             var lblCode = new Label
             {
-                Text      = $"{eq.EquipmentCode}  •  {eq.Name}",
-                Font      = ThemeHelper.FontBold,
+                Text = $"{eq.EquipmentCode}  •  {eq.Name}",
+                Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextPrimary,
-                AutoSize  = false,
-                Width     = 344,
-                Height    = 22,
-                Location  = new Point(18, 264),
+                AutoSize = false,
+                Width = 344,
+                Height = 22,
+                Location = new Point(18, 264),
                 TextAlign = ContentAlignment.MiddleCenter
             };
 
@@ -851,39 +840,39 @@ namespace Inventory_Management_System.Forms
             using var smallFont = new Font("Segoe UI", 8f, FontStyle.Regular);
             var lblDetails = new Label
             {
-                Text      = $"Company: {companyName}\n" +
+                Text = $"Company: {companyName}\n" +
                             $"Status: {eq.CurrentStatus}\n" +
                             $"Category: {(string.IsNullOrWhiteSpace(eq.Category) ? "—" : eq.Category)}\n" +
                             $"Purchase Date: {eq.PurchaseDate?.ToString("yyyy-MM-dd") ?? "—"}",
-                Font      = smallFont,
+                Font = smallFont,
                 ForeColor = Color.DimGray,
-                AutoSize  = false,
-                Width     = 344,
-                Height    = 66,
-                Location  = new Point(18, 288),
+                AutoSize = false,
+                Width = 344,
+                Height = 66,
+                Location = new Point(18, 288),
                 TextAlign = ContentAlignment.TopCenter
             };
 
             var btnPrint = new Button
             {
-                Text      = "🖨  Print QR",
-                Size      = new Size(160, 38),
-                Location  = new Point(38, 368),
+                Text = "🖨  Print QR",
+                Size = new Size(160, 38),
+                Location = new Point(38, 368),
                 BackColor = ThemeHelper.Accent,
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Font      = ThemeHelper.FontBold,
-                Cursor    = Cursors.Hand
+                Font = ThemeHelper.FontBold,
+                Cursor = Cursors.Hand
             };
             btnPrint.FlatAppearance.BorderSize = 0;
             btnPrint.Click += (s, ev) =>
             {
                 try
                 {
-                    using var db       = new InventoryDbContext();
-                    var setting        = db.AppSettings.FirstOrDefault();
+                    using var db = new InventoryDbContext();
+                    var setting = db.AppSettings.FirstOrDefault();
                     string printerName = setting?.PrinterName ?? "";
-                    int lw = setting?.LabelWidthMm  ?? 62;
+                    int lw = setting?.LabelWidthMm ?? 62;
                     int lh = setting?.LabelHeightMm ?? 29;
 
                     using var pd = new PrintDocument();
@@ -899,14 +888,14 @@ namespace Inventory_Management_System.Forms
                     // Print ONLY the QR code — no text, no equipment details.
                     pd.PrintPage += (ps, pe) =>
                     {
-                        var g      = pe.Graphics!;
+                        var g = pe.Graphics!;
                         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
                         var bounds = pe.PageBounds;
-                        int qrSz   = Math.Min(bounds.Width - 10, bounds.Height - 10);
+                        int qrSz = Math.Min(bounds.Width - 10, bounds.Height - 10);
 
                         g.DrawImage(qrBitmap,
                             new Rectangle(
-                                bounds.X + (bounds.Width  - qrSz) / 2,
+                                bounds.X + (bounds.Width - qrSz) / 2,
                                 bounds.Y + (bounds.Height - qrSz) / 2,
                                 qrSz, qrSz));
 
@@ -915,29 +904,28 @@ namespace Inventory_Management_System.Forms
 
                     using var ppd = new PrintPreviewDialog
                     {
-                        Document      = pd,
-                        Width         = 600,
-                        Height        = 400,
+                        Document = pd,
+                        Width = 600,
+                        Height = 400,
                         StartPosition = FormStartPosition.CenterParent,
-                        Text          = "QR Code Print Preview"
+                        Text = "QR Code Print Preview"
                     };
                     ppd.ShowDialog();
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Printing failed: " + ex.Message, "Error",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    ToastHelper.Show(this, "Printing failed: " + ex.Message, ToastType.Error);
                 }
             };
 
             var btnClose = new Button
             {
-                Text      = "Close",
-                Size      = new Size(120, 38),
-                Location  = new Point(210, 368),
+                Text = "Close",
+                Size = new Size(120, 38),
+                Location = new Point(210, 368),
                 FlatStyle = FlatStyle.Flat,
-                Font      = ThemeHelper.FontDefault,
-                Cursor    = Cursors.Hand
+                Font = ThemeHelper.FontDefault,
+                Cursor = Cursors.Hand
             };
             btnClose.Click += (s, ev) => frm.Close();
 
@@ -955,32 +943,31 @@ namespace Inventory_Management_System.Forms
             using var ofd = new OpenFileDialog
             {
                 Filter = "Excel Files|*.xlsx;*.xls",
-                Title  = "Select Excel file to import"
+                Title = "Select Excel file to import"
             };
 
             if (ofd.ShowDialog() != DialogResult.OK) return;
 
             List<Equipment> items;
-            List<string>    parseErrors;
+            List<string> parseErrors;
             try
             {
                 (items, parseErrors) = ExcelHelper.ImportEquipment(ofd.FileName, _equipmentService);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
-                    $"Could not read file: {ex.Message}\n\nMake sure ClosedXML NuGet package is installed.",
-                    "Import Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ToastHelper.Show(this,
+                    $"Could not read file: {ex.Message}. Make sure ClosedXML NuGet package is installed.",
+                    ToastType.Error);
                 return;
             }
 
             if (items.Count == 0)
             {
                 string detail = parseErrors.Count > 0
-                    ? "\n\nRow-level issues:\n" + string.Join("\n", parseErrors.Take(10))
-                    : "\n\nMake sure row 1 has header columns 'name' and 'serial_number', and data starts from row 2.";
-                MessageBox.Show("No valid rows found in the Excel file." + detail,
-                    "Nothing to Import", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    ? " Row-level issues: " + string.Join("; ", parseErrors.Take(10))
+                    : " Make sure row 1 has header columns 'name' and 'serial_number', and data starts from row 2.";
+                ToastHelper.Show(this, "No valid rows found in the Excel file." + detail, ToastType.Info);
                 return;
             }
 
@@ -994,15 +981,14 @@ namespace Inventory_Management_System.Forms
 
             if (allErrors.Count == 0)
             {
-                MessageBox.Show($"✅ {result.Data} of {items.Count} records imported successfully.",
-                    "Import Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, $"✅ {result.Data} of {items.Count} records imported successfully.", ToastType.Success);
             }
             else
             {
-                MessageBox.Show(
-                    $"{result.Data} of {items.Count} records imported.\n\nDetails:\n" +
-                    string.Join("\n", allErrors.Take(20)),
-                    "Import Complete", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ToastHelper.Show(this,
+                    $"{result.Data} of {items.Count} records imported. Details: " +
+                    string.Join("; ", allErrors.Take(20)),
+                    ToastType.Warning);
             }
 
             LoadEquipment();
@@ -1032,7 +1018,7 @@ namespace Inventory_Management_System.Forms
                 LoadEquipment(txtSearch.Text.Trim());
             }
         }
-  
+
 
         private void btnNextPage_Click(object sender, EventArgs e)
         {

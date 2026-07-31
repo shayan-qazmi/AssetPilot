@@ -23,7 +23,7 @@ namespace Inventory_Management_System.Forms
             btnReturnReport = new System.Windows.Forms.Button();
             btnExportPDF = new System.Windows.Forms.Button();
             btnExportExcel = new System.Windows.Forms.Button();
-            lblWatermark = new System.Windows.Forms.Label();
+           
 
             panelTop.SuspendLayout();
             flowToolbar.SuspendLayout();
@@ -36,7 +36,7 @@ namespace Inventory_Management_System.Forms
             panelTop.MinimumSize = new System.Drawing.Size(0, 60);
             panelTop.Name = "panelTop";
             panelTop.Padding = new System.Windows.Forms.Padding(20, 12, 0, 0);
-            panelTop.Controls.Add(lblReportType);
+        
             panelTop.Controls.Add(flowToolbar);
            
 
@@ -98,16 +98,7 @@ namespace Inventory_Management_System.Forms
             btnExportExcel.Margin = new System.Windows.Forms.Padding(4, 0, 0, 4);
             btnExportExcel.Click += new System.EventHandler(btnExportExcel_Click);
 
-            // ── lblWatermark ────────────────────────────────────────────────
-            lblWatermark.Name = "lblWatermark";
-            lblWatermark.Text = "Developed by 📷@shayanqazmi";
-            lblWatermark.Font = new System.Drawing.Font("Segoe UI", 8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
-            lblWatermark.ForeColor = System.Drawing.Color.FromArgb(150, 150, 150);
-            lblWatermark.BackColor = System.Drawing.Color.Transparent;
-            lblWatermark.AutoSize = true;
-            lblWatermark.Dock = System.Windows.Forms.DockStyle.Bottom;
-            lblWatermark.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
-            lblWatermark.Padding = new System.Windows.Forms.Padding(0, 4, 12, 4);
+          
 
             // ── ReportsForm ─────────────────────────────────────────────────
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -116,7 +107,7 @@ namespace Inventory_Management_System.Forms
             Text = "Reports";
             Name = "ReportsForm";
 
-            Controls.Add(lblWatermark);
+       
             Controls.Add(panelTop);
 
             flowToolbar.ResumeLayout(false);
@@ -135,6 +126,6 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Button btnExportPDF;
         private System.Windows.Forms.Button btnExportExcel;
         private System.Windows.Forms.Label lblReportType;
-        private System.Windows.Forms.Label lblWatermark;
+     
     }
 }

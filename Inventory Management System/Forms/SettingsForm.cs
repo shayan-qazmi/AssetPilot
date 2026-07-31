@@ -488,7 +488,6 @@ namespace Inventory_Management_System.Forms
             sysCard.Controls.Add(MakeSysInfoLabel("Last backup", "", 24, 106, hideValue: true));
             sysCard.Controls.Add(_lblLastBackupValue);
 
-            sysCard.Controls.Add(MakeSysInfoLabel("Built by", "@shayanqazmi", 220, 106));
 
             var divider = new Panel
             {

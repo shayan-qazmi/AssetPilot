@@ -102,7 +102,7 @@ namespace Inventory_Management_System.Forms
 
             _lblWatermark = new Label
             {
-                Text = "Designed & Developed by\n🐙 @shayan-qazmi/📷 @shayanqazmi",
+                Text = "Designed and Developed by\n🐙@shayan-qazmi/📷@shayanqazmi",
                 Font = new Font("Segoe UI", 8f, FontStyle.Italic),
                 ForeColor = Color.FromArgb(160, 160, 160),
                 BackColor = Color.Transparent,

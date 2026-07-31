@@ -9,9 +9,9 @@ public partial class Allocation
 
     public int EquipmentId { get; set; }
 
-    public int EmployeeId { get; set; }
+    public int? EmployeeId { get; set; }
 
-    public int LocationId { get; set; }
+    public int? LocationId { get; set; }
 
     public DateTime AllocationDate { get; set; }
 
@@ -35,11 +35,11 @@ public partial class Allocation
 
     public virtual User? ApprovedByUser { get; set; }
 
-    public virtual Employee Employee { get; set; } = null!;
+    public virtual Employee? Employee { get; set; }
 
     public virtual Equipment Equipment { get; set; } = null!;
 
-    public virtual Location Location { get; set; } = null!;
+    public virtual Location? Location { get; set; }
 
     public virtual Allocation? PreviousAllocation { get; set; }
 
