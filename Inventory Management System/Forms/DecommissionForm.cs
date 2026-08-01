@@ -269,7 +269,7 @@ namespace Inventory_Management_System.Forms
             Font            = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
 
-            const int formWidth = 460;
+            const int formWidth = 500;
             const int margin = 28;
             int contentWidth = formWidth - margin * 2;
 
@@ -280,7 +280,7 @@ namespace Inventory_Management_System.Forms
             var lblTitle = new Label
             {
                 Text      = "🗑  Decommission Equipment",
-                Font      = new Font("Segoe UI", 15.5f, FontStyle.Bold),
+                Font      = new Font("Segoe UI", 14.5f, FontStyle.Bold),
                 ForeColor = Color.White,
                 AutoSize  = true,
                 Location  = new Point(margin, 18)

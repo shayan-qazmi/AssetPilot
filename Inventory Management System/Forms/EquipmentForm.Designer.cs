@@ -60,16 +60,17 @@ namespace Inventory_Management_System.Forms
             flowToolbar.AutoSizeMode  = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
             flowToolbar.Padding       = new System.Windows.Forms.Padding(8, 8, 8, 8);
             flowToolbar.Name          = "flowToolbar";
+            // New order: Add, Edit, Delete, Refresh, Export, Import Excel, Show QR, QR Sheet, Select All
+            // cmbSelectMode and cmbCategory are inserted after Select All by SetupToolbarLayout()
             flowToolbar.Controls.Add(btnAdd);
             flowToolbar.Controls.Add(btnEdit);
             flowToolbar.Controls.Add(btnDelete);
             flowToolbar.Controls.Add(btnRefresh);
             flowToolbar.Controls.Add(btnExport);
-            flowToolbar.Controls.Add(btnShowQR);
             flowToolbar.Controls.Add(btnImportExcel);
-            flowToolbar.Controls.Add(btnSelectAll);
-            // cmbSelectMode and cmbCategory are inserted here by SetupToolbarLayout()
+            flowToolbar.Controls.Add(btnShowQR);
             flowToolbar.Controls.Add(btnGenerateQRSheet);
+            flowToolbar.Controls.Add(btnSelectAll);
             flowToolbar.Controls.Add(txtSearch);
 
             btnAdd.Size   = new System.Drawing.Size(100, 32);
@@ -90,46 +91,51 @@ namespace Inventory_Management_System.Forms
             btnDelete.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnDelete.Click += btnDelete_Click;
 
-            btnRefresh.Size   = new System.Drawing.Size(100, 32);
+            btnRefresh.Size   = new System.Drawing.Size(105, 32);
             btnRefresh.Text   = "🔄 Refresh";
             btnRefresh.Name   = "btnRefresh";
             btnRefresh.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnRefresh.Click += btnRefresh_Click;
 
-            btnExport.Size   = new System.Drawing.Size(100, 32);
-            btnExport.Text   = "📥 Export";
+            // Export — secondary style (white bg, dark text)
+            btnExport.Size   = new System.Drawing.Size(105, 32);
+            btnExport.Text   = "📤 Export";
             btnExport.Name   = "btnExport";
             btnExport.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnExport.Click += btnExport_Click;
 
-            btnShowQR.Size   = new System.Drawing.Size(100, 32);
-            btnShowQR.Text   = "🔍 Show QR";
-            btnShowQR.Name   = "btnShowQR";
-            btnShowQR.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
-            btnShowQR.Click += btnShowQR_Click;
-
-            btnImportExcel.Size   = new System.Drawing.Size(120, 32);
+            // Import Excel — secondary style matching Export
+            btnImportExcel.Size   = new System.Drawing.Size(125, 32);
             btnImportExcel.Text   = "📥 Import Excel";
             btnImportExcel.Name   = "btnImportExcel";
             btnImportExcel.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnImportExcel.Click += btnImportExcel_Click;
 
-            btnSelectAll.Size   = new System.Drawing.Size(90, 32);
-            btnSelectAll.Text   = "Select All";
-            btnSelectAll.Name   = "btnSelectAll";
-            btnSelectAll.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
-            btnSelectAll.Click += btnSelectAll_Click;
+            // Show QR — QR-theme: white bg, dark gray border/text
+            btnShowQR.Size   = new System.Drawing.Size(110, 32);
+            btnShowQR.Text   = "⬛ Show QR";
+            btnShowQR.Name   = "btnShowQR";
+            btnShowQR.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnShowQR.Click += btnShowQR_Click;
 
-            btnGenerateQRSheet.Size   = new System.Drawing.Size(130, 32);
-            btnGenerateQRSheet.Text   = "🖨 QR Sheet";
+            // QR Sheet — QR-theme: identical styling to Show QR
+            btnGenerateQRSheet.Size   = new System.Drawing.Size(110, 32);
+            btnGenerateQRSheet.Text   = "📄 QR Sheet";
             btnGenerateQRSheet.Name   = "btnGenerateQRSheet";
             btnGenerateQRSheet.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnGenerateQRSheet.Click += btnGenerateQRSheet_Click;
 
-            txtSearch.Size            = new System.Drawing.Size(240, 26);
+            // Select All (replaced by cmbSelectMode dropdown in SetupToolbarLayout)
+            btnSelectAll.Size   = new System.Drawing.Size(95, 32);
+            btnSelectAll.Text   = "Select";
+            btnSelectAll.Name   = "btnSelectAll";
+            btnSelectAll.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnSelectAll.Click += btnSelectAll_Click;
+
+            txtSearch.Size            = new System.Drawing.Size(220, 26);
             txtSearch.PlaceholderText = "Search Equipment…";
             txtSearch.Name            = "txtSearch";
-            txtSearch.Margin          = new System.Windows.Forms.Padding(16, 7, 4, 0);
+            txtSearch.Margin          = new System.Windows.Forms.Padding(12, 7, 4, 0);
             txtSearch.TextChanged    += txtSearch_TextChanged;
 
             // ── panelBottom ───────────────────────────────────────────────

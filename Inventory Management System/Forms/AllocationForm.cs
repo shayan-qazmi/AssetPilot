@@ -28,6 +28,7 @@ namespace Inventory_Management_System.Forms
         private List<AllocationRow> _allSourceRows = new();
 
         private ComboBox cmbEquipmentFilter = null!;
+        private ComboBox cmbSelectMode = null!;          // Select All / Deselect All dropdown
         private Button btnEditReturn = null!;
         private string _activeStatusFilter = "All";
         private List<AllocationRow> _lastRenderedRows = new();
@@ -86,6 +87,7 @@ namespace Inventory_Management_System.Forms
             InitializeComponent();
             ApplyTheme();
             SetupEquipmentFilterDropdown();
+            SetupSelectModeDropdown();   // ← replaces plain btnSelectAll with dropdown
             SetupEditReturnButton();
             LoadAllocations();
             SetupSuggestions();
@@ -115,7 +117,7 @@ namespace Inventory_Management_System.Forms
                 Anchor = btnRefresh.Anchor,
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(94, 53, 177),
+                BackColor = ThemeHelper.Accent,
                 ForeColor = Color.White,
                 Font = ThemeHelper.FontBold,
                 DrawMode = DrawMode.OwnerDrawFixed,
@@ -132,7 +134,7 @@ namespace Inventory_Management_System.Forms
             {
                 if (e.Index < 0) return;
                 bool isHover = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-                using (var brush = new SolidBrush(isHover ? ThemeHelper.Header : Color.FromArgb(94, 53, 177)))
+                using (var brush = new SolidBrush(isHover ? ThemeHelper.Header : ThemeHelper.Accent))
                     e.Graphics.FillRectangle(brush, e.Bounds);
                 string text = cmbEquipmentFilter.Items[e.Index]?.ToString() ?? "";
                 using (var brush = new SolidBrush(Color.White))
@@ -158,7 +160,135 @@ namespace Inventory_Management_System.Forms
 
             var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
             flow.Controls.Add(cmbEquipmentFilter);
-            flow.Controls.SetChildIndex(cmbEquipmentFilter, flow.Controls.IndexOf(btnRefresh) + 1);
+            flow.Controls.SetChildIndex(cmbEquipmentFilter, flow.Controls.IndexOf(btnExport) + 1);
+        }
+
+        // ── Select dropdown (Select All / Deselect All) ─────────────────────
+        // Matches the Equipment screen's cmbSelectMode pattern.
+        private void SetupSelectModeDropdown()
+        {
+            cmbSelectMode = new ComboBox
+            {
+                Name          = "cmbSelectMode",
+                DropDownStyle = ComboBoxStyle.DropDown,
+                Text          = "Select",
+                Size          = new Size(95, 32),
+                Margin        = new Padding(4, 4, 0, 0),
+                Cursor        = Cursors.Hand,
+                FlatStyle     = FlatStyle.Flat,
+                BackColor     = ThemeHelper.Accent,
+                ForeColor     = Color.White,
+                Font          = ThemeHelper.FontBold,
+                DrawMode      = DrawMode.OwnerDrawFixed
+            };
+
+            // Prevent the user from typing into the header area
+            cmbSelectMode.KeyPress += (s, e) => e.Handled = true;
+
+            cmbSelectMode.Items.Add("Select ✔");
+            cmbSelectMode.Items.Add("Select All");
+            cmbSelectMode.Items.Add("Deselect All");
+
+            // Owner-draw items: green themed to match other Select dropdowns
+            cmbSelectMode.DrawItem += (s, e) =>
+            {
+                if (e.Index < 0) return;
+                bool isHighlighted = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+                using (var bg = new SolidBrush(isHighlighted ? ThemeHelper.Header : ThemeHelper.Accent))
+                    e.Graphics.FillRectangle(bg, e.Bounds);
+                string text = cmbSelectMode.Items[e.Index]?.ToString() ?? "";
+                using (var fg = new SolidBrush(Color.White))
+                {
+                    var sf = new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Near };
+                    e.Graphics.DrawString(text, cmbSelectMode.Font, fg, e.Bounds, sf);
+                }
+                e.DrawFocusRectangle();
+            };
+
+            cmbSelectMode.SelectedIndexChanged += (s, e) =>
+            {
+                var chosen = cmbSelectMode.SelectedItem?.ToString() ?? "";
+                if (chosen == "Select ✔")
+                {
+                    if (dgvAllocation.Columns.Contains("ColSelect"))
+                    {
+                        dgvAllocation.Columns["ColSelect"].Visible = true;
+                        dgvAllocation.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+                    }
+                    dgvAllocation.ClearSelection();
+                }
+                else if (chosen == "Select All")
+                {
+                    if (dgvAllocation.Columns.Contains("ColSelect") && dgvAllocation.Columns["ColSelect"].Visible)
+                    {
+                        foreach (DataGridViewRow r in dgvAllocation.Rows)
+                            r.Cells["ColSelect"].Value = true;
+                    }
+                    else
+                    {
+                        dgvAllocation.SelectAll();
+                    }
+                }
+                else if (chosen == "Deselect All")
+                {
+                    if (dgvAllocation.Columns.Contains("ColSelect") && dgvAllocation.Columns["ColSelect"].Visible)
+                    {
+                        foreach (DataGridViewRow r in dgvAllocation.Rows)
+                            r.Cells["ColSelect"].Value = false;
+                    }
+                    dgvAllocation.ClearSelection();
+                    dgvAllocation.CurrentCell = null;
+                }
+                
+                // Reset the dropdown header text so it reads "Select" again
+                cmbSelectMode.SelectedIndex = -1;
+                cmbSelectMode.Text = "Select";
+                UpdateActionButtonsForSelection();
+            };
+
+            var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
+            flow.Controls.Add(cmbSelectMode);
+            // Insert right after the (hidden) btnSelectAll placeholder
+            flow.Controls.SetChildIndex(cmbSelectMode, flow.Controls.IndexOf(btnSelectAll) + 1);
+
+            // Dynamically append Checkbox Column for manual selection (visibly hidden by default)
+            if (!dgvAllocation.Columns.Contains("ColSelect"))
+            {
+                var chkCol = new DataGridViewCheckBoxColumn
+                {
+                    Name = "ColSelect",
+                    HeaderText = "",
+                    Width = 40,
+                    ReadOnly = false,
+                    Visible = false,
+                    AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+                };
+                dgvAllocation.Columns.Add(chkCol);
+                dgvAllocation.Columns["ColSelect"].DisplayIndex = 0;
+
+                // Configure grid to allow editing the Checkbox column while others are read-only
+                dgvAllocation.ReadOnly = false;
+                foreach (DataGridViewColumn col in dgvAllocation.Columns)
+                {
+                    if (col.Name == "ColSelect")
+                        col.ReadOnly = false;
+                    else
+                        col.ReadOnly = true;
+                }
+
+                // Immediately commit edits when clicking the checkbox cell so value updates instantly
+                dgvAllocation.CurrentCellDirtyStateChanged += (s, ev) =>
+                {
+                    if (dgvAllocation.CurrentCell is DataGridViewCheckBoxCell)
+                        dgvAllocation.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                };
+
+                dgvAllocation.CellValueChanged += (s, ev) =>
+                {
+                    if (ev.ColumnIndex >= 0 && dgvAllocation.Columns[ev.ColumnIndex].Name == "ColSelect")
+                        UpdateActionButtonsForSelection();
+                };
+            }
         }
 
         // Equipment with no active Allocation and no active Check-Out —
@@ -618,32 +748,73 @@ namespace Inventory_Management_System.Forms
             UpdateActionButtonsForSelection();
         }
 
+        // ── Selection helpers ───────────────────────────────────────────────
+
+        /// <summary>Returns the single selected row, or null if 0 or multiple rows are selected.</summary>
         private AllocationRow? GetSelectedRow()
         {
-            if (dgvAllocation.SelectedRows.Count == 0) return null;
-            if (!int.TryParse(dgvAllocation.SelectedRows[0].Cells["AllocationID"].Value?.ToString(), out int id)) return null;
-            return _lastRenderedRows.FirstOrDefault(r => r.Id == id);
+            var rows = GetSelectedRows();
+            if (rows.Count != 1) return null;
+            return rows[0];
         }
 
-        private Allocation? GetSelectedAllocation()
+        /// <summary>Returns ALL currently selected rows (1 or more).</summary>
+        private List<AllocationRow> GetSelectedRows()
         {
-            return GetSelectedRow()?.AllocationRef;
+            var result = new List<AllocationRow>();
+            bool useCheckbox = dgvAllocation.Columns.Contains("ColSelect") && dgvAllocation.Columns["ColSelect"].Visible;
+
+            if (useCheckbox)
+            {
+                foreach (DataGridViewRow gridRow in dgvAllocation.Rows)
+                {
+                    if (Convert.ToBoolean(gridRow.Cells["ColSelect"].Value) == true)
+                    {
+                        if (!int.TryParse(gridRow.Cells["AllocationID"].Value?.ToString(), out int id)) continue;
+                        var row = _lastRenderedRows.FirstOrDefault(r => r.Id == id);
+                        if (row != null) result.Add(row);
+                    }
+                }
+            }
+            else
+            {
+                foreach (DataGridViewRow gridRow in dgvAllocation.SelectedRows)
+                {
+                    if (!int.TryParse(gridRow.Cells["AllocationID"].Value?.ToString(), out int id)) continue;
+                    var row = _lastRenderedRows.FirstOrDefault(r => r.Id == id);
+                    if (row != null) result.Add(row);
+                }
+            }
+            return result;
         }
+
+        private Allocation? GetSelectedAllocation() => GetSelectedRow()?.AllocationRef;
 
         private void UpdateActionButtonsForSelection()
         {
-            var row = GetSelectedRow();
-            bool isCheckInOutSelected = row != null && row.AllocationRef == null;
-            bool nothingSelected = row == null;
+            var rows = GetSelectedRows();
+            bool none             = rows.Count == 0;
+            // A Check-In/Out row has no AllocationRef — disable real-allocation actions for those
+            bool anyCheckInOut    = rows.Any(r => r.AllocationRef == null && r.Source == "Check In/Out");
+            bool allCheckInOut    = rows.Count > 0 && rows.All(r => r.AllocationRef == null);
 
-            btnApprove.Enabled = !isCheckInOutSelected;
-            btnReturn.Enabled = !isCheckInOutSelected;
-            btnDelete.Enabled = !isCheckInOutSelected;
+            // Approve: enabled when there is at least one pending allocation selected
+            btnApprove.Enabled = !none && !allCheckInOut &&
+                                 rows.Any(r => r.AllocationRef?.Status == "pending");
 
-            // Editing the return date only makes sense for a real Allocation record
-            // that hasn't already been returned.
-            btnEditReturn.Enabled = !nothingSelected && !isCheckInOutSelected &&
-                !string.Equals(row?.Status, "returned", StringComparison.OrdinalIgnoreCase);
+            // Return: enabled when there is at least one approved/overdue allocation selected
+            btnReturn.Enabled = !none && !allCheckInOut &&
+                                rows.Any(r => r.AllocationRef != null &&
+                                             r.AllocationRef.Status != "returned");
+
+            // Delete: enabled when at least one non-approved allocation selected
+            btnDelete.Enabled = !none && !allCheckInOut &&
+                                rows.Any(r => r.AllocationRef?.Status != "approved");
+
+            // Edit Return: single non-returned allocation only
+            var single = rows.Count == 1 ? rows[0] : null;
+            btnEditReturn.Enabled = single != null && single.AllocationRef != null &&
+                                   !string.Equals(single.Status, "returned", StringComparison.OrdinalIgnoreCase);
         }
 
         private void btnEditReturn_Click(object? sender, EventArgs e)
@@ -716,35 +887,82 @@ namespace Inventory_Management_System.Forms
                 ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
         }
 
+        // ── Bulk-aware action handlers ──────────────────────────────────────
+
         private void btnApprove_Click(object sender, EventArgs e)
         {
-            var alloc = GetSelectedAllocation();
-            if (alloc == null) { ToastHelper.Show(this, "Select an allocation first.", ToastType.Info); return; }
-            if (alloc.Status != "pending") { ToastHelper.Show(this, "Only pending allocations can be approved.", ToastType.Warning); return; }
+            var rows = GetSelectedRows()
+                .Where(r => r.AllocationRef?.Status == "pending")
+                .ToList();
 
+            if (rows.Count == 0)
+            {
+                ToastHelper.Show(this, "Select one or more pending allocations to approve.", ToastType.Info);
+                return;
+            }
+
+            // Single-row: use original detailed confirm flow
+            if (rows.Count == 1)
+            {
+                ApproveSingle(rows[0].AllocationRef!);
+                return;
+            }
+
+            if (MessageBox.Show($"Approve {rows.Count} pending allocations?",
+                "Confirm Bulk Approve", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            int ok = 0, fail = 0;
+            foreach (var row in rows)
+            {
+                try
+                {
+                    using var db = new InventoryDbContext();
+                    bool isCheckedOut = db.Transactions.Any(t =>
+                        t.EquipmentId == row.AllocationRef!.EquipmentId &&
+                        (t.Status == "Pending" || t.Status == "Overdue"));
+                    if (isCheckedOut) { fail++; continue; }
+
+                    var a = db.Allocations.Include(x => x.Equipment)
+                                          .FirstOrDefault(x => x.Id == row.AllocationRef!.Id);
+                    if (a == null) { fail++; continue; }
+                    a.Status = "approved";
+                    a.ApprovalDate = DateTime.UtcNow;
+                    a.ApprovedByUserId = 1;
+                    if (a.Equipment != null) a.Equipment.CurrentStatus = "allocated";
+                    db.SaveChanges();
+                    _audit.Log(a.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved");
+                    ok++;
+                }
+                catch { fail++; }
+            }
+
+            ToastHelper.Show(this,
+                fail == 0 ? $"{ok} allocation(s) approved."
+                          : $"{ok} approved, {fail} failed (checked-out or error).",
+                fail == 0 ? ToastType.Success : ToastType.Warning);
+            LoadAllocations();
+        }
+
+        private void ApproveSingle(Allocation alloc)
+        {
             try
             {
                 using var db = new InventoryDbContext();
-
                 bool isCheckedOut = db.Transactions.Any(t =>
                     t.EquipmentId == alloc.EquipmentId &&
                     (t.Status == "Pending" || t.Status == "Overdue"));
-
                 if (isCheckedOut)
                 {
-                    ToastHelper.Show(this, "This equipment is currently checked out via Check In/Out and cannot be approved until it is checked back in.", ToastType.Warning);
+                    ToastHelper.Show(this, "This equipment is currently checked out and cannot be approved until it is checked back in.", ToastType.Warning);
                     return;
                 }
-
-                var a = db.Allocations
-                    .Include(x => x.Equipment)
-                    .FirstOrDefault(x => x.Id == alloc.Id);
+                var a = db.Allocations.Include(x => x.Equipment).FirstOrDefault(x => x.Id == alloc.Id);
                 if (a == null) return;
                 a.Status = "approved";
                 a.ApprovalDate = DateTime.UtcNow;
                 a.ApprovedByUserId = 1;
-                if (a.Equipment != null)
-                    a.Equipment.CurrentStatus = "allocated";
+                if (a.Equipment != null) a.Equipment.CurrentStatus = "allocated";
                 db.SaveChanges();
                 _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved");
                 LoadAllocations();
@@ -757,50 +975,99 @@ namespace Inventory_Management_System.Forms
 
         private void btnReturn_Click(object sender, EventArgs e)
         {
-            var alloc = GetSelectedAllocation();
-            if (alloc == null) { ToastHelper.Show(this, "Select an allocation first.", ToastType.Info); return; }
-            if (alloc.Status == "returned") { ToastHelper.Show(this, "This allocation is already returned.", ToastType.Warning); return; }
+            var rows = GetSelectedRows()
+                .Where(r => r.AllocationRef != null && r.AllocationRef.Status != "returned")
+                .ToList();
 
-            if (MessageBox.Show($"Return '{alloc.Equipment?.Name}' from '{alloc.Employee?.FullName}'?",
-    "Confirm Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-
-            var result = _allocationService.Deallocate(alloc.Id);
-            if (result.Success)
+            if (rows.Count == 0)
             {
-                _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store");
-                LoadAllocations();
+                ToastHelper.Show(this, "Select one or more active allocations to return.", ToastType.Info);
+                return;
             }
-            else
-                ToastHelper.Show(this, "Return Failed: " + result.ErrorMessage, ToastType.Error);
+
+            if (rows.Count == 1)
+            {
+                var alloc = rows[0].AllocationRef!;
+                if (MessageBox.Show($"Return '{alloc.Equipment?.Name}' from '{alloc.Employee?.FullName}'?",
+                    "Confirm Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                var res = _allocationService.Deallocate(alloc.Id);
+                if (res.Success) { _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store"); LoadAllocations(); }
+                else ToastHelper.Show(this, "Return Failed: " + res.ErrorMessage, ToastType.Error);
+                return;
+            }
+
+            if (MessageBox.Show($"Return {rows.Count} allocations?",
+                "Confirm Bulk Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            int ok = 0, fail = 0;
+            foreach (var row in rows)
+            {
+                var res = _allocationService.Deallocate(row.AllocationRef!.Id);
+                if (res.Success) { _audit.Log(row.AllocationRef.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store"); ok++; }
+                else fail++;
+            }
+            ToastHelper.Show(this,
+                fail == 0 ? $"{ok} allocation(s) returned."
+                          : $"{ok} returned, {fail} failed.",
+                fail == 0 ? ToastType.Success : ToastType.Warning);
+            LoadAllocations();
         }
 
         private void btnDelete_Click(object sender, EventArgs e)
         {
-            var alloc = GetSelectedAllocation();
-            if (alloc == null) { ToastHelper.Show(this, "Select an allocation first.", ToastType.Info); return; }
-            if (alloc.Status == "approved") { ToastHelper.Show(this, "Cannot delete an approved allocation. Return it first.", ToastType.Warning); return; }
+            var rows = GetSelectedRows()
+                .Where(r => r.AllocationRef != null && r.AllocationRef.Status != "approved")
+                .ToList();
 
-            if (MessageBox.Show("Delete this allocation record?", "Confirm Delete",
-     MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            if (rows.Count == 0)
+            {
+                ToastHelper.Show(this, "Select one or more non-approved allocations to delete.", ToastType.Info);
+                return;
+            }
+
+            string msg = rows.Count == 1
+                ? "Delete this allocation record?"
+                : $"Delete {rows.Count} allocation records?";
+
+            if (MessageBox.Show(msg, "Confirm Delete",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
 
-            try
+            int ok = 0, fail = 0;
+            foreach (var row in rows)
             {
-                using var db = new InventoryDbContext();
-                var a = db.Allocations.FirstOrDefault(x => x.Id == alloc.Id);
-                if (a != null) { db.Allocations.Remove(a); db.SaveChanges(); }
-                LoadAllocations();
+                try
+                {
+                    using var db = new InventoryDbContext();
+                    var a = db.Allocations.FirstOrDefault(x => x.Id == row.AllocationRef!.Id);
+                    if (a != null) { db.Allocations.Remove(a); db.SaveChanges(); ok++; }
+                    else fail++;
+                }
+                catch { fail++; }
             }
-            catch (Exception ex)
-            {
-                ToastHelper.Show(this, "Delete failed: " + ex.Message, ToastType.Error);
-            }
+            if (fail > 0)
+                ToastHelper.Show(this, $"{ok} deleted, {fail} failed.", ToastType.Warning);
+            LoadAllocations();
         }
 
         private void btnRefresh_Click(object sender, EventArgs e)
         {
             txtSearch.Text = string.Empty;
             _currentPage = 1;
+
+            if (cmbSelectMode != null)
+            {
+                cmbSelectMode.SelectedIndex = -1;
+                cmbSelectMode.Text = "Select";
+            }
+
+            if (dgvAllocation.Columns.Contains("ColSelect"))
+                dgvAllocation.Columns["ColSelect"].Visible = false;
+            dgvAllocation.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+
+            dgvAllocation.ClearSelection();
+
             LoadAllocations();
         }
 
