@@ -76,6 +76,9 @@ namespace Inventory_Management_System.Forms
 
             public Allocation? AllocationRef { get; set; }
             public int? TransactionId { get; set; }
+
+            public int? EmployeeId { get; set; }
+            public int? LocationId { get; set; }
         }
 
         public AllocationForm()
@@ -107,15 +110,16 @@ namespace Inventory_Management_System.Forms
             {
                 Name = "cmbEquipmentFilter",
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Size = new Size(150, 32),
-                Margin = new Padding(4, 4, 0, 0),
+                Size = new Size(150, btnRefresh.Height),
+                Margin = btnRefresh.Margin,   // ← match a real toolbar sibling's margin
+                Anchor = btnRefresh.Anchor,
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(94, 53, 177),
                 ForeColor = Color.White,
                 Font = ThemeHelper.FontBold,
                 DrawMode = DrawMode.OwnerDrawFixed,
-                DropDownWidth = 230
+                DropDownWidth = 260
             };
 
             cmbEquipmentFilter.Items.Add("Equipment: All");
@@ -165,8 +169,9 @@ namespace Inventory_Management_System.Forms
             btnEditReturn = new Button
             {
                 Text = "✏  Edit",
-                Size = btnApprove.Size,           // ← match Approve's exact size instead of guessing
-                Margin = new Padding(4, 4, 0, 0)
+                Size = btnApprove.Size,
+                Margin = btnApprove.Margin,   // ← match Approve's actual margin, not a guessed one
+                Anchor = btnApprove.Anchor    // ← match Approve's anchor so vertical alignment is identical
             };
             ThemeHelper.StyleButton(btnEditReturn, ThemeHelper.Warning);
             btnEditReturn.Click += btnEditReturn_Click;
@@ -874,7 +879,10 @@ namespace Inventory_Management_System.Forms
     }
 
     // ── Add Allocation Dialog ──────────────────────────────────────────────
-    // ── Add Allocation Dialog ──────────────────────────────────────────────
+    // Two-column, fixed-height, non-scrolling layout — matches the visual
+    // language of the Add Equipment dialog (two independent columns under
+    // one header, sized to fit entirely on a small laptop screen with no
+    // scrollbar, so the DateTimePicker's calendar popup is never clipped).
     public class AddAllocationForm : Form
     {
         public Allocation? Result { get; private set; }
@@ -889,8 +897,10 @@ namespace Inventory_Management_System.Forms
 
         private ComboBox cmbEquipment = null!;
         private ComboBox cmbLocation = null!;
+        private ComboBox cmbRoom = null!;
         private DateTimePicker dtpExpected = null!;
         private CheckBox chkExpected = null!;
+        private Label lblExpectedHint = null!;
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
@@ -900,17 +910,36 @@ namespace Inventory_Management_System.Forms
         private EntitySuggestHelper<Equipment>? _equipmentSuggest;
         private EntitySuggestHelper<Employee>? _employeeSuggest;
 
-        private Panel _body = null!;
-
         private bool _suppressEquipmentSync = false;
 
-        // Wrapper so the location dropdown can offer a genuine "no location"
-        // option — binding directly to List<Location> always has something
-        // selected, which made "location optional" impossible before.
-        private class LocationOption
+        private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
+        private static readonly Color CardBorder = Color.FromArgb(224, 224, 224);
+
+        // Location is now picked in two steps: first the location NAME
+        // (deduped — a name can have several rows, one per room), then the
+        // specific ROOM within that name. The Room dropdown's selected Id
+        // is the actual Location row Id that gets saved on the Allocation.
+
+        private class LocationNameOption
         {
-            public int? Id { get; set; }
-            public string LocationName { get; set; } = "";
+            public string? Name { get; set; }        // null = "no location" sentinel
+            public string DisplayName { get; set; } = "";
+        }
+
+        private class RoomOption
+        {
+            public int Id { get; set; }
+            public string Display { get; set; } = "";
+        }
+
+        private static string RoomOptionDisplay(Location l)
+        {
+            bool hasNum = !string.IsNullOrWhiteSpace(l.RoomNumber);
+            bool hasRoomName = !string.IsNullOrWhiteSpace(l.RoomName);
+            if (!hasNum && !hasRoomName) return "— Unspecified room —";
+            string room = hasNum ? $"Room {l.RoomNumber}" : "";
+            if (hasRoomName) room = string.IsNullOrEmpty(room) ? l.RoomName! : $"{room} ({l.RoomName})";
+            return room;
         }
 
         public AddAllocationForm(List<Equipment> equipment, List<Employee> employees, List<Location> locations,
@@ -948,123 +977,147 @@ namespace Inventory_Management_System.Forms
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
+            AutoScroll = false;
+            Font = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
-            ClientSize = new Size(480, 600);
 
-            // ── Header ──────────────────────────────────────────────
-            var pnlHeader = new Panel
+            const int formWidth = 820;
+            const int margin = 28;
+            const int colGap = 34;
+            int colWidth = (formWidth - margin * 2 - colGap) / 2;
+            int leftX = margin;
+            int rightX = margin + colWidth + colGap;
+
+            // ── Header ──
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = ThemeHelper.Header };
+            Controls.Add(pnlHeader);
+
+            var lblTitle = new Label
             {
-                Dock = DockStyle.Top,
-                Height = 64,
-                BackColor = Color.FromArgb(94, 53, 177)
-            };
-            pnlHeader.Controls.Add(new Label
-            {
-                Text = "New Allocation",
-                Font = new Font("Segoe UI", 14f, FontStyle.Bold),
+                Text = "🖥  New Allocation",
+                Font = new Font("Segoe UI", 15.5f, FontStyle.Bold),
                 ForeColor = Color.White,
                 AutoSize = true,
-                Location = new Point(24, 10)
-            });
-            pnlHeader.Controls.Add(new Label
-            {
-                Text = "Assign equipment to an employee, a location, or both",
-                Font = new Font("Segoe UI", 9f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(230, 224, 245),
-                AutoSize = true,
-                Location = new Point(24, 39)
-            });
-
-            // ── Footer (always visible, independent of scroll) ───────
-            var pnlFooter = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 74,
-                BackColor = Color.FromArgb(249, 250, 251)
+                Location = new Point(margin, 18)
             };
-            pnlFooter.Controls.Add(new Panel { Dock = DockStyle.Top, Height = 1, BackColor = Color.FromArgb(224, 224, 224) });
+            pnlHeader.Controls.Add(lblTitle);
 
-            btnCancel = new Button { Text = "Cancel", Size = new Size(150, 40) };
+            var subtitleFont = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            string subtitleText = "Assign this equipment to an employee, a location, or both";
+            var subtitleSize = TextRenderer.MeasureText(
+                subtitleText, subtitleFont, new Size(formWidth - margin * 2, int.MaxValue), TextFormatFlags.WordBreak);
+            var lblSubtitle = new Label
+            {
+                Text = subtitleText,
+                Font = subtitleFont,
+                ForeColor = Color.FromArgb(235, 245, 233),
+                AutoSize = false,
+                Size = new Size(formWidth - margin * 2, subtitleSize.Height + 4),
+                Location = new Point(margin, lblTitle.Bottom + 8)
+            };
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Height = lblSubtitle.Bottom + 20;
+
+            // ── Body ──
+            var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10), AutoScroll = false };
+            Controls.Add(body);
+
+            // ── Footer — buttons centered ──
+            const int footerHeight = 72;
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
+
+            btnCancel = new Button { Text = "Cancel", Size = new Size(140, 42) };
             ThemeHelper.StyleSecondaryButton(btnCancel);
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
 
-            btnSave = new Button { Text = "✓  Allocate", Size = new Size(180, 40) };
+            btnSave = new Button { Text = "✓  Allocate", Size = new Size(190, 42) };
             ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
 
+            int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
+            int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
+            btnCancel.Location = new Point(buttonsStartX, 15);
+            btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
+
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnSave);
-            btnSave.Location = new Point(ClientSize.Width - btnSave.Width - 24, 17);
-            btnCancel.Location = new Point(btnSave.Left - btnCancel.Width - 12, 17);
-
-            // ── Scrollable body ────────────────────────────────────
-            _body = new Panel { Dock = DockStyle.Fill, AutoScroll = true };
-
-            Controls.Add(pnlHeader);
             Controls.Add(pnlFooter);
-            Controls.Add(_body);
 
-            int y = 20;
-
-            Label SectionHeader(string text)
+            // ── Local layout helpers ──
+            void SectionHeader(int x, int width, ref int y, string title, string? description)
             {
-                _body.Controls.Add(new Panel
+                body.Controls.Add(new Panel { BackColor = ThemeHelper.Header, Size = new Size(4, 22), Location = new Point(x, y) });
+                body.Controls.Add(new Label
                 {
-                    BackColor = Color.FromArgb(94, 53, 177),
-                    Size = new Size(4, 20),
-                    Location = new Point(20, y + 1)
-                });
-                var lbl = new Label
-                {
-                    Text = text,
-                    Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+                    Text = title,
+                    Font = new Font("Segoe UI", 12f, FontStyle.Bold),
                     ForeColor = ThemeHelper.TextPrimary,
                     AutoSize = true,
-                    Location = new Point(32, y)
-                };
-                _body.Controls.Add(lbl);
-                y += 32;
-                return lbl;
+                    Location = new Point(x + 12, y - 1)
+                });
+                y += 28;
+
+                if (description != null)
+                {
+                    var font = new Font("Segoe UI", 8.5f, FontStyle.Regular);
+                    var sz = TextRenderer.MeasureText(description, font, new Size(width - 12, int.MaxValue), TextFormatFlags.WordBreak);
+                    body.Controls.Add(new Label
+                    {
+                        Text = description,
+                        Font = font,
+                        ForeColor = MutedText,
+                        AutoSize = false,
+                        Size = new Size(width - 12, sz.Height + 4),
+                        Location = new Point(x + 12, y)
+                    });
+                    y += sz.Height + 4 + 10;
+                }
             }
 
-            void Hint(string text)
+            void FieldLabel(int x, ref int y, string label, bool required = false)
             {
-                var lbl = new Label
+                body.Controls.Add(new Label
+                {
+                    Text = required ? $"{label}  *" : label,
+                    Location = new Point(x, y),
+                    AutoSize = true,
+                    Font = ThemeHelper.FontBold,
+                    ForeColor = ThemeHelper.TextPrimary
+                });
+                y += 20;
+            }
+
+            void PlaceControl(int x, int width, ref int y, Control ctrl, int height = 30)
+            {
+                ctrl.Location = new Point(x, y);
+                ctrl.Width = width;
+                if (ctrl.Height < height) ctrl.Height = height;
+                body.Controls.Add(ctrl);
+                y += ctrl.Height + 4;
+            }
+
+            void Hint(int x, int width, ref int y, string text)
+            {
+                var font = new Font("Segoe UI", 7.8f, FontStyle.Italic);
+                var sz = TextRenderer.MeasureText(text, font, new Size(width, int.MaxValue), TextFormatFlags.WordBreak);
+                body.Controls.Add(new Label
                 {
                     Text = text,
-                    Font = new Font("Segoe UI", 8f, FontStyle.Italic),
-                    ForeColor = ThemeHelper.TextSecondary,
+                    Font = font,
+                    ForeColor = MutedText,
                     AutoSize = false,
-                    MaximumSize = new Size(420, 0),
-                    Size = new Size(420, 32),
-                    Location = new Point(20, y)
-                };
-                _body.Controls.Add(lbl);
-                int textH = TextRenderer.MeasureText(text, lbl.Font, new Size(420, int.MaxValue), TextFormatFlags.WordBreak).Height;
-                lbl.Height = textH;
-                y += textH + 10;
+                    Size = new Size(width, sz.Height + 4),
+                    Location = new Point(x, y)
+                });
+                y += sz.Height + 4 + 8;
             }
 
-            Control Field(string label, Control ctrl, string? hint = null, bool required = false)
-            {
-                var lbl = new Label { Text = required ? $"{label} *" : label, Location = new Point(20, y), AutoSize = true };
-                ThemeHelper.StyleLabel(lbl, bold: true);
-                _body.Controls.Add(lbl);
-                y += 22;
+            int yLeft = 20;
+            int yRight = 20;
 
-                ctrl.Location = new Point(20, y);
-                ctrl.Width = 400;
-                _body.Controls.Add(ctrl);
-                y += ctrl.Height + 6;
-
-                if (hint != null) Hint(hint);
-                else y += 8;
-
-                return ctrl;
-            }
-
-            // ── Equipment section ──────────────────────────────────
-            SectionHeader("Equipment");
+            // ══════════════════════ LEFT COLUMN — Equipment ══════════════════════
+            SectionHeader(leftX, colWidth, ref yLeft, "🖥  Equipment", null);
 
             cmbCategoryFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             var categoryNames = new CategoryService().GetAll().Data?.Select(c => c.Name)
@@ -1079,17 +1132,23 @@ namespace Inventory_Management_System.Forms
                              .OrderBy(c => c, StringComparer.OrdinalIgnoreCase));
             cmbCategoryFilter.DataSource = allCategoryOptions;
             ThemeHelper.StyleComboBox(cmbCategoryFilter);
-            Field("Filter by Category", cmbCategoryFilter, "Narrows the equipment list below — optional");
+            FieldLabel(leftX, ref yLeft, "Filter by Category");
+            PlaceControl(leftX, colWidth, ref yLeft, cmbCategoryFilter);
+            Hint(leftX, colWidth, ref yLeft, "Narrows the equipment list below — optional");
 
-            txtEquipmentSearch = new TextBox { PlaceholderText = "Search by equipment code, name, or serial…" };
+            txtEquipmentSearch = new TextBox { PlaceholderText = "Search by code, name, or serial…" };
             ThemeHelper.StyleTextBox(txtEquipmentSearch);
-            Field("Find Equipment", txtEquipmentSearch, "Start typing to search, then pick from the suggestions", required: true);
+            FieldLabel(leftX, ref yLeft, "Find Equipment", required: true);
+            PlaceControl(leftX, colWidth, ref yLeft, txtEquipmentSearch);
+            Hint(leftX, colWidth, ref yLeft, "Type to search, then pick a suggestion");
 
             cmbEquipment = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbEquipment.DisplayMember = "DisplayText";
             cmbEquipment.ValueMember = "Id";
             ThemeHelper.StyleComboBox(cmbEquipment);
-            Field("Select Equipment", cmbEquipment, "Only unallocated, in-store equipment is listed", required: true);
+            FieldLabel(leftX, ref yLeft, "Select Equipment", required: true);
+            PlaceControl(leftX, colWidth, ref yLeft, cmbEquipment);
+            Hint(leftX, colWidth, ref yLeft, "Only unallocated, in-store equipment is listed");
 
             cmbEquipment.SelectedIndexChanged += CmbEquipment_SelectedIndexChanged;
 
@@ -1122,14 +1181,65 @@ namespace Inventory_Management_System.Forms
                     ? (eq.Category ?? "—") : $"S/N: {eq.SerialNumber}");
             _equipmentSuggest.LoadItems(_equipment);
 
-            // ── Assign To section ───────────────────────────────────
-            y += 6;
-            SectionHeader("Assign To");
-            Hint("Choose an employee, a location, or both — at least one is required.");
+            // ── Return Details now lives here, under Select Equipment ──
+            yLeft += 6;
+            SectionHeader(leftX, colWidth, ref yLeft, "📅  Return Details", null);
+
+            chkExpected = new CheckBox
+            {
+                Text = "Set an expected return date",
+                Location = new Point(leftX, yLeft),
+                AutoSize = true,
+                Font = ThemeHelper.FontDefault,
+                ForeColor = ThemeHelper.TextPrimary
+            };
+            body.Controls.Add(chkExpected);
+            yLeft += 28;
+
+            dtpExpected = new DateTimePicker
+            {
+                Location = new Point(leftX, yLeft),
+                Width = colWidth,
+                Height = 30,
+                Format = DateTimePickerFormat.Long,
+                ShowUpDown = false,
+                Enabled = false,
+                MinDate = DateTime.Today.AddDays(1),
+                Value = DateTime.Today.AddDays(1)
+            };
+            body.Controls.Add(dtpExpected);
+            yLeft += dtpExpected.Height + 6;
+
+            lblExpectedHint = new Label
+            {
+                Text = "Check the box above, then click the field to pick a date",
+                Font = new Font("Segoe UI", 7.8f, FontStyle.Italic),
+                ForeColor = MutedText,
+                AutoSize = true,
+                Location = new Point(leftX, yLeft)
+            };
+            body.Controls.Add(lblExpectedHint);
+            yLeft += 18;
+
+            chkExpected.CheckedChanged += (s, e) =>
+            {
+                dtpExpected.Enabled = chkExpected.Checked;
+                lblExpectedHint.Text = chkExpected.Checked
+                    ? "Click the field or its dropdown arrow to open the calendar"
+                    : "Check the box above to enable this field";
+                lblExpectedHint.ForeColor = chkExpected.Checked ? ThemeHelper.Header : MutedText;
+                if (chkExpected.Checked) dtpExpected.Focus();
+            };
+
+            // ══════════════════════ RIGHT COLUMN — Assign To ══════════════════════
+            SectionHeader(rightX, colWidth, ref yRight, "👤  Assign To",
+                "Choose an employee, a location, or both — at least one is required.");
 
             txtEmployeeSearch = new TextBox { PlaceholderText = "Search by employee code or name…" };
             ThemeHelper.StyleTextBox(txtEmployeeSearch);
-            Field("Find Employee", txtEmployeeSearch, "Optional — leave blank if this equipment isn't tied to a person");
+            FieldLabel(rightX, ref yRight, "Find Employee");
+            PlaceControl(rightX, colWidth, ref yRight, txtEmployeeSearch);
+            Hint(rightX, colWidth, ref yRight, "Optional — leave blank if not tied to a person");
 
             _employeeSuggest = new EntitySuggestHelper<Employee>(
                 textBox: txtEmployeeSearch,
@@ -1147,55 +1257,60 @@ namespace Inventory_Management_System.Forms
                 line2Selector: emp => emp.Department ?? "—");
             _employeeSuggest.LoadItems(_employees);
 
-            // Clearing the search box clears the selected employee too, so
-            // "optional" actually behaves as optional once text is removed.
             txtEmployeeSearch.TextChanged += (s, e) =>
             {
                 if (string.IsNullOrWhiteSpace(txtEmployeeSearch.Text))
                     _selectedEmployeeId = null;
             };
-            cmbLocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbLocation.DisplayMember = "LocationName";
-            cmbLocation.ValueMember = "Id";
-            var locationOptions = new List<LocationOption> { new LocationOption { Id = null, LocationName = "— No location —" } };
-            locationOptions.AddRange(_locations.Select(l => new LocationOption { Id = l.Id, LocationName = l.LocationName }));
-            cmbLocation.DataSource = locationOptions;
-            ThemeHelper.StyleComboBox(cmbLocation);
-            Field("Location", cmbLocation, "Optional — where this equipment will be kept");
-            if (cmbLocation.Items.Count > 0) cmbLocation.SelectedIndex = 0;   // ← moved here, after it's parented
 
-            // ── Return Details section ──────────────────────────────
-            y += 6;
-            SectionHeader("Return Details");
-
-            chkExpected = new CheckBox
+            var lblOr = new Label
             {
-                Text = "Set expected return date",
-                Location = new Point(20, y),
+                Text = "— or —",
+                Font = new Font("Segoe UI", 8f, FontStyle.Bold | FontStyle.Italic),
+                ForeColor = MutedText,
                 AutoSize = true,
-                Font = ThemeHelper.FontDefault,
-                ForeColor = ThemeHelper.TextPrimary
+                Location = new Point(rightX, yRight)
             };
-            chkExpected.CheckedChanged += (s, e) => dtpExpected.Enabled = chkExpected.Checked;
-            _body.Controls.Add(chkExpected);
-            y += 30;
+            body.Controls.Add(lblOr);
+            yRight += 22;
 
-            dtpExpected = new DateTimePicker
-            {
-                Location = new Point(20, y),
-                Width = 400,
-                Format = DateTimePickerFormat.Short,
-                Enabled = false,
-                MinDate = DateTime.Today.AddDays(1)
-            };
-            _body.Controls.Add(dtpExpected);
-            y += dtpExpected.Height + 6;
-            Hint("Optional — leave unchecked if there's no fixed return date");
+            // ── Location (name only) ──
+            cmbLocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbLocation.DisplayMember = "DisplayName";
+            cmbLocation.ValueMember = "Name";
+            var locationNameOptions = new List<LocationNameOption> { new LocationNameOption { Name = null, DisplayName = "— No location —" } };
+            locationNameOptions.AddRange(
+                _locations
+                    .Select(l => l.LocationName)
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                    .Select(n => new LocationNameOption { Name = n, DisplayName = n }));
+            cmbLocation.DataSource = locationNameOptions;
+            ThemeHelper.StyleComboBox(cmbLocation);
+            FieldLabel(rightX, ref yRight, "Location");
+            PlaceControl(rightX, colWidth, ref yRight, cmbLocation);
+            Hint(rightX, colWidth, ref yRight, "Optional — the site or building");
 
-            y += 10;
-            _body.AutoScrollMinSize = new Size(0, y);
-        }
+            // ── Room (depends on Location) ──
+            cmbRoom = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbRoom.DisplayMember = "Display";
+            cmbRoom.ValueMember = "Id";
+            ThemeHelper.StyleComboBox(cmbRoom);
+            FieldLabel(rightX, ref yRight, "Room");
+            PlaceControl(rightX, colWidth, ref yRight, cmbRoom);
+            Hint(rightX, colWidth, ref yRight, "Optional — narrows to a specific room at that location");
 
+            cmbLocation.SelectedIndexChanged += (s, e) => RefreshRoomDropdown();
+            if (cmbLocation.Items.Count > 0) cmbLocation.SelectedIndex = 0; // triggers RefreshRoomDropdown → cmbRoom starts disabled
+
+            // ── Final sizing ──
+            int contentBottom = Math.Max(yLeft, yRight) + 16;
+            body.Size = new Size(formWidth, contentBottom);
+            int totalHeight = pnlHeader.Height + contentBottom + footerHeight;
+            ClientSize = new Size(formWidth, totalHeight);
+            pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
+        }   
         private void CmbEquipment_SelectedIndexChanged(object? sender, EventArgs e)
         {
             if (_suppressEquipmentSync) return;
@@ -1242,6 +1357,28 @@ namespace Inventory_Management_System.Forms
             }
         }
 
+
+        private void RefreshRoomDropdown()
+        {
+            string? selectedName = cmbLocation.SelectedValue as string;
+
+            if (selectedName == null)
+            {
+                cmbRoom.DataSource = null;
+                cmbRoom.Enabled = false;
+                return;
+            }
+
+            var rooms = _locations
+                .Where(l => l.LocationName == selectedName)
+                .Select(l => new RoomOption { Id = l.Id, Display = RoomOptionDisplay(l) })
+                .ToList();
+
+            cmbRoom.Enabled = rooms.Count > 0;
+            cmbRoom.DataSource = rooms;
+            if (cmbRoom.Items.Count > 0) cmbRoom.SelectedIndex = 0;
+        }
+
         private void BtnSave_Click(object? sender, EventArgs e)
         {
             if (cmbEquipment.SelectedValue == null)
@@ -1250,7 +1387,7 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            int? locationId = cmbLocation.SelectedValue is int lid ? lid : (int?)null;
+            int? locationId = cmbRoom.Enabled && cmbRoom.SelectedValue is int rid ? rid : (int?)null;
 
             // The actual rule: equipment is required, and AT LEAST ONE of
             // employee / location must be set — not both, not neither.
@@ -1283,89 +1420,86 @@ namespace Inventory_Management_System.Forms
             base.OnFormClosed(e);
         }
     }
+
     // ── Edit Expected Return Date Dialog ───────────────────────────────────
-    
-        // ── Edit Expected Return Date Dialog ───────────────────────────────────
-        public class EditExpectedReturnDialog : Form
+    public class EditExpectedReturnDialog : Form
+    {
+        public DateOnly? SelectedDate { get; private set; }
+
+        private CheckBox chkHasDate = null!;
+        private DateTimePicker dtp = null!;
+
+        public EditExpectedReturnDialog(DateOnly? currentDate)
         {
-            public DateOnly? SelectedDate { get; private set; }
+            BuildUI(currentDate);
+        }
 
-            private CheckBox chkHasDate = null!;
-            private DateTimePicker dtp = null!;
+        private void BuildUI(DateOnly? currentDate)
+        {
+            Text = "Edit Expected Return Date";
+            Size = new Size(360, 260);
+            StartPosition = FormStartPosition.CenterParent;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            ThemeHelper.ApplyFormBackground(this);
 
-            public EditExpectedReturnDialog(DateOnly? currentDate)
+            int y = 20;
+
+            chkHasDate = new CheckBox
             {
-                BuildUI(currentDate);
-            }
+                Text = "Set expected return date",
+                Location = new Point(20, y),
+                AutoSize = true,
+                Font = ThemeHelper.FontDefault,
+                ForeColor = ThemeHelper.TextPrimary,
+                Checked = currentDate.HasValue
+            };
+            chkHasDate.CheckedChanged += (s, e) => dtp.Enabled = chkHasDate.Checked;
+            Controls.Add(chkHasDate);
+            y += 30;
 
-            private void BuildUI(DateOnly? currentDate)
+            dtp = new DateTimePicker
             {
-                Text = "Edit Expected Return Date";
-                Size = new Size(360, 260);
-                StartPosition = FormStartPosition.CenterParent;
-                FormBorderStyle = FormBorderStyle.FixedDialog;
-                MaximizeBox = false;
-                MinimizeBox = false;
-                ThemeHelper.ApplyFormBackground(this);
+                Location = new Point(20, y),
+                Width = 300,
+                Format = DateTimePickerFormat.Short,
+                Enabled = currentDate.HasValue,
+                Value = currentDate.HasValue
+                    ? currentDate.Value.ToDateTime(TimeOnly.MinValue)
+                    : DateTime.Today
+            };
+            Controls.Add(dtp);
+            y += 50;
 
-                int y = 20;
+            var lblHint = new Label
+            {
+                Text = "A past date marks this allocation overdue.\nA future (or no) date clears the overdue status.",
+                Location = new Point(20, y),
+                Size = new Size(300, 40),
+                Font = ThemeHelper.FontSmall,
+                ForeColor = ThemeHelper.TextSecondary
+            };
+            Controls.Add(lblHint);
+            y += 54;
 
-                chkHasDate = new CheckBox
-                {
-                    Text = "Set expected return date",
-                    Location = new Point(20, y),
-                    AutoSize = true,
-                    Font = ThemeHelper.FontDefault,
-                    ForeColor = ThemeHelper.TextPrimary,
-                    Checked = currentDate.HasValue
-                };
-                chkHasDate.CheckedChanged += (s, e) => dtp.Enabled = chkHasDate.Checked;
-                Controls.Add(chkHasDate);
-                y += 30;
+            var btnSave = new Button { Text = "Save", Location = new Point(20, y), Size = new Size(140, 36) };
+            ThemeHelper.StyleButton(btnSave);
+            btnSave.Click += (s, e) =>
+            {
+                SelectedDate = chkHasDate.Checked ? DateOnly.FromDateTime(dtp.Value) : (DateOnly?)null;
+                DialogResult = DialogResult.OK;
+            };
+            Controls.Add(btnSave);
 
-                dtp = new DateTimePicker
-                {
-                    Location = new Point(20, y),
-                    Width = 300,
-                    Format = DateTimePickerFormat.Short,
-                    Enabled = currentDate.HasValue,
-                    Value = currentDate.HasValue
-                        ? currentDate.Value.ToDateTime(TimeOnly.MinValue)
-                        : DateTime.Today
-                };
-                Controls.Add(dtp);
-                y += 50;
+            var btnCancel = new Button { Text = "Cancel", Location = new Point(170, y), Size = new Size(140, 36) };
+            ThemeHelper.StyleSecondaryButton(btnCancel);
+            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
+            Controls.Add(btnCancel);
 
-                var lblHint = new Label
-                {
-                    Text = "A past date marks this allocation overdue.\nA future (or no) date clears the overdue status.",
-                    Location = new Point(20, y),
-                    Size = new Size(300, 40),
-                    Font = ThemeHelper.FontSmall,
-                    ForeColor = ThemeHelper.TextSecondary
-                };
-                Controls.Add(lblHint);
-                y += 54;
-
-                var btnSave = new Button { Text = "Save", Location = new Point(20, y), Size = new Size(140, 36) };
-                ThemeHelper.StyleButton(btnSave);
-                btnSave.Click += (s, e) =>
-                {
-                    SelectedDate = chkHasDate.Checked ? DateOnly.FromDateTime(dtp.Value) : (DateOnly?)null;
-                    DialogResult = DialogResult.OK;
-                };
-                Controls.Add(btnSave);
-
-                var btnCancel = new Button { Text = "Cancel", Location = new Point(170, y), Size = new Size(140, 36) };
-                ThemeHelper.StyleSecondaryButton(btnCancel);
-                btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
-                Controls.Add(btnCancel);
-
-                ClientSize = new Size(340, y + 60);
-                AcceptButton = btnSave;
-                CancelButton = btnCancel;
-            }
+            ClientSize = new Size(340, y + 60);
+            AcceptButton = btnSave;
+            CancelButton = btnCancel;
         }
     }
-
-    
+}

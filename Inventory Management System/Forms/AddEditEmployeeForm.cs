@@ -1,6 +1,7 @@
 // Forms/AddEditEmployeeForm.cs
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using Inventory_Management_System.Helpers;
 using Inventory_Management_System.Models;
@@ -22,6 +23,9 @@ namespace Inventory_Management_System.Forms
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
+        private static readonly Color CardBorder = Color.FromArgb(224, 224, 224);
+        private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
+
         public AddEditEmployeeForm(Employee? employee = null)
         {
             _employee = employee ?? new Employee() { IsActive = true };
@@ -34,78 +38,184 @@ namespace Inventory_Management_System.Forms
 
         private void InitializeUI()
         {
-            this.Text = _isEditMode ? "Edit Employee" : "Add Employee";
-            this.Size = new Size(400, 480);
-            this.StartPosition = FormStartPosition.CenterParent;
-            this.FormBorderStyle = FormBorderStyle.FixedDialog;
-            this.MaximizeBox = false;
-            this.MinimizeBox = false;
-
+            Text = _isEditMode ? "Edit Employee" : "Add Employee";
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            StartPosition = FormStartPosition.CenterParent;
+            AutoScroll = false;
+            Font = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
-            this.AutoScroll = true; // Ensure scrolling when content exceeds form size
 
-            int y = 20;
+            const int formWidth = 440;
+            const int margin = 28;
+            int contentWidth = formWidth - margin * 2;
 
-            // Full Name
-            Label lblName = new Label() { Text = "Full Name:", Location = new Point(20, y), AutoSize = true };
-            ThemeHelper.StyleLabel(lblName);
-            this.Controls.Add(lblName);
-            y += 25;
-            txtFullName = new TextBox() { Location = new Point(20, y), Width = 340 };
-            ThemeHelper.StyleTextBox(txtFullName);
-            this.Controls.Add(txtFullName);
-            y += 40;
+            // ── Header ──
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = ThemeHelper.Header };
+            Controls.Add(pnlHeader);
 
-            // Department
-            Label lblDept = new Label() { Text = "Department:", Location = new Point(20, y), AutoSize = true };
-            ThemeHelper.StyleLabel(lblDept);
-            this.Controls.Add(lblDept);
-            y += 25;
-            txtDepartment = new TextBox() { Location = new Point(20, y), Width = 340 };
-            ThemeHelper.StyleTextBox(txtDepartment);
-            this.Controls.Add(txtDepartment);
-            y += 40;
+            var lblTitle = new Label
+            {
+                Text = _isEditMode ? "Edit Employee" : "Add Employee",
+                Font = new Font("Segoe UI", 15.5f, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(margin, 18)
+            };
+            pnlHeader.Controls.Add(lblTitle);
 
-            // Email
-            Label lblEmail = new Label() { Text = "Email:", Location = new Point(20, y), AutoSize = true };
-            ThemeHelper.StyleLabel(lblEmail);
-            this.Controls.Add(lblEmail);
-            y += 25;
-            txtEmail = new TextBox() { Location = new Point(20, y), Width = 340 };
-            ThemeHelper.StyleTextBox(txtEmail);
-            this.Controls.Add(txtEmail);
-            y += 40;
+            var subtitleFont = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            string subtitleText = _isEditMode ? "Update the employee's details below" : "Enter the employee's details below";
+            var subtitleSize = TextRenderer.MeasureText(
+                subtitleText, subtitleFont, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+            var lblSubtitle = new Label
+            {
+                Text = subtitleText,
+                Font = subtitleFont,
+                ForeColor = Color.FromArgb(235, 245, 233),
+                AutoSize = false,
+                Size = new Size(contentWidth, subtitleSize.Height + 4),
+                Location = new Point(margin, lblTitle.Bottom + 8)
+            };
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Height = lblSubtitle.Bottom + 20;
 
-            // Phone
-            Label lblPhone = new Label() { Text = "Phone:", Location = new Point(20, y), AutoSize = true };
-            ThemeHelper.StyleLabel(lblPhone);
-            this.Controls.Add(lblPhone);
-            y += 25;
-            txtPhone = new TextBox() { Location = new Point(20, y), Width = 340 };
-            ThemeHelper.StyleTextBox(txtPhone);
-            this.Controls.Add(txtPhone);
-            y += 40;
+            // ── Body ──
+            var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10), AutoScroll = false };
+            Controls.Add(body);
 
-            // IsActive
-            chkIsActive = new CheckBox() { Text = "Is Active", Location = new Point(20, y), AutoSize = true };
-            chkIsActive.Font = ThemeHelper.FontDefault;
-            chkIsActive.ForeColor = ThemeHelper.TextPrimary;
-            this.Controls.Add(chkIsActive);
-            y += 50;
+            // ── Footer — buttons centered, plus required-field legend ──
+            const int footerHeight = 72;
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
 
-            // Buttons
-            btnSave = new Button() { Text = "Save", Location = new Point(200, y), Width = 75 };
+            btnCancel = new Button { Text = "Cancel", Size = new Size(140, 42) };
+            ThemeHelper.StyleSecondaryButton(btnCancel);
+            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
+
+            btnSave = new Button { Text = "Save", Size = new Size(150, 42) };
             ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
-            this.Controls.Add(btnSave);
 
-            btnCancel = new Button() { Text = "Cancel", Location = new Point(285, y), Width = 75 };
-            ThemeHelper.StyleSecondaryButton(btnCancel);
-            btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
-            this.Controls.Add(btnCancel);
+            int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
+            int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
+            btnCancel.Location = new Point(buttonsStartX, 15);
+            btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
 
-            this.AcceptButton = btnSave;
-            this.CancelButton = btnCancel;
+            pnlFooter.Controls.Add(btnCancel);
+            pnlFooter.Controls.Add(btnSave);
+            Controls.Add(pnlFooter);
+
+            var lblRequiredNote = new Label
+            {
+                Text = "* Required field",
+                Font = new Font("Segoe UI", 7.5f, FontStyle.Italic),
+                ForeColor = MutedText,
+                AutoSize = true
+            };
+            lblRequiredNote.Location = new Point(margin, (footerHeight - lblRequiredNote.PreferredHeight) / 2);
+            pnlFooter.Controls.Add(lblRequiredNote);
+
+            int y = 24;
+
+            void SectionHeader(string title)
+            {
+                body.Controls.Add(new Panel { BackColor = ThemeHelper.Header, Size = new Size(4, 22), Location = new Point(margin, y) });
+                body.Controls.Add(new Label
+                {
+                    Text = title,
+                    Font = new Font("Segoe UI", 12f, FontStyle.Bold),
+                    ForeColor = ThemeHelper.TextPrimary,
+                    AutoSize = true,
+                    Location = new Point(margin + 12, y - 1)
+                });
+                y += 34;
+            }
+
+            void FieldLabel(string label, bool required = false)
+            {
+                body.Controls.Add(new Label
+                {
+                    Text = required ? $"{label}  *" : label,
+                    Location = new Point(margin, y),
+                    AutoSize = true,
+                    Font = ThemeHelper.FontBold,
+                    ForeColor = ThemeHelper.TextPrimary
+                });
+                y += 20;
+            }
+
+            void PlaceControl(Control ctrl, int height = 30)
+            {
+                ctrl.Location = new Point(margin, y);
+                ctrl.Width = contentWidth;
+                if (ctrl.Height < height) ctrl.Height = height;
+                body.Controls.Add(ctrl);
+                y += ctrl.Height + 4;
+            }
+
+            void Hint(string text)
+            {
+                var font = new Font("Segoe UI", 7.8f, FontStyle.Italic);
+                var sz = TextRenderer.MeasureText(text, font, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+                body.Controls.Add(new Label
+                {
+                    Text = text,
+                    Font = font,
+                    ForeColor = MutedText,
+                    AutoSize = false,
+                    Size = new Size(contentWidth, sz.Height + 4),
+                    Location = new Point(margin, y)
+                });
+                y += sz.Height + 4 + 10;
+            }
+
+            SectionHeader("Employee Details");
+
+            txtFullName = new TextBox();
+            ThemeHelper.StyleTextBox(txtFullName);
+            FieldLabel("Full Name", required: true);
+            PlaceControl(txtFullName);
+            Hint("As it should appear on allocations and reports — must be unique");
+
+            txtDepartment = new TextBox();
+            ThemeHelper.StyleTextBox(txtDepartment);
+            FieldLabel("Department");
+            PlaceControl(txtDepartment);
+            y += 4;
+
+            txtEmail = new TextBox();
+            ThemeHelper.StyleTextBox(txtEmail);
+            FieldLabel("Email");
+            PlaceControl(txtEmail);
+            y += 4;
+
+            txtPhone = new TextBox();
+            ThemeHelper.StyleTextBox(txtPhone);
+            FieldLabel("Phone");
+            PlaceControl(txtPhone);
+            y += 8;
+
+            chkIsActive = new CheckBox
+            {
+                Text = "Is Active",
+                Location = new Point(margin, y),
+                AutoSize = true,
+                Font = ThemeHelper.FontDefault,
+                ForeColor = ThemeHelper.TextPrimary
+            };
+            body.Controls.Add(chkIsActive);
+            y += 30;
+
+            // ── Final sizing — no scrollbar, dialog fits exactly ──
+            body.Size = new Size(formWidth, y);
+            int totalHeight = pnlHeader.Height + body.Height + footerHeight;
+            ClientSize = new Size(formWidth, totalHeight);
+            pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
+
+            AcceptButton = btnSave;
+            CancelButton = btnCancel;
         }
 
         private void LoadData()
@@ -122,17 +232,32 @@ namespace Inventory_Management_System.Forms
 
         private void BtnSave_Click(object? sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(txtFullName.Text))
+            string name = txtFullName.Text.Trim();
+
+            if (string.IsNullOrWhiteSpace(name))
             {
                 ToastHelper.Show(this, "Full Name is required.", ToastType.Warning);
                 return;
             }
 
-            // Employee Code is no longer entered here — EmployeeService.Add()
-            // auto-generates it on save. In edit mode, _employee already
-            // carries its existing code from the constructor, so it's left
-            // untouched.
-            _employee.FullName = txtFullName.Text.Trim();
+            // ── Duplicate name check — case-insensitive, excludes this
+            // record itself when editing so re-saving the same employee
+            // doesn't falsely flag as a duplicate. ──
+            var allResult = _employeeService.GetAll();
+            if (allResult.Success && allResult.Data != null)
+            {
+                bool isDuplicate = allResult.Data.Any(emp =>
+                    string.Equals(emp.FullName?.Trim(), name, StringComparison.OrdinalIgnoreCase) &&
+                    (!_isEditMode || emp.Id != _employee.Id));
+
+                if (isDuplicate)
+                {
+                    ToastHelper.Show(this, $"An employee named \"{name}\" already exists. Please use a different name.", ToastType.Warning);
+                    return;
+                }
+            }
+
+            _employee.FullName = name;
             _employee.Department = txtDepartment.Text.Trim();
             _employee.Email = txtEmail.Text.Trim();
             _employee.Phone = txtPhone.Text.Trim();
@@ -142,7 +267,7 @@ namespace Inventory_Management_System.Forms
 
             if (result.Success)
             {
-                this.DialogResult = DialogResult.OK;
+                DialogResult = DialogResult.OK;
             }
             else
             {

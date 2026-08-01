@@ -307,7 +307,8 @@ namespace Inventory_Management_System.Forms
         public string DisplayText { get; set; } = "";
     }
 
-    // ── Transfer Dialog — now supports live fuzzy search + preselection ──
+    // ── Transfer Dialog — restyled to match Location/Allocation dialogs;
+    // Transfer button color is intentionally left unchanged (purple). ──
     public class TransferDialog : Form
     {
         public int OldAllocationId { get; private set; }
@@ -328,6 +329,10 @@ namespace Inventory_Management_System.Forms
         private EntitySuggestHelper<Allocation>? _equipmentSuggest;
         private List<TransferEquipmentOption> _allocationItems = new();
 
+        private static readonly Color TransferAccent = Color.FromArgb(123, 31, 162); // unchanged
+        private static readonly Color CardBorder = Color.FromArgb(224, 224, 224);
+        private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
+
         public TransferDialog(List<Allocation> allocations, List<Employee> employees, List<Location> locations,
             int? preselectedAllocationId = null)
         {
@@ -341,33 +346,135 @@ namespace Inventory_Management_System.Forms
         private void BuildUI()
         {
             Text = "New Transfer";
-            Size = new Size(420, 390);
-            StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
+            MinimizeBox = false;
+            StartPosition = FormStartPosition.CenterParent;
+            AutoScroll = false;
+            Font = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
-            AutoScroll = true;
 
-            int y = 20;
-            void AddRow(string label, Control ctrl)
+            const int formWidth = 460;
+            const int margin = 28;
+            int contentWidth = formWidth - margin * 2;
+
+            // ── Header — kept in Transfer's purple accent ──
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = TransferAccent };
+            Controls.Add(pnlHeader);
+
+            var lblTitle = new Label
             {
-                var lbl = new Label { Text = label, Location = new Point(20, y), AutoSize = true };
-                ThemeHelper.StyleLabel(lbl, bold: true);
-                Controls.Add(lbl);
-                y += 22;
-                ctrl.Location = new Point(20, y);
-                ctrl.Width = 360;
-                Controls.Add(ctrl);
-                y += 40;
+                Text = "⇄  New Transfer",
+                Font = new Font("Segoe UI", 15.5f, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(margin, 18)
+            };
+            pnlHeader.Controls.Add(lblTitle);
+
+            var subtitleFont = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            string subtitleText = "Move allocated equipment to a new employee and location";
+            var subtitleSize = TextRenderer.MeasureText(
+                subtitleText, subtitleFont, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+            var lblSubtitle = new Label
+            {
+                Text = subtitleText,
+                Font = subtitleFont,
+                ForeColor = Color.FromArgb(240, 228, 245),
+                AutoSize = false,
+                Size = new Size(contentWidth, subtitleSize.Height + 4),
+                Location = new Point(margin, lblTitle.Bottom + 8)
+            };
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Height = lblSubtitle.Bottom + 20;
+
+            // ── Body ──
+            var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10), AutoScroll = false };
+            Controls.Add(body);
+
+            // ── Footer — buttons centered, Transfer button color unchanged ──
+            const int footerHeight = 72;
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
+
+            btnCancel = new Button { Text = "Cancel", Size = new Size(140, 42) };
+            ThemeHelper.StyleSecondaryButton(btnCancel);
+            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
+
+            btnSave = new Button { Text = "⇄  Transfer", Size = new Size(170, 42) };
+            ThemeHelper.StyleButton(btnSave, TransferAccent); // unchanged color
+            btnSave.Click += BtnSave_Click;
+
+            int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
+            int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
+            btnCancel.Location = new Point(buttonsStartX, 15);
+            btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
+
+            pnlFooter.Controls.Add(btnCancel);
+            pnlFooter.Controls.Add(btnSave);
+            Controls.Add(pnlFooter);
+
+            int y = 24;
+
+            void SectionHeader(string title)
+            {
+                body.Controls.Add(new Panel { BackColor = TransferAccent, Size = new Size(4, 22), Location = new Point(margin, y) });
+                body.Controls.Add(new Label
+                {
+                    Text = title,
+                    Font = new Font("Segoe UI", 12f, FontStyle.Bold),
+                    ForeColor = ThemeHelper.TextPrimary,
+                    AutoSize = true,
+                    Location = new Point(margin + 12, y - 1)
+                });
+                y += 34;
             }
+
+            void FieldLabel(string label, bool required = false)
+            {
+                body.Controls.Add(new Label
+                {
+                    Text = required ? $"{label}  *" : label,
+                    Location = new Point(margin, y),
+                    AutoSize = true,
+                    Font = ThemeHelper.FontBold,
+                    ForeColor = ThemeHelper.TextPrimary
+                });
+                y += 20;
+            }
+
+            void PlaceControl(Control ctrl, int height = 30)
+            {
+                ctrl.Location = new Point(margin, y);
+                ctrl.Width = contentWidth;
+                if (ctrl.Height < height) ctrl.Height = height;
+                body.Controls.Add(ctrl);
+                y += ctrl.Height + 4;
+            }
+
+            void Hint(string text)
+            {
+                var font = new Font("Segoe UI", 7.8f, FontStyle.Italic);
+                var sz = TextRenderer.MeasureText(text, font, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+                body.Controls.Add(new Label
+                {
+                    Text = text,
+                    Font = font,
+                    ForeColor = MutedText,
+                    AutoSize = false,
+                    Size = new Size(contentWidth, sz.Height + 4),
+                    Location = new Point(margin, y)
+                });
+                y += sz.Height + 4 + 10;
+            }
+
+            SectionHeader("🖥  Equipment");
 
             txtEquipmentSearch = new TextBox { PlaceholderText = "Search by equipment code, name, or serial…" };
             ThemeHelper.StyleTextBox(txtEquipmentSearch);
-            AddRow("Find Equipment:", txtEquipmentSearch);
-
-            // ── Fallback safety net: if the user types a match but never clicks
-            // the suggestion popup, resolve it from the text when focus leaves
-            // the box, so Save doesn't wrongly block with "fill all fields". ──
+            FieldLabel("Find Equipment", required: true);
+            PlaceControl(txtEquipmentSearch);
+            Hint("Type to search, then pick a suggestion");
             txtEquipmentSearch.Leave += (s, e) => TryResolveEquipmentFromText();
 
             _allocationItems = new List<TransferEquipmentOption>
@@ -386,7 +493,9 @@ namespace Inventory_Management_System.Forms
             cmbAllocation.DataSource = _allocationItems;
             cmbAllocation.SelectedIndexChanged += CmbAllocation_SelectedIndexChanged;
             ThemeHelper.StyleComboBox(cmbAllocation);
-            AddRow("Equipment to transfer:", cmbAllocation);
+            FieldLabel("Currently Allocated As", required: true);
+            PlaceControl(cmbAllocation);
+            Hint("Only currently approved allocations are listed");
 
             if (_preselectedAllocationId.HasValue)
             {
@@ -431,42 +540,47 @@ namespace Inventory_Management_System.Forms
                 _equipmentSuggest.LoadItems(_allocations);
             }
 
+            y += 6;
+            SectionHeader("👤  Transfer To");
+
             cmbEmployee = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbEmployee.DisplayMember = "FullName";
             cmbEmployee.ValueMember = "Id";
             cmbEmployee.DataSource = _employees.Where(e => e.IsActive).ToList();
             ThemeHelper.StyleComboBox(cmbEmployee);
-            AddRow("Transfer to employee:", cmbEmployee);
+            FieldLabel("New Employee", required: true);
+            PlaceControl(cmbEmployee);
+            Hint("Who this equipment is being transferred to");
 
             cmbLocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbLocation.DisplayMember = "LocationName";
             cmbLocation.ValueMember = "Id";
             cmbLocation.DataSource = _locations;
             ThemeHelper.StyleComboBox(cmbLocation);
-            AddRow("New location:", cmbLocation);
-
-            btnSave = new Button { Text = "Transfer", Location = new Point(20, y), Size = new Size(170, 36) };
-            ThemeHelper.StyleButton(btnSave, Color.FromArgb(123, 31, 162));
-            btnSave.Click += BtnSave_Click;
-            Controls.Add(btnSave);
-
-            btnCancel = new Button { Text = "Cancel", Location = new Point(202, y), Size = new Size(178, 36) };
-            ThemeHelper.StyleSecondaryButton(btnCancel);
-            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
-            Controls.Add(btnCancel);
+            FieldLabel("New Location", required: true);
+            PlaceControl(cmbLocation);
+            Hint("Where the equipment will now be kept");
 
             var lblNote = new Label
             {
-                Text = "ℹ  After transferring, set a new expected return date\nfrom the Allocations screen.",
-                Location = new Point(20, y + 46),
-                Size = new Size(360, 36),
-                Font = ThemeHelper.FontSmall,
-                ForeColor = ThemeHelper.TextSecondary,
-                BackColor = Color.Transparent
+                Text = "ℹ  After transferring, you can set a new expected return date from the Allocations screen.",
+                Font = new Font("Segoe UI", 8f, FontStyle.Regular),
+                ForeColor = MutedText,
+                AutoSize = false,
+                Size = new Size(contentWidth, 32),
+                Location = new Point(margin, y)
             };
-            Controls.Add(lblNote);
+            int noteH = TextRenderer.MeasureText(lblNote.Text, lblNote.Font, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak).Height;
+            lblNote.Height = noteH;
+            body.Controls.Add(lblNote);
+            y += noteH + 8;
 
-            ClientSize = new Size(400, y + 100);
+            // ── Final sizing — no scrollbar, dialog fits exactly ──
+            body.Size = new Size(formWidth, y);
+            int totalHeight = pnlHeader.Height + body.Height + footerHeight;
+            ClientSize = new Size(formWidth, totalHeight);
+            pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
+
             AcceptButton = btnSave;
             CancelButton = btnCancel;
         }
@@ -535,5 +649,5 @@ namespace Inventory_Management_System.Forms
             _equipmentSuggest?.Dispose();
             base.OnFormClosed(e);
         }
-    }
+    }   
 }

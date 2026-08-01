@@ -54,8 +54,8 @@ namespace Inventory_Management_System.Forms
                 ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                 return;
             }
-            _allItems = result.Data?.Where(e => e.CurrentStatus == "decommissioned").ToList() ?? new();
-            RefreshGrid(filter);
+            _allItems = result.Data?.Where(e =>
+                string.Equals(e.CurrentStatus, "decommissioned", StringComparison.OrdinalIgnoreCase)).ToList() ?? new(); RefreshGrid(filter);
         }
 
         private void RefreshGrid(string filter = "")
@@ -130,17 +130,17 @@ namespace Inventory_Management_System.Forms
 
         private void btnDecommission_Click(object sender, EventArgs e)
         {
-            // Show available (in_store) equipment to decommission
+            // Show all non-decommissioned equipment that can be decommissioned
             var result = _equipmentService.GetAll();
             if (!result.Success) return;
 
             var available = result.Data?
-                .Where(eq => eq.CurrentStatus == "in_store" || eq.CurrentStatus == "under_repair")
+                .Where(eq => !string.Equals(eq.CurrentStatus, "decommissioned", StringComparison.OrdinalIgnoreCase))
                 .ToList() ?? new();
 
             if (available.Count == 0)
             {
-                MessageBox.Show("No equipment available to decommission.\nOnly in_store or under_repair items can be decommissioned.",
+                MessageBox.Show("No equipment available to decommission.\nAll equipment has already been decommissioned.",
                     "None Available", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -151,10 +151,20 @@ namespace Inventory_Management_System.Forms
             try
             {
                 using var db = new InventoryDbContext();
-                var eq = db.Equipment.FirstOrDefault(e => e.Id == frm.EquipmentId);
+                var eq = db.Equipment
+                    .Include(x => x.Allocations)
+                    .FirstOrDefault(x => x.Id == frm.EquipmentId);
                 if (eq == null) return;
 
                 string oldStatus = eq.CurrentStatus ?? "unknown";
+
+                // Close any active allocations for this equipment
+                var activeAllocations = eq.Allocations
+                    .Where(a => a.Status == "approved" || a.Status == "pending")
+                    .ToList();
+                foreach (var alloc in activeAllocations)
+                    alloc.Status = "returned";
+
                 eq.CurrentStatus = "decommissioned";
                 db.SaveChanges();
 
@@ -163,12 +173,10 @@ namespace Inventory_Management_System.Forms
 
                 LoadDecommissioned();
                 ToastHelper.Show(this, $"'{eq.Name}' has been decommissioned.", ToastType.Success);
-
             }
             catch (Exception ex)
             {
-               ToastHelper.Show(this, "Decommission failed: " + ex.Message, ToastType.Error);
-
+                ToastHelper.Show(this, "Decommission failed: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -176,10 +184,16 @@ namespace Inventory_Management_System.Forms
         {
             txtSearch.Text = string.Empty;
             LoadDecommissioned();
+            dgvDecommission.ClearSelection();
+            dgvDecommission.CurrentCell = null;
         }
 
         private void txtSearch_TextChanged(object sender, EventArgs e)
-            => RefreshGrid(txtSearch.Text.Trim());
+        {
+            RefreshGrid(txtSearch.Text.Trim());
+            dgvDecommission.ClearSelection();
+            dgvDecommission.CurrentCell = null;
+        }
 
         private void btnExport_Click(object sender, EventArgs e)
         {
@@ -214,6 +228,12 @@ namespace Inventory_Management_System.Forms
         }
     }
 
+    public class DecommissionEquipmentOption
+    {
+        public int Id { get; set; }
+        public string DisplayText { get; set; } = "";
+    }
+
     // ── Decommission Dialog ───────────────────────────────────────────────
     public class DecommissionDialog : Form
     {
@@ -228,6 +248,10 @@ namespace Inventory_Management_System.Forms
 
         private readonly List<Equipment> _equipment;
 
+        private static readonly Color DangerAccent = Color.FromArgb(211, 47, 47);
+        private static readonly Color CardBorder   = Color.FromArgb(224, 224, 224);
+        private static readonly Color MutedText    = Color.FromArgb(110, 110, 120);
+
         public DecommissionDialog(List<Equipment> equipment)
         {
             _equipment = equipment;
@@ -237,56 +261,165 @@ namespace Inventory_Management_System.Forms
         private void BuildUI()
         {
             Text            = "Decommission Equipment";
-            Size            = new Size(420, 340);
-            StartPosition   = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox     = false;
+            MinimizeBox     = false;
+            StartPosition   = FormStartPosition.CenterParent;
+            AutoScroll      = false;
+            Font            = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
-            this.AutoScroll = true;
 
-            int y = 20;
-            void AddRow(string label, Control ctrl)
+            const int formWidth = 460;
+            const int margin = 28;
+            int contentWidth = formWidth - margin * 2;
+
+            // ── Header Banner ──
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = DangerAccent };
+            Controls.Add(pnlHeader);
+
+            var lblTitle = new Label
             {
-                var lbl = new Label { Text = label, Location = new Point(20, y), AutoSize = true };
-                ThemeHelper.StyleLabel(lbl, bold: true);
-                Controls.Add(lbl);
-                y += 22;
-                ctrl.Location = new Point(20, y);
-                ctrl.Width    = 360;
-                Controls.Add(ctrl);
-                y += 40;
+                Text      = "🗑  Decommission Equipment",
+                Font      = new Font("Segoe UI", 15.5f, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize  = true,
+                Location  = new Point(margin, 18)
+            };
+            pnlHeader.Controls.Add(lblTitle);
+
+            var subtitleFont = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            string subtitleText = "Mark equipment as decommissioned and log the reason";
+            var subtitleSize = TextRenderer.MeasureText(
+                subtitleText, subtitleFont, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+            var lblSubtitle = new Label
+            {
+                Text      = subtitleText,
+                Font      = subtitleFont,
+                ForeColor = Color.FromArgb(255, 235, 238),
+                AutoSize  = false,
+                Size      = new Size(contentWidth, subtitleSize.Height + 4),
+                Location  = new Point(margin, lblTitle.Bottom + 8)
+            };
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Height = lblSubtitle.Bottom + 20;
+
+            // ── Body Panel ──
+            var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10), AutoScroll = false };
+            Controls.Add(body);
+
+            // ── Footer Panel ──
+            const int footerHeight = 72;
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
+
+            btnCancel = new Button { Text = "Cancel", Size = new Size(140, 42) };
+            ThemeHelper.StyleSecondaryButton(btnCancel);
+            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
+
+            btnSave = new Button { Text = "🗑  Decommission", Size = new Size(170, 42) };
+            ThemeHelper.StyleDangerButton(btnSave);
+            btnSave.Click += BtnSave_Click;
+
+            int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
+            int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
+            btnCancel.Location = new Point(buttonsStartX, 15);
+            btnSave.Location   = new Point(buttonsStartX + btnCancel.Width + 12, 15);
+
+            pnlFooter.Controls.Add(btnCancel);
+            pnlFooter.Controls.Add(btnSave);
+            Controls.Add(pnlFooter);
+
+            int y = 24;
+
+            void SectionHeader(string title)
+            {
+                body.Controls.Add(new Panel { BackColor = DangerAccent, Size = new Size(4, 22), Location = new Point(margin, y) });
+                body.Controls.Add(new Label
+                {
+                    Text      = title,
+                    Font      = new Font("Segoe UI", 12f, FontStyle.Bold),
+                    ForeColor = ThemeHelper.TextPrimary,
+                    AutoSize  = true,
+                    Location  = new Point(margin + 12, y - 1)
+                });
+                y += 34;
             }
 
+            void FieldLabel(string label, bool required = false)
+            {
+                body.Controls.Add(new Label
+                {
+                    Text      = required ? $"{label}  *" : label,
+                    Location  = new Point(margin, y),
+                    AutoSize  = true,
+                    Font      = ThemeHelper.FontBold,
+                    ForeColor = ThemeHelper.TextPrimary
+                });
+                y += 20;
+            }
+
+            void PlaceControl(Control ctrl, int height = 30)
+            {
+                ctrl.Location = new Point(margin, y);
+                ctrl.Width    = contentWidth;
+                if (ctrl.Height < height) ctrl.Height = height;
+                body.Controls.Add(ctrl);
+                y += ctrl.Height + 4;
+            }
+
+            void Hint(string text)
+            {
+                var font = new Font("Segoe UI", 7.8f, FontStyle.Italic);
+                var sz   = TextRenderer.MeasureText(text, font, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+                body.Controls.Add(new Label
+                {
+                    Text      = text,
+                    Font      = font,
+                    ForeColor = MutedText,
+                    AutoSize  = false,
+                    Size      = new Size(contentWidth, sz.Height + 4),
+                    Location  = new Point(margin, y)
+                });
+                y += sz.Height + 4 + 10;
+            }
+
+            SectionHeader("🗑  Decommission Details");
+
+            var equipmentOptions = _equipment.Select(e => new DecommissionEquipmentOption
+            {
+                Id          = e.Id,
+                DisplayText = string.IsNullOrWhiteSpace(e.EquipmentCode) ? e.Name : $"{e.EquipmentCode} — {e.Name}"
+            }).ToList();
+
             cmbEquipment = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbEquipment.DisplayMember = "Name";
+            cmbEquipment.DisplayMember = "DisplayText";
             cmbEquipment.ValueMember   = "Id";
-            cmbEquipment.DataSource    = _equipment;
+            cmbEquipment.DataSource    = equipmentOptions;
             ThemeHelper.StyleComboBox(cmbEquipment);
-            AddRow("Select equipment to decommission:", cmbEquipment);
+            FieldLabel("Select Equipment to Decommission", required: true);
+            PlaceControl(cmbEquipment);
+            Hint("Choose the item you want to mark as decommissioned");
 
             cmbReason = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbReason.Items.AddRange(new[] { "Damaged", "Obsolete", "Beyond Repair", "End of Life", "Lost", "Other" });
             cmbReason.SelectedIndex = 0;
             ThemeHelper.StyleComboBox(cmbReason);
-            AddRow("Reason:", cmbReason);
+            FieldLabel("Reason", required: true);
+            PlaceControl(cmbReason);
+            Hint("Select the primary reason for decommissioning");
 
             txtNotes = new TextBox { Multiline = true, Height = 60, ScrollBars = ScrollBars.Vertical };
             ThemeHelper.StyleTextBox(txtNotes);
             txtNotes.PlaceholderText = "Additional notes (optional)...";
-            AddRow("Notes:", txtNotes);
-            y += 28; // extra space for multiline
+            FieldLabel("Notes");
+            PlaceControl(txtNotes, height: 60);
+            Hint("Add any relevant contextual details or audit references");
 
-            btnSave = new Button { Text = "Decommission", Location = new Point(20, y), Size = new Size(170, 36) };
-            ThemeHelper.StyleDangerButton(btnSave);
-            btnSave.Click += BtnSave_Click;
-            Controls.Add(btnSave);
+            body.Size = new Size(formWidth, y);
+            int totalHeight = pnlHeader.Height + body.Height + footerHeight;
+            ClientSize = new Size(formWidth, totalHeight);
+            pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
 
-            btnCancel = new Button { Text = "Cancel", Location = new Point(202, y), Size = new Size(178, 36) };
-            ThemeHelper.StyleSecondaryButton(btnCancel);
-            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
-            Controls.Add(btnCancel);
-
-            ClientSize   = new Size(400, y + 70);
             AcceptButton = btnSave;
             CancelButton = btnCancel;
         }
@@ -299,13 +432,16 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
+            var selectedOption = cmbEquipment.SelectedItem as DecommissionEquipmentOption;
+            string itemName = selectedOption?.DisplayText ?? "this equipment";
+
             if (MessageBox.Show(
-                $"Are you sure you want to decommission '{(cmbEquipment.SelectedItem as Equipment)?.Name}'?\n\nThis cannot be undone.",
+                $"Are you sure you want to decommission '{itemName}'?\n\nThis action will update its status to decommissioned.",
                 "Confirm Decommission", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
 
-            EquipmentId = (int)cmbEquipment.SelectedValue;
-            Reason      = $"{cmbReason.SelectedItem}" + (string.IsNullOrWhiteSpace(txtNotes.Text) ? "" : $" — {txtNotes.Text.Trim()}");
+            EquipmentId  = (int)cmbEquipment.SelectedValue;
+            Reason       = $"{cmbReason.SelectedItem}" + (string.IsNullOrWhiteSpace(txtNotes.Text) ? "" : $" — {txtNotes.Text.Trim()}");
             DialogResult = DialogResult.OK;
         }
     }
