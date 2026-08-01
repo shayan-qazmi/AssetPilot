@@ -337,26 +337,28 @@ namespace Inventory_Management_System.Forms
                     Math.Max(0, (panelRight.Height - panelCard.Height) / 2));
 
                 // Vertically center the "Remember Me" label against the toggle's
-                // actual rendered height — fixes drift at non-100% DPI scaling.
-                lblToggleLabel.Location = new System.Drawing.Point(
-                    pnlToggle.Right + 8,
-                    pnlToggle.Top + (pnlToggle.Height - lblToggleLabel.Height) / 2);
+                // actual switch pill center (pnlToggle.Top + 18) across all DPI scaling.
+                int labelPrefH = lblToggleLabel.PreferredHeight;
+                int toggleCenterY = pnlToggle.Top + 18;
+                int labelTop = toggleCenterY - (labelPrefH / 2);
+                lblToggleLabel.Location = new System.Drawing.Point(pnlToggle.Right + 8, labelTop);
             }
 
             panelRight.Resize += (s, e) => CenterCard();
+            panelCard.Layout  += (s, e) => CenterCard();
+            Load              += (s, e) => CenterCard();
             Shown += (s, e) =>
             {
                 CenterCard();
 
-                // Load logo
                 // Load embedded logo
-            try
-            {
-                picLogo.Image = global::Inventory_Management_System.Properties.Resources.logo;
-            }
-            catch
-            {
-            }
+                try
+                {
+                    picLogo.Image = global::Inventory_Management_System.Properties.Resources.logo;
+                }
+                catch
+                {
+                }
             };
         }
 

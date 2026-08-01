@@ -50,10 +50,10 @@ namespace Inventory_Management_System.Forms
             // ── flowToolbar ─────────────────────────────────────────────────
             flowToolbar.Dock = System.Windows.Forms.DockStyle.Top;
             flowToolbar.FlowDirection = System.Windows.Forms.FlowDirection.LeftToRight;
-            flowToolbar.WrapContents = true;
+            flowToolbar.WrapContents = false;   // never wrap — prevents text being cut by layout shift
             flowToolbar.AutoSize = true;
             flowToolbar.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
-            flowToolbar.Padding = new System.Windows.Forms.Padding(0, 4, 8, 8); 
+            flowToolbar.Padding = new System.Windows.Forms.Padding(0, 4, 8, 8);
             flowToolbar.Name = "flowToolbar";
             flowToolbar.Controls.Add(btnEquipmentReport);
             flowToolbar.Controls.Add(btnEmployeeReport);
@@ -62,41 +62,43 @@ namespace Inventory_Management_System.Forms
             flowToolbar.Controls.Add(btnExportPDF);
             flowToolbar.Controls.Add(btnExportExcel);
 
-            btnEquipmentReport.Name = "btnEquipmentReport";
-            btnEquipmentReport.Text = "🖥 Equipment";
-            btnEquipmentReport.Size = new System.Drawing.Size(115, 32);
-            btnEquipmentReport.Margin = new System.Windows.Forms.Padding(4, 0, 0, 4);
-            btnEquipmentReport.Click += new System.EventHandler(btnEquipmentReport_Click);
+            // ── Report-type buttons: AutoSize so text never clips at any DPI ──
+            void SetupBtn(System.Windows.Forms.Button b, string text,
+                          System.Windows.Forms.Padding margin,
+                          System.EventHandler handler)
+            {
+                b.Text        = text;
+                b.AutoSize    = true;                    // grow to fit text
+                b.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+                b.MinimumSize = new System.Drawing.Size(110, 32);  // never shrink below this
+                b.Padding     = new System.Windows.Forms.Padding(10, 0, 10, 0); // inner side padding
+                b.Margin      = margin;
+                b.Click      += handler;
+            }
 
-            btnEmployeeReport.Name = "btnEmployeeReport";
-            btnEmployeeReport.Text = "👤 Employee";
-            btnEmployeeReport.Size = new System.Drawing.Size(115, 32);
-            btnEmployeeReport.Margin = new System.Windows.Forms.Padding(4, 0, 0, 4);
-            btnEmployeeReport.Click += new System.EventHandler(btnEmployeeReport_Click);
+            btnEquipmentReport.Name  = "btnEquipmentReport";
+            SetupBtn(btnEquipmentReport, "🖥 Equipment",
+                new System.Windows.Forms.Padding(4, 0, 0, 4), btnEquipmentReport_Click);
+
+            btnEmployeeReport.Name   = "btnEmployeeReport";
+            SetupBtn(btnEmployeeReport, "👤 Employee",
+                new System.Windows.Forms.Padding(4, 0, 0, 4), btnEmployeeReport_Click);
 
             btnAllocationReport.Name = "btnAllocationReport";
-            btnAllocationReport.Text = "📋 Allocation";
-            btnAllocationReport.Size = new System.Drawing.Size(115, 32);
-            btnAllocationReport.Margin = new System.Windows.Forms.Padding(4, 0, 0, 4);
-            btnAllocationReport.Click += new System.EventHandler(btnAllocationReport_Click);
+            SetupBtn(btnAllocationReport, "📋 Allocation",
+                new System.Windows.Forms.Padding(4, 0, 0, 4), btnAllocationReport_Click);
 
-            btnReturnReport.Name = "btnReturnReport";
-            btnReturnReport.Text = "↩ Return";
-            btnReturnReport.Size = new System.Drawing.Size(115, 32);
-            btnReturnReport.Margin = new System.Windows.Forms.Padding(4, 0, 0, 4);
-            btnReturnReport.Click += new System.EventHandler(btnReturnReport_Click);
+            btnReturnReport.Name     = "btnReturnReport";
+            SetupBtn(btnReturnReport, "↩ Return",
+                new System.Windows.Forms.Padding(4, 0, 0, 4), btnReturnReport_Click);
 
-            btnExportPDF.Name = "btnExportPDF";
-            btnExportPDF.Text = "📄 Export PDF";
-            btnExportPDF.Size = new System.Drawing.Size(115, 32);
-            btnExportPDF.Margin = new System.Windows.Forms.Padding(16, 0, 0, 4);
-            btnExportPDF.Click += new System.EventHandler(btnExportPDF_Click);
+            btnExportPDF.Name        = "btnExportPDF";
+            SetupBtn(btnExportPDF, "📄 Export PDF",
+                new System.Windows.Forms.Padding(16, 0, 0, 4), btnExportPDF_Click);
 
-            btnExportExcel.Name = "btnExportExcel";
-            btnExportExcel.Text = "📊 Export Excel";
-            btnExportExcel.Size = new System.Drawing.Size(115, 32);
-            btnExportExcel.Margin = new System.Windows.Forms.Padding(4, 0, 0, 4);
-            btnExportExcel.Click += new System.EventHandler(btnExportExcel_Click);
+            btnExportExcel.Name      = "btnExportExcel";
+            SetupBtn(btnExportExcel, "📊 Export Excel",
+                new System.Windows.Forms.Padding(4, 0, 0, 4), btnExportExcel_Click);
 
           
 

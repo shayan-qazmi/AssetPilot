@@ -1062,7 +1062,7 @@ namespace Inventory_Management_System.Forms
 
             btnAddUser = new Button
             {
-                Text = "➕  Add User",
+                Text = "✛ Add User",
                 Location = new Point(0, 0),
                 Size = new Size(150, 38)
             };
@@ -1075,16 +1075,16 @@ namespace Inventory_Management_System.Forms
                 Location = new Point(164, 0),
                 Size = new Size(130, 38)
             };
-            StyleGrayBtn(btnEditUser);
+            ThemeHelper.StyleButton(btnEditUser, Color.FromArgb(245, 158, 11));
             btnEditUser.Click += BtnEditUser_Click;
 
             btnToggleUser = new Button
             {
-                Text = "🔄  Toggle Active",
+                Text = "⇄ Toggle Active",
                 Location = new Point(308, 0),
                 Size = new Size(160, 38)
             };
-            StyleGrayBtn(btnToggleUser);
+            ThemeHelper.StyleButton(btnToggleUser, Color.FromArgb(33, 150, 243));
             btnToggleUser.Click += BtnToggleUser_Click;
 
             btnDeleteUser = new Button
@@ -1140,7 +1140,8 @@ namespace Inventory_Management_System.Forms
             dgvUsers.Columns.Add("Role", "Role");
             dgvUsers.Columns.Add("Status", "Status");
             dgvUsers.Columns["ID"].FillWeight = 30;
-            dgvUsers.Columns["Status"].FillWeight = 60;
+            dgvUsers.Columns["Status"].FillWeight = 90;
+            dgvUsers.Columns["Status"].MinimumWidth = 110;
             outer.Controls.Add(dgvUsers);
 
             return outer;

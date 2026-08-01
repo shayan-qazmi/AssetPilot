@@ -47,8 +47,8 @@ namespace Inventory_Management_System.Forms
             Font = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
 
-            const int formWidth = 440;
-            const int margin = 28;
+            const int formWidth = 460;
+            const int margin = 24;
             int contentWidth = formWidth - margin * 2;
 
             // ── Header ──
@@ -85,23 +85,21 @@ namespace Inventory_Management_System.Forms
             var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10), AutoScroll = false };
             Controls.Add(body);
 
-            // ── Footer — buttons centered, plus required-field legend ──
+            // ── Footer — buttons right-aligned, plus required-field legend on left ──
             const int footerHeight = 72;
             var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
             pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
 
-            btnCancel = new Button { Text = "Cancel", Size = new Size(140, 42) };
+            btnCancel = new Button { Text = "Cancel", Size = new Size(120, 40) };
             ThemeHelper.StyleSecondaryButton(btnCancel);
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
 
-            btnSave = new Button { Text = "Save", Size = new Size(150, 42) };
+            btnSave = new Button { Text = "Save", Size = new Size(130, 40) };
             ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
 
-            int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
-            int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
-            btnCancel.Location = new Point(buttonsStartX, 15);
-            btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
+            btnSave.Location = new Point(formWidth - btnSave.Width - margin, 16);
+            btnCancel.Location = new Point(btnSave.Left - btnCancel.Width - 12, 16);
 
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnSave);

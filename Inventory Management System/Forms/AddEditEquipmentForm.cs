@@ -62,9 +62,9 @@ namespace Inventory_Management_System.Forms
         private const int ColLeft = 20;
         private const int ColRight = 440;
         private const int ColW = 390;
-        private const int FieldX = 155;   // input start inside a row panel
-        private const int LabelW = 148;
-        private const int InputW = 215;
+        private const int FieldX = 162;   // input start inside a row panel
+        private const int LabelW = 154;   // label width to fit "Serial Number * :"
+        private const int InputW = 215;   // input control width
         private const int RowH = 38;
         private const int MultiRowH = 88;
         private const int SectionGap = 14;
@@ -77,6 +77,7 @@ namespace Inventory_Management_System.Forms
         private static readonly Color RowEven = Color.White;
         private static readonly Color RowOdd = Color.FromArgb(248, 250, 248);
         private static readonly Color SeparatorClr = Color.FromArgb(234, 237, 241);
+        private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
 
         public AddEditEquipmentForm(Equipment? equipment = null)
         {
@@ -106,30 +107,45 @@ namespace Inventory_Management_System.Forms
             MinimizeBox = false;
             BackColor = BgPage;
 
-            // ── Header strip ─────────────────────────────────────────────
-            var header = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = HeaderH,
-                BackColor = ThemeHelper.Header,
-            };
+            const int formWidth = DialogW;
+            const int margin = OuterPad + 8;
+            int contentWidth = formWidth - margin * 2;
+
+            // ── Header Banner ─────────────────────────────────────────────
+            var pnlHeader = new Panel { Location = new Point(0, 0), Width = formWidth, BackColor = ThemeHelper.Header };
+            Controls.Add(pnlHeader);
+
             var lblTitle = new Label
             {
-                Text = $"  {(_isEditMode ? "Edit" : "Add")} Equipment",
-                Dock = DockStyle.Fill,
-                Font = new Font("Segoe UI", 11.5f, FontStyle.Bold, GraphicsUnit.Point),
+                Text = _isEditMode ? "Edit Equipment" : "Add Equipment",
+                Font = new Font("Segoe UI", 15.5f, FontStyle.Bold),
                 ForeColor = Color.White,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 0, 0),
+                AutoSize = true,
+                Location = new Point(margin, 18)
             };
-            header.Controls.Add(lblTitle);
-            Controls.Add(header);
+            pnlHeader.Controls.Add(lblTitle);
+
+            var subtitleFont = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            string subtitleText = _isEditMode ? "Update equipment details and specifications below" : "Enter equipment details and specifications below";
+            var subtitleSize = TextRenderer.MeasureText(
+                subtitleText, subtitleFont, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+            var lblSubtitle = new Label
+            {
+                Text = subtitleText,
+                Font = subtitleFont,
+                ForeColor = Color.FromArgb(235, 245, 233),
+                AutoSize = false,
+                Size = new Size(contentWidth, subtitleSize.Height + 4),
+                Location = new Point(margin, lblTitle.Bottom + 6)
+            };
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Height = lblSubtitle.Bottom + 18;
 
             // ── Card container ────────────────────────────────────────────
             var card = new Panel
             {
                 BackColor = CardBg,
-                Location = new Point(OuterPad, HeaderH + OuterPad),
+                Location = new Point(OuterPad, pnlHeader.Height + OuterPad),
                 Width = DialogW - OuterPad * 2,
             };
             card.Paint += DrawCardBorder;
@@ -150,7 +166,7 @@ namespace Inventory_Management_System.Forms
             cmbStatus.SelectedIndexChanged += CmbStatus_SelectedIndexChanged;
 
             AddHintRow(card,
-                "💡 Allocation is handled from the Allocation screen",
+                "Allocation is handled from the Allocation screen",
                 ColLeft, ref yL, ref altL);
 
             if (!_isEditMode)
@@ -169,13 +185,13 @@ namespace Inventory_Management_System.Forms
             {
                 lblLocationValue = AddReadonlyLabelRow(card, "Current Location", ColLeft, ref yL, ref altL);
                 AddHintRow(card,
-                    "💡 Location can only be changed from the Allocation screen.",
+                    "Location can only be changed from the Allocation screen.",
                     ColLeft, ref yL, ref altL);
             }
             else
             {
                 AddHintRow(card,
-                    "💡 Location is assigned via the Allocation screen after adding equipment.",
+                    "Location is assigned via the Allocation screen after adding equipment.",
                     ColLeft, ref yL, ref altL);
             }
 
@@ -210,34 +226,42 @@ namespace Inventory_Management_System.Forms
             int cardH = Math.Max(yL, yR) + SectionGap;
             card.Height = cardH;
 
-            // ── Action buttons ────────────────────────────────────────────
-            int btnY = HeaderH + OuterPad + cardH + 14;
+            // ── Footer Panel & Action buttons ─────────────────────────────
+            const int footerHeight = 68;
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
 
-            btnSave = new Button
-            {
-                Text = "Save",
-                Size = new Size(100, 34),
-                Location = new Point(DialogW / 2 - 110, btnY),
-                Font = ThemeHelper.FontBold,
-                Cursor = Cursors.Hand,
-            };
-            ThemeHelper.StyleButton(btnSave);
-            btnSave.Click += BtnSave_Click;
-            Controls.Add(btnSave);
-
-            btnCancel = new Button
-            {
-                Text = "Cancel",
-                Size = new Size(100, 34),
-                Location = new Point(DialogW / 2 + 10, btnY),
-                Font = ThemeHelper.FontDefault,
-                Cursor = Cursors.Hand,
-            };
+            btnCancel = new Button { Text = "Cancel", Size = new Size(130, 40) };
             ThemeHelper.StyleSecondaryButton(btnCancel);
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
-            Controls.Add(btnCancel);
 
-            ClientSize = new Size(DialogW, btnY + 34 + OuterPad);
+            btnSave = new Button { Text = "Save", Size = new Size(140, 40) };
+            ThemeHelper.StyleButton(btnSave);
+            btnSave.Click += BtnSave_Click;
+
+            int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
+            int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
+            btnCancel.Location = new Point(buttonsStartX, 14);
+            btnSave.Location   = new Point(buttonsStartX + btnCancel.Width + 12, 14);
+
+            pnlFooter.Controls.Add(btnCancel);
+            pnlFooter.Controls.Add(btnSave);
+            Controls.Add(pnlFooter);
+
+            var lblRequiredNote = new Label
+            {
+                Text = "* Required field",
+                Font = new Font("Segoe UI", 7.5f, FontStyle.Italic),
+                ForeColor = MutedText,
+                AutoSize = true
+            };
+            lblRequiredNote.Location = new Point(margin, (footerHeight - lblRequiredNote.PreferredHeight) / 2);
+            pnlFooter.Controls.Add(lblRequiredNote);
+
+            int totalHeight = pnlHeader.Height + OuterPad + cardH + OuterPad + footerHeight;
+            ClientSize = new Size(formWidth, totalHeight);
+            pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
+
             AcceptButton = btnSave;
             CancelButton = btnCancel;
 
@@ -839,18 +863,36 @@ namespace Inventory_Management_System.Forms
             {
                 using var pen = new Pen(SeparatorClr, 1);
                 e.Graphics.DrawLine(pen, 10, pnl.Height - 1, pnl.Width - 10, pnl.Height - 1);
+
+                // Draw crisp, visible box outline around input controls
+                using var borderPen = new Pen(Color.FromArgb(190, 195, 202), 1);
+                foreach (Control c in pnl.Controls)
+                {
+                    if (c is TextBox || c is ComboBox || c is DateTimePicker)
+                    {
+                        var rect = new Rectangle(c.Left - 1, c.Top - 1, c.Width + 1, c.Height + 1);
+                        e.Graphics.DrawRectangle(borderPen, rect);
+                    }
+                }
             };
 
             if (!hideLabel && !string.IsNullOrEmpty(labelText))
             {
+                string cleanLabel = labelText.Trim();
+                string displayLabel = cleanLabel.EndsWith("*")
+                    ? cleanLabel.Substring(0, cleanLabel.Length - 1).Trim() + " * :"
+                    : cleanLabel + ":";
+
                 var lbl = new Label
                 {
-                    Text = labelText + ":",
-                    Location = new Point(8, 0),
+                    Text = displayLabel,
+                    Location = new Point(6, 0),
                     Size = new Size(LabelW, h),
                     Font = ThemeHelper.FontBold,
                     ForeColor = ThemeHelper.TextSecondary,
                     TextAlign = ContentAlignment.MiddleLeft,
+                    AutoEllipsis = false,
+                    UseMnemonic = false
                 };
                 pnl.Controls.Add(lbl);
             }

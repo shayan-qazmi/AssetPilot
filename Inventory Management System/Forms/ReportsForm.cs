@@ -72,21 +72,18 @@ namespace Inventory_Management_System.Forms
         {
             _previewTitle = new Label
             {
-                Location = new Point(20, 80),
-                Size = new Size(1160, 30),
                 AutoSize = false,
                 TextAlign = ContentAlignment.MiddleCenter,
                 Text = "Select a report above to preview it here.",
                 Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextPrimary,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
+                Height = 30
             };
             Controls.Add(_previewTitle);
 
             _preview = new DataGridView
             {
-                Location = new Point(20, 120),
-                Size = new Size(1160, 540),
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 AllowUserToAddRows = false,
                 ReadOnly = true,
@@ -99,6 +96,23 @@ namespace Inventory_Management_System.Forms
             _preview.ColumnHeadersDefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft;
             Controls.Add(_preview);
             _preview.BringToFront();
+
+            // Reposition preview area below panelTop whenever it changes size
+            void RepositionPreview()
+            {
+                int top = panelTop.Bottom + 4;
+                int left = 20;
+                int w = ClientSize.Width - left * 2;
+                _previewTitle.Location = new Point(left, top);
+                _previewTitle.Width = w;
+                _preview.Location = new Point(left, top + _previewTitle.Height + 2);
+                _preview.Size = new Size(w, ClientSize.Height - _preview.Top - 8);
+            }
+
+            panelTop.SizeChanged += (s, e) => RepositionPreview();
+            Resize             += (s, e) => RepositionPreview();
+            Shown              += (s, e) => RepositionPreview();
+            RepositionPreview(); // initial placement
 
             _lblWatermark = new Label
             {
