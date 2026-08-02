@@ -1303,89 +1303,153 @@ namespace Inventory_Management_System.Forms
             };
 
             var (title, subtitle, nextY) = AddSectionHeader(outer, "Change Password",
-     "Update your account password securely.");
+                "Update your account password securely.");
 
-            var card = new Panel
+            // Container for both left form and right tips card
+            var container = new Panel
             {
                 Location = new Point(40, nextY),
-                Size = new Size(560, 380),
+                Size = new Size(1000, 420),
+                BackColor = Color.Transparent
+            };
+            outer.Controls.Add(container);
+
+            // ── Left Side: Form Card ──
+            var formCard = new Panel
+            {
+                Location = new Point(0, 0),
+                Size = new Size(560, 400),
                 BackColor = Color.White
             };
-            ApplyCardStyle(outer, card);
-            outer.Controls.Add(card);
+            ApplyCardStyle(outer, formCard);
+            container.Controls.Add(formCard);
 
-            int y = 24;
+            int y = 30;
 
-            card.Controls.Add(MakeLabel("Current Password", 24, y));
+            formCard.Controls.Add(MakeLabel("Current Password", 30, y));
             y += 26;
-            txtCurrentPwd = MakeTextBox(card, 24, y, 490);
+            txtCurrentPwd = MakeTextBox(formCard, 30, y, 500);
             txtCurrentPwd.UseSystemPasswordChar = true;
-            y += 50;
+            y += 54;
 
-            card.Controls.Add(MakeLabel("New Password", 24, y));
+            formCard.Controls.Add(MakeLabel("New Password", 30, y));
             y += 26;
-            txtNewPwd = MakeTextBox(card, 24, y, 490);
+            txtNewPwd = MakeTextBox(formCard, 30, y, 500);
             txtNewPwd.UseSystemPasswordChar = true;
             txtNewPwd.TextChanged += (s, e) => UpdatePasswordStrength();
             y += 34;
 
-            // Password strength meter — updates live as the user types.
             _pwdStrengthBar = new Panel
             {
-                Location = new Point(24, y),
+                Location = new Point(30, y),
                 Size = new Size(0, 5),
                 BackColor = Color.FromArgb(229, 231, 235)
             };
             _pwdStrengthTrack = new Panel
             {
-                Location = new Point(24, y),
-                Size = new Size(300, 5),
+                Location = new Point(30, y),
+                Size = new Size(320, 5),
                 BackColor = Color.FromArgb(229, 231, 235),
                 Visible = false
             };
             _pwdStrengthTrack.Controls.Add(_pwdStrengthBar);
-            card.Controls.Add(_pwdStrengthTrack);
+            formCard.Controls.Add(_pwdStrengthTrack);
 
             _lblPwdStrengthText = new Label
             {
-                Location = new Point(334, y - 8),
+                Location = new Point(360, y - 8),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 8f),
                 ForeColor = SubtitleColor,
                 BackColor = Color.Transparent,
                 Text = ""
             };
-            card.Controls.Add(_lblPwdStrengthText);
-            y += 22;
-
-            card.Controls.Add(MakeLabel("Confirm New Password", 24, y));
+            formCard.Controls.Add(_lblPwdStrengthText);
             y += 26;
-            txtConfirmPwd = MakeTextBox(card, 24, y, 490);
+
+            formCard.Controls.Add(MakeLabel("Confirm New Password", 30, y));
+            y += 26;
+            txtConfirmPwd = MakeTextBox(formCard, 30, y, 500);
             txtConfirmPwd.UseSystemPasswordChar = true;
-            y += 50;
+            y += 54;
 
             lblPwdStatus = new Label
             {
-                Location = new Point(24, y),
+                Location = new Point(30, y),
                 AutoSize = false,
-                Size = new Size(490, 22),
+                Size = new Size(500, 22),
                 Font = ThemeHelper.FontSmall,
                 ForeColor = ThemeHelper.Danger,
                 BackColor = Color.Transparent,
                 Text = ""
             };
-            card.Controls.Add(lblPwdStatus);
+            formCard.Controls.Add(lblPwdStatus);
             y += 30;
 
             var btnChange = new Button
             {
-                Text = "🔒  Change Password",
-                Location = new Point(24, y),
-                Size = new Size(190, 38)
+                Text = "Update Password",
+                Location = new Point(30, y),
+                Size = new Size(180, 42)
             };
             StyleGreenBtn(btnChange);
             btnChange.Click += BtnChangePwd_Click;
-            card.Controls.Add(btnChange);
+            formCard.Controls.Add(btnChange);
+
+            // ── Right Side: Security Tips Card ──
+            var tipsCard = new Panel
+            {
+                Location = new Point(590, 0),
+                Size = new Size(350, 240),
+                BackColor = Color.FromArgb(240, 253, 244) // Light green bg
+            };
+            ApplyCardStyle(outer, tipsCard, borderColor: Color.FromArgb(187, 247, 208));
+            container.Controls.Add(tipsCard);
+
+            var lblTipsTitle = new Label
+            {
+                Text = "Security Tips",
+                Font = new Font("Segoe UI Semibold", 11f),
+                ForeColor = ThemeHelper.Header,
+                AutoSize = true,
+                Location = new Point(24, 24),
+                BackColor = Color.Transparent
+            };
+            tipsCard.Controls.Add(lblTipsTitle);
+
+            string[] tips = {
+                "Minimum 8 characters long",
+                "Include numbers and symbols",
+                "Use uppercase letters",
+                "Don't reuse old passwords"
+            };
+
+            int ty = 60;
+            foreach (var tip in tips)
+            {
+                var lblIcon = new Label
+                {
+                    Text = "✓",
+                    Font = ThemeHelper.FontBold,
+                    ForeColor = ThemeHelper.Success,
+                    AutoSize = true,
+                    Location = new Point(24, ty),
+                    BackColor = Color.Transparent
+                };
+                tipsCard.Controls.Add(lblIcon);
+
+                var lblTip = new Label
+                {
+                    Text = tip,
+                    Font = ThemeHelper.FontDefault,
+                    ForeColor = Color.FromArgb(55, 65, 81),
+                    AutoSize = true,
+                    Location = new Point(48, ty),
+                    BackColor = Color.Transparent
+                };
+                tipsCard.Controls.Add(lblTip);
+                ty += 32;
+            }
 
             return outer;
         }

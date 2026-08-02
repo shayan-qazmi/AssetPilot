@@ -16,7 +16,7 @@ namespace Inventory_Management_System.Forms
         private bool _isEditMode;
 
         private TextBox txtFullName = null!;
-        private TextBox txtDepartment = null!;
+        private TextBox txtDesignation = null!;
         private TextBox txtEmail = null!;
         private TextBox txtPhone = null!;
         private CheckBox chkIsActive = null!;
@@ -177,10 +177,10 @@ namespace Inventory_Management_System.Forms
             PlaceControl(txtFullName);
             Hint("As it should appear on allocations and reports — must be unique");
 
-            txtDepartment = new TextBox();
-            ThemeHelper.StyleTextBox(txtDepartment);
-            FieldLabel("Department");
-            PlaceControl(txtDepartment);
+            txtDesignation = new TextBox();
+            ThemeHelper.StyleTextBox(txtDesignation);
+            FieldLabel("Designation");
+            PlaceControl(txtDesignation);
             y += 4;
 
             txtEmail = new TextBox();
@@ -221,7 +221,7 @@ namespace Inventory_Management_System.Forms
             if (_isEditMode)
             {
                 txtFullName.Text = _employee.FullName;
-                txtDepartment.Text = _employee.Department;
+                txtDesignation.Text = _employee.Department;
                 txtEmail.Text = _employee.Email;
                 txtPhone.Text = _employee.Phone;
             }
@@ -256,7 +256,7 @@ namespace Inventory_Management_System.Forms
             }
 
             _employee.FullName = name;
-            _employee.Department = txtDepartment.Text.Trim();
+            _employee.Department = txtDesignation.Text.Trim();
             _employee.Email = txtEmail.Text.Trim();
             _employee.Phone = txtPhone.Text.Trim();
             _employee.IsActive = chkIsActive.Checked;

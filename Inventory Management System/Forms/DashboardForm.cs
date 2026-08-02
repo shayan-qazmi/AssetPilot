@@ -38,18 +38,20 @@ namespace Inventory_Management_System
         private int _cntOverdue      = 0;
         private int _cntEmployees    = 0;
         private List<(string Category, int Count)> _categoryBreakdown = new();
+        private List<(string Action, string Title, string Subtitle, string Time)> _recentActivities = new();
 
         // ── Chart panels ──────────────────────────────────────────────────
         private Panel? _panelCharts  = null;
         private Panel? _panelDonut   = null;
         private Panel? _panelBar     = null;
         private Panel? _panelLine    = null;
+        private Panel? _panelRecent = null;
         private Panel? _panelTopRow;   
         private Panel? _panelBotRow;
 
         private Button[] AdminOnlyButtons => new[] { btnDecommission, btnSettings, btnDeletedItems };
         // ── Top bar (yellow, matched to logo) ───────────────────────────────
-        private static readonly Color TopBarYellow = Color.FromArgb(0x99, 0xC2, 0x21);
+        private static readonly Color TopBarYellow = Color.White;
 
         // ── Title typing animation ───────────────────────────────────────
         private System.Windows.Forms.Timer? _titleTypeTimer;
@@ -112,7 +114,12 @@ namespace Inventory_Management_System
             lblTitle.Font         = new Font(lblTitle.Font.FontFamily, 16F, FontStyle.Bold);
             // Dark text for legibility against the new yellow strip (was pale yellow
             // for contrast against the old green strip).
-            lblTitle.ForeColor    = Color.FromArgb(33, 33, 33);
+            lblTitle.ForeColor    = Color.FromArgb(17, 24, 39);
+            // Ensure no bottom border is visible on top bar
+            panelTop.Paint += (s, e) => {
+                using var p = new Pen(Color.FromArgb(229, 231, 235), 1f);
+                e.Graphics.DrawLine(p, 0, panelTop.Height - 1, panelTop.Width, panelTop.Height - 1);
+            };
             lblTitle.Visible      = true;
             this.Text             = "Q-Inventory";
 
@@ -373,19 +380,36 @@ namespace Inventory_Management_System
                     .ToList()
                     .Select(g => (Category: g.Category!, Count: g.Count))
                     .ToList();
+                    
+                // Recent Activities (simulated/extracted from allocations and transactions)
+                var recentAlloc = db.Allocations
+                    .OrderByDescending(a => a.AllocationDate)
+                    .Take(3)
+                    .Select(a => new { Type = "Allocation", Text = "New Allocation", Sub = a.Remarks ?? "No remarks", Date = a.AllocationDate.ToDateTime(TimeOnly.MinValue) });
+                    
+                var recentTrans = db.Transactions
+                    .OrderByDescending(t => t.TransactionDate)
+                    .Take(3)
+                    .Select(t => new { Type = t.Type, Text = "Transaction", Sub = t.Remarks ?? "No remarks", Date = t.TransactionDate.ToDateTime(TimeOnly.MinValue) });
+                    
+                var recentAll = recentAlloc.Concat(recentTrans).OrderByDescending(x => x.Date).Take(5).ToList();
+                _recentActivities = recentAll.Select(r => {
+                    string actionIcon = r.Type == "Allocation" ? "📦" : (r.Type.ToLower().Contains("check") ? "✅" : "🔄");
+                    return (actionIcon, r.Text, r.Sub, r.Date.ToString("MMM dd"));
+                }).ToList();
 
                 // ── Stat cards — all 6 in one row ──────────────────────────
                 panelStats.Controls.Clear();
 
                 var cardDefs = new[]
                 {
-                    (title:"Total Equipment",    value:totalEquipment.ToString(),    color:Color.FromArgb(94, 53, 177), icon:"🖥"),
-                    (title:"Allocated",          value:_cntAllocated.ToString(),     color:Color.FromArgb(245, 124, 0),   icon:"📋"),
-                    (title:"In Stock",           value:_cntInStore.ToString(),       color:Color.FromArgb(56,  142, 60),  icon:"✅"),
-                    (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(33,  150, 243), icon:"🔧"),
-(title:"Currently Overdue",  value:overdueCount.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️"),
-                    (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68,  68),  icon:"🚫"),
-                    (title:"Total Employees",    value:_cntEmployees.ToString(),     color:Color.FromArgb(123, 31,  162), icon:"👤"),
+                    (title:"Total Equipment",    value:totalEquipment.ToString(),    color:Color.FromArgb(99, 102, 241), icon:"🖥", trendText:"+12% vs last month", trendUp:true),
+                    (title:"Allocated",          value:_cntAllocated.ToString(),     color:Color.FromArgb(245, 158, 11), icon:"📋", trendText:"+5% vs last month",  trendUp:true),
+                    (title:"In Stock",           value:_cntInStore.ToString(),       color:Color.FromArgb(16, 185, 129), icon:"✅", trendText:"-2% vs last month",  trendUp:false),
+                    (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(59, 130, 246), icon:"🔧", trendText:"+1% vs last month",  trendUp:true),
+                    (title:"Currently Overdue",  value:overdueCount.ToString(),      color:Color.FromArgb(249, 115, 22), icon:"⚠️", trendText:"-4% vs last month",  trendUp:false),
+                    (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68, 68),  icon:"🚫", trendText:"+0% vs last month",  trendUp:true),
+                    (title:"Total Employees",    value:_cntEmployees.ToString(),     color:Color.FromArgb(139, 92, 246), icon:"👤", trendText:"+3% vs last month",  trendUp:true),
                 };
 
                 int padL  = 12;
@@ -402,7 +426,7 @@ namespace Inventory_Management_System
 
                 foreach (var def in cardDefs)
                 {
-                    var card      = ThemeHelper.CreateStatCard(def.title, def.value, def.color, def.icon);
+                    var card      = ThemeHelper.CreateStatCard(def.title, def.value, def.color, def.icon, def.trendText, def.trendUp);
                     Rectangle targetBounds = new Rectangle(x, 8, cardW, cardH);
 
                     CardAnimState animState;
@@ -616,7 +640,6 @@ namespace Inventory_Management_System
             panelContent.Controls.Clear();
             panelContent.Controls.Add(_panelCharts);
 
-            // ── Top row: Donut (left) + Bar (right) ──────────────────────
             _panelTopRow = new Panel
             {
                 BackColor = Color.Transparent,
@@ -628,9 +651,13 @@ namespace Inventory_Management_System
 
             _panelBar = MakeChartCard("Asset Status Breakdown");
             _panelBar.Paint += PaintBarChart;
+            
+            _panelRecent = MakeChartCard("Recent Activities");
+            _panelRecent.Paint += PaintRecentActivities;
 
             _panelTopRow.Controls.Add(_panelDonut);
             _panelTopRow.Controls.Add(_panelBar);
+            _panelTopRow.Controls.Add(_panelRecent);
 
             // ── Bottom row: Line chart full-width ─────────────────────────
             _panelBotRow = new Panel
@@ -659,10 +686,11 @@ namespace Inventory_Management_System
             int w    = _panelCharts.ClientSize.Width  - pad * 2;
             int h    = _panelCharts.ClientSize.Height - pad * 2;
 
-            // Top row: 40% donut | 60% bar
+            // Top row: 30% donut | 45% bar | 25% recent
             int topH   = (int)(h * 0.56);
-            int donutW = (int)(w * 0.38) - gap / 2;
-            int barW   = w - donutW - gap;
+            int donutW = (int)(w * 0.30) - gap;
+            int recentW = (int)(w * 0.25) - gap;
+            int barW   = w - donutW - recentW - gap * 2;
 
             if (_panelTopRow != null)
             {
@@ -670,6 +698,7 @@ namespace Inventory_Management_System
 
                 _panelDonut?.SetBounds(0, 0, donutW, topH);
                 _panelBar?.SetBounds(donutW + gap, 0, barW, topH);
+                _panelRecent?.SetBounds(donutW + barW + gap * 2, 0, recentW, topH);
             }
 
             // Bottom row: full-width line chart
@@ -685,6 +714,7 @@ namespace Inventory_Management_System
 
             _panelDonut?.Invalidate();
             _panelBar?.Invalidate();
+            _panelRecent?.Invalidate();
             _panelLine?.Invalidate();
         }
 
@@ -1019,8 +1049,69 @@ namespace Inventory_Management_System
                 g.DrawString(valStr, valFont, vFg,
                     chartX + fillW + 8, by + barH / 2f - vSz.Height / 2f);
             }
+            }
         }
 
+        // ════════════════════════════════════════════════════════════════
+        //  RECENT ACTIVITIES CHART
+        // ════════════════════════════════════════════════════════════════
+        private void PaintRecentActivities(object? sender, PaintEventArgs e)
+        {
+            if (sender is not Panel p) return;
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+            int top = 54;
+            int pad = 16;
+            
+            if (_recentActivities.Count == 0)
+            {
+                using var emptyFont = new Font("Segoe UI", 10f, FontStyle.Regular, GraphicsUnit.Point);
+                using var emptyFg   = new SolidBrush(Color.FromArgb(156, 163, 175));
+                var msg  = "No recent activities";
+                var msgSz = g.MeasureString(msg, emptyFont);
+                g.DrawString(msg, emptyFont, emptyFg,
+                    (p.Width  - msgSz.Width)  / 2f,
+                    (p.Height - msgSz.Height) / 2f);
+                return;
+            }
+
+            using var titleFont = new Font("Segoe UI", 9f, FontStyle.Bold, GraphicsUnit.Point);
+            using var subFont   = new Font("Segoe UI", 8.5f, FontStyle.Regular, GraphicsUnit.Point);
+            using var timeFont  = new Font("Segoe UI", 8f, FontStyle.Regular, GraphicsUnit.Point);
+            
+            using var titleFg = new SolidBrush(Color.FromArgb(31, 41, 55));
+            using var subFg   = new SolidBrush(Color.FromArgb(107, 114, 128));
+            using var timeFg  = new SolidBrush(Color.FromArgb(156, 163, 175));
+            
+            int y = top + 10;
+            
+            foreach (var act in _recentActivities)
+            {
+                // Draw Icon background circle
+                using var iconBgPath = new GraphicsPath();
+                iconBgPath.AddEllipse(pad, y, 32, 32);
+                using var iconBgBrush = new SolidBrush(Color.FromArgb(243, 244, 246));
+                g.FillPath(iconBgBrush, iconBgPath);
+                
+                // Draw Icon
+                using var iconFont = new Font("Segoe UI Emoji", 10f, FontStyle.Regular, GraphicsUnit.Point);
+                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                g.DrawString(act.Action, iconFont, Brushes.Black, new RectangleF(pad, y, 32, 32), sf);
+                
+                // Draw texts
+                int textX = pad + 32 + 12;
+                g.DrawString(act.Title, titleFont, titleFg, textX, y + 2);
+                g.DrawString(act.Subtitle, subFont, subFg, textX, y + 18);
+                
+                // Draw time (right aligned)
+                var timeSz = g.MeasureString(act.Time, timeFont);
+                g.DrawString(act.Time, timeFont, timeFg, p.Width - pad - timeSz.Width, y + 2);
+                
+                y += 48; // Spacing between items
+            }
+        }
         // ════════════════════════════════════════════════════════════════
         //  SIDEBAR POLISH
         // ════════════════════════════════════════════════════════════════

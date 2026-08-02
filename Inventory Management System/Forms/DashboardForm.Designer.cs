@@ -88,7 +88,7 @@ namespace Inventory_Management_System
             picLogoSide.Name = "picLogoSide";
 
             btnDashboard.Dock    = System.Windows.Forms.DockStyle.Top;
-            btnDashboard.Height  = 46; btnDashboard.Text = "⊞  Dashboard";
+            btnDashboard.Height  = 46; btnDashboard.Text = "🏠  Dashboard";
             btnDashboard.Name    = "btnDashboard";
             btnDashboard.Click  += btnDashboard_Click;
 
@@ -118,12 +118,12 @@ namespace Inventory_Management_System
             btnReturns.Click    += btnReturns_Click;
 
             btnTransfer.Dock = System.Windows.Forms.DockStyle.Top;
-            btnTransfer.Height = 46; btnTransfer.Text = "🔀  Transfer";
+            btnTransfer.Height = 46; btnTransfer.Text = "🔄  Transfer";
             btnTransfer.Name = "btnTransfer";
             btnTransfer.Click += btnTransfer_Click;
 
             btnDecommission.Dock = System.Windows.Forms.DockStyle.Top;
-            btnDecommission.Height = 46; btnDecommission.Text = "🗑  Decommission";
+            btnDecommission.Height = 46; btnDecommission.Text = "🚫  Decommission";
             btnDecommission.Name = "btnDecommission";
             btnDecommission.Click += btnDecommission_Click;
 
@@ -143,7 +143,7 @@ namespace Inventory_Management_System
             btnQRScanner.Click  += btnQRScanner_Click;
 
             btnCheckInOut.Dock    = System.Windows.Forms.DockStyle.Top;
-            btnCheckInOut.Height  = 46; btnCheckInOut.Text = "📋  Check In/Out";
+            btnCheckInOut.Height  = 46; btnCheckInOut.Text = "✅  Check In/Out";
             btnCheckInOut.Name    = "btnCheckInOut";
             btnCheckInOut.Click  += btnCheckInOut_Click;
 

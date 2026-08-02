@@ -261,7 +261,7 @@ namespace Inventory_Management_System.Forms
                 if (sfd.ShowDialog() != DialogResult.OK) return;
 
                 var sb = new System.Text.StringBuilder();
-                sb.AppendLine("Employee Code,Full Name,Department,Email,Phone,Status");
+                sb.AppendLine("Employee Code,Full Name,Designation,Email,Phone,Status");
 
                 foreach (DataGridViewRow row in dgvEmployees.Rows)
                 {

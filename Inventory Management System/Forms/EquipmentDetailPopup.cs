@@ -24,9 +24,9 @@ namespace Inventory_Management_System.Forms
         private const int ColWidth = 380;
         private const int RowH = 36;
         private const int SectionGap = 14;
-        private const int LabelW = 155;
-        private const int ValueX = 168;
-        private const int ValueW = 200;
+        private const int LabelW = 180;
+        private const int ValueX = 185;
+        private const int ValueW = 185;
 
         // ── Color Overrides (supplement ThemeHelper) ─────────────────────────
         private static readonly Color BgPage = Color.FromArgb(245, 247, 250);
@@ -124,10 +124,20 @@ namespace Inventory_Management_System.Forms
             var activeAlloc = _equipment.Allocations.FirstOrDefault(a => a.Status == "approved");
             bool altRight = false;
 
-            AddField(card, "Current Location", activeAlloc?.Location?.LocationName ?? "—", ColRight, ref yRight, ref altRight);
+            string locName = activeAlloc?.Location?.LocationName;
+            string roomName = activeAlloc?.Location?.RoomName;
+            string currentLocStr = "—";
+            if (!string.IsNullOrEmpty(locName) && !string.IsNullOrEmpty(roomName))
+                currentLocStr = $"{locName} - {roomName}";
+            else if (!string.IsNullOrEmpty(locName))
+                currentLocStr = locName;
+            else if (!string.IsNullOrEmpty(roomName))
+                currentLocStr = roomName;
+
+            AddField(card, "Current Location", currentLocStr, ColRight, ref yRight, ref altRight);
             AddField(card, "Currently Assigned To", activeAlloc?.Employee?.FullName ?? "—", ColRight, ref yRight, ref altRight);
             AddField(card, "Allocation Date", activeAlloc?.AllocationDate.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
-            AddField(card, "Expected Return", activeAlloc?.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
+            AddField(card, "Expected Return Date", activeAlloc?.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
 
             // ── Right Column: Maintenance History ────────────────────────────
             AddSectionHeader(card, "Maintenance History", ColRight, ref yRight);
@@ -260,8 +270,9 @@ namespace Inventory_Management_System.Forms
                 AutoEllipsis = true,
             };
 
-            int preferredH = lblValue.GetPreferredSize(new Size(ValueW, 0)).Height;
-            int actualH = Math.Max(RowH, preferredH + 14);
+            int prefValH = lblValue.GetPreferredSize(new Size(ValueW, 0)).Height;
+            int prefLblH = lblName.GetPreferredSize(new Size(LabelW, 0)).Height;
+            int actualH = Math.Max(RowH, Math.Max(prefValH, prefLblH) + 14);
             lblName.Height = actualH;
             lblValue.Height = actualH;
 

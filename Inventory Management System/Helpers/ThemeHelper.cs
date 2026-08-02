@@ -322,48 +322,58 @@ private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
         }
 
         // ── CreateStatCard ─────────────────────────────────────────────────
-        public static Panel CreateStatCard(string title, string value, Color cardColor, string icon = "📦")
+        public static Panel CreateStatCard(string title, string value, Color cardColor, string icon = "📦", string trendText = "+0% vs last month", bool trendUp = true)
         {
             var card = new Panel
             {
-                BackColor = cardColor,
-                Cursor    = Cursors.Hand
+                BackColor = Color.White,
+                Cursor    = Cursors.Hand,
+                Padding   = new Padding(16)
             };
 
             Action<Control>? wireHover = null;
             wireHover = (c) =>
             {
-                c.MouseEnter += (s, e) => { card.BackColor = ControlPaint.Light(cardColor, 0.1f); };
+                c.MouseEnter += (s, e) => { card.BackColor = Color.FromArgb(250, 250, 250); };
                 c.MouseLeave += (s, e) => {
                     var mousePos = card.PointToClient(Cursor.Position);
                     if (!card.ClientRectangle.Contains(mousePos))
-                        card.BackColor = cardColor;
+                        card.BackColor = Color.White;
                 };
             };
 
-            var lblValue = new Label
+            // Icon background panel
+            var iconBg = new Panel
             {
-                Name      = "lblValue",
-                Text      = value,
-                Font      = new Font("Segoe UI", 22f, FontStyle.Bold, GraphicsUnit.Point),
-                ForeColor = Color.White,
-                AutoSize  = false,
-                Size      = new Size(190, 80),
-                Location  = new Point(12, 12),
-                TextAlign = ContentAlignment.MiddleLeft,
-                BackColor = Color.Transparent
+                Size = new Size(40, 40),
+                Location = new Point(16, 16),
+                BackColor = Color.FromArgb(20, cardColor)
             };
 
             var lblIcon = new Label
             {
                 Name      = "lblIcon",
                 Text      = icon,
-                Font      = new Font("Segoe UI Emoji", 0.0016f, FontStyle.Regular, GraphicsUnit.Point),
-                ForeColor = Color.FromArgb(160, 255, 255, 255),
+                Font      = new Font("Segoe UI Emoji", 14f, FontStyle.Regular, GraphicsUnit.Point),
+                ForeColor = cardColor,
                 AutoSize  = false,
                 Size      = new Size(40, 40),
-                Location  = new Point(999, 8),
+                Location  = new Point(0, 0),
                 TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = Color.Transparent
+            };
+            iconBg.Controls.Add(lblIcon);
+
+            var lblValue = new Label
+            {
+                Name      = "lblValue",
+                Text      = value,
+                Font      = new Font("Segoe UI", 24f, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = Color.FromArgb(31, 41, 55),
+                AutoSize  = false,
+                Size      = new Size(160, 40),
+                Location  = new Point(16, 64),
+                TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Color.Transparent
             };
 
@@ -371,23 +381,48 @@ private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
             {
                 Name      = "lblTitle",
                 Text      = title,
-                Font      = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point),
-                ForeColor = Color.FromArgb(220, 255, 255, 255),
-                AutoSize  = false,
-                Height    = 22,
-                Location  = new Point(12, 56),
-                TextAlign = ContentAlignment.MiddleLeft,
+                Font      = new Font("Segoe UI", 9.5f, FontStyle.Regular, GraphicsUnit.Point),
+                ForeColor = Color.FromArgb(107, 114, 128),
+                AutoSize  = true,
+                Location  = new Point(14, 110),
+                BackColor = Color.Transparent
+            };
+            
+            var lblTrendIcon = new Label
+            {
+                Name      = "lblTrendIcon",
+                Text      = trendUp ? "↑" : "↓",
+                Font      = new Font("Segoe UI", 8.5f, FontStyle.Bold, GraphicsUnit.Point),
+                ForeColor = trendUp ? Success : Danger,
+                AutoSize  = true,
+                Location  = new Point(14, 134),
                 BackColor = Color.Transparent
             };
 
+            var lblTrendText = new Label
+            {
+                Name      = "lblTrendText",
+                Text      = trendText,
+                Font      = new Font("Segoe UI", 8f, FontStyle.Regular, GraphicsUnit.Point),
+                ForeColor = Color.FromArgb(156, 163, 175),
+                AutoSize  = true,
+                Location  = new Point(28, 134),
+                BackColor = Color.Transparent
+            };
+
+            card.Controls.Add(iconBg);
             card.Controls.Add(lblValue);
-            card.Controls.Add(lblIcon);
             card.Controls.Add(lblTitle);
+            card.Controls.Add(lblTrendIcon);
+            card.Controls.Add(lblTrendText);
 
             wireHover(card);
-            wireHover(lblValue);
+            wireHover(iconBg);
             wireHover(lblIcon);
+            wireHover(lblValue);
             wireHover(lblTitle);
+            wireHover(lblTrendIcon);
+            wireHover(lblTrendText);
 
             card.Paint += (s, e) =>
             {
@@ -395,7 +430,7 @@ private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
                 using var path = new GraphicsPath();
-                int cr   = 12;
+                int cr   = 16;
                 var rect = new Rectangle(0, 0, card.Width - 1, card.Height - 1);
                 path.AddArc(rect.X,          rect.Y,          cr, cr, 180, 90);
                 path.AddArc(rect.Right - cr, rect.Y,          cr, cr, 270, 90);
@@ -403,39 +438,62 @@ private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
                 path.AddArc(rect.X,          rect.Bottom - cr, cr, cr, 90,  90);
                 path.CloseFigure();
                 card.Region = new Region(path);
-                using var emojiFont = new Font("Segoe UI Emoji", 20f, FontStyle.Regular, GraphicsUnit.Point);
-                using var emojiSf   = new StringFormat
-                {
-                    Alignment     = StringAlignment.Center,
-                    LineAlignment = StringAlignment.Center
+                
+                // Top border accent (optional, matching some modern designs, or just left plain white)
+                // The reference uses plain white cards. We will add a soft border.
+                using var borderPen = new Pen(Color.FromArgb(235, 237, 240), 1.5f);
+                g.DrawPath(borderPen, path);
+                
+                // Draw a decorative sparkline at the bottom right
+                int lineW = 70;
+                int lineH = 15;
+                int startX = card.Width - lineW - 16;
+                int startY = card.Height - lineH - 16;
+                
+                using var sparkPen = new Pen(Color.FromArgb(60, cardColor), 2f);
+                using var sparkPath = new GraphicsPath();
+                
+                // Generate a pseudo-random looking curve that ends up or down depending on trendUp
+                int midX = startX + lineW / 2;
+                int midY = startY + lineH / 2;
+                
+                int yEnd = trendUp ? startY : startY + lineH;
+                int yStart = trendUp ? startY + lineH : startY;
+                
+                Point[] pts = {
+                    new Point(startX, yStart),
+                    new Point(startX + lineW / 4, yStart + (trendUp ? -lineH/2 : lineH/2)),
+                    new Point(startX + lineW / 2, midY + (trendUp ? lineH/4 : -lineH/4)),
+                    new Point(startX + 3 * lineW / 4, yEnd + (trendUp ? lineH/2 : -lineH/2)),
+                    new Point(startX + lineW, yEnd)
                 };
-                g.DrawString(icon, emojiFont, Brushes.White,
-                    new RectangleF(card.Width - 54, 4, 50, 50), emojiSf);
-
-                // Add "More info" footer strip
-                int stripH = 26;
-                int stripY = card.Height - stripH;
+                sparkPath.AddCurve(pts, 0.5f);
+                g.DrawPath(sparkPen, sparkPath);
                 
-                using var footerBg = new SolidBrush(Color.FromArgb(25, Color.Black));
-                using var topBorder = new Pen(Color.FromArgb(30, Color.White), 1f);
-                g.FillRectangle(footerBg, 0, stripY, card.Width, stripH);
-                g.DrawLine(topBorder, 0, stripY, card.Width, stripY);
+                // Fill soft gradient under sparkline
+                using var gradPath = new GraphicsPath();
+                gradPath.AddCurve(pts, 0.5f);
+                gradPath.AddLine(startX + lineW, card.Height);
+                gradPath.AddLine(startX, card.Height);
+                gradPath.CloseFigure();
                 
-                using var footerFont = new Font("Segoe UI", 8.25f, FontStyle.Regular, GraphicsUnit.Point);
-                using var footerFg = new SolidBrush(Color.FromArgb(190, 255, 255, 255));
-                string footerText = "More info";
-                var fSize = g.MeasureString(footerText, footerFont);
-                float totalW = fSize.Width + 14; 
-                float sx = (card.Width - totalW) / 2f;
-                float sy = stripY + (stripH - fSize.Height) / 2f;
-                g.DrawString(footerText, footerFont, footerFg, sx, sy);
-                g.DrawString("⟳", footerFont, footerFg, sx + fSize.Width + 2, sy - 1);
+                using var gradBrush = new LinearGradientBrush(
+                    new Rectangle(startX, startY - lineH, lineW, lineH * 2 + 10),
+                    Color.FromArgb(30, cardColor),
+                    Color.Transparent,
+                    LinearGradientMode.Vertical);
+                g.FillPath(gradBrush, gradPath);
 
-                // Pin title to bottom (above footer), icon to top-right
-                lblTitle.Location = new Point(12, card.Height - 28 - stripH);
-                lblTitle.Width    = card.Width - 24;
-                lblIcon.Location  = new Point(card.Width - 40, 15);
-                lblIcon.Size      = new Size(40, 36);
+                // Make the icon background panel rounded
+                using var iconPath = new GraphicsPath();
+                int ir = 10;
+                var irect = new Rectangle(0, 0, iconBg.Width - 1, iconBg.Height - 1);
+                iconPath.AddArc(irect.X,          irect.Y,          ir, ir, 180, 90);
+                iconPath.AddArc(irect.Right - ir, irect.Y,          ir, ir, 270, 90);
+                iconPath.AddArc(irect.Right - ir, irect.Bottom - ir, ir, ir, 0,   90);
+                iconPath.AddArc(irect.X,          irect.Bottom - ir, ir, ir, 90,  90);
+                iconPath.CloseFigure();
+                iconBg.Region = new Region(iconPath);
             };
 
             return card;

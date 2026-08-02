@@ -162,7 +162,7 @@ namespace Inventory_Management_System.Forms
             dgvEmployees.Name                = "dgvEmployees";
             dgvEmployees.Columns.Add("ID",         "Employee Code");
             dgvEmployees.Columns.Add("Name",       "Name");
-            dgvEmployees.Columns.Add("Department", "Department");
+            dgvEmployees.Columns.Add("Department", "Designation");
             dgvEmployees.Columns.Add("Email",      "Email");
             dgvEmployees.Columns.Add("Phone",      "Phone");
             dgvEmployees.Columns.Add("Status",     "Status");
