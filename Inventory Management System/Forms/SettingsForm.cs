@@ -91,8 +91,15 @@ namespace Inventory_Management_System.Forms
         private string? _mysqldumpPath;
         private string? _mysqlPath;
 
-        public SettingsForm()
+        public enum InitialSection { General, Users, Password, Printing, Categories }
+
+        private readonly InitialSection _initialSection;
+
+        public SettingsForm() : this(InitialSection.General) { }
+
+        public SettingsForm(InitialSection initialSection)
         {
+            _initialSection = initialSection;
             InitializeComponent();
             LoadLastBackupTime();
             BuildUI();
@@ -233,13 +240,25 @@ namespace Inventory_Management_System.Forms
             Controls.Add(content);
             Controls.Add(sidebar);
 
-           
 
 
 
-            // Activate General by default
-            _activeNavBtn = navBtns[0];
-            ShowSection(_panelGeneral, navBtns[0], navBtns);
+
+            // Activate the requested section (General by default, or
+            // whatever the caller asked for — e.g. jumping straight to
+            // Users from the sidebar profile footer on the dashboard).
+            int initialIndex = _initialSection switch
+            {
+                InitialSection.Users => 1,
+                InitialSection.Password => 2,
+                InitialSection.Printing => 3,
+                InitialSection.Categories => 4,
+                _ => 0
+            };
+            var initialPanel = new[]
+                { _panelGeneral, _panelUsers, _panelPassword, _panelPrinting, _panelCategories }[initialIndex];
+            _activeNavBtn = navBtns[initialIndex];
+            ShowSection(initialPanel, navBtns[initialIndex], navBtns);
         }
 
         private static void ApplyNavPillRegion(Button btn)
@@ -1143,6 +1162,7 @@ namespace Inventory_Management_System.Forms
             dgvUsers.Columns["Status"].FillWeight = 90;
             dgvUsers.Columns["Status"].MinimumWidth = 110;
             outer.Controls.Add(dgvUsers);
+            dgvUsers.CellDoubleClick += DgvUsers_CellDoubleClick;
 
             return outer;
         }
@@ -1190,6 +1210,30 @@ namespace Inventory_Management_System.Forms
         {
             using var form = new AddEditUserForm();
             if (form.ShowDialog() == DialogResult.OK) LoadUsers();
+        }
+
+        private void DgvUsers_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+
+            int id = Convert.ToInt32(dgvUsers.Rows[e.RowIndex].Cells["ID"].Value);
+            var user = _users.FirstOrDefault(u => u.Id == id);
+            if (user == null) return;
+
+            string roleName = "—";
+            try
+            {
+                using var db = new InventoryDbContext();
+                var roleId = db.UserRoles.FirstOrDefault(ur => ur.UserId == user.Id)?.RoleId;
+                roleName = _roles.FirstOrDefault(r => r.Id == roleId)?.RoleName ?? "—";
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "SettingsForm.DgvUsers_CellDoubleClick");
+            }
+
+            using var popup = new UserDetailPopup(user, roleName);
+            popup.ShowDialog(this);
         }
 
         private void BtnEditUser_Click(object? sender, EventArgs e)
@@ -1321,7 +1365,7 @@ namespace Inventory_Management_System.Forms
                 Size = new Size(560, 400),
                 BackColor = Color.White
             };
-            ApplyCardStyle(outer, formCard);
+            ApplyCardStyle(container, formCard);
             container.Controls.Add(formCard);
 
             int y = 30;
@@ -1403,7 +1447,7 @@ namespace Inventory_Management_System.Forms
                 Size = new Size(350, 240),
                 BackColor = Color.FromArgb(240, 253, 244) // Light green bg
             };
-            ApplyCardStyle(outer, tipsCard, borderColor: Color.FromArgb(187, 247, 208));
+            ApplyCardStyle(container, tipsCard, borderColor: Color.FromArgb(187, 247, 208));
             container.Controls.Add(tipsCard);
 
             var lblTipsTitle = new Label

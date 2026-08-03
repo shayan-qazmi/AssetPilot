@@ -3,8 +3,8 @@
 namespace Inventory_Management_System.Helpers
 {
     // Central place for the shared network folder used to store equipment
-    // pictures, so every PC running Q-Inventory reads/writes the same files
-    // regardless of which machine originally uploaded them.
+    // (and now user) pictures, so every PC running Q-Inventory reads/writes
+    // the same files regardless of which machine originally uploaded them.
     internal static class NetworkPaths
     {
         // Samba share on the Debian DB server (192.168.18.240).
@@ -13,6 +13,7 @@ namespace Inventory_Management_System.Helpers
         public const string SharePassword = "pki@123";
 
         public static string EquipmentPicturesDir => Path.Combine(ShareRoot, "Equipment");
+        public static string UserPicturesDir => Path.Combine(ShareRoot, "Users");
 
         // Resolves a stored picture_path DB value — which may be an old-style
         // relative path like "Images/Equipment/x.png" from before the shared
@@ -21,6 +22,12 @@ namespace Inventory_Management_System.Helpers
         {
             string fileName = Path.GetFileName(storedValue);
             return Path.Combine(EquipmentPicturesDir, fileName);
+        }
+
+        public static string GetUserPictureFullPath(string storedValue)
+        {
+            string fileName = Path.GetFileName(storedValue);
+            return Path.Combine(UserPicturesDir, fileName);
         }
     }
 }

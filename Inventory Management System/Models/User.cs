@@ -17,6 +17,8 @@ public partial class User
 
     public bool? IsActive { get; set; }
 
+    public string? PicturePath { get; set; }
+
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }

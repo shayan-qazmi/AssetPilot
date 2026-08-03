@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 
@@ -14,10 +15,10 @@ namespace Inventory_Management_System.Forms
 {
     public partial class QRScannerForm : Form
     {
-        private readonly EquipmentService     _equipmentService = new();
-        private System.Windows.Forms.Timer    _scanTimer = null!;
-        private string                        _lastText  = "";
-        private EquipmentSuggestHelper?       _suggest;
+        private readonly EquipmentService _equipmentService = new();
+        private System.Windows.Forms.Timer _scanTimer = null!;
+        private string _lastText = "";
+        private EquipmentSuggestHelper? _suggest;
 
         private static readonly Font CardLabelFont = new Font("Segoe UI", 8f, FontStyle.Bold);
         private static readonly Font CardValueFont = new Font("Segoe UI", 8f, FontStyle.Regular);
@@ -51,6 +52,21 @@ namespace Inventory_Management_System.Forms
                 g.DrawRectangle(pen, 0, 0, panelCard.Width - 1, panelCard.Height - 1);
             };
 
+            ThemeHelper.StyleLabel(lblCardTitle, bold: true);
+
+            pnlQrIcon.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+
+                using var path = RoundedRect(new Rectangle(0, 0, pnlQrIcon.Width - 1, pnlQrIcon.Height - 1), 8);
+                using var bg = new SolidBrush(Color.FromArgb(224, 242, 224));
+                g.FillPath(bg, path);
+
+                int pad = (int)(pnlQrIcon.Width * 0.2f);
+                DrawQrIcon(g, new Rectangle(pad, pad, pnlQrIcon.Width - pad * 2, pnlQrIcon.Height - pad * 2), ThemeHelper.Accent);
+            };
+
             // Style all label pairs (colors from theme, then compact font applied after)
             var captionLabels = new[]
             {
@@ -81,7 +97,7 @@ namespace Inventory_Management_System.Forms
 
             ThemeHelper.StyleLabel(lblHistoryTitle, bold: true);
             lblNoResult.ForeColor = ThemeHelper.TextSecondary;
-            lblNoResult.Font      = ThemeHelper.FontDefault;
+            lblNoResult.Font = ThemeHelper.FontDefault;
         }
 
         // ── Fuzzy suggestion dropdown ─────────────────────────────────────
@@ -92,8 +108,8 @@ namespace Inventory_Management_System.Forms
                 var allEquipment = _equipmentService.GetAll().Data ?? new List<Equipment>();
 
                 _suggest = new EquipmentSuggestHelper(
-                    textBox:    txtQRCode,
-                    hostForm:   this,
+                    textBox: txtQRCode,
+                    hostForm: this,
                     onSelected: eq =>
                     {
                         _scanTimer?.Stop();
@@ -109,9 +125,9 @@ namespace Inventory_Management_System.Forms
         // ── USB scanner auto-search ───────────────────────────────────────
         private void SetupScanTimer()
         {
-            _scanTimer          = new System.Windows.Forms.Timer();
+            _scanTimer = new System.Windows.Forms.Timer();
             _scanTimer.Interval = 300;
-            _scanTimer.Tick    += (s, e) =>
+            _scanTimer.Tick += (s, e) =>
             {
                 _scanTimer.Stop();
                 if (!string.IsNullOrWhiteSpace(txtQRCode.Text) && txtQRCode.Text != _lastText)
@@ -134,7 +150,7 @@ namespace Inventory_Management_System.Forms
             {
                 _scanTimer?.Stop();
                 Search();
-                e.Handled          = true;
+                e.Handled = true;
                 e.SuppressKeyPress = true;
             }
         }
@@ -159,44 +175,44 @@ namespace Inventory_Management_System.Forms
                         .ThenInclude(l => l.ChangedByUser)
                     .Include(e => e.ProcurementType)
                     .FirstOrDefault(e =>
-                        e.QrCode        == code ||
+                        e.QrCode == code ||
                         e.EquipmentCode == code ||
-                        e.SerialNumber  == code);
+                        e.SerialNumber == code);
 
                 if (equipment == null)
                 {
-                    panelCard.Visible   = false;
+                    panelCard.Visible = false;
                     lblNoResult.Visible = true;
-                    lblNoResult.Text    = $"❌  No equipment found for: \"{code}\"";
+                    lblNoResult.Text = $"❌  No equipment found for: \"{code}\"";
                     dgvHistory.Rows.Clear();
                     return;
                 }
 
                 // ── Populate card ─────────────────────────────────────────
-                lblEquipmentCodeValue.Text   = equipment.EquipmentCode;
-                lblQrCodeValue.Text          = equipment.QrCode ?? "—";
-                lblEquipmentNameValue.Text   = equipment.Name;
-                lblMakeValue.Text            = equipment.Make ?? "—";
-                lblModelValue.Text           = equipment.Model ?? "—";
-                lblSerialValue.Text          = equipment.SerialNumber ?? "—";
-                lblCategoryValue.Text        = equipment.Category ?? "—";
+                lblEquipmentCodeValue.Text = equipment.EquipmentCode;
+                lblQrCodeValue.Text = equipment.QrCode ?? "—";
+                lblEquipmentNameValue.Text = equipment.Name;
+                lblMakeValue.Text = equipment.Make ?? "—";
+                lblModelValue.Text = equipment.Model ?? "—";
+                lblSerialValue.Text = equipment.SerialNumber ?? "—";
+                lblCategoryValue.Text = equipment.Category ?? "—";
                 lblProcurementTypeValue.Text = equipment.ProcurementType?.TypeName ?? "—";
-                lblConditionValue.Text       = equipment.ConditionGrade ?? "—";
-                lblPurchaseDateValue.Text    = equipment.PurchaseDate?.ToString("yyyy-MM-dd") ?? "—";
-                lblWarrantyValue.Text        = equipment.WarrantyExpiry?.ToString("yyyy-MM-dd") ?? "—";
-                lblVendorValue.Text          = equipment.VendorName ?? "—";
-                lblDescriptionValue.Text     = string.IsNullOrWhiteSpace(equipment.Description) ? "—" : equipment.Description;
-                lblNotesValue.Text           = string.IsNullOrWhiteSpace(equipment.Notes) ? "—" : equipment.Notes;
+                lblConditionValue.Text = equipment.ConditionGrade ?? "—";
+                lblPurchaseDateValue.Text = equipment.PurchaseDate?.ToString("yyyy-MM-dd") ?? "—";
+                lblWarrantyValue.Text = equipment.WarrantyExpiry?.ToString("yyyy-MM-dd") ?? "—";
+                lblVendorValue.Text = equipment.VendorName ?? "—";
+                lblDescriptionValue.Text = string.IsNullOrWhiteSpace(equipment.Description) ? "—" : equipment.Description;
+                lblNotesValue.Text = string.IsNullOrWhiteSpace(equipment.Notes) ? "—" : equipment.Notes;
 
                 // Status with color
-                lblStatusValue.Text      = equipment.CurrentStatus;
+                lblStatusValue.Text = equipment.CurrentStatus;
                 lblStatusValue.ForeColor = equipment.CurrentStatus switch
                 {
-                    "in_store"       => ThemeHelper.Success,
-                    "allocated"      => ThemeHelper.Warning,
-                    "under_repair"   => Color.FromArgb(255, 112, 67),
+                    "in_store" => ThemeHelper.Success,
+                    "allocated" => ThemeHelper.Warning,
+                    "under_repair" => Color.FromArgb(255, 112, 67),
                     "decommissioned" => ThemeHelper.Danger,
-                    _                => ThemeHelper.TextPrimary
+                    _ => ThemeHelper.TextPrimary
                 };
                 lblStatusValue.Font = CardLabelFont;
 
@@ -204,9 +220,9 @@ namespace Inventory_Management_System.Forms
                 var activeAlloc = equipment.Allocations
                     .FirstOrDefault(a => a.Status == "approved");
                 lblLocationValue.Text = activeAlloc?.Location?.LocationName ?? "—";
-                lblEmployeeValue.Text = activeAlloc?.Employee?.FullName     ?? "Not assigned";
+                lblEmployeeValue.Text = activeAlloc?.Employee?.FullName ?? "Not assigned";
 
-                panelCard.Visible   = true;
+                panelCard.Visible = true;
                 lblNoResult.Visible = false;
 
                 // ── Populate history grid ──────────────────────────────────
@@ -219,17 +235,17 @@ namespace Inventory_Management_System.Forms
                 {
                     string action = log.ActionType switch
                     {
-                        "equipment_created"      => "Equipment Created",
-                        "location_changed"       => "Location Changed",
-                        "allocation_requested"   => "Allocation Requested",
-                        "allocation_approved"    => "Allocation Approved",
-                        "allocation_rejected"    => "Allocation Rejected",
-                        "allocation_returned"    => "Returned to Store",
+                        "equipment_created" => "Equipment Created",
+                        "location_changed" => "Location Changed",
+                        "allocation_requested" => "Allocation Requested",
+                        "allocation_approved" => "Allocation Approved",
+                        "allocation_rejected" => "Allocation Rejected",
+                        "allocation_returned" => "Returned to Store",
                         "decommission_requested" => "Decommission Requested",
-                        "decommission_approved"  => "Decommission Approved",
-                        "decommission_rejected"  => "Decommission Rejected",
-                        "transferred"            => "Transferred",
-                        _                        => log.ActionType ?? "Unknown"
+                        "decommission_approved" => "Decommission Approved",
+                        "decommission_rejected" => "Decommission Rejected",
+                        "transferred" => "Transferred",
+                        _ => log.ActionType ?? "Unknown"
                     };
 
                     int rowIdx = dgvHistory.Rows.Add(
@@ -243,13 +259,13 @@ namespace Inventory_Management_System.Forms
                     var cell = dgvHistory.Rows[rowIdx].Cells["Action"];
                     cell.Style.ForeColor = log.ActionType switch
                     {
-                        "equipment_created"    => ThemeHelper.Success,
-                        "allocation_approved"  => Color.FromArgb(25, 118, 210),
-                        "allocation_returned"  => ThemeHelper.Warning,
-                        "allocation_rejected"  or
-                        "decommission_approved"=> ThemeHelper.Danger,
-                        "transferred"          => Color.FromArgb(123, 31, 162),
-                        _                      => ThemeHelper.TextPrimary
+                        "equipment_created" => ThemeHelper.Success,
+                        "allocation_approved" => Color.FromArgb(25, 118, 210),
+                        "allocation_returned" => ThemeHelper.Warning,
+                        "allocation_rejected" or
+                        "decommission_approved" => ThemeHelper.Danger,
+                        "transferred" => Color.FromArgb(123, 31, 162),
+                        _ => ThemeHelper.TextPrimary
                     };
                     cell.Style.Font = ThemeHelper.FontBold;
                 }
@@ -263,9 +279,9 @@ namespace Inventory_Management_System.Forms
         private void btnClear_Click(object? sender, EventArgs e)
         {
             txtQRCode.Clear();
-            panelCard.Visible   = false;
+            panelCard.Visible = false;
             lblNoResult.Visible = true;
-            lblNoResult.Text    = "📷  Scan a QR code or enter an equipment code to see details";
+            lblNoResult.Text = "📷  Scan a QR code or enter an equipment code to see details";
             dgvHistory.Rows.Clear();
             _lastText = "";
             txtQRCode.Focus();
@@ -275,6 +291,42 @@ namespace Inventory_Management_System.Forms
         {
             _suggest?.Dispose();
             base.OnFormClosed(e);
+        }
+    
+
+    private static void DrawQrIcon(Graphics g, Rectangle bounds, Color color)
+        {
+            const int gridSize = 5;
+            float cell = Math.Min(bounds.Width, bounds.Height) / (float)gridSize;
+
+            bool[,] filled = new bool[gridSize, gridSize];
+            void Fill(int col, int row) => filled[col, row] = true;
+
+            Fill(0, 0); Fill(1, 0); Fill(0, 1); Fill(1, 1);
+            Fill(3, 0); Fill(4, 0); Fill(3, 1); Fill(4, 1);
+            Fill(0, 3); Fill(1, 3); Fill(0, 4); Fill(1, 4);
+            Fill(2, 2); Fill(3, 2); Fill(3, 3); Fill(4, 4);
+
+            using var brush = new SolidBrush(color);
+            for (int col = 0; col < gridSize; col++)
+                for (int row = 0; row < gridSize; row++)
+                {
+                    if (!filled[col, row]) continue;
+                    var rect = new RectangleF(bounds.X + col * cell, bounds.Y + row * cell, cell * 0.85f, cell * 0.85f);
+                    g.FillRectangle(brush, rect);
+                }
+        }
+
+        private static GraphicsPath RoundedRect(Rectangle r, int radius)
+        {
+            var path = new GraphicsPath();
+            int d = radius * 2;
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
     }
 }

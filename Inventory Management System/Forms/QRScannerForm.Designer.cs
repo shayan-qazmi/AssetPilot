@@ -15,14 +15,17 @@ namespace Inventory_Management_System.Forms
 
         private void InitializeComponent()
         {
-            panelTop                 = new System.Windows.Forms.Panel();
-            lblScanPrompt            = new System.Windows.Forms.Label();
-            txtQRCode                = new System.Windows.Forms.TextBox();
-            btnSearch                = new System.Windows.Forms.Button();
-            btnClear                 = new System.Windows.Forms.Button();
+            panelTop = new System.Windows.Forms.Panel();
+            lblScanPrompt = new System.Windows.Forms.Label();
+            pnlQrIcon = new System.Windows.Forms.Panel();
+            txtQRCode = new System.Windows.Forms.TextBox();
+            btnSearch = new System.Windows.Forms.Button();
+            btnClear = new System.Windows.Forms.Button();
             panelResult               = new System.Windows.Forms.Panel();
             lblNoResult               = new System.Windows.Forms.Label();
             panelCard                 = new System.Windows.Forms.Panel();
+            panelCard = new System.Windows.Forms.Panel();
+            lblCardTitle = new System.Windows.Forms.Label();
             lblEquipmentCode          = new System.Windows.Forms.Label();
             lblEquipmentCodeValue     = new System.Windows.Forms.Label();
             lblQrCode                 = new System.Windows.Forms.Label();
@@ -69,39 +72,45 @@ namespace Inventory_Management_System.Forms
             SuspendLayout();
 
             // ── panelTop ──────────────────────────────────────────────────
-            panelTop.Dock      = System.Windows.Forms.DockStyle.Top;
-            panelTop.Height    = 70;
-            panelTop.Name      = "panelTop";
+            panelTop.Dock = System.Windows.Forms.DockStyle.Top;
+            panelTop.Height = 70;
+            panelTop.Name = "panelTop";
             panelTop.BackColor = System.Drawing.Color.FromArgb(249, 250, 251);
             panelTop.Controls.Add(lblScanPrompt);
+            panelTop.Controls.Add(pnlQrIcon);
             panelTop.Controls.Add(txtQRCode);
             panelTop.Controls.Add(btnSearch);
             panelTop.Controls.Add(btnClear);
 
-            lblScanPrompt.Text      = "Scan QR / Enter Code:";
-            lblScanPrompt.Location  = new System.Drawing.Point(12, 24);
-            lblScanPrompt.AutoSize  = true;
-            lblScanPrompt.Name      = "lblScanPrompt";
+            lblScanPrompt.Text = "Scan QR / Enter Code:";
+            lblScanPrompt.Location = new System.Drawing.Point(12, 24);
+            lblScanPrompt.AutoSize = true;
+            lblScanPrompt.Name = "lblScanPrompt";
 
-            txtQRCode.Location        = new System.Drawing.Point(170, 20);
-            txtQRCode.Size            = new System.Drawing.Size(320, 30);
+            pnlQrIcon.Location = new System.Drawing.Point(190, 17);
+            pnlQrIcon.Size = new System.Drawing.Size(36, 36);
+            pnlQrIcon.Name = "pnlQrIcon";
+            pnlQrIcon.BackColor = System.Drawing.Color.Transparent;
+
+            txtQRCode.Location = new System.Drawing.Point(236, 20);
+            txtQRCode.Size = new System.Drawing.Size(320, 30);
             txtQRCode.PlaceholderText = "Scan QR code or type equipment code...";
-            txtQRCode.Name            = "txtQRCode";
-            txtQRCode.Font            = new System.Drawing.Font("Segoe UI", 11F);
-            txtQRCode.TextChanged    += txtQRCode_TextChanged;
-            txtQRCode.KeyDown        += txtQRCode_KeyDown;
+            txtQRCode.Name = "txtQRCode";
+            txtQRCode.Font = new System.Drawing.Font("Segoe UI", 11F);
+            txtQRCode.TextChanged += txtQRCode_TextChanged;
+            txtQRCode.KeyDown += txtQRCode_KeyDown;
 
-            btnSearch.Location = new System.Drawing.Point(500, 18);
-            btnSearch.Size     = new System.Drawing.Size(100, 34);
-            btnSearch.Text     = "🔍 Search";
-            btnSearch.Name     = "btnSearch";
-            btnSearch.Click   += btnSearch_Click;
+            btnSearch.Location = new System.Drawing.Point(566, 18);
+            btnSearch.Size = new System.Drawing.Size(100, 34);
+            btnSearch.Text = "🔍 Search";
+            btnSearch.Name = "btnSearch";
+            btnSearch.Click += btnSearch_Click;
 
-            btnClear.Location = new System.Drawing.Point(608, 18);
-            btnClear.Size     = new System.Drawing.Size(90, 34);
-            btnClear.Text     = "Clear";
-            btnClear.Name     = "btnClear";
-            btnClear.Click   += btnClear_Click;
+            btnClear.Location = new System.Drawing.Point(674, 18);
+            btnClear.Size = new System.Drawing.Size(100, 34);
+            btnClear.Text = "↺ Clear";
+            btnClear.Name = "btnClear";
+            btnClear.Click += btnClear_Click;
 
             // ── panelResult (left side — equipment card) ──────────────────
             panelResult.Location  = new System.Drawing.Point(20, 90);
@@ -121,14 +130,21 @@ namespace Inventory_Management_System.Forms
             lblNoResult.Name      = "lblNoResult";
 
             // ── panelCard (compact single-column detail list) ─────────────
-            panelCard.Location   = new System.Drawing.Point(0, 0);
-            panelCard.Size       = new System.Drawing.Size(440, 560);
-            panelCard.Name       = "panelCard";
-            panelCard.Visible    = false;
-            panelCard.BackColor  = System.Drawing.Color.White;
+            panelCard.Location = new System.Drawing.Point(0, 0);
+            panelCard.Size = new System.Drawing.Size(440, 560);
+            panelCard.Name = "panelCard";
+            panelCard.Visible = false;
+            panelCard.BackColor = System.Drawing.Color.White;
             panelCard.AutoScroll = true;
 
-            const int lx = 12, vx = 140, vw = 288, rh = 22, sy = 10;
+            lblCardTitle.Text = "📋 Equipment Details";
+            lblCardTitle.Location = new System.Drawing.Point(12, 12);
+            lblCardTitle.AutoSize = true;
+            lblCardTitle.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
+            lblCardTitle.Name = "lblCardTitle";
+            panelCard.Controls.Add(lblCardTitle);
+
+            const int lx = 12, vx = 140, vw = 288, rh = 22, sy = 52;
 
             void AddField(System.Windows.Forms.Label lbl, string labelText, System.Windows.Forms.Label val, int row)
             {
@@ -286,5 +302,7 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Panel        panelHistory = null!;
         private System.Windows.Forms.Label        lblHistoryTitle = null!;
         private System.Windows.Forms.DataGridView dgvHistory = null!;
+        private System.Windows.Forms.Panel pnlQrIcon = null!;
+        private System.Windows.Forms.Label lblCardTitle = null!;
     }
 }

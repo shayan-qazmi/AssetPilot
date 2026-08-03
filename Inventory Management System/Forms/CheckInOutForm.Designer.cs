@@ -1,4 +1,3 @@
-// Forms/CheckInOutForm.Designer.cs
 namespace Inventory_Management_System.Forms
 {
     partial class CheckInOutForm
@@ -18,6 +17,7 @@ namespace Inventory_Management_System.Forms
         {
             panelTop = new System.Windows.Forms.Panel();
             lblScanPrompt = new System.Windows.Forms.Label();
+            pnlQrIcon = new System.Windows.Forms.Panel();
             txtQRCode = new System.Windows.Forms.TextBox();
             btnSearch = new System.Windows.Forms.Button();
             btnClear = new System.Windows.Forms.Button();
@@ -89,6 +89,10 @@ namespace Inventory_Management_System.Forms
             panelBottom = new System.Windows.Forms.Panel();
             lblGridTitle = new System.Windows.Forms.Label();
             dgvRecentTransactions = new System.Windows.Forms.DataGridView();
+            pnlEmptyState = new System.Windows.Forms.Panel();
+            lblEmptyIcon = new System.Windows.Forms.Label();
+            lblEmptyTitle = new System.Windows.Forms.Label();
+            lblEmptySubtitle = new System.Windows.Forms.Label();
 
             panelTop.SuspendLayout();
             panelMainContent.SuspendLayout();
@@ -107,6 +111,7 @@ namespace Inventory_Management_System.Forms
             panelTop.Height = 70;
             panelTop.Name = "panelTop";
             panelTop.Controls.Add(lblScanPrompt);
+            panelTop.Controls.Add(pnlQrIcon);
             panelTop.Controls.Add(txtQRCode);
             panelTop.Controls.Add(btnSearch);
             panelTop.Controls.Add(btnClear);
@@ -116,23 +121,28 @@ namespace Inventory_Management_System.Forms
             lblScanPrompt.AutoSize = true;
             lblScanPrompt.Name = "lblScanPrompt";
 
-            txtQRCode.Location = new System.Drawing.Point(280, 20);
-            txtQRCode.Size = new System.Drawing.Size(320, 30);
+            pnlQrIcon.Location = new System.Drawing.Point(280, 17);
+            pnlQrIcon.Size = new System.Drawing.Size(36, 36);
+            pnlQrIcon.Name = "pnlQrIcon";
+            pnlQrIcon.BackColor = System.Drawing.Color.Transparent;
+
+            txtQRCode.Location = new System.Drawing.Point(326, 20);
+            txtQRCode.Size = new System.Drawing.Size(280, 30);
             txtQRCode.PlaceholderText = "Scan QR code or type equipment code...";
             txtQRCode.Name = "txtQRCode";
             txtQRCode.Font = new System.Drawing.Font("Segoe UI", 11F);
             txtQRCode.TextChanged += txtQRCode_TextChanged;
             txtQRCode.KeyDown += txtQRCode_KeyDown;
 
-            btnSearch.Location = new System.Drawing.Point(610, 18);
+            btnSearch.Location = new System.Drawing.Point(616, 18);
             btnSearch.Size = new System.Drawing.Size(100, 34);
             btnSearch.Text = "🔍 Search";
             btnSearch.Name = "btnSearch";
             btnSearch.Click += btnSearch_Click;
 
-            btnClear.Location = new System.Drawing.Point(718, 18);
-            btnClear.Size = new System.Drawing.Size(90, 34);
-            btnClear.Text = "Clear";
+            btnClear.Location = new System.Drawing.Point(724, 18);
+            btnClear.Size = new System.Drawing.Size(100, 34);
+            btnClear.Text = "↺ Clear";
             btnClear.Name = "btnClear";
             btnClear.Click += btnClear_Click;
 
@@ -150,7 +160,7 @@ namespace Inventory_Management_System.Forms
             panelMainContent.Controls.Add(panelLeft);
             panelMainContent.Controls.Add(panelBottom);
 
-            // ── panelLeft (dock left) — compact single-column detail list ─
+            // ── panelLeft (dock left) ──────────────────────────────────────
             panelLeft.Dock = System.Windows.Forms.DockStyle.Left;
             panelLeft.Width = 360;
             panelLeft.Name = "panelLeft";
@@ -158,7 +168,7 @@ namespace Inventory_Management_System.Forms
             panelLeft.AutoScroll = true;
             panelLeft.Controls.Add(lblCardTitle);
 
-            lblCardTitle.Text = "Equipment Details";
+            lblCardTitle.Text = "📋 Equipment Details";
             lblCardTitle.Location = new System.Drawing.Point(16, 16);
             lblCardTitle.AutoSize = true;
             lblCardTitle.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
@@ -170,52 +180,50 @@ namespace Inventory_Management_System.Forms
                 lbl.Text = labelText;
                 lbl.Location = new System.Drawing.Point(lx, sy + row * rh);
                 lbl.AutoSize = true;
-                lbl.Name = lbl.Name;
-                val.Location     = new System.Drawing.Point(vx, sy + row * rh);
-                val.AutoSize     = false;
-                val.Size         = new System.Drawing.Size(vw, rh - 2);
+                val.Location = new System.Drawing.Point(vx, sy + row * rh);
+                val.AutoSize = false;
+                val.Size = new System.Drawing.Size(vw, rh - 2);
                 val.AutoEllipsis = true;
-                val.Name = val.Name;
                 panelLeft.Controls.Add(lbl);
                 panelLeft.Controls.Add(val);
             }
 
-            AddField(lblCodeLabel,             "Equipment Code:",   lblCodeValue,             0);
-            AddField(lblQrCodeLabel,           "QR Code:",          lblQrCodeValue,           1);
-            AddField(lblNameLabel,             "Name:",             lblNameValue,             2);
-            AddField(lblCategoryLabel,         "Category:",         lblCategoryValue,         3);
-            AddField(lblMakeLabel,             "Make:",             lblMakeValue,             4);
-            AddField(lblModelLabel,            "Model:",            lblModelValue,            5);
-            AddField(lblSerialLabel,           "Serial Number:",    lblSerialValue,           6);
-            AddField(lblProcurementTypeLabel,  "Procurement Type:", lblProcurementTypeValue,  7);
-            AddField(lblStatusLabel,           "Status:",           lblStatusValue,           8);
-            AddField(lblConditionLabel,        "Condition Grade:",  lblConditionValue,        9);
-            AddField(lblLocationLabel,         "Location:",         lblLocationValue,         10);
-            AddField(lblVendorLabel,           "Vendor Name:",      lblVendorValue,           11);
-            AddField(lblPurchaseDateLabel,     "Purchase Date:",    lblPurchaseDateValue,     12);
-            AddField(lblWarrantyLabel,         "Warranty Expiry:",  lblWarrantyValue,         13);
+            AddField(lblCodeLabel, "Equipment Code:", lblCodeValue, 0);
+            AddField(lblQrCodeLabel, "QR Code:", lblQrCodeValue, 1);
+            AddField(lblNameLabel, "Name:", lblNameValue, 2);
+            AddField(lblCategoryLabel, "Category:", lblCategoryValue, 3);
+            AddField(lblMakeLabel, "Make:", lblMakeValue, 4);
+            AddField(lblModelLabel, "Model:", lblModelValue, 5);
+            AddField(lblSerialLabel, "Serial Number:", lblSerialValue, 6);
+            AddField(lblProcurementTypeLabel, "Procurement Type:", lblProcurementTypeValue, 7);
+            AddField(lblStatusLabel, "Status:", lblStatusValue, 8);
+            AddField(lblConditionLabel, "Condition Grade:", lblConditionValue, 9);
+            AddField(lblLocationLabel, "Location:", lblLocationValue, 10);
+            AddField(lblVendorLabel, "Vendor Name:", lblVendorValue, 11);
+            AddField(lblPurchaseDateLabel, "Purchase Date:", lblPurchaseDateValue, 12);
+            AddField(lblWarrantyLabel, "Warranty Expiry:", lblWarrantyValue, 13);
 
             int descY = sy + 14 * rh + 8;
-            lblDescriptionTitle.Text     = "Description:";
+            lblDescriptionTitle.Text = "Description:";
             lblDescriptionTitle.Location = new System.Drawing.Point(lx, descY);
             lblDescriptionTitle.AutoSize = true;
-            lblDescriptionTitle.Name     = "lblDescriptionTitle";
+            lblDescriptionTitle.Name = "lblDescriptionTitle";
 
             lblDescriptionValue.Location = new System.Drawing.Point(lx, descY + 16);
-            lblDescriptionValue.Size     = new System.Drawing.Size(328, 40);
+            lblDescriptionValue.Size = new System.Drawing.Size(328, 40);
             lblDescriptionValue.AutoSize = false;
-            lblDescriptionValue.Name     = "lblDescriptionValue";
+            lblDescriptionValue.Name = "lblDescriptionValue";
 
             int notesY = descY + 16 + 40 + 8;
-            lblNotesTitle.Text     = "Notes:";
+            lblNotesTitle.Text = "Notes:";
             lblNotesTitle.Location = new System.Drawing.Point(lx, notesY);
             lblNotesTitle.AutoSize = true;
-            lblNotesTitle.Name     = "lblNotesTitle";
+            lblNotesTitle.Name = "lblNotesTitle";
 
             lblNotesValue.Location = new System.Drawing.Point(lx, notesY + 16);
-            lblNotesValue.Size     = new System.Drawing.Size(328, 40);
+            lblNotesValue.Size = new System.Drawing.Size(328, 40);
             lblNotesValue.AutoSize = false;
-            lblNotesValue.Name     = "lblNotesValue";
+            lblNotesValue.Name = "lblNotesValue";
 
             panelLeft.Controls.Add(lblDescriptionTitle);
             panelLeft.Controls.Add(lblDescriptionValue);
@@ -242,7 +250,7 @@ namespace Inventory_Management_System.Forms
             btnTabCheckOut.Name = "btnTabCheckOut";
             btnTabCheckOut.Click += btnTabCheckOut_Click;
 
-            btnTabCheckIn.Location = new System.Drawing.Point(150, 0);
+            btnTabCheckIn.Location = new System.Drawing.Point(154, 0);
             btnTabCheckIn.Size = new System.Drawing.Size(150, 45);
             btnTabCheckIn.Text = "📥 Check-In";
             btnTabCheckIn.Name = "btnTabCheckIn";
@@ -254,124 +262,112 @@ namespace Inventory_Management_System.Forms
             panelTabContent.Controls.Add(panelCheckOut);
             panelTabContent.Controls.Add(panelCheckIn);
 
-            // ── panelCheckOut ─────────────────────────────────────────────
-            panelCheckOut.Dock = System.Windows.Forms.DockStyle.Fill;
+            // ── panelCheckOut (rounded floating card — sized/positioned at runtime) ──
+            panelCheckOut.Location = new System.Drawing.Point(10, 10);
+            panelCheckOut.Size = new System.Drawing.Size(1160, 550);
             panelCheckOut.AutoScroll = true;
             panelCheckOut.Name = "panelCheckOut";
             panelCheckOut.Padding = new System.Windows.Forms.Padding(16);
+            panelCheckOut.Visible = true;
 
             int outY = 16, outH = 26, outLGap = 6, labelWidth = 140, controlWidth = 320;
-            void AddCheckoutField(System.Windows.Forms.Label lbl, string txt, System.Windows.Forms.Control ctrl)
+
+            void AddCheckoutField(System.Windows.Forms.Label lbl, string txt, System.Windows.Forms.Control ctrl, bool personIcon = false)
             {
                 lbl.Text = txt;
                 lbl.Location = new System.Drawing.Point(16, outY + outLGap);
                 lbl.Size = new System.Drawing.Size(labelWidth, outH);
-                lbl.Name = lbl.Name;
-                ctrl.Location = new System.Drawing.Point(160, outY);
-                ctrl.Size = new System.Drawing.Size(controlWidth, outH);
-                ctrl.Name = ctrl.Name;
                 panelCheckOut.Controls.Add(lbl);
-                panelCheckOut.Controls.Add(ctrl);
+                panelCheckOut.Controls.Add(CreateInputHost(ctrl, new System.Drawing.Point(160, outY), new System.Drawing.Size(controlWidth, outH), personIcon));
                 outY += 38;
                 panelCheckOut.AutoScroll = true;
             }
 
-            AddCheckoutField(lblIssuedTo, "Issued To:", txtIssuedTo);
+            AddCheckoutField(lblIssuedTo, "Issued To:", txtIssuedTo, personIcon: true);
             AddCheckoutField(lblDepartment, "Department:", txtDepartment);
-            AddCheckoutField(lblOperatorOut, "Operator Name:", txtOperatorOut);
+            AddCheckoutField(lblOperatorOut, "Operator Name:", txtOperatorOut, personIcon: true);
             txtOperatorOut.ReadOnly = true;
 
             lblExpectedReturn.Text = "Expected Return:";
             lblExpectedReturn.Location = new System.Drawing.Point(16, outY + outLGap);
             lblExpectedReturn.Size = new System.Drawing.Size(labelWidth, outH);
-            dtpExpectedReturn.Location = new System.Drawing.Point(160, outY);
-            dtpExpectedReturn.Size = new System.Drawing.Size(controlWidth, outH);
             dtpExpectedReturn.Format = System.Windows.Forms.DateTimePickerFormat.Short;
             panelCheckOut.Controls.Add(lblExpectedReturn);
-            panelCheckOut.Controls.Add(dtpExpectedReturn);
+            panelCheckOut.Controls.Add(CreateInputHost(dtpExpectedReturn, new System.Drawing.Point(160, outY), new System.Drawing.Size(controlWidth, outH)));
             outY += 38;
 
             lblConditionBefore.Text = "Condition Before:";
             lblConditionBefore.Location = new System.Drawing.Point(16, outY + outLGap);
             lblConditionBefore.Size = new System.Drawing.Size(labelWidth, outH);
-            cmbConditionBefore.Location = new System.Drawing.Point(160, outY);
-            cmbConditionBefore.Size = new System.Drawing.Size(controlWidth, outH);
             cmbConditionBefore.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             cmbConditionBefore.Items.AddRange(new object[] { "New", "Good", "Fair", "Poor", "Unserviceable" });
             panelCheckOut.Controls.Add(lblConditionBefore);
-            panelCheckOut.Controls.Add(cmbConditionBefore);
+            panelCheckOut.Controls.Add(CreateInputHost(cmbConditionBefore, new System.Drawing.Point(160, outY), new System.Drawing.Size(controlWidth, outH)));
             outY += 38;
 
             lblRemarksOut.Text = "Remarks:";
             lblRemarksOut.Location = new System.Drawing.Point(16, outY + outLGap);
             lblRemarksOut.Size = new System.Drawing.Size(labelWidth, outH);
-            txtRemarksOut.Location = new System.Drawing.Point(160, outY);
-            txtRemarksOut.Size = new System.Drawing.Size(controlWidth, 75);
             txtRemarksOut.Multiline = true;
+            txtRemarksOut.Size = new System.Drawing.Size(controlWidth, 75);
             txtRemarksOut.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
             panelCheckOut.Controls.Add(lblRemarksOut);
-            panelCheckOut.Controls.Add(txtRemarksOut);
+            panelCheckOut.Controls.Add(CreateInputHost(txtRemarksOut, new System.Drawing.Point(160, outY), new System.Drawing.Size(controlWidth, 75)));
             outY += 85;
 
             btnConfirmCheckOut.Location = new System.Drawing.Point(160, outY);
             btnConfirmCheckOut.Size = new System.Drawing.Size(200, 40);
-            btnConfirmCheckOut.Text = "Confirm Check-Out";
+            btnConfirmCheckOut.Text = "✅ Confirm Check-Out";
             btnConfirmCheckOut.Name = "btnConfirmCheckOut";
             btnConfirmCheckOut.Click += btnConfirmCheckOut_Click;
             panelCheckOut.Controls.Add(btnConfirmCheckOut);
 
-            // ── panelCheckIn ──────────────────────────────────────────────
-            panelCheckIn.Dock = System.Windows.Forms.DockStyle.Fill;
+            // ── panelCheckIn (rounded floating card) ────────────────────────
+            panelCheckIn.Location = new System.Drawing.Point(10, 10);
+            panelCheckIn.Size = new System.Drawing.Size(1160, 550);
             panelCheckIn.Name = "panelCheckIn";
             panelCheckIn.Padding = new System.Windows.Forms.Padding(16);
             panelCheckIn.Visible = false;
 
             int inY = 16;
-            void AddCheckinField(System.Windows.Forms.Label lbl, string txt, System.Windows.Forms.Control ctrl)
+            void AddCheckinField(System.Windows.Forms.Label lbl, string txt, System.Windows.Forms.Control ctrl, bool personIcon = false)
             {
                 lbl.Text = txt;
                 lbl.Location = new System.Drawing.Point(16, inY + outLGap);
                 lbl.Size = new System.Drawing.Size(labelWidth, outH);
-                lbl.Name = lbl.Name;
-                ctrl.Location = new System.Drawing.Point(160, inY);
-                ctrl.Size = new System.Drawing.Size(controlWidth, outH);
-                ctrl.Name = ctrl.Name;
                 panelCheckIn.Controls.Add(lbl);
-                panelCheckIn.Controls.Add(ctrl);
+                panelCheckIn.Controls.Add(CreateInputHost(ctrl, new System.Drawing.Point(160, inY), new System.Drawing.Size(controlWidth, outH), personIcon));
                 inY += 38;
             }
 
-            AddCheckinField(lblCurrentlyIssuedTo, "Currently Issued To:", txtCurrentlyIssuedTo);
+            AddCheckinField(lblCurrentlyIssuedTo, "Currently Issued To:", txtCurrentlyIssuedTo, personIcon: true);
             txtCurrentlyIssuedTo.ReadOnly = true;
 
-            AddCheckinField(lblOperatorIn, "Operator Name:", txtOperatorIn);
+            AddCheckinField(lblOperatorIn, "Operator Name:", txtOperatorIn, personIcon: true);
             txtOperatorIn.ReadOnly = true;
 
             lblConditionAfter.Text = "Condition After:";
             lblConditionAfter.Location = new System.Drawing.Point(16, inY + outLGap);
             lblConditionAfter.Size = new System.Drawing.Size(labelWidth, outH);
-            cmbConditionAfter.Location = new System.Drawing.Point(160, inY);
-            cmbConditionAfter.Size = new System.Drawing.Size(controlWidth, outH);
             cmbConditionAfter.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             cmbConditionAfter.Items.AddRange(new object[] { "New", "Good", "Fair", "Poor", "Unserviceable" });
             panelCheckIn.Controls.Add(lblConditionAfter);
-            panelCheckIn.Controls.Add(cmbConditionAfter);
+            panelCheckIn.Controls.Add(CreateInputHost(cmbConditionAfter, new System.Drawing.Point(160, inY), new System.Drawing.Size(controlWidth, outH)));
             inY += 38;
 
             lblRemarksIn.Text = "Remarks:";
             lblRemarksIn.Location = new System.Drawing.Point(16, inY + outLGap);
             lblRemarksIn.Size = new System.Drawing.Size(labelWidth, outH);
-            txtRemarksIn.Location = new System.Drawing.Point(160, inY);
-            txtRemarksIn.Size = new System.Drawing.Size(controlWidth, 75);
             txtRemarksIn.Multiline = true;
+            txtRemarksIn.Size = new System.Drawing.Size(controlWidth, 75);
             txtRemarksIn.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
             panelCheckIn.Controls.Add(lblRemarksIn);
-            panelCheckIn.Controls.Add(txtRemarksIn);
+            panelCheckIn.Controls.Add(CreateInputHost(txtRemarksIn, new System.Drawing.Point(160, inY), new System.Drawing.Size(controlWidth, 75)));
             inY += 85;
 
             btnConfirmCheckIn.Location = new System.Drawing.Point(160, inY);
             btnConfirmCheckIn.Size = new System.Drawing.Size(500, 50);
-            btnConfirmCheckIn.Text = "Confirm Check-In";
+            btnConfirmCheckIn.Text = "✅ Confirm Check-In";
             btnConfirmCheckIn.Name = "btnConfirmCheckIn";
             btnConfirmCheckIn.Click += btnConfirmCheckIn_Click;
             panelCheckIn.Controls.Add(btnConfirmCheckIn);
@@ -384,7 +380,7 @@ namespace Inventory_Management_System.Forms
             panelBottom.Controls.Add(lblGridTitle);
             panelBottom.Controls.Add(dgvRecentTransactions);
 
-            lblGridTitle.Text = "Recent Transactions (Last 10)";
+            lblGridTitle.Text = "🕐 Recent Transactions (Last 10)";
             lblGridTitle.Location = new System.Drawing.Point(16, 8);
             lblGridTitle.AutoSize = true;
             lblGridTitle.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
@@ -401,6 +397,8 @@ namespace Inventory_Management_System.Forms
             dgvRecentTransactions.ReadOnly = true;
             dgvRecentTransactions.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             dgvRecentTransactions.Name = "dgvRecentTransactions";
+            dgvRecentTransactions.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            dgvRecentTransactions.ColumnHeadersHeight = 32;
             dgvRecentTransactions.Columns.Add("Date", "Date");
             dgvRecentTransactions.Columns.Add("Type", "Type");
             dgvRecentTransactions.Columns.Add("IssuedTo", "Issued To");
@@ -410,6 +408,30 @@ namespace Inventory_Management_System.Forms
             dgvRecentTransactions.Columns.Add("ConditionBefore", "Condition Before");
             dgvRecentTransactions.Columns.Add("ConditionAfter", "Condition After");
             dgvRecentTransactions.Columns.Add("Remarks", "Remarks");
+
+            pnlEmptyState.Location = new System.Drawing.Point(
+                dgvRecentTransactions.Left,
+                dgvRecentTransactions.Top + dgvRecentTransactions.ColumnHeadersHeight);
+            pnlEmptyState.Size = new System.Drawing.Size(
+                dgvRecentTransactions.Width,
+                dgvRecentTransactions.Height - dgvRecentTransactions.ColumnHeadersHeight);
+            pnlEmptyState.Anchor = dgvRecentTransactions.Anchor;
+            pnlEmptyState.BackColor = System.Drawing.Color.White;
+            pnlEmptyState.Name = "pnlEmptyState";
+            pnlEmptyState.Visible = false;
+            panelBottom.Controls.Add(pnlEmptyState);
+
+            lblEmptyIcon.Text = "📥";
+            lblEmptyIcon.Font = new System.Drawing.Font("Segoe UI Emoji", 26F);
+            lblEmptyIcon.Name = "lblEmptyIcon";
+
+            lblEmptyTitle.Text = "No recent transactions found.";
+            lblEmptyTitle.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            lblEmptyTitle.Name = "lblEmptyTitle";
+
+            lblEmptySubtitle.Text = "Transactions will appear here.";
+            lblEmptySubtitle.Font = new System.Drawing.Font("Segoe UI", 8.5F);
+            lblEmptySubtitle.Name = "lblEmptySubtitle";
 
             // ── Form configuration ────────────────────────────────────────
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
@@ -441,6 +463,7 @@ namespace Inventory_Management_System.Forms
 
         private System.Windows.Forms.Panel panelTop;
         private System.Windows.Forms.Label lblScanPrompt;
+        private System.Windows.Forms.Panel pnlQrIcon;
         private System.Windows.Forms.TextBox txtQRCode;
         private System.Windows.Forms.Button btnSearch;
         private System.Windows.Forms.Button btnClear;
@@ -517,5 +540,9 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Panel panelBottom;
         private System.Windows.Forms.Label lblGridTitle;
         private System.Windows.Forms.DataGridView dgvRecentTransactions;
+        private System.Windows.Forms.Panel pnlEmptyState;
+        private System.Windows.Forms.Label lblEmptyIcon;
+        private System.Windows.Forms.Label lblEmptyTitle;
+        private System.Windows.Forms.Label lblEmptySubtitle;
     }
 }

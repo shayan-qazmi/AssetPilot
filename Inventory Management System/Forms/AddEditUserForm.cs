@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using Inventory_Management_System.Helpers;
@@ -11,28 +12,38 @@ namespace Inventory_Management_System.Forms
 {
     public class AddEditUserForm : Form
     {
-        private readonly User    _user;
-        private readonly bool    _isEditMode;
-        private List<Role>       _roles = new();
+        private readonly User _user;
+        private readonly bool _isEditMode;
+        private List<Role> _roles = new();
 
-        private TextBox  txtUsername  = null!;
-        private TextBox  txtFullName  = null!;
-        private TextBox  txtEmail     = null!;
-        private TextBox  txtPassword  = null!;
-        private TextBox  txtConfirm   = null!;
-        private ComboBox cmbRole      = null!;
-        private CheckBox chkActive    = null!;
-        private Label    lblStatus    = null!;
-        private Button   btnSave      = null!;
-        private Button   btnCancel    = null!;
+        private TextBox txtUsername = null!;
+        private TextBox txtFullName = null!;
+        private TextBox txtEmail = null!;
+        private TextBox txtPassword = null!;
+        private TextBox txtConfirm = null!;
+        private ComboBox cmbRole = null!;
+        private CheckBox chkActive = null!;
+        private Label lblStatus = null!;
+        private Button btnSave = null!;
+        private Button btnCancel = null!;
+
+        // ── Profile picture (optional) ──────────────────────────────────
+        private Panel pnlAvatar = null!;
+        private Button btnUploadPicture = null!;
+        private Button btnRemovePicture = null!;
+        private Image? _avatarImage;
+        private string? _pendingPictureFile; // local file chosen via dialog, not yet copied to the share
+        private bool _removePicture;      // true if user cleared an existing picture
 
         public AddEditUserForm(User? user = null)
         {
-            _user       = user ?? new User { IsActive = true };
+            _user = user ?? new User { IsActive = true };
             _isEditMode = user != null;
             InitializeUI();
             LoadRoles();
             if (_isEditMode) PopulateFields();
+
+            FormClosed += (s, e) => _avatarImage?.Dispose();
         }
 
         private static readonly Color CardBorder = Color.FromArgb(224, 224, 224);
@@ -40,13 +51,13 @@ namespace Inventory_Management_System.Forms
 
         private void InitializeUI()
         {
-            Text            = _isEditMode ? "Edit User" : "Add User";
-            StartPosition   = FormStartPosition.CenterParent;
+            Text = _isEditMode ? "Edit User" : "Add User";
+            StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox     = false;
-            MinimizeBox     = false;
-            AutoScroll      = false;
-            Font            = new Font("Segoe UI", 9F);
+            MaximizeBox = false;
+            MinimizeBox = false;
+            AutoScroll = false;
+            Font = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
 
             const int formWidth = 460;
@@ -214,6 +225,43 @@ namespace Inventory_Management_System.Forms
             PlaceControl(cmbRole);
             Hint("Assigned role determines accessible screens and system capabilities");
 
+            // ── Profile Picture (optional) ──
+            const int avatarSize = 72;
+            FieldLabel("Profile Picture");
+
+            pnlAvatar = new Panel
+            {
+                Location = new Point(margin, y),
+                Size = new Size(avatarSize, avatarSize),
+                BackColor = Color.Transparent
+            };
+            pnlAvatar.Paint += (s, e) =>
+                AvatarHelper.DrawAvatar(e.Graphics, new Rectangle(0, 0, avatarSize - 1, avatarSize - 1), _avatarImage);
+            body.Controls.Add(pnlAvatar);
+
+            btnUploadPicture = new Button
+            {
+                Text = "Upload...",
+                Size = new Size(120, 28),
+                Location = new Point(margin + avatarSize + 14, y + 6)
+            };
+            ThemeHelper.StyleSecondaryButton(btnUploadPicture);
+            btnUploadPicture.Click += BtnUploadPicture_Click;
+            body.Controls.Add(btnUploadPicture);
+
+            btnRemovePicture = new Button
+            {
+                Text = "Remove",
+                Size = new Size(120, 28),
+                Location = new Point(margin + avatarSize + 14, y + 40)
+            };
+            ThemeHelper.StyleSecondaryButton(btnRemovePicture);
+            btnRemovePicture.Click += BtnRemovePicture_Click;
+            body.Controls.Add(btnRemovePicture);
+
+            y += avatarSize + 8;
+            Hint("Optional — shown on the user's detail view. Leave blank for a default profile icon.");
+
             chkActive = new CheckBox
             {
                 Text = "Is Active Account",
@@ -269,8 +317,14 @@ namespace Inventory_Management_System.Forms
         {
             txtUsername.Text = _user.Username;
             txtFullName.Text = _user.FullName;
-            txtEmail.Text    = _user.Email ?? "";
+            txtEmail.Text = _user.Email ?? "";
             chkActive.Checked = _user.IsActive == true;
+
+            if (!string.IsNullOrWhiteSpace(_user.PicturePath))
+            {
+                _avatarImage = AvatarHelper.TryLoadUserImage(_user.PicturePath);
+                pnlAvatar.Invalidate();
+            }
 
             try
             {
@@ -286,6 +340,53 @@ namespace Inventory_Management_System.Forms
             {
                 Logger.LogError(ex, "AddEditUserForm.PopulateFields (UserRole query)");
             }
+        }
+
+        // ── Profile picture handlers ────────────────────────────────────
+        private void BtnUploadPicture_Click(object? sender, EventArgs e)
+        {
+            using var ofd = new OpenFileDialog
+            {
+                Title = "Select Profile Picture",
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.gif"
+            };
+            if (ofd.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                var newImage = Image.FromFile(ofd.FileName);
+                _avatarImage?.Dispose();
+                _avatarImage = newImage;
+                _pendingPictureFile = ofd.FileName;
+                _removePicture = false;
+                pnlAvatar.Invalidate();
+            }
+            catch (Exception ex)
+            {
+                lblStatus.Text = "Could not load image: " + ex.Message;
+            }
+        }
+
+        private void BtnRemovePicture_Click(object? sender, EventArgs e)
+        {
+            _avatarImage?.Dispose();
+            _avatarImage = null;
+            _pendingPictureFile = null;
+            _removePicture = true;
+            pnlAvatar.Invalidate();
+        }
+
+        private static string SaveUserPictureToShare(string sourceFile, string username)
+        {
+            NetworkShareHelper.EnsureConnected();
+            Directory.CreateDirectory(NetworkPaths.UserPicturesDir);
+
+            string ext = Path.GetExtension(sourceFile);
+            string fileName = $"{username}_{Guid.NewGuid():N}{ext}";
+            string destPath = Path.Combine(NetworkPaths.UserPicturesDir, fileName);
+
+            File.Copy(sourceFile, destPath, true);
+            return fileName;
         }
 
         private void BtnSave_Click(object? sender, EventArgs e)
@@ -348,11 +449,29 @@ namespace Inventory_Management_System.Forms
 
                 entity.Username = txtUsername.Text.Trim();
                 entity.FullName = txtFullName.Text.Trim();
-                entity.Email    = string.IsNullOrWhiteSpace(txtEmail.Text) ? null : txtEmail.Text.Trim();
+                entity.Email = string.IsNullOrWhiteSpace(txtEmail.Text) ? null : txtEmail.Text.Trim();
                 entity.IsActive = chkActive.Checked;
 
                 if (!string.IsNullOrWhiteSpace(txtPassword.Text))
                     entity.PasswordHash = txtPassword.Text;
+
+                // ── Profile picture ──────────────────────────────────────
+                if (_removePicture)
+                {
+                    entity.PicturePath = null;
+                }
+                else if (_pendingPictureFile != null)
+                {
+                    try
+                    {
+                        entity.PicturePath = SaveUserPictureToShare(_pendingPictureFile, entity.Username);
+                    }
+                    catch (Exception ex)
+                    {
+                        lblStatus.Text = "Could not save picture: " + ex.Message;
+                        return;
+                    }
+                }
 
                 db.SaveChanges();
 
@@ -366,7 +485,7 @@ namespace Inventory_Management_System.Forms
                 // Fix: remove the old assignment row and insert a new one
                 // instead of mutating RoleId in place.
                 var selectedRole = _roles[cmbRole.SelectedIndex];
-                var existingUR   = db.UserRoles.FirstOrDefault(ur => ur.UserId == entity.Id);
+                var existingUR = db.UserRoles.FirstOrDefault(ur => ur.UserId == entity.Id);
 
                 if (existingUR == null)
                 {

@@ -170,17 +170,17 @@ namespace Inventory_Management_System.Forms
         {
             cmbSelectMode = new ComboBox
             {
-                Name          = "cmbSelectMode",
+                Name = "cmbSelectMode",
                 DropDownStyle = ComboBoxStyle.DropDown,
-                Text          = "Select",
-                Size          = new Size(95, 32),
-                Margin        = new Padding(4, 4, 0, 0),
-                Cursor        = Cursors.Hand,
-                FlatStyle     = FlatStyle.Flat,
-                BackColor     = ThemeHelper.Accent,
-                ForeColor     = Color.White,
-                Font          = ThemeHelper.FontBold,
-                DrawMode      = DrawMode.OwnerDrawFixed
+                Text = "Select",
+                Size = new Size(95, 32),
+                Margin = new Padding(4, 4, 0, 0),
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ThemeHelper.Accent,
+                ForeColor = Color.White,
+                Font = ThemeHelper.FontBold,
+                DrawMode = DrawMode.OwnerDrawFixed
             };
 
             // Prevent the user from typing into the header area
@@ -240,7 +240,7 @@ namespace Inventory_Management_System.Forms
                     dgvAllocation.ClearSelection();
                     dgvAllocation.CurrentCell = null;
                 }
-                
+
                 // Reset the dropdown header text so it reads "Select" again
                 cmbSelectMode.SelectedIndex = -1;
                 cmbSelectMode.Text = "Select";
@@ -794,10 +794,10 @@ namespace Inventory_Management_System.Forms
         private void UpdateActionButtonsForSelection()
         {
             var rows = GetSelectedRows();
-            bool none             = rows.Count == 0;
+            bool none = rows.Count == 0;
             // A Check-In/Out row has no AllocationRef — disable real-allocation actions for those
-            bool anyCheckInOut    = rows.Any(r => r.AllocationRef == null && r.Source == "Check In/Out");
-            bool allCheckInOut    = rows.Count > 0 && rows.All(r => r.AllocationRef == null);
+            bool anyCheckInOut = rows.Any(r => r.AllocationRef == null && r.Source == "Check In/Out");
+            bool allCheckInOut = rows.Count > 0 && rows.All(r => r.AllocationRef == null);
 
             // Approve: enabled when there is at least one pending allocation selected
             btnApprove.Enabled = !none && !allCheckInOut &&
@@ -888,43 +888,43 @@ namespace Inventory_Management_System.Forms
                 ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
         }
 
-private void dgvAllocation_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
-{
-    if (e.RowIndex < 0 || e.RowIndex >= dgvAllocation.Rows.Count) return;
+        private void dgvAllocation_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.RowIndex >= dgvAllocation.Rows.Count) return;
 
-    var clickedRow = dgvAllocation.Rows[e.RowIndex];
-    var idValue = clickedRow.Cells["AllocationID"].Value;
-    if (idValue == null || !int.TryParse(idValue.ToString(), out int rowId)) return;
+            var clickedRow = dgvAllocation.Rows[e.RowIndex];
+            var idValue = clickedRow.Cells["AllocationID"].Value;
+            if (idValue == null || !int.TryParse(idValue.ToString(), out int rowId)) return;
 
-    var row = _lastRenderedRows.FirstOrDefault(r => r.Id == rowId);
-    if (row == null) return;
+            var row = _lastRenderedRows.FirstOrDefault(r => r.Id == rowId);
+            if (row == null) return;
 
-    // Only makes sense for "Available" equipment — an already-allocated
-    // or checked-out row has nothing to allocate.
-    if (row.Source != "Available") return;
+            // Only makes sense for "Available" equipment — an already-allocated
+            // or checked-out row has nothing to allocate.
+            if (row.Source != "Available") return;
 
-    string? preselectCode = row.EquipmentCode == "—" ? null : row.EquipmentCode;
+            string? preselectCode = row.EquipmentCode == "—" ? null : row.EquipmentCode;
 
-    using var frm = new AddAllocationForm(
-        _equipmentService.GetAll().Data ?? new(),
-        _employeeService.GetAll().Data ?? new(),
-        _location_service.GetAll().Data ?? new(),
-        preselectCode);
+            using var frm = new AddAllocationForm(
+                _equipmentService.GetAll().Data ?? new(),
+                _employeeService.GetAll().Data ?? new(),
+                _locationService.GetAll().Data ?? new(),
+                preselectCode);
 
-    if (frm.ShowDialog() != DialogResult.OK) return;
+            if (frm.ShowDialog() != DialogResult.OK) return;
 
-    var result = _allocationService.Allocate(frm.Result!);
-    if (result.Success)
-    {
-        _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
-            null, $"Allocated to Employee ID {frm.Result.EmployeeId}");
-        LoadAllocations();
-    }
-    else
-        ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
-}
+            var result = _allocationService.Allocate(frm.Result!);
+            if (result.Success)
+            {
+                _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
+                    null, $"Allocated to Employee ID {frm.Result.EmployeeId}");
+                LoadAllocations();
+            }
+            else
+                ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
+        }
 
-// ── Bulk-aware action handlers ──────────────────────────────────────
+        // ── Bulk-aware action handlers ──────────────────────────────────────
 
         private void btnApprove_Click(object sender, EventArgs e)
         {
@@ -1183,10 +1183,10 @@ private void dgvAllocation_CellDoubleClick(object? sender, DataGridViewCellEvent
     }
 
     // ── Add Allocation Dialog ──────────────────────────────────────────────
-// Two-column, fixed-height, non-scrolling layout — matches the visual
-// language of the Add Equipment dialog (two independent columns under
-// one header, sized to fit entirely on a small laptop screen with no
-// scrollbar, so the DateTimePicker's calendar popup is never clipped).
+    // Two-column, fixed-height, non-scrolling layout — matches the visual
+    // language of the Add Equipment dialog (two independent columns under
+    // one header, sized to fit entirely on a small laptop screen with no
+    // scrollbar, so the DateTimePicker's calendar popup is never clipped).
     public class AddAllocationForm : Form
     {
         public Allocation? Result { get; private set; }
@@ -1199,11 +1199,10 @@ private void dgvAllocation_CellDoubleClick(object? sender, DataGridViewCellEvent
 
         private int? _selectedEquipmentId;
         private int? _selectedEmployeeId;
-        private int? _selectedLocationId;
 
-private ComboBox cmbEquipment = null!;
-private ComboBox cmbLocation = null!;
-private ComboBox cmbRoom = null!;
+        private ComboBox cmbEquipment = null!;
+        private ComboBox cmbLocation = null!;
+        private ComboBox cmbRoom = null!;
         private DateTimePicker dtpExpected = null!;
         private CheckBox chkExpected = null!;
         private Label lblExpectedHint = null!;
@@ -1211,43 +1210,42 @@ private ComboBox cmbRoom = null!;
         private Button btnCancel = null!;
 
         private ComboBox cmbCategoryFilter = null!;
-        private ComboBox cmbBuildingFilter = null!;
         private TextBox txtEquipmentSearch = null!;
         private TextBox txtEmployeeSearch = null!;
-        private TextBox txtLocationSearch = null!;
         private EntitySuggestHelper<Equipment>? _equipmentSuggest;
         private EntitySuggestHelper<Employee>? _employeeSuggest;
-private bool _suppressEquipmentSync = false;
 
-private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
-private static readonly Color CardBorder = Color.FromArgb(224, 224, 224);
+        private bool _suppressEquipmentSync = false;
 
-// Location is now picked in two steps: first the location NAME
-// (deduped — a name can have several rows, one per room), then the
-// specific ROOM within that name. The Room dropdown's selected Id
-// is the actual Location row Id that gets saved on the Allocation.
+        private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
+        private static readonly Color CardBorder = Color.FromArgb(224, 224, 224);
 
-private class LocationNameOption
-{
-    public string? Name { get; set; }        // null = "no location" sentinel
-    public string DisplayName { get; set; } = "";
-}
+        // Location is now picked in two steps: first the location NAME
+        // (deduped — a name can have several rows, one per room), then the
+        // specific ROOM within that name. The Room dropdown's selected Id
+        // is the actual Location row Id that gets saved on the Allocation.
 
-private class RoomOption
-{
-    public int Id { get; set; }
-    public string Display { get; set; } = "";
-}
+        private class LocationNameOption
+        {
+            public string? Name { get; set; }        // null = "no location" sentinel
+            public string DisplayName { get; set; } = "";
+        }
 
-private static string RoomOptionDisplay(Location l)
-{
-    bool hasNum = !string.IsNullOrWhiteSpace(l.RoomNumber);
-    bool hasRoomName = !string.IsNullOrWhiteSpace(l.RoomName);
-    if (!hasNum && !hasRoomName) return "— Unspecified room —";
-    string room = hasNum ? $"Room {l.RoomNumber}" : "";
-    if (hasRoomName) room = string.IsNullOrEmpty(room) ? l.RoomName! : $"{room} ({l.RoomName})";
-    return room;
-}
+        private class RoomOption
+        {
+            public int Id { get; set; }
+            public string Display { get; set; } = "";
+        }
+
+        private static string RoomOptionDisplay(Location l)
+        {
+            bool hasNum = !string.IsNullOrWhiteSpace(l.RoomNumber);
+            bool hasRoomName = !string.IsNullOrWhiteSpace(l.RoomName);
+            if (!hasNum && !hasRoomName) return "— Unspecified room —";
+            string room = hasNum ? $"Room {l.RoomNumber}" : "";
+            if (hasRoomName) room = string.IsNullOrEmpty(room) ? l.RoomName! : $"{room} ({l.RoomName})";
+            return room;
+        }
 
         public AddAllocationForm(List<Equipment> equipment, List<Employee> employees, List<Location> locations,
             string? preselectEquipmentCode = null)
@@ -1275,18 +1273,6 @@ private static string RoomOptionDisplay(Location l)
             _employees = employees.Where(e => e.IsActive).ToList();
             _locations = locations;
             BuildUI();
-        }
-
-        private static string LocationDisplay(Location l)
-        {
-            string name = string.IsNullOrWhiteSpace(l.LocationName) ? "(unnamed location)" : l.LocationName;
-            bool hasRoomNum = !string.IsNullOrWhiteSpace(l.RoomNumber);
-            bool hasRoomName = !string.IsNullOrWhiteSpace(l.RoomName);
-            if (!hasRoomNum && !hasRoomName) return name;
-
-            string roomPart = hasRoomNum ? $"Room {l.RoomNumber}" : "";
-            if (hasRoomName) roomPart = string.IsNullOrEmpty(roomPart) ? l.RoomName! : $"{roomPart} ({l.RoomName})";
-            return $"{name} — {roomPart}";
         }
 
         private void BuildUI()
@@ -1354,10 +1340,11 @@ private static string RoomOptionDisplay(Location l)
             ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
 
-int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
-int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
-btnCancel.Location = new Point(buttonsStartX, 15);
-btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
+            int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
+            int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
+            btnCancel.Location = new Point(buttonsStartX, 15);
+            btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
+
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnSave);
             Controls.Add(pnlFooter);
@@ -1423,8 +1410,6 @@ btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
                 {
                     Text = text,
                     Font = font,
-                    Text = text,
-                    Font = font,
                     ForeColor = MutedText,
                     AutoSize = false,
                     Size = new Size(width, sz.Height + 4),
@@ -1433,6 +1418,12 @@ btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
                 y += sz.Height + 4 + 8;
             }
 
+            int yLeft = 20;
+            int yRight = 20;
+
+            // ══════════════════════ LEFT COLUMN — Equipment ══════════════════════
+            SectionHeader(leftX, colWidth, ref yLeft, "🖥  Equipment", null);
+
             cmbCategoryFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             var categoryNames = new CategoryService().GetAll().Data?.Select(c => c.Name) ?? Enumerable.Empty<string>();
             var equipmentCategories = _equipment.Where(e => !string.IsNullOrWhiteSpace(e.Category)).Select(e => e.Category!).Distinct();
@@ -1440,28 +1431,28 @@ btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
             allCategoryOptions.AddRange(categoryNames.Union(equipmentCategories, StringComparer.OrdinalIgnoreCase).OrderBy(c => c, StringComparer.OrdinalIgnoreCase));
             cmbCategoryFilter.DataSource = allCategoryOptions;
             ThemeHelper.StyleComboBox(cmbCategoryFilter);
-FieldLabel(leftX, ref yLeft, "Filter by Category");
-PlaceControl(leftX, colWidth, ref yLeft, cmbCategoryFilter);
-Hint(leftX, colWidth, ref yLeft, "Narrows the equipment list below — optional");
+            FieldLabel(leftX, ref yLeft, "Filter by Category");
+            PlaceControl(leftX, colWidth, ref yLeft, cmbCategoryFilter);
+            Hint(leftX, colWidth, ref yLeft, "Narrows the equipment list below — optional");
 
-txtEquipmentSearch = new TextBox { PlaceholderText = "Search by code, name, or serial…" };
-ThemeHelper.StyleTextBox(txtEquipmentSearch);
-FieldLabel(leftX, ref yLeft, "Find Equipment", required: true);
-PlaceControl(leftX, colWidth, ref yLeft, txtEquipmentSearch);
-Hint(leftX, colWidth, ref yLeft, "Type to search, then pick a suggestion");
+            txtEquipmentSearch = new TextBox { PlaceholderText = "Search by code, name, or serial…" };
+            ThemeHelper.StyleTextBox(txtEquipmentSearch);
+            FieldLabel(leftX, ref yLeft, "Find Equipment", required: true);
+            PlaceControl(leftX, colWidth, ref yLeft, txtEquipmentSearch);
+            Hint(leftX, colWidth, ref yLeft, "Type to search, then pick a suggestion");
 
-cmbEquipment = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
-cmbEquipment.DisplayMember = "DisplayText";
-cmbEquipment.ValueMember = "Id";
-ThemeHelper.StyleComboBox(cmbEquipment);
-FieldLabel(leftX, ref yLeft, "Select Equipment", required: true);
-PlaceControl(leftX, colWidth, ref yLeft, cmbEquipment);
-Hint(leftX, colWidth, ref yLeft, "Only unallocated, in-store equipment is listed");
+            cmbEquipment = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbEquipment.DisplayMember = "DisplayText";
+            cmbEquipment.ValueMember = "Id";
+            ThemeHelper.StyleComboBox(cmbEquipment);
+            FieldLabel(leftX, ref yLeft, "Select Equipment", required: true);
+            PlaceControl(leftX, colWidth, ref yLeft, cmbEquipment);
+            Hint(leftX, colWidth, ref yLeft, "Only unallocated, in-store equipment is listed");
 
-cmbEquipment.SelectedIndexChanged += CmbEquipment_SelectedIndexChanged;
+            cmbEquipment.SelectedIndexChanged += CmbEquipment_SelectedIndexChanged;
 
-RefreshEquipmentDropdown();
-cmbCategoryFilter.SelectedIndexChanged += (s, e) => RefreshEquipmentDropdown();
+            RefreshEquipmentDropdown();
+            cmbCategoryFilter.SelectedIndexChanged += (s, e) => RefreshEquipmentDropdown();
 
             _equipmentSuggest = new EntitySuggestHelper<Equipment>(
                 textBox: txtEquipmentSearch,
@@ -1483,116 +1474,72 @@ cmbCategoryFilter.SelectedIndexChanged += (s, e) => RefreshEquipmentDropdown();
                 line2Selector: eq => string.IsNullOrWhiteSpace(eq.SerialNumber) ? (eq.Category ?? "—") : $"S/N: {eq.SerialNumber}");
             _equipmentSuggest.LoadItems(_equipment);
 
-cmbCategoryFilter.SelectedIndexChanged += (s, e) =>
-{
-    string cat = cmbCategoryFilter.SelectedItem?.ToString() ?? "All Categories";
-    var filtered = cat == "All Categories" ? _equipment : _equipment.Where(x => string.Equals(x.Category, cat, StringComparison.OrdinalIgnoreCase)).ToList();
-    _equipmentSuggest?.LoadItems(filtered);
-};
+            txtEquipmentSearch.TextChanged += (s, e) => { if (string.IsNullOrWhiteSpace(txtEquipmentSearch.Text)) _selectedEquipmentId = null; };
 
-txtEquipmentSearch.TextChanged += (s, e) => { if (string.IsNullOrWhiteSpace(txtEquipmentSearch.Text)) _selectedEquipmentId = null; };
-
-if (!string.IsNullOrWhiteSpace(_preselectEquipmentCode))
-{
-    var match = _equipment.FirstOrDefault(e => e.EquipmentCode == _preselectEquipmentCode);
-    if (match != null)
-    {
-        _selectedEquipmentId = match.Id;
-        txtEquipmentSearch.Text = $"{match.EquipmentCode} — {match.Name}";
-        _preselectApplied = true;
-    }
-}
-
-// ── Return Details now lives here, under Select Equipment ──
-yLeft += 6;
-SectionHeader(leftX, colWidth, ref yLeft, "📅  Return Details", null);
-
-chkExpected = new CheckBox
-{
-    Text = "Set an expected return date",
-    Location = new Point(leftX, yLeft),
-    AutoSize = true,
-    Font = ThemeHelper.FontDefault,
-    ForeColor = ThemeHelper.TextPrimary
-};
-body.Controls.Add(chkExpected);
-yLeft += 28;
-
-dtpExpected = new DateTimePicker
-{
-    Location = new Point(leftX, yLeft),
-    Width = colWidth,
-    Height = 30,
-    Format = DateTimePickerFormat.Long,
-    ShowUpDown = false,
-    Enabled = false,
-    MinDate = DateTime.Today.AddDays(1),
-    Value = DateTime.Today.AddDays(1)
-};
-body.Controls.Add(dtpExpected);
-yLeft += dtpExpected.Height + 6;
-
-lblExpectedHint = new Label
-{
-    Text = "Check the box above, then click the field to pick a date",
-    Font = new Font("Segoe UI", 7.8f, FontStyle.Italic),
-    ForeColor = MutedText,
-    AutoSize = true,
-    Location = new Point(leftX, yLeft)
-};
-body.Controls.Add(lblExpectedHint);
-yLeft += 18;
-
-chkExpected.CheckedChanged += (s, e) =>
-{
-    dtpExpected.Enabled = chkExpected.Checked;
-    lblExpectedHint.Text = chkExpected.Checked
-        ? "Click the field or its dropdown arrow to open the calendar"
-        : "Check the box above to enable this field";
-    lblExpectedHint.ForeColor = chkExpected.Checked ? ThemeHelper.Header : MutedText;
-    if (chkExpected.Checked) dtpExpected.Focus();
-};
-
-            cmbBuildingFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
-            var buildingNames = _locations.Where(l => !string.IsNullOrWhiteSpace(l.Building)).Select(l => l.Building!).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(b => b);
-            var allBuildingOptions = new List<string> { "All Buildings" };
-            allBuildingOptions.AddRange(buildingNames);
-            cmbBuildingFilter.DataSource = allBuildingOptions;
-            ThemeHelper.StyleComboBox(cmbBuildingFilter);
-            Field("Filter by Building", cmbBuildingFilter, "Narrows the room search below — optional");
-
-            txtLocationSearch = new TextBox { PlaceholderText = "Search by location or room…" };
-            ThemeHelper.StyleTextBox(txtLocationSearch);
-            Field("Find Location / Room", txtLocationSearch, "Optional — pick a specific room if this location has more than one");
-
-            _locationSuggest = new EntitySuggestHelper<Location>(
-                textBox: txtLocationSearch,
-                hostForm: this,
-                onSelected: loc =>
-                {
-                    _selectedLocationId = loc.Id;
-                    txtLocationSearch.Text = LocationDisplay(loc);
-                    txtLocationSearch.SelectionStart = txtLocationSearch.Text.Length;
-                },
-                scoreFn: (loc, term) => Math.Max(
-                    FuzzySearchHelper.FuzzyScore(loc.LocationName, term),
-                    Math.Max(
-                        FuzzySearchHelper.FuzzyScore(loc.Building, term),
-                        Math.Max(
-                            FuzzySearchHelper.FuzzyScoreCode(loc.RoomNumber, term),
-                            FuzzySearchHelper.FuzzyScore(loc.RoomName, term)))),
-                line1Selector: LocationDisplay,
-                line2Selector: loc => loc.Building ?? "—");
-            _locationSuggest.LoadItems(_locations);
-
-            cmbBuildingFilter.SelectedIndexChanged += (s, e) =>
+            if (!string.IsNullOrWhiteSpace(_preselectEquipmentCode))
             {
-                string b = cmbBuildingFilter.SelectedItem?.ToString() ?? "All Buildings";
-                var filtered = b == "All Buildings" ? _locations : _locations.Where(x => string.Equals(x.Building, b, StringComparison.OrdinalIgnoreCase)).ToList();
-                _locationSuggest?.LoadItems(filtered);
+                var match = _equipment.FirstOrDefault(e => e.EquipmentCode == _preselectEquipmentCode);
+                if (match != null)
+                {
+                    _selectedEquipmentId = match.Id;
+                    txtEquipmentSearch.Text = $"{match.EquipmentCode} — {match.Name}";
+                    _preselectApplied = true;
+                }
+            }
+
+            // ── Return Details now lives here, under Select Equipment ──
+            yLeft += 6;
+            SectionHeader(leftX, colWidth, ref yLeft, "📅  Return Details", null);
+
+            chkExpected = new CheckBox
+            {
+                Text = "Set an expected return date",
+                Location = new Point(leftX, yLeft),
+                AutoSize = true,
+                Font = ThemeHelper.FontDefault,
+                ForeColor = ThemeHelper.TextPrimary
+            };
+            body.Controls.Add(chkExpected);
+            yLeft += 28;
+
+            dtpExpected = new DateTimePicker
+            {
+                Location = new Point(leftX, yLeft),
+                Width = colWidth,
+                Height = 30,
+                Format = DateTimePickerFormat.Long,
+                ShowUpDown = false,
+                Enabled = false,
+                MinDate = DateTime.Today.AddDays(1),
+                Value = DateTime.Today.AddDays(1)
+            };
+            body.Controls.Add(dtpExpected);
+            yLeft += dtpExpected.Height + 6;
+
+            lblExpectedHint = new Label
+            {
+                Text = "Check the box above, then click the field to pick a date",
+                Font = new Font("Segoe UI", 7.8f, FontStyle.Italic),
+                ForeColor = MutedText,
+                AutoSize = true,
+                Location = new Point(leftX, yLeft)
+            };
+            body.Controls.Add(lblExpectedHint);
+            yLeft += 18;
+
+            chkExpected.CheckedChanged += (s, e) =>
+            {
+                dtpExpected.Enabled = chkExpected.Checked;
+                lblExpectedHint.Text = chkExpected.Checked
+                    ? "Click the field or its dropdown arrow to open the calendar"
+                    : "Check the box above to enable this field";
+                lblExpectedHint.ForeColor = chkExpected.Checked ? ThemeHelper.Header : MutedText;
+                if (chkExpected.Checked) dtpExpected.Focus();
             };
 
-            txtLocationSearch.TextChanged += (s, e) => { if (string.IsNullOrWhiteSpace(txtLocationSearch.Text)) _selectedLocationId = null; };
+            // ══════════════════════ RIGHT COLUMN — Assign To ══════════════════════
+            SectionHeader(rightX, colWidth, ref yRight, "👤  Assign To",
+                "Choose an employee, a location, or both — at least one is required.");
 
             txtEmployeeSearch = new TextBox { PlaceholderText = "Search by employee code or name…" };
             ThemeHelper.StyleTextBox(txtEmployeeSearch);
@@ -1614,109 +1561,106 @@ chkExpected.CheckedChanged += (s, e) =>
                 line2Selector: emp => emp.Department ?? "—");
             _employeeSuggest.LoadItems(_employees);
 
-txtEmployeeSearch.TextChanged += (s, e) =>
-{
-    if (string.IsNullOrWhiteSpace(txtEmployeeSearch.Text))
-        _selectedEmployeeId = null;
-};
+            txtEmployeeSearch.TextChanged += (s, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(txtEmployeeSearch.Text))
+                    _selectedEmployeeId = null;
+            };
 
-var lblOr = new Label
-{
-    Text = "— or —",
-    Font = new Font("Segoe UI", 8f, FontStyle.Bold | FontStyle.Italic),
-    ForeColor = MutedText,
-    AutoSize = true,
-    Location = new Point(rightX, yRight)
-};
+            var lblOr = new Label
+            {
+                Text = "— or —",
+                Font = new Font("Segoe UI", 8f, FontStyle.Bold | FontStyle.Italic),
+                ForeColor = MutedText,
                 AutoSize = true,
                 Location = new Point(rightX, yRight)
             };
-body.Controls.Add(lblOr);
-yRight += 22;
+            body.Controls.Add(lblOr);
+            yRight += 22;
 
-// ── Location (name only) ──
-cmbLocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
-cmbLocation.DisplayMember = "DisplayName";
-cmbLocation.ValueMember = "Name";
-var locationNameOptions = new List<LocationNameOption> { new LocationNameOption { Name = null, DisplayName = "— No location —" } };
-locationNameOptions.AddRange(
-    _locations
-        .Select(l => l.LocationName)
-        .Where(n => !string.IsNullOrWhiteSpace(n))
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-        .Select(n => new LocationNameOption { Name = n, DisplayName = n }));
-cmbLocation.DataSource = locationNameOptions;
-ThemeHelper.StyleComboBox(cmbLocation);
-FieldLabel(rightX, ref yRight, "Location");
-PlaceControl(rightX, colWidth, ref yRight, cmbLocation);
-Hint(rightX, colWidth, ref yRight, "Optional — the site or building");
+            // ── Location (name only) ──
+            cmbLocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbLocation.DisplayMember = "DisplayName";
+            cmbLocation.ValueMember = "Name";
+            var locationNameOptions = new List<LocationNameOption> { new LocationNameOption { Name = null, DisplayName = "— No location —" } };
+            locationNameOptions.AddRange(
+                _locations
+                    .Select(l => l.LocationName)
+                    .Where(n => !string.IsNullOrWhiteSpace(n))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                    .Select(n => new LocationNameOption { Name = n, DisplayName = n }));
+            cmbLocation.DataSource = locationNameOptions;
+            ThemeHelper.StyleComboBox(cmbLocation);
+            FieldLabel(rightX, ref yRight, "Location");
+            PlaceControl(rightX, colWidth, ref yRight, cmbLocation);
+            Hint(rightX, colWidth, ref yRight, "Optional — the site or building");
 
-// ── Room (depends on Location) ──
-cmbRoom = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
-cmbRoom.DisplayMember = "Display";
-cmbRoom.ValueMember = "Id";
-ThemeHelper.StyleComboBox(cmbRoom);
-FieldLabel(rightX, ref yRight, "Room");
-PlaceControl(rightX, colWidth, ref yRight, cmbRoom);
-Hint(rightX, colWidth, ref yRight, "Optional — narrows to a specific room at that location");
+            // ── Room (depends on Location) ──
+            cmbRoom = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbRoom.DisplayMember = "Display";
+            cmbRoom.ValueMember = "Id";
+            ThemeHelper.StyleComboBox(cmbRoom);
+            FieldLabel(rightX, ref yRight, "Room");
+            PlaceControl(rightX, colWidth, ref yRight, cmbRoom);
+            Hint(rightX, colWidth, ref yRight, "Optional — narrows to a specific room at that location");
 
-cmbLocation.SelectedIndexChanged += (s, e) => RefreshRoomDropdown();
-if (cmbLocation.Items.Count > 0) cmbLocation.SelectedIndex = 0; // triggers RefreshRoomDropdown → cmbRoom starts disabled
+            cmbLocation.SelectedIndexChanged += (s, e) => RefreshRoomDropdown();
+            if (cmbLocation.Items.Count > 0) cmbLocation.SelectedIndex = 0; // triggers RefreshRoomDropdown → cmbRoom starts disabled
 
-// ── Final sizing ──
-int contentBottom = Math.Max(yLeft, yRight) + 16;
-body.Size = new Size(formWidth, contentBottom);
-int totalHeight = pnlHeader.Height + contentBottom + footerHeight;
-ClientSize = new Size(formWidth, totalHeight);
-pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
-}   
-private void CmbEquipment_SelectedIndexChanged(object? sender, EventArgs e)
-{
-    if (_suppressEquipmentSync) return;
-    if (cmbEquipment.SelectedValue == null) return;
+            // ── Final sizing ──
+            int contentBottom = Math.Max(yLeft, yRight) + 16;
+            body.Size = new Size(formWidth, contentBottom);
+            int totalHeight = pnlHeader.Height + contentBottom + footerHeight;
+            ClientSize = new Size(formWidth, totalHeight);
+            pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
+        }
 
-    int selectedId = (int)cmbEquipment.SelectedValue;
-    var eq = _equipment.FirstOrDefault(x => x.Id == selectedId);
-    if (eq == null) return;
-
-    _suppressEquipmentSync = true;
-    txtEquipmentSearch.Text = $"{eq.EquipmentCode} — {eq.Name}";
-    txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
-    _suppressEquipmentSync = false;
-}
-
-private void RefreshEquipmentDropdown()
-{
-    string selectedCategory = cmbCategoryFilter?.SelectedItem?.ToString() ?? "All Categories";
-
-    var filtered = selectedCategory == "All Categories"
-        ? _equipment
-        : _equipment.Where(e => string.Equals(e.Category, selectedCategory, StringComparison.OrdinalIgnoreCase)).ToList();
-
-    _suppressEquipmentSync = true;
-    cmbEquipment.DataSource = filtered.Select(e => new
-    {
-        e.Id,
-        DisplayText = $"{e.EquipmentCode} — {e.Name}" +
-                      (string.IsNullOrWhiteSpace(e.SerialNumber) ? "" : $" (S/N: {e.SerialNumber})")
-    }).ToList();
-    cmbEquipment.SelectedIndex = -1;
-    _suppressEquipmentSync = false;
-
-    _equipmentSuggest?.LoadItems(filtered);
-
-    if (!_preselectApplied && !string.IsNullOrWhiteSpace(_preselectEquipmentCode))
-    {
-        var match = filtered.FirstOrDefault(e => e.EquipmentCode == _preselectEquipmentCode);
-        if (match != null)
+        private void CmbEquipment_SelectedIndexChanged(object? sender, EventArgs e)
         {
-            cmbEquipment.SelectedValue = match.Id;
-            _preselectApplied = true;
-        }
-    }
+            if (_suppressEquipmentSync) return;
+            if (cmbEquipment.SelectedValue == null) return;
+
+            int selectedId = (int)cmbEquipment.SelectedValue;
+            var eq = _equipment.FirstOrDefault(x => x.Id == selectedId);
+            if (eq == null) return;
+
+            _suppressEquipmentSync = true;
+            txtEquipmentSearch.Text = $"{eq.EquipmentCode} — {eq.Name}";
+            txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
+            _suppressEquipmentSync = false;
         }
 
+        private void RefreshEquipmentDropdown()
+        {
+            string selectedCategory = cmbCategoryFilter?.SelectedItem?.ToString() ?? "All Categories";
+
+            var filtered = selectedCategory == "All Categories"
+                ? _equipment
+                : _equipment.Where(e => string.Equals(e.Category, selectedCategory, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            _suppressEquipmentSync = true;
+            cmbEquipment.DataSource = filtered.Select(e => new
+            {
+                e.Id,
+                DisplayText = $"{e.EquipmentCode} — {e.Name}" +
+                              (string.IsNullOrWhiteSpace(e.SerialNumber) ? "" : $" (S/N: {e.SerialNumber})")
+            }).ToList();
+            cmbEquipment.SelectedIndex = -1;
+            _suppressEquipmentSync = false;
+
+            _equipmentSuggest?.LoadItems(filtered);
+
+            if (!_preselectApplied && !string.IsNullOrWhiteSpace(_preselectEquipmentCode))
+            {
+                var match = filtered.FirstOrDefault(e => e.EquipmentCode == _preselectEquipmentCode);
+                if (match != null)
+                {
+                    cmbEquipment.SelectedValue = match.Id;
+                    _preselectApplied = true;
+                }
+            }
+        }
 
         private void RefreshRoomDropdown()
         {
@@ -1747,11 +1691,11 @@ private void RefreshEquipmentDropdown()
                 return;
             }
 
-int? locationId = cmbRoom.Enabled && cmbRoom.SelectedValue is int rid ? rid : (int?)null;
+            int? locationId = cmbRoom.Enabled && cmbRoom.SelectedValue is int rid ? rid : (int?)null;
 
-// The actual rule: equipment is required, and AT LEAST ONE of
-// employee / location must be set — not both, not neither.
-if (_selectedEmployeeId == null && locationId == null)
+            // The actual rule: equipment is required, and AT LEAST ONE of
+            // employee / location must be set — not both, not neither.
+            if (_selectedEmployeeId == null && locationId == null)
             {
                 ToastHelper.Show(this, "Please choose an employee, a location, or both — at least one is required.", ToastType.Warning);
                 return;
@@ -1761,7 +1705,7 @@ if (_selectedEmployeeId == null && locationId == null)
             {
                 EquipmentId = _selectedEquipmentId.Value,
                 EmployeeId = _selectedEmployeeId,
-                LocationId = _selectedLocationId,
+                LocationId = locationId,
                 Status = "pending",
                 AllocationDate = DateTime.UtcNow,
                 AllocatedByUserId = AuthService.CurrentUserId,
@@ -1774,25 +1718,19 @@ if (_selectedEmployeeId == null && locationId == null)
         {
             _equipmentSuggest?.Dispose();
             _employeeSuggest?.Dispose();
-            _locationSuggest?.Dispose();
             base.OnFormClosed(e);
         }
     }
 
     // ── Edit Expected Return Date Dialog ───────────────────────────────────
     public class EditExpectedReturnDialog : Form
-{
-    public DateOnly? SelectedDate { get; private set; }
-
-    private CheckBox chkHasDate = null!;
-    private DateTimePicker dtp = null!;
-
-    public EditExpectedReturnDialog(DateOnly? currentDate)
     {
-        BuildUI(currentDate);
-    }
+        public DateOnly? SelectedDate { get; private set; }
 
-}
+        private CheckBox chkHasDate = null!;
+        private DateTimePicker dtp = null!;
+
+        public EditExpectedReturnDialog(DateOnly? currentDate)
         {
             BuildUI(currentDate);
         }

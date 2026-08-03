@@ -216,30 +216,112 @@ namespace Inventory_Management_System
             panelDesktop.BackColor = Color.FromArgb(240, 244, 240);
             panelStats.BackColor   = Color.FromArgb(240, 244, 240);
 
-            // Who's logged in
-            var lbl = panelMenu.Controls.OfType<Label>().FirstOrDefault(l => l.Name == "lblWhoAmI");
-            if (lbl == null)
-            {
-                lbl = new Label
-                {
-                    Name      = "lblWhoAmI",
-                    Dock      = DockStyle.Bottom,
-                    Height    = 40,
-                    TextAlign = ContentAlignment.MiddleCenter,
-                    ForeColor = ThemeHelper.SidebarText,
-                    BackColor = Color.Transparent,
-                    Font      = ThemeHelper.FontSmall
-                };
-                panelMenu.Controls.Add(lbl);
-                panelMenu.Controls.SetChildIndex(lbl, 0);
-            }
-            lbl.Text = AuthService.CurrentFullName;
+            // Who's logged in — avatar + full name + @username, clickable
+            // through to Settings > Users.
+            BuildUserProfileFooter();
         }
 
         private void ApplyRolePermissions()
         {
             bool isAdmin = AuthService.IsAdmin;
             foreach (var btn in AdminOnlyButtons) btn.Visible = isAdmin;
+        }
+
+        private void BuildUserProfileFooter()
+        {
+            // Rebuild from scratch each time ApplyTheme runs (e.g. after
+            // login) so the picture/name/username always reflect who's
+            // actually signed in.
+            var existing = panelMenu.Controls.OfType<Panel>().FirstOrDefault(p => p.Name == "pnlUserFooter");
+            existing?.Dispose();
+
+            string fullName = AuthService.CurrentFullName;
+            string username = "";
+            string? picturePath = null;
+
+            try
+            {
+                using var db = new InventoryDbContext();
+                var user = db.Users.FirstOrDefault(u => u.Id == AuthService.CurrentUserId);
+                if (user != null)
+                {
+                    username = user.Username;
+                    picturePath = user.PicturePath;
+                    if (string.IsNullOrWhiteSpace(fullName)) fullName = user.FullName;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "DashboardForm.BuildUserProfileFooter");
+            }
+
+            var footer = new Panel
+            {
+                Name = "pnlUserFooter",
+                Dock = DockStyle.Bottom,
+                Height = 64,
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand
+            };
+
+            var divider = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 1,
+                BackColor = Color.FromArgb(40, 255, 255, 255)
+            };
+            footer.Controls.Add(divider);
+
+            const int avatarSize = 40;
+            var avatarImage = AvatarHelper.TryLoadUserImage(picturePath);
+            footer.Disposed += (s, e) => avatarImage?.Dispose();
+
+            var avatarPanel = new Panel
+            {
+                Size = new Size(avatarSize, avatarSize),
+                Location = new Point(16, (footer.Height - avatarSize) / 2),
+                BackColor = Color.Transparent
+            };
+            avatarPanel.Paint += (s, e) =>
+                AvatarHelper.DrawAvatar(e.Graphics, new Rectangle(0, 0, avatarSize - 1, avatarSize - 1), avatarImage);
+            footer.Controls.Add(avatarPanel);
+
+            var lblName = new Label
+            {
+                Text = string.IsNullOrWhiteSpace(fullName) ? username : fullName,
+                Location = new Point(avatarPanel.Right + 10, 15),
+                AutoSize = true,
+                Font = new Font("Segoe UI Semibold", 9.5f),
+                ForeColor = Color.White,
+                BackColor = Color.Transparent
+            };
+            footer.Controls.Add(lblName);
+
+            var lblUsername = new Label
+            {
+                Text = "@" + username,
+                Location = new Point(avatarPanel.Right + 10, lblName.Bottom + 1),
+                AutoSize = true,
+                Font = ThemeHelper.FontSmall,
+                ForeColor = Color.FromArgb(190, 210, 190),
+                BackColor = Color.Transparent
+            };
+            footer.Controls.Add(lblUsername);
+
+            void GoToUserProfile(object? s, EventArgs e)
+            {
+                if (!EnsureAdmin()) return;
+                AnimateTitleTo("Settings");
+                OpenChildForm(new SettingsForm(SettingsForm.InitialSection.Users), btnSettings);
+            }
+
+            footer.Click += GoToUserProfile;
+            avatarPanel.Click += GoToUserProfile;
+            lblName.Click += GoToUserProfile;
+            lblUsername.Click += GoToUserProfile;
+
+            panelMenu.Controls.Add(footer);
+            panelMenu.Controls.SetChildIndex(footer, 0);
         }
 
         private void EnsureAccentIndicator()
