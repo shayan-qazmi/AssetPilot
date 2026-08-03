@@ -319,6 +319,7 @@ namespace Inventory_Management_System.Forms
         private ComboBox cmbAllocation = null!;
         private ComboBox cmbEmployee = null!;
         private ComboBox cmbLocation = null!;
+        private ComboBox cmbRoom = null!;
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
@@ -341,6 +342,28 @@ namespace Inventory_Management_System.Forms
             _locations = locations;
             _preselectedAllocationId = preselectedAllocationId;
             BuildUI();
+        }
+
+        private class LocationNameOption
+        {
+            public string? Name { get; set; }
+            public string DisplayName { get; set; } = "";
+        }
+
+        private class RoomOption
+        {
+            public int Id { get; set; }
+            public string Display { get; set; } = "";
+        }
+
+        private static string RoomOptionDisplay(Location l)
+        {
+            bool hasNum = !string.IsNullOrWhiteSpace(l.RoomNumber);
+            bool hasRoomName = !string.IsNullOrWhiteSpace(l.RoomName);
+            if (!hasNum && !hasRoomName) return "— Unspecified room —";
+            string room = hasNum ? $"Room {l.RoomNumber}" : "";
+            if (hasRoomName) room = string.IsNullOrEmpty(room) ? l.RoomName! : $"{room} ({l.RoomName})";
+            return room;
         }
 
         private void BuildUI()
@@ -553,13 +576,31 @@ namespace Inventory_Management_System.Forms
             Hint("Who this equipment is being transferred to");
 
             cmbLocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
-            cmbLocation.DisplayMember = "LocationName";
-            cmbLocation.ValueMember = "Id";
-            cmbLocation.DataSource = _locations;
+            cmbLocation.DisplayMember = "DisplayName";
+            cmbLocation.ValueMember = "Name";
+            var locationNameOptions = _locations
+                .Select(l => l.LocationName)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                .Select(n => new LocationNameOption { Name = n, DisplayName = n })
+                .ToList();
+            cmbLocation.DataSource = locationNameOptions;
             ThemeHelper.StyleComboBox(cmbLocation);
             FieldLabel("New Location", required: true);
             PlaceControl(cmbLocation);
-            Hint("Where the equipment will now be kept");
+            Hint("The site or building");
+
+            cmbRoom = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbRoom.DisplayMember = "Display";
+            cmbRoom.ValueMember = "Id";
+            ThemeHelper.StyleComboBox(cmbRoom);
+            FieldLabel("Room", required: true);
+            PlaceControl(cmbRoom);
+            Hint("The specific room at that location");
+
+            cmbLocation.SelectedIndexChanged += (s, e) => RefreshRoomDropdown();
+            if (cmbLocation.Items.Count > 0) cmbLocation.SelectedIndex = 0; // triggers RefreshRoomDropdown
 
             var lblNote = new Label
             {
@@ -604,6 +645,28 @@ namespace Inventory_Management_System.Forms
             _suppressSync = false;
         }
 
+
+        private void RefreshRoomDropdown()
+        {
+            string? selectedName = cmbLocation.SelectedValue as string;
+
+            if (selectedName == null)
+            {
+                cmbRoom.DataSource = null;
+                cmbRoom.Enabled = false;
+                return;
+            }
+
+            var rooms = _locations
+                .Where(l => l.LocationName == selectedName)
+                .Select(l => new RoomOption { Id = l.Id, Display = RoomOptionDisplay(l) })
+                .ToList();
+
+            cmbRoom.Enabled = rooms.Count > 0;
+            cmbRoom.DataSource = rooms;
+            if (cmbRoom.Items.Count > 0) cmbRoom.SelectedIndex = 0;
+        }
+
         // ── Resolves the typed search text to an allocation and selects it in
         // cmbAllocation, in case the suggestion popup click never fired. ──
         private void TryResolveEquipmentFromText()
@@ -632,15 +695,17 @@ namespace Inventory_Management_System.Forms
         {
             TryResolveEquipmentFromText(); // last-chance resolve before validating
 
+            int? roomId = cmbRoom.Enabled && cmbRoom.SelectedValue is int rid ? rid : (int?)null;
+
             if (cmbAllocation.SelectedValue == null || (int)cmbAllocation.SelectedValue == 0 ||
-                cmbEmployee.SelectedValue == null || cmbLocation.SelectedValue == null)
+                cmbEmployee.SelectedValue == null || roomId == null)
             {
-                ToastHelper.Show(this, "Please fill all fields.", ToastType.Warning);
+                ToastHelper.Show(this, "Please fill all fields, including a specific room for the new location.", ToastType.Warning);
                 return;
             }
             OldAllocationId = (int)cmbAllocation.SelectedValue;
             NewEmployeeId = (int)cmbEmployee.SelectedValue;
-            NewLocationId = (int)cmbLocation.SelectedValue;
+            NewLocationId = roomId.Value;
             DialogResult = DialogResult.OK;
         }
 

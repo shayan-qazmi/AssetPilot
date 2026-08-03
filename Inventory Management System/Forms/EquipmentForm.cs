@@ -19,6 +19,9 @@ namespace Inventory_Management_System.Forms
         private readonly EquipmentService _equipmentService = new();
         private List<Equipment> _allEquipment = new();
 
+        private EquipmentSuggestHelper? _suggest;
+        private List<Equipment> _fullEquipmentCache = new();
+
         private int _currentPage = 1;
         private int _pageSize = 25;
         private int _totalPages = 1;
@@ -37,6 +40,7 @@ namespace Inventory_Management_System.Forms
             SetupToolbarLayout();
             LoadCategoryFilter();
             LoadEquipment();
+            SetupSearchSuggestions();
 
             flowToolbar.Layout += FlowToolbar_Layout;
 
@@ -279,26 +283,49 @@ namespace Inventory_Management_System.Forms
             }
             else
             {
-                var result = _equipmentService.Search(searchTerm);
-                if (!result.Success)
-                {
-                    ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
-                    return;
-                }
+                // Lazy-load the cache if suggestions setup ever failed silently
+                if (_fullEquipmentCache.Count == 0)
+                    RefreshEquipmentCache();
 
-                var fullMatches = result.Data ?? new List<Equipment>();
+                var fullMatches = _fullEquipmentCache
+                    .Select(eq => new
+                    {
+                        Equipment = eq,
+                        Score = Math.Max(
+                            FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, searchTerm),
+                            Math.Max(
+                                FuzzySearchHelper.FuzzyScoreCode(eq.QrCode, searchTerm),
+                                Math.Max(
+                                    FuzzySearchHelper.FuzzyScore(eq.Name, searchTerm),
+                                    Math.Max(
+                                        FuzzySearchHelper.FuzzyScore(eq.Make, searchTerm),
+                                        Math.Max(
+                                            FuzzySearchHelper.FuzzyScore(eq.Model, searchTerm),
+                                            FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, searchTerm))))))
+                    })
+                    .Where(x => x.Score > -10000)
+                    .OrderByDescending(x => x.Score)
+                    .Select(x => x.Equipment)
+                    .ToList();
+
+                // ── TEMP DEBUG — remove after verifying ──────────────────────────
+                System.Diagnostics.Debug.WriteLine($"[FuzzySearch] query='{searchTerm}' matches={fullMatches.Count}: " +
+                    string.Join(", ", fullMatches.Select(x => x.EquipmentCode)));
+                // ──────────────────────────────────────────────────────────────────
+
                 _totalPages = Math.Max(1, (int)Math.Ceiling(fullMatches.Count / (double)_pageSize));
                 if (_currentPage > _totalPages) _currentPage = _totalPages;
 
                 _allEquipment = fullMatches
-                    .Skip((_currentPage - 1) * _pageSize)
-                    .Take(_pageSize)
-                    .ToList();
+                           .Skip((_currentPage - 1) * _pageSize)
+                           .Take(_pageSize)
+                           .ToList();
             }
 
             UpdatePaginationControls();
             ApplyFilters();
         }
+
 
         private void UpdatePaginationControls()
         {
@@ -344,6 +371,40 @@ namespace Inventory_Management_System.Forms
                 cmbCategory.Items.Add("All Categories");
                 cmbCategory.SelectedIndex = 0;
             }
+        }
+
+        // ── Fuzzy suggestion dropdown for the search box, same helper as QRScannerForm ──
+        private void SetupSearchSuggestions()
+        {
+            try
+            {
+                _suggest = new EquipmentSuggestHelper(
+                    textBox: txtSearch,
+                    hostForm: this,
+                    onSelected: eq =>
+                    {
+                        _currentPage = 1;
+                        txtSearch.Text = eq.EquipmentCode;   // fires TextChanged → LoadEquipment
+                    });
+
+                RefreshEquipmentCache();
+            }
+            catch { /* suggestions are non-critical — fail silently */ }
+        }
+
+        // Keeps the in-memory fuzzy-search cache (and the dropdown's data) in sync
+        // with the DB after any add/edit/delete/import.
+        private void RefreshEquipmentCache()
+        {
+            var allResult = _equipmentService.GetAll();
+            _fullEquipmentCache = allResult.Data ?? new List<Equipment>();
+            _suggest?.LoadEquipment(_fullEquipmentCache);
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _suggest?.Dispose();
+            base.OnFormClosed(e);
         }
 
         // ── Apply both search-text and category filter to _allEquipment ────
