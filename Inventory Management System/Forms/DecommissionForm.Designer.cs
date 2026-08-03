@@ -48,8 +48,8 @@ namespace Inventory_Management_System.Forms
             flowToolbar.Controls.Add(btnExport);
             flowToolbar.Controls.Add(txtSearch);
 
-            btnDecommission.Size   = new System.Drawing.Size(140, 32);
-            btnDecommission.Text   = "🗑️ Decommission Item";
+            btnDecommission.Size   = new System.Drawing.Size(160, 32);
+            btnDecommission.Text   = "🗑 Decommission Item";
             btnDecommission.Name   = "btnDecommission";
             btnDecommission.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnDecommission.Click += btnDecommission_Click;

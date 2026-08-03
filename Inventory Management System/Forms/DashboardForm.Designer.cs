@@ -18,30 +18,30 @@ namespace Inventory_Management_System
 
         private void InitializeComponent()
         {
-            panelMenu = new Inventory_Management_System.DoubleBufferedPanel();
-            panelTop         = new System.Windows.Forms.Panel();
-            panelDesktop     = new System.Windows.Forms.Panel();
-            panelStats       = new System.Windows.Forms.Panel();
-            panelContent     = new System.Windows.Forms.Panel();
+            panelMenu    = new Inventory_Management_System.DoubleBufferedPanel();
+            panelTop     = new System.Windows.Forms.Panel();
+            panelDesktop = new System.Windows.Forms.Panel();
+            panelStats   = new System.Windows.Forms.Panel();
+            panelContent = new System.Windows.Forms.Panel();
 
-            lblTitle         = new System.Windows.Forms.Label();
-            lblAppBrand      = new System.Windows.Forms.Label();
+            lblTitle    = new System.Windows.Forms.Label();
+            lblAppBrand = new System.Windows.Forms.Label();
             picLogoSide = new System.Windows.Forms.PictureBox();
 
-            btnDashboard     = new System.Windows.Forms.Button();
-            btnEquipment     = new System.Windows.Forms.Button();
-            btnEmployees     = new System.Windows.Forms.Button();
-            btnLocations     = new System.Windows.Forms.Button();
-            btnAllocation    = new System.Windows.Forms.Button();
-            btnReturns       = new System.Windows.Forms.Button();
-            btnTransfer      = new System.Windows.Forms.Button();
-            btnDecommission  = new System.Windows.Forms.Button();
-            btnLogs          = new System.Windows.Forms.Button();
-            btnQRScanner     = new System.Windows.Forms.Button();
-            btnCheckInOut    = new System.Windows.Forms.Button();
-            btnReports       = new System.Windows.Forms.Button();
-            btnSettings = new System.Windows.Forms.Button();
-            btnLogout = new System.Windows.Forms.Button();
+            btnDashboard    = new System.Windows.Forms.Button();
+            btnEquipment    = new System.Windows.Forms.Button();
+            btnEmployees    = new System.Windows.Forms.Button();
+            btnLocations    = new System.Windows.Forms.Button();
+            btnAllocation   = new System.Windows.Forms.Button();
+            btnReturns      = new System.Windows.Forms.Button();
+            btnTransfer     = new System.Windows.Forms.Button();
+            btnDecommission = new System.Windows.Forms.Button();
+            btnLogs         = new System.Windows.Forms.Button();
+            btnQRScanner    = new System.Windows.Forms.Button();
+            btnCheckInOut   = new System.Windows.Forms.Button();
+            btnReports      = new System.Windows.Forms.Button();
+            btnSettings     = new System.Windows.Forms.Button();
+            btnLogout       = new System.Windows.Forms.Button();
             btnDeletedItems = new System.Windows.Forms.Button();
 
             panelMenu.SuspendLayout();
@@ -50,9 +50,9 @@ namespace Inventory_Management_System
             SuspendLayout();
 
             // ── panelMenu (sidebar) ─────────────────────────────────────────
-            panelMenu.Dock      = System.Windows.Forms.DockStyle.Left;
-            panelMenu.Width     = 200;
-            panelMenu.Name      = "panelMenu";
+            panelMenu.Dock       = System.Windows.Forms.DockStyle.Left;
+            panelMenu.Width      = 200;
+            panelMenu.Name       = "panelMenu";
             panelMenu.AutoScroll = true;
             panelMenu.Controls.Add(btnLogout);
             panelMenu.Controls.Add(btnSettings);
@@ -80,15 +80,16 @@ namespace Inventory_Management_System
             lblAppBrand.Name      = "lblAppBrand";
             lblAppBrand.Visible   = false;  // hidden by default; shown only when logo.png not found
 
-            picLogoSide.Dock = System.Windows.Forms.DockStyle.Top;
-            picLogoSide.Height = 105;
-            picLogoSide.SizeMode = System.Windows.Forms.PictureBoxSizeMode.Zoom;
+            // ── Logo ────────────────────────────────────────────────────────
+            picLogoSide.Dock      = System.Windows.Forms.DockStyle.Top;
+            picLogoSide.Height    = 75;
+            picLogoSide.SizeMode  = System.Windows.Forms.PictureBoxSizeMode.Zoom;
             picLogoSide.BackColor = ThemeHelper.Sidebar;
-            picLogoSide.Image = Properties.Resources.logo;
-            picLogoSide.Name = "picLogoSide";
+            picLogoSide.Image     = Properties.Resources.logo;
+            picLogoSide.Name      = "picLogoSide";
 
             btnDashboard.Dock    = System.Windows.Forms.DockStyle.Top;
-            btnDashboard.Height  = 46; btnDashboard.Text = "⊞  Dashboard";
+            btnDashboard.Height  = 46; btnDashboard.Text = "🏠  Dashboard";
             btnDashboard.Name    = "btnDashboard";
             btnDashboard.Click  += btnDashboard_Click;
 
@@ -117,19 +118,19 @@ namespace Inventory_Management_System
             btnReturns.Name      = "btnReturns";
             btnReturns.Click    += btnReturns_Click;
 
-            btnTransfer.Dock = System.Windows.Forms.DockStyle.Top;
-            btnTransfer.Height = 46; btnTransfer.Text = "🔀  Transfer";
-            btnTransfer.Name = "btnTransfer";
-            btnTransfer.Click += btnTransfer_Click;
+            btnTransfer.Dock     = System.Windows.Forms.DockStyle.Top;
+            btnTransfer.Height   = 46; btnTransfer.Text = "🔄  Transfer";
+            btnTransfer.Name     = "btnTransfer";
+            btnTransfer.Click   += btnTransfer_Click;
 
-            btnDecommission.Dock = System.Windows.Forms.DockStyle.Top;
-            btnDecommission.Height = 46; btnDecommission.Text = "🗑  Decommission";
-            btnDecommission.Name = "btnDecommission";
+            btnDecommission.Dock   = System.Windows.Forms.DockStyle.Top;
+            btnDecommission.Height = 46; btnDecommission.Text = "🚫  Decommission";
+            btnDecommission.Name   = "btnDecommission";
             btnDecommission.Click += btnDecommission_Click;
 
-            btnDeletedItems.Dock = System.Windows.Forms.DockStyle.Top;
+            btnDeletedItems.Dock   = System.Windows.Forms.DockStyle.Top;
             btnDeletedItems.Height = 46; btnDeletedItems.Text = "♻️  Deleted Items";
-            btnDeletedItems.Name = "btnDeletedItems";
+            btnDeletedItems.Name   = "btnDeletedItems";
             btnDeletedItems.Click += btnDeletedItems_Click;
 
             btnLogs.Dock         = System.Windows.Forms.DockStyle.Top;
@@ -142,10 +143,10 @@ namespace Inventory_Management_System
             btnQRScanner.Name    = "btnQRScanner";
             btnQRScanner.Click  += btnQRScanner_Click;
 
-            btnCheckInOut.Dock    = System.Windows.Forms.DockStyle.Top;
-            btnCheckInOut.Height  = 46; btnCheckInOut.Text = "📋  Check In/Out";
-            btnCheckInOut.Name    = "btnCheckInOut";
-            btnCheckInOut.Click  += btnCheckInOut_Click;
+            btnCheckInOut.Dock   = System.Windows.Forms.DockStyle.Top;
+            btnCheckInOut.Height = 46; btnCheckInOut.Text = "✅  Check In/Out";
+            btnCheckInOut.Name   = "btnCheckInOut";
+            btnCheckInOut.Click += btnCheckInOut_Click;
 
             btnReports.Dock      = System.Windows.Forms.DockStyle.Top;
             btnReports.Height    = 46; btnReports.Text = "📊  Reports";

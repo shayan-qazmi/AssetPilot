@@ -35,6 +35,9 @@ namespace Inventory_Management_System.Forms
             if (_isEditMode) PopulateFields();
         }
 
+        private static readonly Color CardBorder = Color.FromArgb(224, 224, 224);
+        private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
+
         private void InitializeUI()
         {
             Text            = _isEditMode ? "Edit User" : "Add User";
@@ -42,93 +45,204 @@ namespace Inventory_Management_System.Forms
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox     = false;
             MinimizeBox     = false;
-            AutoScroll      = true;
-            BackColor       = Color.White;
-            Font            = ThemeHelper.FontDefault;
+            AutoScroll      = false;
+            Font            = new Font("Segoe UI", 9F);
+            ThemeHelper.ApplyFormBackground(this);
 
-            int x = 24, w = 340, y = 24;
+            const int formWidth = 460;
+            const int margin = 28;
+            int contentWidth = formWidth - margin * 2;
 
-            AddLbl("Username",  x, ref y); txtUsername = AddTxt(x, w, ref y);
+            // ── Header Banner ──
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = ThemeHelper.Header };
+            Controls.Add(pnlHeader);
+
+            var lblTitle = new Label
+            {
+                Text = _isEditMode ? "Edit User" : "Add User",
+                Font = new Font("Segoe UI", 15.5f, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(margin, 18)
+            };
+            pnlHeader.Controls.Add(lblTitle);
+
+            var subtitleFont = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            string subtitleText = _isEditMode ? "Update user account credentials and role permissions" : "Create a new user account and assign system permissions";
+            var subtitleSize = TextRenderer.MeasureText(
+                subtitleText, subtitleFont, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+            var lblSubtitle = new Label
+            {
+                Text = subtitleText,
+                Font = subtitleFont,
+                ForeColor = Color.FromArgb(235, 245, 233),
+                AutoSize = false,
+                Size = new Size(contentWidth, subtitleSize.Height + 4),
+                Location = new Point(margin, lblTitle.Bottom + 6)
+            };
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Height = lblSubtitle.Bottom + 20;
+
+            // ── Body Panel ──
+            var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10), AutoScroll = false };
+            Controls.Add(body);
+
+            // ── Footer Panel ──
+            const int footerHeight = 72;
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
+
+            btnCancel = new Button { Text = "Cancel", Size = new Size(120, 40) };
+            ThemeHelper.StyleSecondaryButton(btnCancel);
+            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
+
+            btnSave = new Button { Text = "Save", Size = new Size(130, 40) };
+            ThemeHelper.StyleButton(btnSave);
+            btnSave.Click += BtnSave_Click;
+
+            btnSave.Location = new Point(formWidth - btnSave.Width - margin, 16);
+            btnCancel.Location = new Point(btnSave.Left - btnCancel.Width - 12, 16);
+
+            pnlFooter.Controls.Add(btnCancel);
+            pnlFooter.Controls.Add(btnSave);
+            Controls.Add(pnlFooter);
+
+            var lblRequiredNote = new Label
+            {
+                Text = "* Required field",
+                Font = new Font("Segoe UI", 7.5f, FontStyle.Italic),
+                ForeColor = MutedText,
+                AutoSize = true
+            };
+            lblRequiredNote.Location = new Point(margin, (footerHeight - lblRequiredNote.PreferredHeight) / 2);
+            pnlFooter.Controls.Add(lblRequiredNote);
+
+            int y = 20;
+
+            void SectionHeader(string titleText)
+            {
+                body.Controls.Add(new Panel { BackColor = ThemeHelper.Header, Size = new Size(4, 22), Location = new Point(margin, y) });
+                body.Controls.Add(new Label
+                {
+                    Text = titleText,
+                    Font = new Font("Segoe UI", 12f, FontStyle.Bold),
+                    ForeColor = ThemeHelper.TextPrimary,
+                    AutoSize = true,
+                    Location = new Point(margin + 12, y - 1)
+                });
+                y += 34;
+            }
+
+            void FieldLabel(string label, bool required = false)
+            {
+                body.Controls.Add(new Label
+                {
+                    Text = required ? $"{label}  *" : label,
+                    Location = new Point(margin, y),
+                    AutoSize = true,
+                    Font = ThemeHelper.FontBold,
+                    ForeColor = ThemeHelper.TextPrimary
+                });
+                y += 20;
+            }
+
+            void PlaceControl(Control ctrl, int height = 30)
+            {
+                ctrl.Location = new Point(margin, y);
+                ctrl.Width = contentWidth;
+                if (ctrl.Height < height) ctrl.Height = height;
+                body.Controls.Add(ctrl);
+                y += ctrl.Height + 4;
+            }
+
+            void Hint(string text)
+            {
+                var font = new Font("Segoe UI", 7.8f, FontStyle.Italic);
+                var sz = TextRenderer.MeasureText(text, font, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+                body.Controls.Add(new Label
+                {
+                    Text = text,
+                    Font = font,
+                    ForeColor = MutedText,
+                    AutoSize = false,
+                    Size = new Size(contentWidth, sz.Height + 4),
+                    Location = new Point(margin, y)
+                });
+                y += sz.Height + 4 + 8;
+            }
+
+            SectionHeader("User Account Details");
+
+            txtUsername = new TextBox();
+            ThemeHelper.StyleTextBox(txtUsername);
+            FieldLabel("Username", required: true);
+            PlaceControl(txtUsername);
             if (_isEditMode) txtUsername.Enabled = false;
+            Hint("System login username — must be unique");
 
-            AddLbl("Full Name", x, ref y); txtFullName = AddTxt(x, w, ref y);
-            AddLbl("Email",     x, ref y); txtEmail    = AddTxt(x, w, ref y);
+            txtFullName = new TextBox();
+            ThemeHelper.StyleTextBox(txtFullName);
+            FieldLabel("Full Name", required: true);
+            PlaceControl(txtFullName);
+            Hint("Full display name of the user");
 
-            AddLbl(_isEditMode ? "New Password (leave blank to keep)" : "Password", x, ref y);
-            txtPassword = AddTxt(x, w, ref y);
-            txtPassword.UseSystemPasswordChar = true;
+            txtEmail = new TextBox();
+            ThemeHelper.StyleTextBox(txtEmail);
+            FieldLabel("Email");
+            PlaceControl(txtEmail);
+            Hint("Contact email for system notifications and password recovery");
+
+            txtPassword = new TextBox { UseSystemPasswordChar = true };
+            ThemeHelper.StyleTextBox(txtPassword);
+            FieldLabel(_isEditMode ? "New Password" : "Password", required: !_isEditMode);
+            PlaceControl(txtPassword);
+            if (_isEditMode)
+                Hint("Leave blank to keep existing password");
 
             if (!_isEditMode)
             {
-                AddLbl("Confirm Password", x, ref y);
-                txtConfirm = AddTxt(x, w, ref y);
-                txtConfirm.UseSystemPasswordChar = true;
+                txtConfirm = new TextBox { UseSystemPasswordChar = true };
+                ThemeHelper.StyleTextBox(txtConfirm);
+                FieldLabel("Confirm Password", required: true);
+                PlaceControl(txtConfirm);
+                Hint("Re-enter the password to confirm");
             }
 
-            AddLbl("Role", x, ref y);
-            cmbRole = new ComboBox
-            {
-                Location      = new Point(x, y),
-                Width         = w,
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
+            cmbRole = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             ThemeHelper.StyleComboBox(cmbRole);
-            Controls.Add(cmbRole);
-            y += 34;
+            FieldLabel("Role", required: true);
+            PlaceControl(cmbRole);
+            Hint("Assigned role determines accessible screens and system capabilities");
 
             chkActive = new CheckBox
             {
-                Text      = "Active",
-                Location  = new Point(x, y),
-                AutoSize  = true,
-                Checked   = _user.IsActive == true,
-                Font      = ThemeHelper.FontDefault,
+                Text = "Is Active Account",
+                Location = new Point(margin, y),
+                AutoSize = true,
+                Checked = _user.IsActive == true,
+                Font = ThemeHelper.FontDefault,
                 ForeColor = ThemeHelper.TextPrimary
             };
-            Controls.Add(chkActive);
-            y += 34;
+            body.Controls.Add(chkActive);
+            y += 30;
 
             lblStatus = new Label
             {
-                Location  = new Point(x, y),
-                AutoSize  = false,
-                Size      = new Size(w, 22),
-                Font      = ThemeHelper.FontSmall,
+                Location = new Point(margin, y),
+                AutoSize = false,
+                Size = new Size(contentWidth, 24),
+                Font = ThemeHelper.FontSmall,
                 ForeColor = ThemeHelper.Danger,
                 BackColor = Color.Transparent
             };
-            Controls.Add(lblStatus);
+            body.Controls.Add(lblStatus);
             y += 28;
 
-            btnSave = new Button
-            {
-                Text      = "Save",
-                Location  = new Point(x + w - 160, y),
-                Size      = new Size(75, 32),
-                BackColor = ThemeHelper.Accent,
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font      = ThemeHelper.FontBold,
-                Cursor    = Cursors.Hand
-            };
-            btnSave.FlatAppearance.BorderSize = 0;
-            btnSave.Click += BtnSave_Click;
-            Controls.Add(btnSave);
+            body.Size = new Size(formWidth, y);
+            int totalHeight = pnlHeader.Height + body.Height + footerHeight;
+            ClientSize = new Size(formWidth, totalHeight);
+            pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
 
-            btnCancel = new Button
-            {
-                Text      = "Cancel",
-                Location  = new Point(x + w - 76, y),
-                Size      = new Size(76, 32),
-                FlatStyle = FlatStyle.Flat,
-                Font      = ThemeHelper.FontDefault,
-                Cursor    = Cursors.Hand
-            };
-            ThemeHelper.StyleSecondaryButton(btnCancel);
-            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
-            Controls.Add(btnCancel);
-
-            ClientSize   = new Size(w + x * 2, y + 32 + 20);
             AcceptButton = btnSave;
             CancelButton = btnCancel;
         }
@@ -276,30 +390,6 @@ namespace Inventory_Management_System.Forms
                 string detail = ex.InnerException?.Message ?? ex.Message;
                 lblStatus.Text = "Error: " + detail;
             }
-        }
-
-        private void AddLbl(string text, int x, ref int y)
-        {
-            var lbl = new Label
-            {
-                Text      = text,
-                Location  = new Point(x, y),
-                AutoSize  = true,
-                Font      = ThemeHelper.FontBold,
-                ForeColor = ThemeHelper.TextPrimary,
-                BackColor = Color.Transparent
-            };
-            Controls.Add(lbl);
-            y += 22;
-        }
-
-        private TextBox AddTxt(int x, int w, ref int y)
-        {
-            var txt = new TextBox { Location = new Point(x, y), Size = new Size(w, 28) };
-            ThemeHelper.StyleTextBox(txt);
-            Controls.Add(txt);
-            y += 38;
-            return txt;
         }
     }
 }

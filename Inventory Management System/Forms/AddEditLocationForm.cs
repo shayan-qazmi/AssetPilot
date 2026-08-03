@@ -21,8 +21,8 @@ namespace Inventory_Management_System.Forms
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
-        private static readonly Color Accent = Color.FromArgb(94, 53, 177);
-        private static readonly Color CardBorder = Color.FromArgb(228, 224, 240);
+private static readonly Color Accent = ThemeHelper.Header; // was purple — now matches app-wide green theme
+private static readonly Color CardBorder = Color.FromArgb(224, 224, 224); // matches AllocationForm's dialog border
         private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
 
         public AddEditLocationForm(Location? location = null)
@@ -43,7 +43,7 @@ namespace Inventory_Management_System.Forms
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.AutoScroll = false; // never scrolls — sized to fit exactly, same as the Allocation dialog
-            this.Font = new Font("Segoe UI", 9F);
+this.Font = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
 
             const int formWidth = 440;
@@ -72,8 +72,8 @@ namespace Inventory_Management_System.Forms
             {
                 Text = subtitleText,
                 Font = subtitleFont,
-                ForeColor = Color.FromArgb(230, 224, 245),
-                AutoSize = false,
+ForeColor = Color.FromArgb(235, 245, 233),
+AutoSize = false,
                 Size = new Size(contentWidth, subtitleSize.Height + 4),
                 Location = new Point(margin, lblTitle.Bottom + 8)
             };
@@ -94,7 +94,7 @@ namespace Inventory_Management_System.Forms
             btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
 
             btnSave = new Button { Text = "✓  Save", Size = new Size(150, 42) };
-            ThemeHelper.StyleButton(btnSave, Accent);
+ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
 
             btnSave.Location = new Point(formWidth - btnSave.Width - margin, 15);

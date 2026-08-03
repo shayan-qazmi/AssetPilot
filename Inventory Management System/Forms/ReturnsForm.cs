@@ -56,6 +56,12 @@ namespace Inventory_Management_System.Forms
             panelBottom.BackColor = Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
             lblRowCount.Font = ThemeHelper.FontSmall;
+            foreach (var btn in new[] { btnAdd, btnEdit, btnDelete, btnRefresh, btnExport })
+            {
+                btn.TextAlign = ContentAlignment.MiddleCenter;
+                btn.TextImageRelation = TextImageRelation.Overlay;
+                btn.Padding = new Padding(0);
+            }
         }
 
         // ── Live fuzzy-suggestion dropdown (same UX as QR Scanner / Check-In-Out) ──
@@ -506,7 +512,7 @@ namespace Inventory_Management_System.Forms
         }
     }
 
-    // ── Process Return Dialog — unchanged ─────────────────────────────────
+    // ── Process Return Dialog ───────────────────────────────────────────
     public class ProcessReturnForm : Form
     {
         public int AllocationId { get; private set; }
@@ -516,11 +522,18 @@ namespace Inventory_Management_System.Forms
         private readonly List<Allocation> _allocations;
         private readonly bool _isEdit;
 
+        private TextBox txtEquipmentSearch = null!;
         private ComboBox cmbAllocation = null!;
         private DateTimePicker dtpReturnDate = null!;
         private ComboBox cmbCondition = null!;
         private Button btnSave = null!;
         private Button btnCancel = null!;
+
+        private EntitySuggestHelper<Allocation>? _equipmentSuggest;
+        private bool _suppressSync = false;
+
+        private static readonly Color CardBorder = Color.FromArgb(224, 224, 224);
+        private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
 
         private static readonly string[] Conditions = { "New", "Good", "Fair", "Poor", "Unserviceable" };
 
@@ -534,25 +547,141 @@ namespace Inventory_Management_System.Forms
         private void BuildUI(Allocation? existing)
         {
             Text = _isEdit ? "Edit Return" : "Process Return";
-            Size = new Size(460, 310);
-            StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
+            MinimizeBox = false;
+            StartPosition = FormStartPosition.CenterParent;
+            AutoScroll = false;
+            Font = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
 
-            int y = 20;
-            void AddRow(string label, Control ctrl)
+            const int formWidth = 460;
+            const int margin = 28;
+            int contentWidth = formWidth - margin * 2;
+
+            // ── Header ──
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = ThemeHelper.Header };
+            Controls.Add(pnlHeader);
+
+            var lblTitle = new Label
             {
-                var lbl = new Label { Text = label, Location = new Point(20, y), AutoSize = true };
-                ThemeHelper.StyleLabel(lbl, bold: true);
-                Controls.Add(lbl);
-                y += 22;
-                ctrl.Location = new Point(20, y);
-                ctrl.Width = 400;
-                Controls.Add(ctrl);
-                y += 42;
+                Text = _isEdit ? "↩  Edit Return" : "↩  Process Return",
+                Font = new Font("Segoe UI", 15.5f, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(margin, 18)
+            };
+            pnlHeader.Controls.Add(lblTitle);
+
+            var subtitleFont = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            string subtitleText = _isEdit
+                ? "Update the return date or condition for this record"
+                : "Mark an allocated item as returned and log its condition";
+            var subtitleSize = TextRenderer.MeasureText(
+                subtitleText, subtitleFont, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+            var lblSubtitle = new Label
+            {
+                Text = subtitleText,
+                Font = subtitleFont,
+                ForeColor = Color.FromArgb(235, 245, 233),
+                AutoSize = false,
+                Size = new Size(contentWidth, subtitleSize.Height + 4),
+                Location = new Point(margin, lblTitle.Bottom + 8)
+            };
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Height = lblSubtitle.Bottom + 20;
+
+            // ── Body ──
+            var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10), AutoScroll = false };
+            Controls.Add(body);
+
+            // ── Footer — buttons centered ──
+            const int footerHeight = 72;
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
+
+            btnCancel = new Button { Text = "Cancel", Size = new Size(140, 42) };
+            ThemeHelper.StyleSecondaryButton(btnCancel);
+            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
+
+            btnSave = new Button { Text = _isEdit ? "✓  Save" : "✓  Process Return", Size = new Size(_isEdit ? 150 : 210, 42) };
+            ThemeHelper.StyleButton(btnSave);
+            btnSave.Click += BtnSave_Click;
+
+            int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
+            int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
+            btnCancel.Location = new Point(buttonsStartX, 15);
+            btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
+
+            pnlFooter.Controls.Add(btnCancel);
+            pnlFooter.Controls.Add(btnSave);
+            Controls.Add(pnlFooter);
+
+            int y = 24;
+
+            void SectionHeader(string title)
+            {
+                body.Controls.Add(new Panel { BackColor = ThemeHelper.Header, Size = new Size(4, 22), Location = new Point(margin, y) });
+                body.Controls.Add(new Label
+                {
+                    Text = title,
+                    Font = new Font("Segoe UI", 12f, FontStyle.Bold),
+                    ForeColor = ThemeHelper.TextPrimary,
+                    AutoSize = true,
+                    Location = new Point(margin + 12, y - 1)
+                });
+                y += 34;
             }
 
+            void FieldLabel(string label, bool required = false)
+            {
+                body.Controls.Add(new Label
+                {
+                    Text = required ? $"{label}  *" : label,
+                    Location = new Point(margin, y),
+                    AutoSize = true,
+                    Font = ThemeHelper.FontBold,
+                    ForeColor = ThemeHelper.TextPrimary
+                });
+                y += 20;
+            }
+
+            void PlaceControl(Control ctrl, int height = 30)
+            {
+                ctrl.Location = new Point(margin, y);
+                ctrl.Width = contentWidth;
+                if (ctrl.Height < height) ctrl.Height = height;
+                body.Controls.Add(ctrl);
+                y += ctrl.Height + 4;
+            }
+
+            void Hint(string text)
+            {
+                var font = new Font("Segoe UI", 7.8f, FontStyle.Italic);
+                var sz = TextRenderer.MeasureText(text, font, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+                body.Controls.Add(new Label
+                {
+                    Text = text,
+                    Font = font,
+                    ForeColor = MutedText,
+                    AutoSize = false,
+                    Size = new Size(contentWidth, sz.Height + 4),
+                    Location = new Point(margin, y)
+                });
+                y += sz.Height + 4 + 10;
+            }
+
+            SectionHeader("↩  Return Details");
+
+            // ── Search box ──
+            txtEquipmentSearch = new TextBox { PlaceholderText = "Search by equipment code, name, or serial…" };
+            ThemeHelper.StyleTextBox(txtEquipmentSearch);
+            FieldLabel("Find Equipment", required: !_isEdit);
+            PlaceControl(txtEquipmentSearch);
+            Hint("Type to search, then pick a suggestion");
+            txtEquipmentSearch.Leave += (s, e) => TryResolveEquipmentFromText();
+
+            // ── Allocation dropdown ──
             cmbAllocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbAllocation.DisplayMember = "AllocationDisplay";
             cmbAllocation.ValueMember = "Id";
@@ -561,53 +690,137 @@ namespace Inventory_Management_System.Forms
                 a.Id,
                 AllocationDisplay = $"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name} → {a.Employee?.FullName}"
             }).ToList<object>();
+            cmbAllocation.SelectedIndexChanged += CmbAllocation_SelectedIndexChanged;
             ThemeHelper.StyleComboBox(cmbAllocation);
-            if (_isEdit) cmbAllocation.Enabled = false;
-            AddRow(_isEdit ? "Allocation:" : "Select Allocation (approved only):", cmbAllocation);
+            FieldLabel(_isEdit ? "Allocation" : "Select Allocation", required: false);
+            PlaceControl(cmbAllocation);
+            Hint(_isEdit ? "This record cannot be changed" : "Only approved allocations are listed");
+
+            if (_isEdit && existing != null)
+            {
+                _suppressSync = true;
+                cmbAllocation.SelectedValue = existing.Id;
+                txtEquipmentSearch.Text = $"{existing.Equipment?.EquipmentCode} — {existing.Equipment?.Name}";
+                _suppressSync = false;
+                cmbAllocation.Enabled = false;
+                txtEquipmentSearch.Enabled = false;
+            }
+            else
+            {
+                // Nothing selected until the person actually picks something
+                cmbAllocation.SelectedIndex = -1;
+
+                _equipmentSuggest = new EntitySuggestHelper<Allocation>(
+                    textBox: txtEquipmentSearch,
+                    hostForm: this,
+                    onSelected: alloc =>
+                    {
+                        _suppressSync = true;
+                        cmbAllocation.SelectedValue = alloc.Id;
+                        txtEquipmentSearch.Text = $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}";
+                        txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
+                        _suppressSync = false;
+                    },
+                    scoreFn: (alloc, term) => Math.Max(
+                        FuzzySearchHelper.FuzzyScoreCode(alloc.Equipment?.EquipmentCode, term),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScoreCode(alloc.Equipment?.QrCode, term),
+                            Math.Max(
+                                FuzzySearchHelper.FuzzyScore(alloc.Equipment?.Name, term),
+                                FuzzySearchHelper.FuzzyScoreCode(alloc.Equipment?.SerialNumber, term)))),
+                    line1Selector: alloc => $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}",
+                    line2Selector: alloc => string.IsNullOrWhiteSpace(alloc.Equipment?.SerialNumber)
+                        ? $"With: {alloc.Employee?.FullName ?? "—"}"
+                        : $"S/N: {alloc.Equipment.SerialNumber} | With: {alloc.Employee?.FullName ?? "—"}");
+                _equipmentSuggest.LoadItems(_allocations);
+            }
 
             dtpReturnDate = new DateTimePicker
             {
-                Format = DateTimePickerFormat.Short,
+                Format = DateTimePickerFormat.Long,
+                ShowUpDown = false,
                 MaxDate = DateTime.Today,
                 Value = existing?.ActualReturnDate.HasValue == true
                     ? existing.ActualReturnDate.Value.ToDateTime(TimeOnly.MinValue)
                     : DateTime.Today
             };
-            AddRow("Return Date:", dtpReturnDate);
+            FieldLabel("Return Date", required: true);
+            PlaceControl(dtpReturnDate);
+            Hint("The date this equipment was actually returned");
 
             cmbCondition = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbCondition.Items.AddRange(Conditions);
             cmbCondition.SelectedItem = existing?.Equipment?.ConditionGrade ?? "Good";
             if (cmbCondition.SelectedIndex < 0) cmbCondition.SelectedIndex = 1;
             ThemeHelper.StyleComboBox(cmbCondition);
-            AddRow("Equipment Condition on Return:", cmbCondition);
+            FieldLabel("Equipment Condition on Return", required: true);
+            PlaceControl(cmbCondition);
+            Hint("How the equipment looked or functioned at the time of return");
 
-            btnSave = new Button { Text = _isEdit ? "Save" : "Process Return", Location = new Point(20, y), Size = new Size(190, 36) };
-            ThemeHelper.StyleButton(btnSave);
-            btnSave.Click += BtnSave_Click;
-            Controls.Add(btnSave);
+            y += 4;
 
-            btnCancel = new Button { Text = "Cancel", Location = new Point(222, y), Size = new Size(198, 36) };
-            ThemeHelper.StyleSecondaryButton(btnCancel);
-            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
-            Controls.Add(btnCancel);
+            body.Size = new Size(formWidth, y);
+            int totalHeight = pnlHeader.Height + body.Height + footerHeight;
+            ClientSize = new Size(formWidth, totalHeight);
+            pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
 
-            ClientSize = new Size(440, y + 70);
             AcceptButton = btnSave;
             CancelButton = btnCancel;
         }
 
+        private void CmbAllocation_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (_suppressSync) return;
+            if (cmbAllocation.SelectedValue == null) return;
+
+            int selectedId = (int)cmbAllocation.SelectedValue;
+            var alloc = _allocations.FirstOrDefault(a => a.Id == selectedId);
+            if (alloc == null) return;
+
+            _suppressSync = true;
+            txtEquipmentSearch.Text = $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}";
+            txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
+            _suppressSync = false;
+        }
+
+        // ── Resolves typed search text to an allocation, in case the
+        // suggestion popup click never fired. ──
+        private void TryResolveEquipmentFromText()
+        {
+            if (cmbAllocation.SelectedValue != null) return; // already selected
+
+            var typed = txtEquipmentSearch.Text.Trim();
+            if (string.IsNullOrEmpty(typed)) return;
+
+            var match = _allocations.FirstOrDefault(a =>
+                string.Equals($"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name}", typed,
+                    StringComparison.OrdinalIgnoreCase));
+            if (match == null) return;
+
+            _suppressSync = true;
+            cmbAllocation.SelectedValue = match.Id;
+            _suppressSync = false;
+        }
+
         private void BtnSave_Click(object? sender, EventArgs e)
         {
+            TryResolveEquipmentFromText(); // last-chance resolve before validating
+
             if (cmbAllocation.SelectedValue == null)
-            { ToastHelper.Show(this, "Please select an allocation.", ToastType.Warning);
-                return; }
-            if (cmbCondition.SelectedItem == null) { ToastHelper.Show(this, "Please select a condition grade.", ToastType.Warning);
-                return; }
+            {
+                ToastHelper.Show(this, "Please select an allocation.", ToastType.Warning);
+                return;
+            }
+            if (cmbCondition.SelectedItem == null)
+            {
+                ToastHelper.Show(this, "Please select a condition grade.", ToastType.Warning);
+                return;
+            }
             AllocationId = (int)cmbAllocation.SelectedValue;
             ReturnDate = DateOnly.FromDateTime(dtpReturnDate.Value);
             ConditionGrade = cmbCondition.SelectedItem.ToString()!;
             DialogResult = DialogResult.OK;
         }
+
     }
 }

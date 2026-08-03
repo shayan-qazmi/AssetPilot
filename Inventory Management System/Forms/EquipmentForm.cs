@@ -92,6 +92,7 @@ namespace Inventory_Management_System.Forms
 
             cmbSelectMode.Items.Add("Select ✔");
             cmbSelectMode.Items.Add("Select All");
+            cmbSelectMode.Items.Add("Deselect All");
 
             // Style dropdown to match the green header/accent buttons
             cmbSelectMode.BackColor = ThemeHelper.Accent;
@@ -124,10 +125,10 @@ namespace Inventory_Management_System.Forms
             };
 
             cmbSelectMode.SelectedIndexChanged += cmbSelectMode_SelectedIndexChanged;
-            // Insert cmbSelectMode into flowToolbar right after btnImportExcel
+            // Insert cmbSelectMode into flowToolbar right after btnSelectAll (new position)
             var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
             flow.Controls.Add(cmbSelectMode);
-            flow.Controls.SetChildIndex(cmbSelectMode, flow.Controls.IndexOf(btnImportExcel) + 1);
+            flow.Controls.SetChildIndex(cmbSelectMode, flow.Controls.IndexOf(btnSelectAll) + 1);
 
             // ── Category filter dropdown (between Select and QR Sheet) ──────
             cmbCategory = new ComboBox
@@ -171,6 +172,10 @@ namespace Inventory_Management_System.Forms
             flow.Controls.Add(cmbCategory);
             flow.Controls.SetChildIndex(cmbCategory, flow.Controls.IndexOf(cmbSelectMode) + 1);
 
+            // Re-apply QR button styling after SetupToolbarLayout (ensures correct order)
+            StyleQrButton(btnShowQR,         "◼️ Show QR");
+            StyleQrButton(btnGenerateQRSheet, "📄 QR Sheet");
+
             // Dynamically append Checkbox Column for manual selection (visibly hidden by default)
             if (!dgvEquipment.Columns.Contains("ColSelect"))
             {
@@ -212,13 +217,19 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleToolbarPanel(panelTop);
             ThemeHelper.StyleButton(btnAdd);
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
-            ThemeHelper.StyleButton(btnShowQR);
-            ThemeHelper.StyleButton(btnImportExcel);
-            ThemeHelper.StyleButton(btnSelectAll);
-            ThemeHelper.StyleButton(btnGenerateQRSheet);
             ThemeHelper.StyleDangerButton(btnDelete);
             ThemeHelper.StyleButton(btnEdit, Color.FromArgb(245, 158, 11));
+
+            // Export and Import Excel: matching secondary style (white bg, dark border/text)
             ThemeHelper.StyleSecondaryButton(btnExport);
+            ThemeHelper.StyleSecondaryButton(btnImportExcel);
+
+            // QR buttons: white bg, dark gray (#555) border, dark gray (#333) text
+            // Hover: light gray (#F2F2F2) — both identical so they read as a set
+            StyleQrButton(btnShowQR,          "◼️ Show QR");
+            StyleQrButton(btnGenerateQRSheet,  "📄 QR Sheet");
+
+            ThemeHelper.StyleButton(btnSelectAll);
             ThemeHelper.StyleTextBox(txtSearch);
             ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
@@ -227,6 +238,25 @@ namespace Inventory_Management_System.Forms
             panelBottom.BackColor = Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
             lblRowCount.Font = ThemeHelper.FontSmall;
+        }
+
+        // Applies the shared QR-theme style (white bg, dark gray border + text, hover)
+        private static void StyleQrButton(Button btn, string text)
+        {
+            var borderColor = Color.FromArgb(85, 85, 85);   // #555555
+            var textColor   = Color.FromArgb(51, 51, 51);   // #333333
+            var hoverBg     = Color.FromArgb(242, 242, 242); // #F2F2F2
+
+            btn.Text      = text;
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.BackColor = Color.White;
+            btn.ForeColor = textColor;
+            btn.Font      = ThemeHelper.FontBold;
+            btn.Cursor    = Cursors.Hand;
+            btn.FlatAppearance.BorderColor     = borderColor;
+            btn.FlatAppearance.BorderSize      = 1;
+            btn.FlatAppearance.MouseOverBackColor  = hoverBg;
+            btn.FlatAppearance.MouseDownBackColor  = Color.FromArgb(230, 230, 230);
         }
 
         // ── Data ───────────────────────────────────────────────────────────
@@ -610,9 +640,19 @@ namespace Inventory_Management_System.Forms
                 dgvEquipment.MultiSelect = true;
                 dgvEquipment.SelectAll();
             }
+            else if (selectedMode == "Deselect All")
+            {
+                if (dgvEquipment.Columns.Contains("ColSelect") && dgvEquipment.Columns["ColSelect"].Visible)
+                {
+                    foreach (DataGridViewRow r in dgvEquipment.Rows)
+                        r.Cells["ColSelect"].Value = false;
+                }
+                dgvEquipment.ClearSelection();
+                dgvEquipment.CurrentCell = null;
+            }
             else
             {
-                // Neutral default state ("Select ✔/ All ")
+                // Neutral default state ("Select")
                 if (dgvEquipment.Columns.Contains("ColSelect"))
                 {
                     dgvEquipment.Columns["ColSelect"].Visible = false;

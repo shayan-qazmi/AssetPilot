@@ -95,6 +95,8 @@ namespace Inventory_Management_System
         // ════════════════════════════════════════════════════════════════
         //  THEME
         // ════════════════════════════════════════════════════════════════
+        //  THEME
+        // ════════════════════════════════════════════════════════════════
         private void ApplyTheme()
         {
             BackColor = ThemeHelper.Sidebar;
@@ -110,8 +112,6 @@ namespace Inventory_Management_System
             lblTitle.Dock         = DockStyle.Fill;
             lblTitle.TextAlign    = ContentAlignment.MiddleCenter;
             lblTitle.Font         = new Font(lblTitle.Font.FontFamily, 16F, FontStyle.Bold);
-            // Dark text for legibility against the new yellow strip (was pale yellow
-            // for contrast against the old green strip).
             lblTitle.ForeColor    = Color.FromArgb(33, 33, 33);
             lblTitle.Visible      = true;
             this.Text             = "Q-Inventory";
@@ -122,12 +122,15 @@ namespace Inventory_Management_System
 
             panelMenu.Paint += (s, e) =>
             {
+                var rect = panelMenu.ClientRectangle;
+                if (rect.Width <= 0 || rect.Height <= 0) return;
+
                 using var grad = new LinearGradientBrush(
-                    panelMenu.ClientRectangle,
+                    rect,
                     ThemeHelper.Sidebar,
                     ControlPaint.Dark(ThemeHelper.Sidebar, 0.12f),
                     LinearGradientMode.Vertical);
-                e.Graphics.FillRectangle(grad, panelMenu.ClientRectangle);
+                e.Graphics.FillRectangle(grad, rect);
             };
             panelMenu.Invalidate();
 
@@ -143,14 +146,14 @@ namespace Inventory_Management_System
                                        .FirstOrDefault(p => p.Name == "picLogoSide");
                     if (pic == null)
                     {
-                     pic = new PictureBox
-                    {
-                        Name = "picLogoSide",
-                        SizeMode = PictureBoxSizeMode.Zoom,
-                        Size = new Size(55, 55),
-                        Location = new Point((panelMenu.Width - 55) / 2, 10),
-                        BackColor = ThemeHelper.Sidebar
-                    };
+                        pic = new PictureBox
+                        {
+                            Name = "picLogoSide",
+                            SizeMode = PictureBoxSizeMode.Zoom,
+                            Size = new Size(55, 55),
+                            Location = new Point((panelMenu.Width - 55) / 2, 10),
+                            BackColor = ThemeHelper.Sidebar
+                        };
                         panelMenu.Controls.Add(pic);
                     }
                     pic.Image = Image.FromFile(logoPath);
@@ -160,10 +163,24 @@ namespace Inventory_Management_System
             }
             catch { lblAppBrand.Text = "Q-Inventory"; lblAppBrand.Visible = true; }
 
-
+            // ── Divider line below the logo ─────────────────────────────────
+            var logoDivider = panelMenu.Controls.OfType<Panel>().FirstOrDefault(p => p.Name == "pnlLogoDivider");
+            if (logoDivider == null)
+            {
+                logoDivider = new Panel
+                {
+                    Name      = "pnlLogoDivider",
+                    Dock      = DockStyle.Top,
+                    Height    = 1,
+                    BackColor = Color.FromArgb(60, 255, 255, 255)  // subtle semi-transparent white line
+                };
+                panelMenu.Controls.Add(logoDivider);
+                panelMenu.Controls.SetChildIndex(logoDivider,
+                    panelMenu.Controls.IndexOf(picLogoSide) - 1);
+            }
 
             // Nav buttons
-            ThemeHelper.StyleSidebarButton(btnDashboard,   active: true);
+            ThemeHelper.StyleSidebarButton(btnDashboard, active: true);
             activeNavButton = btnDashboard;
             ThemeHelper.StyleSidebarButton(btnEquipment);
             ThemeHelper.StyleSidebarButton(btnEmployees);
@@ -178,13 +195,12 @@ namespace Inventory_Management_System
             ThemeHelper.StyleSidebarButton(btnCheckInOut);
             ThemeHelper.StyleSidebarButton(btnReports);
             ThemeHelper.StyleSidebarButton(btnSettings);
-                     // Use one shared, animated accent bar instead of each button
+
+            // Use one shared, animated accent bar instead of each button
             // drawing its own static one.
             ThemeHelper.UseGlobalAccentIndicator = true;
             EnsureAccentIndicator();
             PositionAccentIndicator(btnDashboard, animate: false);
-
-         
 
             // Logout — keep red
             btnLogout.UseVisualStyleBackColor              = false;
@@ -199,8 +215,6 @@ namespace Inventory_Management_System
 
             panelDesktop.BackColor = Color.FromArgb(240, 244, 240);
             panelStats.BackColor   = Color.FromArgb(240, 244, 240);
-
-          
 
             // Who's logged in
             var lbl = panelMenu.Controls.OfType<Label>().FirstOrDefault(l => l.Name == "lblWhoAmI");
@@ -227,7 +241,6 @@ namespace Inventory_Management_System
             bool isAdmin = AuthService.IsAdmin;
             foreach (var btn in AdminOnlyButtons) btn.Visible = isAdmin;
         }
-
 
         private void EnsureAccentIndicator()
         {
@@ -288,6 +301,7 @@ namespace Inventory_Management_System
             };
             _accentTimer.Start();
         }
+
 
 
         private bool EnsureAdmin()
@@ -1057,6 +1071,7 @@ namespace Inventory_Management_System
 
         private void PaintSidebarShadow(object? sender, PaintEventArgs e)
         {
+            if (panelDesktop.Height <= 0) return;
             using var br = new LinearGradientBrush(
                 new Rectangle(0, 0, 10, panelDesktop.Height),
                 Color.FromArgb(40, 0, 0, 0), Color.FromArgb(0, 0, 0, 0),
@@ -1116,7 +1131,6 @@ namespace Inventory_Management_System
             btn.Invalidate();
             btn.Update();
             activeNavButton = btn;
-
 
             PositionAccentIndicator(btn);
         }
@@ -1284,3 +1298,5 @@ namespace Inventory_Management_System
     }
 
 }
+
+

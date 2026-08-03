@@ -100,10 +100,11 @@ namespace Inventory_Management_System.Forms
             btnExport.Click += btnExport_Click;
 
             btnSelectAll.Size = new System.Drawing.Size(90, 32);
-            btnSelectAll.Text = "Select All";
+            btnSelectAll.Text = "Select";
             btnSelectAll.Name = "btnSelectAll";
             btnSelectAll.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnSelectAll.Click += btnSelectAll_Click;
+            btnSelectAll.Visible = false;  // replaced by cmbSelectMode in SetupSelectModeDropdown()
 
             txtSearch.Size = new System.Drawing.Size(240, 26);
             txtSearch.PlaceholderText = "Search allocations...";

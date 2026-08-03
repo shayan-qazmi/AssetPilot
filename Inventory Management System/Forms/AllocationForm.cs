@@ -28,6 +28,7 @@ namespace Inventory_Management_System.Forms
         private List<AllocationRow> _allSourceRows = new();
 
         private ComboBox cmbEquipmentFilter = null!;
+        private ComboBox cmbSelectMode = null!;          // Select All / Deselect All dropdown
         private Button btnEditReturn = null!;
         private string _activeStatusFilter = "All";
         private List<AllocationRow> _lastRenderedRows = new();
@@ -76,6 +77,9 @@ namespace Inventory_Management_System.Forms
 
             public Allocation? AllocationRef { get; set; }
             public int? TransactionId { get; set; }
+
+            public int? EmployeeId { get; set; }
+            public int? LocationId { get; set; }
         }
 
         public AllocationForm()
@@ -83,6 +87,7 @@ namespace Inventory_Management_System.Forms
             InitializeComponent();
             ApplyTheme();
             SetupEquipmentFilterDropdown();
+            SetupSelectModeDropdown();   // ← replaces plain btnSelectAll with dropdown
             SetupEditReturnButton();
             LoadAllocations();
             SetupSuggestions();
@@ -108,15 +113,16 @@ namespace Inventory_Management_System.Forms
             {
                 Name = "cmbEquipmentFilter",
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Size = new Size(150, 32),
-                Margin = new Padding(4, 4, 0, 0),
+                Size = new Size(150, btnRefresh.Height),
+                Margin = btnRefresh.Margin,   // ← match a real toolbar sibling's margin
+                Anchor = btnRefresh.Anchor,
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(94, 53, 177),
+                BackColor = ThemeHelper.Accent,
                 ForeColor = Color.White,
                 Font = ThemeHelper.FontBold,
                 DrawMode = DrawMode.OwnerDrawFixed,
-                DropDownWidth = 230
+                DropDownWidth = 260
             };
 
             cmbEquipmentFilter.Items.Add("Equipment: All");
@@ -129,7 +135,7 @@ namespace Inventory_Management_System.Forms
             {
                 if (e.Index < 0) return;
                 bool isHover = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-                using (var brush = new SolidBrush(isHover ? ThemeHelper.Header : Color.FromArgb(94, 53, 177)))
+                using (var brush = new SolidBrush(isHover ? ThemeHelper.Header : ThemeHelper.Accent))
                     e.Graphics.FillRectangle(brush, e.Bounds);
                 string text = cmbEquipmentFilter.Items[e.Index]?.ToString() ?? "";
                 using (var brush = new SolidBrush(Color.White))
@@ -155,7 +161,135 @@ namespace Inventory_Management_System.Forms
 
             var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
             flow.Controls.Add(cmbEquipmentFilter);
-            flow.Controls.SetChildIndex(cmbEquipmentFilter, flow.Controls.IndexOf(btnRefresh) + 1);
+            flow.Controls.SetChildIndex(cmbEquipmentFilter, flow.Controls.IndexOf(btnExport) + 1);
+        }
+
+        // ── Select dropdown (Select All / Deselect All) ─────────────────────
+        // Matches the Equipment screen's cmbSelectMode pattern.
+        private void SetupSelectModeDropdown()
+        {
+            cmbSelectMode = new ComboBox
+            {
+                Name          = "cmbSelectMode",
+                DropDownStyle = ComboBoxStyle.DropDown,
+                Text          = "Select",
+                Size          = new Size(95, 32),
+                Margin        = new Padding(4, 4, 0, 0),
+                Cursor        = Cursors.Hand,
+                FlatStyle     = FlatStyle.Flat,
+                BackColor     = ThemeHelper.Accent,
+                ForeColor     = Color.White,
+                Font          = ThemeHelper.FontBold,
+                DrawMode      = DrawMode.OwnerDrawFixed
+            };
+
+            // Prevent the user from typing into the header area
+            cmbSelectMode.KeyPress += (s, e) => e.Handled = true;
+
+            cmbSelectMode.Items.Add("Select ✔");
+            cmbSelectMode.Items.Add("Select All");
+            cmbSelectMode.Items.Add("Deselect All");
+
+            // Owner-draw items: green themed to match other Select dropdowns
+            cmbSelectMode.DrawItem += (s, e) =>
+            {
+                if (e.Index < 0) return;
+                bool isHighlighted = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+                using (var bg = new SolidBrush(isHighlighted ? ThemeHelper.Header : ThemeHelper.Accent))
+                    e.Graphics.FillRectangle(bg, e.Bounds);
+                string text = cmbSelectMode.Items[e.Index]?.ToString() ?? "";
+                using (var fg = new SolidBrush(Color.White))
+                {
+                    var sf = new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Near };
+                    e.Graphics.DrawString(text, cmbSelectMode.Font, fg, e.Bounds, sf);
+                }
+                e.DrawFocusRectangle();
+            };
+
+            cmbSelectMode.SelectedIndexChanged += (s, e) =>
+            {
+                var chosen = cmbSelectMode.SelectedItem?.ToString() ?? "";
+                if (chosen == "Select ✔")
+                {
+                    if (dgvAllocation.Columns.Contains("ColSelect"))
+                    {
+                        dgvAllocation.Columns["ColSelect"].Visible = true;
+                        dgvAllocation.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+                    }
+                    dgvAllocation.ClearSelection();
+                }
+                else if (chosen == "Select All")
+                {
+                    if (dgvAllocation.Columns.Contains("ColSelect") && dgvAllocation.Columns["ColSelect"].Visible)
+                    {
+                        foreach (DataGridViewRow r in dgvAllocation.Rows)
+                            r.Cells["ColSelect"].Value = true;
+                    }
+                    else
+                    {
+                        dgvAllocation.SelectAll();
+                    }
+                }
+                else if (chosen == "Deselect All")
+                {
+                    if (dgvAllocation.Columns.Contains("ColSelect") && dgvAllocation.Columns["ColSelect"].Visible)
+                    {
+                        foreach (DataGridViewRow r in dgvAllocation.Rows)
+                            r.Cells["ColSelect"].Value = false;
+                    }
+                    dgvAllocation.ClearSelection();
+                    dgvAllocation.CurrentCell = null;
+                }
+                
+                // Reset the dropdown header text so it reads "Select" again
+                cmbSelectMode.SelectedIndex = -1;
+                cmbSelectMode.Text = "Select";
+                UpdateActionButtonsForSelection();
+            };
+
+            var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
+            flow.Controls.Add(cmbSelectMode);
+            // Insert right after the (hidden) btnSelectAll placeholder
+            flow.Controls.SetChildIndex(cmbSelectMode, flow.Controls.IndexOf(btnSelectAll) + 1);
+
+            // Dynamically append Checkbox Column for manual selection (visibly hidden by default)
+            if (!dgvAllocation.Columns.Contains("ColSelect"))
+            {
+                var chkCol = new DataGridViewCheckBoxColumn
+                {
+                    Name = "ColSelect",
+                    HeaderText = "",
+                    Width = 40,
+                    ReadOnly = false,
+                    Visible = false,
+                    AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+                };
+                dgvAllocation.Columns.Add(chkCol);
+                dgvAllocation.Columns["ColSelect"].DisplayIndex = 0;
+
+                // Configure grid to allow editing the Checkbox column while others are read-only
+                dgvAllocation.ReadOnly = false;
+                foreach (DataGridViewColumn col in dgvAllocation.Columns)
+                {
+                    if (col.Name == "ColSelect")
+                        col.ReadOnly = false;
+                    else
+                        col.ReadOnly = true;
+                }
+
+                // Immediately commit edits when clicking the checkbox cell so value updates instantly
+                dgvAllocation.CurrentCellDirtyStateChanged += (s, ev) =>
+                {
+                    if (dgvAllocation.CurrentCell is DataGridViewCheckBoxCell)
+                        dgvAllocation.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                };
+
+                dgvAllocation.CellValueChanged += (s, ev) =>
+                {
+                    if (ev.ColumnIndex >= 0 && dgvAllocation.Columns[ev.ColumnIndex].Name == "ColSelect")
+                        UpdateActionButtonsForSelection();
+                };
+            }
         }
 
         // Equipment with no active Allocation and no active Check-Out —
@@ -166,8 +300,9 @@ namespace Inventory_Management_System.Forms
             btnEditReturn = new Button
             {
                 Text = "✏  Edit",
-                Size = btnApprove.Size,           // ← match Approve's exact size instead of guessing
-                Margin = new Padding(4, 4, 0, 0)
+                Size = btnApprove.Size,
+                Margin = btnApprove.Margin,   // ← match Approve's actual margin, not a guessed one
+                Anchor = btnApprove.Anchor    // ← match Approve's anchor so vertical alignment is identical
             };
             ThemeHelper.StyleButton(btnEditReturn, ThemeHelper.Warning);
             btnEditReturn.Click += btnEditReturn_Click;
@@ -614,32 +749,73 @@ namespace Inventory_Management_System.Forms
             UpdateActionButtonsForSelection();
         }
 
+        // ── Selection helpers ───────────────────────────────────────────────
+
+        /// <summary>Returns the single selected row, or null if 0 or multiple rows are selected.</summary>
         private AllocationRow? GetSelectedRow()
         {
-            if (dgvAllocation.SelectedRows.Count == 0) return null;
-            if (!int.TryParse(dgvAllocation.SelectedRows[0].Cells["AllocationID"].Value?.ToString(), out int id)) return null;
-            return _lastRenderedRows.FirstOrDefault(r => r.Id == id);
+            var rows = GetSelectedRows();
+            if (rows.Count != 1) return null;
+            return rows[0];
         }
 
-        private Allocation? GetSelectedAllocation()
+        /// <summary>Returns ALL currently selected rows (1 or more).</summary>
+        private List<AllocationRow> GetSelectedRows()
         {
-            return GetSelectedRow()?.AllocationRef;
+            var result = new List<AllocationRow>();
+            bool useCheckbox = dgvAllocation.Columns.Contains("ColSelect") && dgvAllocation.Columns["ColSelect"].Visible;
+
+            if (useCheckbox)
+            {
+                foreach (DataGridViewRow gridRow in dgvAllocation.Rows)
+                {
+                    if (Convert.ToBoolean(gridRow.Cells["ColSelect"].Value) == true)
+                    {
+                        if (!int.TryParse(gridRow.Cells["AllocationID"].Value?.ToString(), out int id)) continue;
+                        var row = _lastRenderedRows.FirstOrDefault(r => r.Id == id);
+                        if (row != null) result.Add(row);
+                    }
+                }
+            }
+            else
+            {
+                foreach (DataGridViewRow gridRow in dgvAllocation.SelectedRows)
+                {
+                    if (!int.TryParse(gridRow.Cells["AllocationID"].Value?.ToString(), out int id)) continue;
+                    var row = _lastRenderedRows.FirstOrDefault(r => r.Id == id);
+                    if (row != null) result.Add(row);
+                }
+            }
+            return result;
         }
+
+        private Allocation? GetSelectedAllocation() => GetSelectedRow()?.AllocationRef;
 
         private void UpdateActionButtonsForSelection()
         {
-            var row = GetSelectedRow();
-            bool isCheckInOutSelected = row != null && row.AllocationRef == null;
-            bool nothingSelected = row == null;
+            var rows = GetSelectedRows();
+            bool none             = rows.Count == 0;
+            // A Check-In/Out row has no AllocationRef — disable real-allocation actions for those
+            bool anyCheckInOut    = rows.Any(r => r.AllocationRef == null && r.Source == "Check In/Out");
+            bool allCheckInOut    = rows.Count > 0 && rows.All(r => r.AllocationRef == null);
 
-            btnApprove.Enabled = !isCheckInOutSelected;
-            btnReturn.Enabled = !isCheckInOutSelected;
-            btnDelete.Enabled = !isCheckInOutSelected;
+            // Approve: enabled when there is at least one pending allocation selected
+            btnApprove.Enabled = !none && !allCheckInOut &&
+                                 rows.Any(r => r.AllocationRef?.Status == "pending");
 
-            // Editing the return date only makes sense for a real Allocation record
-            // that hasn't already been returned.
-            btnEditReturn.Enabled = !nothingSelected && !isCheckInOutSelected &&
-                !string.Equals(row?.Status, "returned", StringComparison.OrdinalIgnoreCase);
+            // Return: enabled when there is at least one approved/overdue allocation selected
+            btnReturn.Enabled = !none && !allCheckInOut &&
+                                rows.Any(r => r.AllocationRef != null &&
+                                             r.AllocationRef.Status != "returned");
+
+            // Delete: enabled when at least one non-approved allocation selected
+            btnDelete.Enabled = !none && !allCheckInOut &&
+                                rows.Any(r => r.AllocationRef?.Status != "approved");
+
+            // Edit Return: single non-returned allocation only
+            var single = rows.Count == 1 ? rows[0] : null;
+            btnEditReturn.Enabled = single != null && single.AllocationRef != null &&
+                                   !string.Equals(single.Status, "returned", StringComparison.OrdinalIgnoreCase);
         }
 
         private void btnEditReturn_Click(object? sender, EventArgs e)
@@ -712,71 +888,118 @@ namespace Inventory_Management_System.Forms
                 ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
         }
 
-        private void dgvAllocation_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
-        {
-            if (e.RowIndex < 0 || e.RowIndex >= dgvAllocation.Rows.Count) return;
+private void dgvAllocation_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
+{
+    if (e.RowIndex < 0 || e.RowIndex >= dgvAllocation.Rows.Count) return;
 
-            var clickedRow = dgvAllocation.Rows[e.RowIndex];
-            var idValue = clickedRow.Cells["AllocationID"].Value;
-            if (idValue == null || !int.TryParse(idValue.ToString(), out int rowId)) return;
+    var clickedRow = dgvAllocation.Rows[e.RowIndex];
+    var idValue = clickedRow.Cells["AllocationID"].Value;
+    if (idValue == null || !int.TryParse(idValue.ToString(), out int rowId)) return;
 
-            var row = _lastRenderedRows.FirstOrDefault(r => r.Id == rowId);
-            if (row == null) return;
+    var row = _lastRenderedRows.FirstOrDefault(r => r.Id == rowId);
+    if (row == null) return;
 
-            // Only makes sense for "Available" equipment — an already-allocated
-            // or checked-out row has nothing to allocate.
-            if (row.Source != "Available") return;
+    // Only makes sense for "Available" equipment — an already-allocated
+    // or checked-out row has nothing to allocate.
+    if (row.Source != "Available") return;
 
-            string? preselectCode = row.EquipmentCode == "—" ? null : row.EquipmentCode;
+    string? preselectCode = row.EquipmentCode == "—" ? null : row.EquipmentCode;
 
-            using var frm = new AddAllocationForm(
-                _equipmentService.GetAll().Data ?? new(),
-                _employeeService.GetAll().Data ?? new(),
-                _locationService.GetAll().Data ?? new(),
-                preselectCode);
+    using var frm = new AddAllocationForm(
+        _equipmentService.GetAll().Data ?? new(),
+        _employeeService.GetAll().Data ?? new(),
+        _location_service.GetAll().Data ?? new(),
+        preselectCode);
 
-            if (frm.ShowDialog() != DialogResult.OK) return;
+    if (frm.ShowDialog() != DialogResult.OK) return;
 
-            var result = _allocationService.Allocate(frm.Result!);
-            if (result.Success)
-            {
-                _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
-                    null, $"Allocated to Employee ID {frm.Result.EmployeeId}");
-                LoadAllocations();
-            }
-            else
-                ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
-        }
+    var result = _allocationService.Allocate(frm.Result!);
+    if (result.Success)
+    {
+        _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
+            null, $"Allocated to Employee ID {frm.Result.EmployeeId}");
+        LoadAllocations();
+    }
+    else
+        ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
+}
+
+// ── Bulk-aware action handlers ──────────────────────────────────────
 
         private void btnApprove_Click(object sender, EventArgs e)
         {
-            var alloc = GetSelectedAllocation();
-            if (alloc == null) { ToastHelper.Show(this, "Select an allocation first.", ToastType.Info); return; }
-            if (alloc.Status != "pending") { ToastHelper.Show(this, "Only pending allocations can be approved.", ToastType.Warning); return; }
+            var rows = GetSelectedRows()
+                .Where(r => r.AllocationRef?.Status == "pending")
+                .ToList();
 
+            if (rows.Count == 0)
+            {
+                ToastHelper.Show(this, "Select one or more pending allocations to approve.", ToastType.Info);
+                return;
+            }
+
+            // Single-row: use original detailed confirm flow
+            if (rows.Count == 1)
+            {
+                ApproveSingle(rows[0].AllocationRef!);
+                return;
+            }
+
+            if (MessageBox.Show($"Approve {rows.Count} pending allocations?",
+                "Confirm Bulk Approve", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            int ok = 0, fail = 0;
+            foreach (var row in rows)
+            {
+                try
+                {
+                    using var db = new InventoryDbContext();
+                    bool isCheckedOut = db.Transactions.Any(t =>
+                        t.EquipmentId == row.AllocationRef!.EquipmentId &&
+                        (t.Status == "Pending" || t.Status == "Overdue"));
+                    if (isCheckedOut) { fail++; continue; }
+
+                    var a = db.Allocations.Include(x => x.Equipment)
+                                          .FirstOrDefault(x => x.Id == row.AllocationRef!.Id);
+                    if (a == null) { fail++; continue; }
+                    a.Status = "approved";
+                    a.ApprovalDate = DateTime.UtcNow;
+                    a.ApprovedByUserId = 1;
+                    if (a.Equipment != null) a.Equipment.CurrentStatus = "allocated";
+                    db.SaveChanges();
+                    _audit.Log(a.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved");
+                    ok++;
+                }
+                catch { fail++; }
+            }
+
+            ToastHelper.Show(this,
+                fail == 0 ? $"{ok} allocation(s) approved."
+                          : $"{ok} approved, {fail} failed (checked-out or error).",
+                fail == 0 ? ToastType.Success : ToastType.Warning);
+            LoadAllocations();
+        }
+
+        private void ApproveSingle(Allocation alloc)
+        {
             try
             {
                 using var db = new InventoryDbContext();
-
                 bool isCheckedOut = db.Transactions.Any(t =>
                     t.EquipmentId == alloc.EquipmentId &&
                     (t.Status == "Pending" || t.Status == "Overdue"));
-
                 if (isCheckedOut)
                 {
-                    ToastHelper.Show(this, "This equipment is currently checked out via Check In/Out and cannot be approved until it is checked back in.", ToastType.Warning);
+                    ToastHelper.Show(this, "This equipment is currently checked out and cannot be approved until it is checked back in.", ToastType.Warning);
                     return;
                 }
-
-                var a = db.Allocations
-                    .Include(x => x.Equipment)
-                    .FirstOrDefault(x => x.Id == alloc.Id);
+                var a = db.Allocations.Include(x => x.Equipment).FirstOrDefault(x => x.Id == alloc.Id);
                 if (a == null) return;
                 a.Status = "approved";
                 a.ApprovalDate = DateTime.UtcNow;
                 a.ApprovedByUserId = 1;
-                if (a.Equipment != null)
-                    a.Equipment.CurrentStatus = "allocated";
+                if (a.Equipment != null) a.Equipment.CurrentStatus = "allocated";
                 db.SaveChanges();
                 _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved");
                 LoadAllocations();
@@ -789,50 +1012,99 @@ namespace Inventory_Management_System.Forms
 
         private void btnReturn_Click(object sender, EventArgs e)
         {
-            var alloc = GetSelectedAllocation();
-            if (alloc == null) { ToastHelper.Show(this, "Select an allocation first.", ToastType.Info); return; }
-            if (alloc.Status == "returned") { ToastHelper.Show(this, "This allocation is already returned.", ToastType.Warning); return; }
+            var rows = GetSelectedRows()
+                .Where(r => r.AllocationRef != null && r.AllocationRef.Status != "returned")
+                .ToList();
 
-            if (MessageBox.Show($"Return '{alloc.Equipment?.Name}' from '{alloc.Employee?.FullName}'?",
-    "Confirm Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-
-            var result = _allocationService.Deallocate(alloc.Id);
-            if (result.Success)
+            if (rows.Count == 0)
             {
-                _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store");
-                LoadAllocations();
+                ToastHelper.Show(this, "Select one or more active allocations to return.", ToastType.Info);
+                return;
             }
-            else
-                ToastHelper.Show(this, "Return Failed: " + result.ErrorMessage, ToastType.Error);
+
+            if (rows.Count == 1)
+            {
+                var alloc = rows[0].AllocationRef!;
+                if (MessageBox.Show($"Return '{alloc.Equipment?.Name}' from '{alloc.Employee?.FullName}'?",
+                    "Confirm Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                var res = _allocationService.Deallocate(alloc.Id);
+                if (res.Success) { _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store"); LoadAllocations(); }
+                else ToastHelper.Show(this, "Return Failed: " + res.ErrorMessage, ToastType.Error);
+                return;
+            }
+
+            if (MessageBox.Show($"Return {rows.Count} allocations?",
+                "Confirm Bulk Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            int ok = 0, fail = 0;
+            foreach (var row in rows)
+            {
+                var res = _allocationService.Deallocate(row.AllocationRef!.Id);
+                if (res.Success) { _audit.Log(row.AllocationRef.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store"); ok++; }
+                else fail++;
+            }
+            ToastHelper.Show(this,
+                fail == 0 ? $"{ok} allocation(s) returned."
+                          : $"{ok} returned, {fail} failed.",
+                fail == 0 ? ToastType.Success : ToastType.Warning);
+            LoadAllocations();
         }
 
         private void btnDelete_Click(object sender, EventArgs e)
         {
-            var alloc = GetSelectedAllocation();
-            if (alloc == null) { ToastHelper.Show(this, "Select an allocation first.", ToastType.Info); return; }
-            if (alloc.Status == "approved") { ToastHelper.Show(this, "Cannot delete an approved allocation. Return it first.", ToastType.Warning); return; }
+            var rows = GetSelectedRows()
+                .Where(r => r.AllocationRef != null && r.AllocationRef.Status != "approved")
+                .ToList();
 
-            if (MessageBox.Show("Delete this allocation record?", "Confirm Delete",
-     MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            if (rows.Count == 0)
+            {
+                ToastHelper.Show(this, "Select one or more non-approved allocations to delete.", ToastType.Info);
+                return;
+            }
+
+            string msg = rows.Count == 1
+                ? "Delete this allocation record?"
+                : $"Delete {rows.Count} allocation records?";
+
+            if (MessageBox.Show(msg, "Confirm Delete",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
 
-            try
+            int ok = 0, fail = 0;
+            foreach (var row in rows)
             {
-                using var db = new InventoryDbContext();
-                var a = db.Allocations.FirstOrDefault(x => x.Id == alloc.Id);
-                if (a != null) { db.Allocations.Remove(a); db.SaveChanges(); }
-                LoadAllocations();
+                try
+                {
+                    using var db = new InventoryDbContext();
+                    var a = db.Allocations.FirstOrDefault(x => x.Id == row.AllocationRef!.Id);
+                    if (a != null) { db.Allocations.Remove(a); db.SaveChanges(); ok++; }
+                    else fail++;
+                }
+                catch { fail++; }
             }
-            catch (Exception ex)
-            {
-                ToastHelper.Show(this, "Delete failed: " + ex.Message, ToastType.Error);
-            }
+            if (fail > 0)
+                ToastHelper.Show(this, $"{ok} deleted, {fail} failed.", ToastType.Warning);
+            LoadAllocations();
         }
 
         private void btnRefresh_Click(object sender, EventArgs e)
         {
             txtSearch.Text = string.Empty;
             _currentPage = 1;
+
+            if (cmbSelectMode != null)
+            {
+                cmbSelectMode.SelectedIndex = -1;
+                cmbSelectMode.Text = "Select";
+            }
+
+            if (dgvAllocation.Columns.Contains("ColSelect"))
+                dgvAllocation.Columns["ColSelect"].Visible = false;
+            dgvAllocation.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+
+            dgvAllocation.ClearSelection();
+
             LoadAllocations();
         }
 
@@ -911,8 +1183,10 @@ namespace Inventory_Management_System.Forms
     }
 
     // ── Add Allocation Dialog ──────────────────────────────────────────────
-    // ── Add Allocation Dialog ──────────────────────────────────────────────
-    // ── Add Allocation Dialog ──────────────────────────────────────────────
+// Two-column, fixed-height, non-scrolling layout — matches the visual
+// language of the Add Equipment dialog (two independent columns under
+// one header, sized to fit entirely on a small laptop screen with no
+// scrollbar, so the DateTimePicker's calendar popup is never clipped).
     public class AddAllocationForm : Form
     {
         public Allocation? Result { get; private set; }
@@ -927,8 +1201,12 @@ namespace Inventory_Management_System.Forms
         private int? _selectedEmployeeId;
         private int? _selectedLocationId;
 
+private ComboBox cmbEquipment = null!;
+private ComboBox cmbLocation = null!;
+private ComboBox cmbRoom = null!;
         private DateTimePicker dtpExpected = null!;
         private CheckBox chkExpected = null!;
+        private Label lblExpectedHint = null!;
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
@@ -939,7 +1217,37 @@ namespace Inventory_Management_System.Forms
         private TextBox txtLocationSearch = null!;
         private EntitySuggestHelper<Equipment>? _equipmentSuggest;
         private EntitySuggestHelper<Employee>? _employeeSuggest;
-        private EntitySuggestHelper<Location>? _locationSuggest;
+private bool _suppressEquipmentSync = false;
+
+private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
+private static readonly Color CardBorder = Color.FromArgb(224, 224, 224);
+
+// Location is now picked in two steps: first the location NAME
+// (deduped — a name can have several rows, one per room), then the
+// specific ROOM within that name. The Room dropdown's selected Id
+// is the actual Location row Id that gets saved on the Allocation.
+
+private class LocationNameOption
+{
+    public string? Name { get; set; }        // null = "no location" sentinel
+    public string DisplayName { get; set; } = "";
+}
+
+private class RoomOption
+{
+    public int Id { get; set; }
+    public string Display { get; set; } = "";
+}
+
+private static string RoomOptionDisplay(Location l)
+{
+    bool hasNum = !string.IsNullOrWhiteSpace(l.RoomNumber);
+    bool hasRoomName = !string.IsNullOrWhiteSpace(l.RoomName);
+    if (!hasNum && !hasRoomName) return "— Unspecified room —";
+    string room = hasNum ? $"Room {l.RoomNumber}" : "";
+    if (hasRoomName) room = string.IsNullOrEmpty(room) ? l.RoomName! : $"{room} ({l.RoomName})";
+    return room;
+}
 
         public AddAllocationForm(List<Equipment> equipment, List<Employee> employees, List<Location> locations,
             string? preselectEquipmentCode = null)
@@ -988,50 +1296,57 @@ namespace Inventory_Management_System.Forms
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
+            AutoScroll = false;
+            Font = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
 
-            const int formWidth = 500;
-            const int headerHeight = 84;
-            const int footerHeight = 76;
-            const int contentWidth = formWidth - 60;
+            const int formWidth = 820;
+            const int margin = 28;
+            const int colGap = 34;
+            int colWidth = (formWidth - margin * 2 - colGap) / 2;
+            int leftX = margin;
+            int rightX = margin + colWidth + colGap;
 
-            ClientSize = new Size(formWidth, 900); // placeholder — corrected at the very end, no scrolling
-
-            // ── Header ──────────────────────────────────────────────
-            var pnlHeader = new Panel
-            {
-                Location = new Point(0, 0),
-                Size = new Size(formWidth, headerHeight),
-                BackColor = Color.FromArgb(94, 53, 177)
-            };
-            pnlHeader.Controls.Add(new Label
-            {
-                Text = "🖥  New Allocation",
-                Font = new Font("Segoe UI", 15f, FontStyle.Bold),
-                ForeColor = Color.White,
-                AutoSize = true,
-                Location = new Point(24, 14)
-            });
-            pnlHeader.Controls.Add(new Label
-            {
-                Text = "Assign equipment to an employee, a location, or both",
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(232, 226, 247),
-                AutoSize = false,
-                Size = new Size(formWidth - 48, 24),
-                Location = new Point(24, 48)
-            });
+            // ── Header ──
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = ThemeHelper.Header };
             Controls.Add(pnlHeader);
 
-            // ── Content — plain panel, NOT scrollable, sized exactly to content ──
-            var body = new Panel { Location = new Point(0, headerHeight), Size = new Size(formWidth, 10) };
+            var lblTitle = new Label
+            {
+                Text = "🖥  New Allocation",
+                Font = new Font("Segoe UI", 15.5f, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(margin, 18)
+            };
+            pnlHeader.Controls.Add(lblTitle);
+
+            var subtitleFont = new Font("Segoe UI", 9.5f, FontStyle.Regular);
+            string subtitleText = "Assign this equipment to an employee, a location, or both";
+            var subtitleSize = TextRenderer.MeasureText(
+                subtitleText, subtitleFont, new Size(formWidth - margin * 2, int.MaxValue), TextFormatFlags.WordBreak);
+            var lblSubtitle = new Label
+            {
+                Text = subtitleText,
+                Font = subtitleFont,
+                ForeColor = Color.FromArgb(235, 245, 233),
+                AutoSize = false,
+                Size = new Size(formWidth - margin * 2, subtitleSize.Height + 4),
+                Location = new Point(margin, lblTitle.Bottom + 8)
+            };
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Height = lblSubtitle.Bottom + 20;
+
+            // ── Body ──
+            var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10), AutoScroll = false };
             Controls.Add(body);
 
-            // ── Footer ──────────────────────────────────────────────
+            // ── Footer — buttons centered ──
+            const int footerHeight = 72;
             var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
-            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = Color.FromArgb(224, 224, 224) });
+            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
 
-            btnCancel = new Button { Text = "Cancel", Size = new Size(150, 42) };
+            btnCancel = new Button { Text = "Cancel", Size = new Size(140, 42) };
             ThemeHelper.StyleSecondaryButton(btnCancel);
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
 
@@ -1039,69 +1354,84 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
 
-            btnSave.Location = new Point(formWidth - btnSave.Width - 24, 17);
-            btnCancel.Location = new Point(btnSave.Left - btnCancel.Width - 12, 17);
+int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
+int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
+btnCancel.Location = new Point(buttonsStartX, 15);
+btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnSave);
             Controls.Add(pnlFooter);
 
-            int y = 22;
-
-            void SectionHeader(string icon, string text)
+            // ── Local layout helpers ──
+            void SectionHeader(int x, int width, ref int y, string title, string? description)
             {
-                body.Controls.Add(new Panel { BackColor = Color.FromArgb(94, 53, 177), Size = new Size(4, 22), Location = new Point(20, y) });
+                body.Controls.Add(new Panel { BackColor = ThemeHelper.Header, Size = new Size(4, 22), Location = new Point(x, y) });
                 body.Controls.Add(new Label
                 {
-                    Text = $"{icon}  {text}",
-                    Font = new Font("Segoe UI", 11.5f, FontStyle.Bold),
+                    Text = title,
+                    Font = new Font("Segoe UI", 12f, FontStyle.Bold),
                     ForeColor = ThemeHelper.TextPrimary,
                     AutoSize = true,
-                    Location = new Point(34, y - 1)
+                    Location = new Point(x + 12, y - 1)
                 });
-                y += 34;
-            }
+                y += 28;
 
-            void Hint(string text)
-            {
-                var font = new Font("Segoe UI", 8f, FontStyle.Italic);
-                int textH = TextRenderer.MeasureText(text, font, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak).Height;
-                body.Controls.Add(new Label
+                if (description != null)
                 {
-                    Text = text,
-                    Font = font,
-                    ForeColor = ThemeHelper.TextSecondary,
-                    AutoSize = false,
-                    Size = new Size(contentWidth, textH),
-                    Location = new Point(20, y)
-                });
-                y += textH + 12;
+                    var font = new Font("Segoe UI", 8.5f, FontStyle.Regular);
+                    var sz = TextRenderer.MeasureText(description, font, new Size(width - 12, int.MaxValue), TextFormatFlags.WordBreak);
+                    body.Controls.Add(new Label
+                    {
+                        Text = description,
+                        Font = font,
+                        ForeColor = MutedText,
+                        AutoSize = false,
+                        Size = new Size(width - 12, sz.Height + 4),
+                        Location = new Point(x + 12, y)
+                    });
+                    y += sz.Height + 4 + 10;
+                }
             }
 
-            Control Field(string label, Control ctrl, string? hint = null, bool required = false)
+            void FieldLabel(int x, ref int y, string label, bool required = false)
             {
                 body.Controls.Add(new Label
                 {
                     Text = required ? $"{label}  *" : label,
-                    Location = new Point(20, y),
+                    Location = new Point(x, y),
                     AutoSize = true,
                     Font = ThemeHelper.FontBold,
                     ForeColor = ThemeHelper.TextPrimary
                 });
-                y += 22;
-
-                ctrl.Location = new Point(20, y);
-                ctrl.Width = contentWidth;
-                body.Controls.Add(ctrl);
-                y += ctrl.Height + 6;
-
-                if (hint != null) Hint(hint);
-                else y += 10;
-
-                return ctrl;
+                y += 20;
             }
 
-            // ── Equipment ──────────────────────────────────────────
-            SectionHeader("🖥", "Equipment");
+            void PlaceControl(int x, int width, ref int y, Control ctrl, int height = 30)
+            {
+                ctrl.Location = new Point(x, y);
+                ctrl.Width = width;
+                if (ctrl.Height < height) ctrl.Height = height;
+                body.Controls.Add(ctrl);
+                y += ctrl.Height + 4;
+            }
+
+            void Hint(int x, int width, ref int y, string text)
+            {
+                var font = new Font("Segoe UI", 7.8f, FontStyle.Italic);
+                var sz = TextRenderer.MeasureText(text, font, new Size(width, int.MaxValue), TextFormatFlags.WordBreak);
+                body.Controls.Add(new Label
+                {
+                    Text = text,
+                    Font = font,
+                    Text = text,
+                    Font = font,
+                    ForeColor = MutedText,
+                    AutoSize = false,
+                    Size = new Size(width, sz.Height + 4),
+                    Location = new Point(x, y)
+                });
+                y += sz.Height + 4 + 8;
+            }
 
             cmbCategoryFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             var categoryNames = new CategoryService().GetAll().Data?.Select(c => c.Name) ?? Enumerable.Empty<string>();
@@ -1110,11 +1440,28 @@ namespace Inventory_Management_System.Forms
             allCategoryOptions.AddRange(categoryNames.Union(equipmentCategories, StringComparer.OrdinalIgnoreCase).OrderBy(c => c, StringComparer.OrdinalIgnoreCase));
             cmbCategoryFilter.DataSource = allCategoryOptions;
             ThemeHelper.StyleComboBox(cmbCategoryFilter);
-            Field("Filter by Category", cmbCategoryFilter, "Narrows the search below — optional");
+FieldLabel(leftX, ref yLeft, "Filter by Category");
+PlaceControl(leftX, colWidth, ref yLeft, cmbCategoryFilter);
+Hint(leftX, colWidth, ref yLeft, "Narrows the equipment list below — optional");
 
-            txtEquipmentSearch = new TextBox { PlaceholderText = "Type a code, name, or serial number…" };
-            ThemeHelper.StyleTextBox(txtEquipmentSearch);
-            Field("Find Equipment", txtEquipmentSearch, "Only unallocated, in-store equipment appears here", required: true);
+txtEquipmentSearch = new TextBox { PlaceholderText = "Search by code, name, or serial…" };
+ThemeHelper.StyleTextBox(txtEquipmentSearch);
+FieldLabel(leftX, ref yLeft, "Find Equipment", required: true);
+PlaceControl(leftX, colWidth, ref yLeft, txtEquipmentSearch);
+Hint(leftX, colWidth, ref yLeft, "Type to search, then pick a suggestion");
+
+cmbEquipment = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+cmbEquipment.DisplayMember = "DisplayText";
+cmbEquipment.ValueMember = "Id";
+ThemeHelper.StyleComboBox(cmbEquipment);
+FieldLabel(leftX, ref yLeft, "Select Equipment", required: true);
+PlaceControl(leftX, colWidth, ref yLeft, cmbEquipment);
+Hint(leftX, colWidth, ref yLeft, "Only unallocated, in-store equipment is listed");
+
+cmbEquipment.SelectedIndexChanged += CmbEquipment_SelectedIndexChanged;
+
+RefreshEquipmentDropdown();
+cmbCategoryFilter.SelectedIndexChanged += (s, e) => RefreshEquipmentDropdown();
 
             _equipmentSuggest = new EntitySuggestHelper<Equipment>(
                 textBox: txtEquipmentSearch,
@@ -1136,30 +1483,75 @@ namespace Inventory_Management_System.Forms
                 line2Selector: eq => string.IsNullOrWhiteSpace(eq.SerialNumber) ? (eq.Category ?? "—") : $"S/N: {eq.SerialNumber}");
             _equipmentSuggest.LoadItems(_equipment);
 
-            cmbCategoryFilter.SelectedIndexChanged += (s, e) =>
-            {
-                string cat = cmbCategoryFilter.SelectedItem?.ToString() ?? "All Categories";
-                var filtered = cat == "All Categories" ? _equipment : _equipment.Where(x => string.Equals(x.Category, cat, StringComparison.OrdinalIgnoreCase)).ToList();
-                _equipmentSuggest?.LoadItems(filtered);
-            };
+cmbCategoryFilter.SelectedIndexChanged += (s, e) =>
+{
+    string cat = cmbCategoryFilter.SelectedItem?.ToString() ?? "All Categories";
+    var filtered = cat == "All Categories" ? _equipment : _equipment.Where(x => string.Equals(x.Category, cat, StringComparison.OrdinalIgnoreCase)).ToList();
+    _equipmentSuggest?.LoadItems(filtered);
+};
 
-            txtEquipmentSearch.TextChanged += (s, e) => { if (string.IsNullOrWhiteSpace(txtEquipmentSearch.Text)) _selectedEquipmentId = null; };
+txtEquipmentSearch.TextChanged += (s, e) => { if (string.IsNullOrWhiteSpace(txtEquipmentSearch.Text)) _selectedEquipmentId = null; };
 
-            if (!string.IsNullOrWhiteSpace(_preselectEquipmentCode))
-            {
-                var match = _equipment.FirstOrDefault(e => e.EquipmentCode == _preselectEquipmentCode);
-                if (match != null)
-                {
-                    _selectedEquipmentId = match.Id;
-                    txtEquipmentSearch.Text = $"{match.EquipmentCode} — {match.Name}";
-                    _preselectApplied = true;
-                }
-            }
+if (!string.IsNullOrWhiteSpace(_preselectEquipmentCode))
+{
+    var match = _equipment.FirstOrDefault(e => e.EquipmentCode == _preselectEquipmentCode);
+    if (match != null)
+    {
+        _selectedEquipmentId = match.Id;
+        txtEquipmentSearch.Text = $"{match.EquipmentCode} — {match.Name}";
+        _preselectApplied = true;
+    }
+}
 
-            // ── Assign To ────────────────────────────────────────────
-            y += 8;
-            SectionHeader("👤", "Assign To");
-            Hint("Choose an employee, a location, or both — at least one is required.");
+// ── Return Details now lives here, under Select Equipment ──
+yLeft += 6;
+SectionHeader(leftX, colWidth, ref yLeft, "📅  Return Details", null);
+
+chkExpected = new CheckBox
+{
+    Text = "Set an expected return date",
+    Location = new Point(leftX, yLeft),
+    AutoSize = true,
+    Font = ThemeHelper.FontDefault,
+    ForeColor = ThemeHelper.TextPrimary
+};
+body.Controls.Add(chkExpected);
+yLeft += 28;
+
+dtpExpected = new DateTimePicker
+{
+    Location = new Point(leftX, yLeft),
+    Width = colWidth,
+    Height = 30,
+    Format = DateTimePickerFormat.Long,
+    ShowUpDown = false,
+    Enabled = false,
+    MinDate = DateTime.Today.AddDays(1),
+    Value = DateTime.Today.AddDays(1)
+};
+body.Controls.Add(dtpExpected);
+yLeft += dtpExpected.Height + 6;
+
+lblExpectedHint = new Label
+{
+    Text = "Check the box above, then click the field to pick a date",
+    Font = new Font("Segoe UI", 7.8f, FontStyle.Italic),
+    ForeColor = MutedText,
+    AutoSize = true,
+    Location = new Point(leftX, yLeft)
+};
+body.Controls.Add(lblExpectedHint);
+yLeft += 18;
+
+chkExpected.CheckedChanged += (s, e) =>
+{
+    dtpExpected.Enabled = chkExpected.Checked;
+    lblExpectedHint.Text = chkExpected.Checked
+        ? "Click the field or its dropdown arrow to open the calendar"
+        : "Check the box above to enable this field";
+    lblExpectedHint.ForeColor = chkExpected.Checked ? ThemeHelper.Header : MutedText;
+    if (chkExpected.Checked) dtpExpected.Focus();
+};
 
             cmbBuildingFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             var buildingNames = _locations.Where(l => !string.IsNullOrWhiteSpace(l.Building)).Select(l => l.Building!).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(b => b);
@@ -1204,7 +1596,9 @@ namespace Inventory_Management_System.Forms
 
             txtEmployeeSearch = new TextBox { PlaceholderText = "Search by employee code or name…" };
             ThemeHelper.StyleTextBox(txtEmployeeSearch);
-            Field("Find Employee", txtEmployeeSearch, "Optional — leave blank if this equipment isn't tied to a person");
+            FieldLabel(rightX, ref yRight, "Find Employee");
+            PlaceControl(rightX, colWidth, ref yRight, txtEmployeeSearch);
+            Hint(rightX, colWidth, ref yRight, "Optional — leave blank if not tied to a person");
 
             _employeeSuggest = new EntitySuggestHelper<Employee>(
                 textBox: txtEmployeeSearch,
@@ -1220,43 +1614,129 @@ namespace Inventory_Management_System.Forms
                 line2Selector: emp => emp.Department ?? "—");
             _employeeSuggest.LoadItems(_employees);
 
-            txtEmployeeSearch.TextChanged += (s, e) => { if (string.IsNullOrWhiteSpace(txtEmployeeSearch.Text)) _selectedEmployeeId = null; };
+txtEmployeeSearch.TextChanged += (s, e) =>
+{
+    if (string.IsNullOrWhiteSpace(txtEmployeeSearch.Text))
+        _selectedEmployeeId = null;
+};
 
-            // ── Expected Return ──────────────────────────────────────
-            y += 8;
-            SectionHeader("📅", "Expected Return");
-
-            chkExpected = new CheckBox
-            {
-                Text = "Set an expected return date",
-                Location = new Point(20, y),
+var lblOr = new Label
+{
+    Text = "— or —",
+    Font = new Font("Segoe UI", 8f, FontStyle.Bold | FontStyle.Italic),
+    ForeColor = MutedText,
+    AutoSize = true,
+    Location = new Point(rightX, yRight)
+};
                 AutoSize = true,
-                Font = ThemeHelper.FontDefault,
-                ForeColor = ThemeHelper.TextPrimary
+                Location = new Point(rightX, yRight)
             };
-            chkExpected.CheckedChanged += (s, e) => dtpExpected.Enabled = chkExpected.Checked;
-            body.Controls.Add(chkExpected);
-            y += 32;
+body.Controls.Add(lblOr);
+yRight += 22;
 
-            dtpExpected = new DateTimePicker
+// ── Location (name only) ──
+cmbLocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+cmbLocation.DisplayMember = "DisplayName";
+cmbLocation.ValueMember = "Name";
+var locationNameOptions = new List<LocationNameOption> { new LocationNameOption { Name = null, DisplayName = "— No location —" } };
+locationNameOptions.AddRange(
+    _locations
+        .Select(l => l.LocationName)
+        .Where(n => !string.IsNullOrWhiteSpace(n))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+        .Select(n => new LocationNameOption { Name = n, DisplayName = n }));
+cmbLocation.DataSource = locationNameOptions;
+ThemeHelper.StyleComboBox(cmbLocation);
+FieldLabel(rightX, ref yRight, "Location");
+PlaceControl(rightX, colWidth, ref yRight, cmbLocation);
+Hint(rightX, colWidth, ref yRight, "Optional — the site or building");
+
+// ── Room (depends on Location) ──
+cmbRoom = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+cmbRoom.DisplayMember = "Display";
+cmbRoom.ValueMember = "Id";
+ThemeHelper.StyleComboBox(cmbRoom);
+FieldLabel(rightX, ref yRight, "Room");
+PlaceControl(rightX, colWidth, ref yRight, cmbRoom);
+Hint(rightX, colWidth, ref yRight, "Optional — narrows to a specific room at that location");
+
+cmbLocation.SelectedIndexChanged += (s, e) => RefreshRoomDropdown();
+if (cmbLocation.Items.Count > 0) cmbLocation.SelectedIndex = 0; // triggers RefreshRoomDropdown → cmbRoom starts disabled
+
+// ── Final sizing ──
+int contentBottom = Math.Max(yLeft, yRight) + 16;
+body.Size = new Size(formWidth, contentBottom);
+int totalHeight = pnlHeader.Height + contentBottom + footerHeight;
+ClientSize = new Size(formWidth, totalHeight);
+pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
+}   
+private void CmbEquipment_SelectedIndexChanged(object? sender, EventArgs e)
+{
+    if (_suppressEquipmentSync) return;
+    if (cmbEquipment.SelectedValue == null) return;
+
+    int selectedId = (int)cmbEquipment.SelectedValue;
+    var eq = _equipment.FirstOrDefault(x => x.Id == selectedId);
+    if (eq == null) return;
+
+    _suppressEquipmentSync = true;
+    txtEquipmentSearch.Text = $"{eq.EquipmentCode} — {eq.Name}";
+    txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
+    _suppressEquipmentSync = false;
+}
+
+private void RefreshEquipmentDropdown()
+{
+    string selectedCategory = cmbCategoryFilter?.SelectedItem?.ToString() ?? "All Categories";
+
+    var filtered = selectedCategory == "All Categories"
+        ? _equipment
+        : _equipment.Where(e => string.Equals(e.Category, selectedCategory, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    _suppressEquipmentSync = true;
+    cmbEquipment.DataSource = filtered.Select(e => new
+    {
+        e.Id,
+        DisplayText = $"{e.EquipmentCode} — {e.Name}" +
+                      (string.IsNullOrWhiteSpace(e.SerialNumber) ? "" : $" (S/N: {e.SerialNumber})")
+    }).ToList();
+    cmbEquipment.SelectedIndex = -1;
+    _suppressEquipmentSync = false;
+
+    _equipmentSuggest?.LoadItems(filtered);
+
+    if (!_preselectApplied && !string.IsNullOrWhiteSpace(_preselectEquipmentCode))
+    {
+        var match = filtered.FirstOrDefault(e => e.EquipmentCode == _preselectEquipmentCode);
+        if (match != null)
+        {
+            cmbEquipment.SelectedValue = match.Id;
+            _preselectApplied = true;
+        }
+    }
+        }
+
+
+        private void RefreshRoomDropdown()
+        {
+            string? selectedName = cmbLocation.SelectedValue as string;
+
+            if (selectedName == null)
             {
-                Location = new Point(20, y),
-                Width = contentWidth,
-                Format = DateTimePickerFormat.Short,
-                Enabled = false,
-                MinDate = DateTime.Today.AddDays(1)
-            };
-            body.Controls.Add(dtpExpected);
-            y += dtpExpected.Height + 6;
-            Hint("Optional — leave unchecked if there's no fixed return date");
+                cmbRoom.DataSource = null;
+                cmbRoom.Enabled = false;
+                return;
+            }
 
-            y += 14;
+            var rooms = _locations
+                .Where(l => l.LocationName == selectedName)
+                .Select(l => new RoomOption { Id = l.Id, Display = RoomOptionDisplay(l) })
+                .ToList();
 
-            // ── Final sizing — NO scrolling, dialog grows to fit exactly ──
-            body.Size = new Size(formWidth, y);
-            int totalHeight = headerHeight + y + footerHeight;
-            ClientSize = new Size(formWidth, totalHeight);
-            pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
+            cmbRoom.Enabled = rooms.Count > 0;
+            cmbRoom.DataSource = rooms;
+            if (cmbRoom.Items.Count > 0) cmbRoom.SelectedIndex = 0;
         }
 
         private void BtnSave_Click(object? sender, EventArgs e)
@@ -1267,7 +1747,11 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            if (_selectedEmployeeId == null && _selectedLocationId == null)
+int? locationId = cmbRoom.Enabled && cmbRoom.SelectedValue is int rid ? rid : (int?)null;
+
+// The actual rule: equipment is required, and AT LEAST ONE of
+// employee / location must be set — not both, not neither.
+if (_selectedEmployeeId == null && locationId == null)
             {
                 ToastHelper.Show(this, "Please choose an employee, a location, or both — at least one is required.", ToastType.Warning);
                 return;
@@ -1297,85 +1781,88 @@ namespace Inventory_Management_System.Forms
 
     // ── Edit Expected Return Date Dialog ───────────────────────────────────
     public class EditExpectedReturnDialog : Form
-        {
-            public DateOnly? SelectedDate { get; private set; }
+{
+    public DateOnly? SelectedDate { get; private set; }
 
-            private CheckBox chkHasDate = null!;
-            private DateTimePicker dtp = null!;
+    private CheckBox chkHasDate = null!;
+    private DateTimePicker dtp = null!;
 
-            public EditExpectedReturnDialog(DateOnly? currentDate)
-            {
-                BuildUI(currentDate);
-            }
-
-            private void BuildUI(DateOnly? currentDate)
-            {
-                Text = "Edit Expected Return Date";
-                Size = new Size(360, 260);
-                StartPosition = FormStartPosition.CenterParent;
-                FormBorderStyle = FormBorderStyle.FixedDialog;
-                MaximizeBox = false;
-                MinimizeBox = false;
-                ThemeHelper.ApplyFormBackground(this);
-
-                int y = 20;
-
-                chkHasDate = new CheckBox
-                {
-                    Text = "Set expected return date",
-                    Location = new Point(20, y),
-                    AutoSize = true,
-                    Font = ThemeHelper.FontDefault,
-                    ForeColor = ThemeHelper.TextPrimary,
-                    Checked = currentDate.HasValue
-                };
-                chkHasDate.CheckedChanged += (s, e) => dtp.Enabled = chkHasDate.Checked;
-                Controls.Add(chkHasDate);
-                y += 30;
-
-                dtp = new DateTimePicker
-                {
-                    Location = new Point(20, y),
-                    Width = 300,
-                    Format = DateTimePickerFormat.Short,
-                    Enabled = currentDate.HasValue,
-                    Value = currentDate.HasValue
-                        ? currentDate.Value.ToDateTime(TimeOnly.MinValue)
-                        : DateTime.Today
-                };
-                Controls.Add(dtp);
-                y += 50;
-
-                var lblHint = new Label
-                {
-                    Text = "A past date marks this allocation overdue.\nA future (or no) date clears the overdue status.",
-                    Location = new Point(20, y),
-                    Size = new Size(300, 40),
-                    Font = ThemeHelper.FontSmall,
-                    ForeColor = ThemeHelper.TextSecondary
-                };
-                Controls.Add(lblHint);
-                y += 54;
-
-                var btnSave = new Button { Text = "Save", Location = new Point(20, y), Size = new Size(140, 36) };
-                ThemeHelper.StyleButton(btnSave);
-                btnSave.Click += (s, e) =>
-                {
-                    SelectedDate = chkHasDate.Checked ? DateOnly.FromDateTime(dtp.Value) : (DateOnly?)null;
-                    DialogResult = DialogResult.OK;
-                };
-                Controls.Add(btnSave);
-
-                var btnCancel = new Button { Text = "Cancel", Location = new Point(170, y), Size = new Size(140, 36) };
-                ThemeHelper.StyleSecondaryButton(btnCancel);
-                btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
-                Controls.Add(btnCancel);
-
-                ClientSize = new Size(340, y + 60);
-                AcceptButton = btnSave;
-                CancelButton = btnCancel;
-            }
-        }
+    public EditExpectedReturnDialog(DateOnly? currentDate)
+    {
+        BuildUI(currentDate);
     }
 
-    
+}
+        {
+            BuildUI(currentDate);
+        }
+
+        private void BuildUI(DateOnly? currentDate)
+        {
+            Text = "Edit Expected Return Date";
+            Size = new Size(360, 260);
+            StartPosition = FormStartPosition.CenterParent;
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            ThemeHelper.ApplyFormBackground(this);
+
+            int y = 20;
+
+            chkHasDate = new CheckBox
+            {
+                Text = "Set expected return date",
+                Location = new Point(20, y),
+                AutoSize = true,
+                Font = ThemeHelper.FontDefault,
+                ForeColor = ThemeHelper.TextPrimary,
+                Checked = currentDate.HasValue
+            };
+            chkHasDate.CheckedChanged += (s, e) => dtp.Enabled = chkHasDate.Checked;
+            Controls.Add(chkHasDate);
+            y += 30;
+
+            dtp = new DateTimePicker
+            {
+                Location = new Point(20, y),
+                Width = 300,
+                Format = DateTimePickerFormat.Short,
+                Enabled = currentDate.HasValue,
+                Value = currentDate.HasValue
+                    ? currentDate.Value.ToDateTime(TimeOnly.MinValue)
+                    : DateTime.Today
+            };
+            Controls.Add(dtp);
+            y += 50;
+
+            var lblHint = new Label
+            {
+                Text = "A past date marks this allocation overdue.\nA future (or no) date clears the overdue status.",
+                Location = new Point(20, y),
+                Size = new Size(300, 40),
+                Font = ThemeHelper.FontSmall,
+                ForeColor = ThemeHelper.TextSecondary
+            };
+            Controls.Add(lblHint);
+            y += 54;
+
+            var btnSave = new Button { Text = "Save", Location = new Point(20, y), Size = new Size(140, 36) };
+            ThemeHelper.StyleButton(btnSave);
+            btnSave.Click += (s, e) =>
+            {
+                SelectedDate = chkHasDate.Checked ? DateOnly.FromDateTime(dtp.Value) : (DateOnly?)null;
+                DialogResult = DialogResult.OK;
+            };
+            Controls.Add(btnSave);
+
+            var btnCancel = new Button { Text = "Cancel", Location = new Point(170, y), Size = new Size(140, 36) };
+            ThemeHelper.StyleSecondaryButton(btnCancel);
+            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
+            Controls.Add(btnCancel);
+
+            ClientSize = new Size(340, y + 60);
+            AcceptButton = btnSave;
+            CancelButton = btnCancel;
+        }
+    }
+}
