@@ -35,6 +35,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleDangerButton(btnDelete);
             ThemeHelper.StyleButton(btnEdit, Color.FromArgb(245, 158, 11));
             ThemeHelper.StyleSecondaryButton(btnExport);
+            ThemeHelper.StyleSecondaryButton(btnImport);
             ThemeHelper.StyleDataGridView(dgvLocations);
         }
 
@@ -104,6 +105,49 @@ ToastHelper.Show(this, result.ErrorMessage ?? "Location not found.", ToastType.E
                 {
                    ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                 }
+            }
+        }
+        private void btnImport_Click(object sender, EventArgs e)
+        {
+            using var ofd = new OpenFileDialog
+            {
+                Filter = "Excel Files (*.xlsx;*.xls)|*.xlsx;*.xls",
+                Title = "Import Locations from Excel"
+            };
+
+            if (ofd.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                var (items, errors) = ExcelHelper.ImportLocations(ofd.FileName);
+
+                if (errors.Count > 0)
+                {
+                    string errorMessage = string.Join("\n", errors.Take(10));
+                    if (errors.Count > 10) errorMessage += $"\n...and {errors.Count - 10} more errors.";
+                    ToastHelper.Show(this, $"Import Warnings:\n{errorMessage}", ToastType.Error);
+                }
+
+                if (items.Count > 0)
+                {
+                    int importedCount = 0;
+                    foreach (var loc in items)
+                    {
+                        var result = _locationService.Add(loc);
+                        if (result.Success) importedCount++;
+                    }
+
+                    ToastHelper.Show(this, $"Successfully imported {importedCount} locations.", ToastType.Success);
+                    LoadLocations();
+                }
+                else if (errors.Count == 0)
+                {
+                    ToastHelper.Show(this, "No valid location records found in the selected file.", ToastType.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                ToastHelper.Show(this, $"Import failed: {ex.Message}", ToastType.Error);
             }
         }
 

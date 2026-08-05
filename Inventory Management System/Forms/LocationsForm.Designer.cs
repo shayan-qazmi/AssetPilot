@@ -23,6 +23,7 @@ namespace Inventory_Management_System.Forms
             btnDelete    = new System.Windows.Forms.Button();
             btnRefresh   = new System.Windows.Forms.Button();
             btnExport    = new System.Windows.Forms.Button();
+            btnImport = new System.Windows.Forms.Button();
             dgvLocations = new System.Windows.Forms.DataGridView();
 
             panelTop.SuspendLayout();
@@ -47,6 +48,7 @@ namespace Inventory_Management_System.Forms
             flowToolbar.Controls.Add(btnDelete);
             flowToolbar.Controls.Add(btnRefresh);
             flowToolbar.Controls.Add(btnExport);
+            flowToolbar.Controls.Add(btnImport);
 
             btnAdd.Size   = new System.Drawing.Size(90, 32);
             btnAdd.Text   = "➕ Add";
@@ -77,6 +79,12 @@ namespace Inventory_Management_System.Forms
             btnExport.Name   = "btnExport";
             btnExport.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnExport.Click += btnExport_Click;
+
+            btnImport.Size = new System.Drawing.Size(90, 32);
+            btnImport.Text = "📤 Import";
+            btnImport.Name = "btnImport";
+            btnImport.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnImport.Click += btnImport_Click;
 
             dgvLocations.Dock                = System.Windows.Forms.DockStyle.Fill;
             dgvLocations.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
@@ -116,5 +124,6 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Button      btnRefresh;
         private System.Windows.Forms.Button      btnExport;
         private System.Windows.Forms.DataGridView dgvLocations;
+        private System.Windows.Forms.Button btnImport;
     }
 }

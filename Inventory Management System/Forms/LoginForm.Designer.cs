@@ -239,7 +239,7 @@ namespace Inventory_Management_System.Forms
             lblShowHidePassword.Click    += lblShowHidePassword_Click;
 
             // ── Toggle row ────────────────────────────────────────────────
-            lblToggleLabel.Text      = "Remember Me";
+            lblToggleLabel.Text      = "Remember username";
             lblToggleLabel.AutoSize = true;
             lblToggleLabel.Font      = new System.Drawing.Font("Segoe UI", 9.5F);
             lblToggleLabel.ForeColor = System.Drawing.Color.FromArgb(107, 114, 128);

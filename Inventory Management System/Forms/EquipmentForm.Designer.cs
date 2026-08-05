@@ -215,6 +215,7 @@ namespace Inventory_Management_System.Forms
             dgvEquipment.Columns.Add("ConditionGrade",  "Condition");
             dgvEquipment.Columns.Add("Location",        "Location");
             dgvEquipment.Columns.Add("PurchaseDate",    "Purchase Date");
+            dgvEquipment.Columns.Add("Price", "Price");
 
             // ── EquipmentForm ─────────────────────────────────────────────
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);

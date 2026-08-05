@@ -28,7 +28,7 @@ namespace Inventory_Management_System.Helpers
         private const int RefreshIntervalMs = 60000; // 1 minute
 
         /// Call once, from DashboardForm, after panelTop exists.
-        public static void AttachBell(Panel hostTopPanel, Form ownerForm)
+        public static void AttachBell(Panel hostTopPanel, Form ownerForm, int rightOffset = 60)
         {
             _bellLabel = new Label
             {
@@ -42,9 +42,16 @@ namespace Inventory_Management_System.Helpers
                 Cursor = Cursors.Hand,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
-            _bellLabel.Location = new Point(hostTopPanel.Width - 60, (hostTopPanel.Height - 44) / 2);
-            hostTopPanel.Controls.Add(_bellLabel);
+            _bellLabel.Location = new Point(hostTopPanel.Width - rightOffset, (hostTopPanel.Height - 44) / 2);
+
+            hostTopPanel.Controls.Add(_bellLabel);   // ← THIS must exist — the label was never added before
             _bellLabel.BringToFront();
+
+            hostTopPanel.Resize += (s, e) =>
+            {
+                _bellLabel.Location = new Point(hostTopPanel.Width - rightOffset, (hostTopPanel.Height - 44) / 2);
+                PositionBadge();
+            };
 
             _badgeLabel = new Label
             {
@@ -70,16 +77,6 @@ namespace Inventory_Management_System.Helpers
             hostTopPanel.Controls.Add(_badgeLabel);
             _badgeLabel.BringToFront();
             PositionBadge();
-
-            // FIX: previously only the bell repositioned on panel resize, so the
-            // badge would be stuck wherever it was placed against the panel's
-            // pre-layout width (e.g. top-left) until the next 60s refresh tick.
-            // Reposition both together on every resize.
-            hostTopPanel.Resize += (s, e) =>
-            {
-                _bellLabel.Location = new Point(hostTopPanel.Width - 60, (hostTopPanel.Height - 44) / 2);
-                PositionBadge();
-            };
 
             _bellLabel.Click += (s, e) => ToggleDropdown(ownerForm);
 

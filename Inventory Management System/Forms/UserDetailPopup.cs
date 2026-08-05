@@ -46,18 +46,29 @@ namespace Inventory_Management_System.Forms
             var header = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 52,
+                Height = 56,
                 BackColor = ThemeHelper.Header,
             };
 
+            var lblHeaderIcon = new Label
+            {
+                Text = "👤",
+                Font = new Font("Segoe UI Emoji", 13f),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(20, 16),
+                BackColor = Color.Transparent
+            };
+            header.Controls.Add(lblHeaderIcon);
+
             var lblTitle = new Label
             {
-                Text = "  User Details",
-                Dock = DockStyle.Fill,
-                Font = new Font("Segoe UI", 11.5f, FontStyle.Bold, GraphicsUnit.Point),
+                Text = "User Details",
+                Location = new Point(50, 15),
+                AutoSize = true,
+                Font = new Font("Segoe UI Semibold", 12.5f, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = Color.White,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 0, 0)
+                BackColor = Color.Transparent
             };
             header.Controls.Add(lblTitle);
             Controls.Add(header);
@@ -74,9 +85,10 @@ namespace Inventory_Management_System.Forms
 
             _avatarImage = AvatarHelper.TryLoadUserImage(_user.PicturePath);
 
+            int avatarX = 28, avatarY = 28;
             var avatarPanel = new Panel
             {
-                Location = new Point(24, 24),
+                Location = new Point(avatarX, avatarY),
                 Size = new Size(AvatarSize, AvatarSize),
                 BackColor = Color.Transparent
             };
@@ -84,92 +96,174 @@ namespace Inventory_Management_System.Forms
                 AvatarHelper.DrawAvatar(e.Graphics, new Rectangle(0, 0, AvatarSize - 1, AvatarSize - 1), _avatarImage);
             card.Controls.Add(avatarPanel);
 
-            int detailX = avatarPanel.Right + 28;
-            int detailW = (DialogWidth - PaddingOuter * 2) - detailX - 24;
-            int y = 26;
-
-            var lblFullName = new Label
+            // Name centered under avatar, matching the avatar's width
+            string displayName = string.IsNullOrWhiteSpace(_user.FullName) ? _user.Username : _user.FullName;
+            var lblFullNameUnder = new Label
             {
-                Text = string.IsNullOrWhiteSpace(_user.FullName) ? _user.Username : _user.FullName,
-                Font = new Font("Segoe UI Semibold", 14f),
+                Text = displayName,
+                Font = new Font("Segoe UI Semibold", 10.5f),
                 ForeColor = ThemeHelper.TextPrimary,
                 AutoSize = false,
-                Size = new Size(detailW, 30),
-                Location = new Point(detailX, y),
+                Size = new Size(AvatarSize, 20),
+                Location = new Point(avatarX, avatarPanel.Bottom + 10),
+                TextAlign = ContentAlignment.MiddleCenter,
                 AutoEllipsis = true
             };
-            card.Controls.Add(lblFullName);
-            y = lblFullName.Bottom + 6;
+            card.Controls.Add(lblFullNameUnder);
 
             bool active = _user.IsActive == true;
             var badge = new Label
             {
-                Text = active ? "Active" : "Inactive",
+                Text = "●  " + (active ? "Active" : "Inactive"),
                 AutoSize = true,
-                Font = new Font("Segoe UI", 8.25f, FontStyle.Bold),
-                ForeColor = Color.White,
-                BackColor = active ? Color.FromArgb(34, 139, 34) : Color.FromArgb(185, 28, 28),
-                Location = new Point(detailX, y),
-                Padding = new Padding(8, 4, 8, 4)
+                Font = new Font("Segoe UI Semibold", 8.25f),
+                ForeColor = active ? Color.FromArgb(21, 128, 61) : Color.FromArgb(185, 28, 28),
+                BackColor = active ? Color.FromArgb(220, 252, 231) : Color.FromArgb(254, 226, 226),
+                Padding = new Padding(10, 5, 10, 5)
             };
+            // Center the badge under the name label
+            badge.Location = new Point(avatarX + (AvatarSize - badge.PreferredWidth) / 2, lblFullNameUnder.Bottom + 8);
             card.Controls.Add(badge);
-            y = badge.Bottom + 18;
 
-            void DetailRow(string label, string? value)
+            // ── Right side: detail block with icon-labeled rows ──
+            int detailX = avatarPanel.Right + 32;
+            int detailW = (DialogWidth - PaddingOuter * 2) - detailX - 24;
+
+            var lblSectionHeading = new Label
             {
-                var pnl = new Panel { Location = new Point(detailX, y), Size = new Size(detailW, 34) };
-                pnl.Controls.Add(new Label
+                Text = "ACCOUNT INFORMATION",
+                Font = new Font("Segoe UI Semibold", 8f),
+                ForeColor = Color.FromArgb(156, 163, 175),
+                AutoSize = true,
+                Location = new Point(detailX, avatarY)
+            };
+            card.Controls.Add(lblSectionHeading);
+
+            var detailBlock = new Panel
+            {
+                Location = new Point(detailX, lblSectionHeading.Bottom + 8),
+                Size = new Size(detailW, 0), // height set after rows are added
+                BackColor = Color.FromArgb(249, 250, 251)
+            };
+            card.Controls.Add(detailBlock);
+
+            int rowY = 14;
+            void DetailRow(string icon, string label, string? value)
+            {
+                var iconLbl = new Label
+                {
+                    Text = icon,
+                    Font = new Font("Segoe UI Emoji", 9.5f),
+                    ForeColor = ThemeHelper.TextSecondary,
+                    AutoSize = false,
+                    Size = new Size(22, 18),
+                    Location = new Point(14, rowY),
+                    TextAlign = ContentAlignment.MiddleCenter
+                };
+                detailBlock.Controls.Add(iconLbl);
+
+                var labelLbl = new Label
                 {
                     Text = label,
-                    Font = ThemeHelper.FontSmall,
-                    ForeColor = ThemeHelper.TextSecondary,
+                    Font = new Font("Segoe UI", 8f),
+                    ForeColor = Color.FromArgb(156, 163, 175),
                     AutoSize = true,
-                    Location = new Point(0, 0)
-                });
-                pnl.Controls.Add(new Label
+                    Location = new Point(40, rowY)
+                };
+                detailBlock.Controls.Add(labelLbl);
+
+                var valueLbl = new Label
                 {
                     Text = string.IsNullOrWhiteSpace(value) ? "—" : value,
-                    Font = ThemeHelper.FontDefault,
+                    Font = new Font("Segoe UI Semibold", 9.25f),
                     ForeColor = ThemeHelper.TextPrimary,
                     AutoSize = false,
-                    Size = new Size(detailW, 18),
-                    Location = new Point(0, 16),
+                    Size = new Size(detailW - 50, 18),
+                    Location = new Point(40, rowY + 15),
                     AutoEllipsis = true
-                });
-                pnl.Paint += (s, e) =>
-                {
-                    using var pen = new Pen(SeparatorColor, 1);
-                    e.Graphics.DrawLine(pen, 0, pnl.Height - 1, pnl.Width, pnl.Height - 1);
                 };
-                card.Controls.Add(pnl);
-                y += pnl.Height;
+                detailBlock.Controls.Add(valueLbl);
+
+                rowY += 46;
+
+                if (label != "Role") // no divider after the last row
+                {
+                    var divider = new Panel
+                    {
+                        Location = new Point(14, rowY - 10),
+                        Size = new Size(detailW - 28, 1),
+                        BackColor = Color.FromArgb(229, 231, 235)
+                    };
+                    detailBlock.Controls.Add(divider);
+                }
             }
 
-            DetailRow("Username", _user.Username);
-            DetailRow("Email", _user.Email);
-            DetailRow("Role", _roleName);
+            DetailRow("🆔", "Username", _user.Username);
+            DetailRow("✉", "Email", _user.Email);
+            DetailRow("🛡", "Role", _roleName);
 
-            int cardH = Math.Max(avatarPanel.Bottom + 24, y + 8);
+            detailBlock.Height = rowY;
+
+            // Round the corners of the detail block
+            void RoundDetailBlock(object? s, EventArgs e)
+            {
+                if (detailBlock.Width <= 0 || detailBlock.Height <= 0) return;
+                using var path = new System.Drawing.Drawing2D.GraphicsPath();
+                float r = 10f, d = r * 2f;
+                var rect = new RectangleF(0, 0, detailBlock.Width, detailBlock.Height);
+                path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+                path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+                path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+                path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+                path.CloseFigure();
+                detailBlock.Region = new Region(path);
+            }
+            detailBlock.Resize += RoundDetailBlock;
+            RoundDetailBlock(null, EventArgs.Empty);
+
+            int cardH = Math.Max(badge.Bottom + 24, detailBlock.Bottom + 24);
             card.Height = cardH;
 
             // ── Close Button ──
-            int btnY = header.Height + PaddingOuter + cardH + 14;
+            int btnY = header.Height + PaddingOuter + cardH + 16;
             var btnClose = new Button
             {
                 Text = "Close",
-                Size = new Size(100, 34),
-                Location = new Point((DialogWidth - 100) / 2, btnY),
-                Font = ThemeHelper.FontDefault,
+                Size = new Size(120, 38),
+                Location = new Point((DialogWidth - 120) / 2, btnY),
+                Font = ThemeHelper.FontBold,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ThemeHelper.Accent,
+                ForeColor = Color.White,
                 Cursor = Cursors.Hand,
+                UseVisualStyleBackColor = false
             };
-            ThemeHelper.StyleSecondaryButton(btnClose);
+            btnClose.FlatAppearance.BorderSize = 0;
+            btnClose.FlatAppearance.MouseOverBackColor = ThemeHelper.Header;
+
+            void RoundButton(object? s, EventArgs e)
+            {
+                if (btnClose.Width <= 0 || btnClose.Height <= 0) return;
+                using var path = new System.Drawing.Drawing2D.GraphicsPath();
+                float r = 8f, d = r * 2f;
+                var rect = new RectangleF(0, 0, btnClose.Width, btnClose.Height);
+                path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+                path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+                path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+                path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+                path.CloseFigure();
+                btnClose.Region = new Region(path);
+            }
+            btnClose.Resize += RoundButton;
+            RoundButton(null, EventArgs.Empty);
+
             btnClose.Click += (s, e) => Close();
             Controls.Add(btnClose);
 
-            ClientSize = new Size(DialogWidth, btnY + 34 + PaddingOuter);
+            ClientSize = new Size(DialogWidth, btnY + 38 + PaddingOuter);
 
             FormClosed += (s, e) => _avatarImage?.Dispose();
-        }
+        }   
 
         private void DrawCardBorder(object? sender, PaintEventArgs e)
         {

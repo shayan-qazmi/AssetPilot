@@ -354,18 +354,7 @@ private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
                 BackColor = Color.Transparent
             };
 
-            var lblIcon = new Label
-            {
-                Name      = "lblIcon",
-                Text      = icon,
-                Font      = new Font("Segoe UI Emoji", 0.0016f, FontStyle.Regular, GraphicsUnit.Point),
-                ForeColor = Color.FromArgb(160, 255, 255, 255),
-                AutoSize  = false,
-                Size      = new Size(40, 40),
-                Location  = new Point(999, 8),
-                TextAlign = ContentAlignment.MiddleCenter,
-                BackColor = Color.Transparent
-            };
+           
 
             var lblTitle = new Label
             {
@@ -381,12 +370,12 @@ private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
             };
 
             card.Controls.Add(lblValue);
-            card.Controls.Add(lblIcon);
+          
             card.Controls.Add(lblTitle);
 
             wireHover(card);
             wireHover(lblValue);
-            wireHover(lblIcon);
+         
             wireHover(lblTitle);
 
             card.Paint += (s, e) =>
@@ -434,8 +423,7 @@ private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
                 // Pin title to bottom (above footer), icon to top-right
                 lblTitle.Location = new Point(12, card.Height - 28 - stripH);
                 lblTitle.Width    = card.Width - 24;
-                lblIcon.Location  = new Point(card.Width - 40, 15);
-                lblIcon.Size      = new Size(40, 36);
+                
             };
 
             return card;

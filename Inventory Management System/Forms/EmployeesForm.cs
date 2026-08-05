@@ -29,10 +29,23 @@ namespace Inventory_Management_System.Forms
 
             this.Shown += (s, e) =>
             {
-                dgvEmployees.ClearSelection();
-                dgvEmployees.CurrentCell = null;
+                if (!_hasPendingSelection)
+                {
+                    dgvEmployees.ClearSelection();
+                    dgvEmployees.CurrentCell = null;
+                }
             };
 
+        }
+
+        private string? _pendingSelectCode;
+        private bool _hasPendingSelection = false;
+
+        public EmployeesForm(string employeeCode) : this()
+        {
+            _hasPendingSelection = true;
+            _pendingSelectCode = employeeCode;
+            txtSearch.Text = employeeCode;   // fires TextChanged → LoadEmployees(filtered)
         }
 
         private void ApplyTheme()
@@ -44,6 +57,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleDangerButton(btnDelete);
             ThemeHelper.StyleButton(btnEdit, Color.FromArgb(245, 158, 11));
             ThemeHelper.StyleSecondaryButton(btnExport);
+            ThemeHelper.StyleSecondaryButton(btnImport);
             ThemeHelper.StyleDataGridView(dgvEmployees);
             ThemeHelper.StyleTextBox(txtSearch);
             ThemeHelper.StyleComboBox(cmbPageSize);
@@ -115,6 +129,20 @@ namespace Inventory_Management_System.Forms
                         .Skip((_currentPage - 1) * _pageSize)
                         .Take(_pageSize)
                         .ToList();
+
+                    if (!string.IsNullOrWhiteSpace(_pendingSelectCode))
+                    {
+                        var match = dgvEmployees.Rows.Cast<DataGridViewRow>()
+                            .FirstOrDefault(r => string.Equals(r.Cells[0].Value?.ToString(), _pendingSelectCode, StringComparison.OrdinalIgnoreCase));
+                        if (match != null)
+                        {
+                            dgvEmployees.ClearSelection();
+                            match.Selected = true;
+                            dgvEmployees.CurrentCell = match.Cells[0];
+                            dgvEmployees.FirstDisplayedScrollingRowIndex = match.Index;
+                        }
+                        _pendingSelectCode = null;
+                    }
 
                     BindEmployeeRows(pageItems);
                     lblRowCount.Text = $"Showing {pageItems.Count} of {fullMatches.Count} records";
@@ -206,6 +234,50 @@ namespace Inventory_Management_System.Forms
             }
         }
 
+
+        private void btnImport_Click(object sender, EventArgs e)
+        {
+            using var ofd = new OpenFileDialog
+            {
+                Filter = "Excel Files (*.xlsx;*.xls)|*.xlsx;*.xls",
+                Title = "Import Employees from Excel"
+            };
+
+            if (ofd.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                var (items, errors) = ExcelHelper.ImportEmployees(ofd.FileName);
+
+                if (errors.Count > 0)
+                {
+                    string errorMessage = string.Join("\n", errors.Take(10));
+                    if (errors.Count > 10) errorMessage += $"\n...and {errors.Count - 10} more errors.";
+                    ToastHelper.Show(this, $"Import Warnings:\n{errorMessage}", ToastType.Error);
+                }
+
+                if (items.Count > 0)
+                {
+                    int importedCount = 0;
+                    foreach (var emp in items)
+                    {
+                        var result = _employeeService.Add(emp);
+                        if (result.Success) importedCount++;
+                    }
+
+                    ToastHelper.Show(this, $"Successfully imported {importedCount} employees.", ToastType.Success);
+                    LoadEmployees(txtSearch.Text.Trim());
+                }
+                else if (errors.Count == 0)
+                {
+                    ToastHelper.Show(this, "No valid employee records found in the selected file.", ToastType.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                ToastHelper.Show(this, $"Import failed: {ex.Message}", ToastType.Error);
+            }
+        }
         private void btnRefresh_Click(object sender, EventArgs e)
         {
             txtSearch.Text = string.Empty;

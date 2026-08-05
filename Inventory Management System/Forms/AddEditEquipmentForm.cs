@@ -54,6 +54,7 @@ namespace Inventory_Management_System.Forms
         private Button btnRemovePicture = null!;
         private Button btnSave = null!;
         private Button btnCancel = null!;
+        private TextBox txtPrice = null!;
 
         // ── Layout constants (matching EquipmentDetailPopup) ───────────────
         private const int DialogW = 860;
@@ -176,6 +177,7 @@ namespace Inventory_Management_System.Forms
             }
 
             dtpPurchaseDate = AddDateRow(card, "Purchase Date", ColLeft, ref yL, ref altL);
+            txtPrice = AddFieldRow(card, "Purchase Price", ColLeft, ref yL, ref altL);
 
             cmbCategory = AddComboRow(card, "Category", ColLeft, ref yL, ref altL,
                 BuildCategoryItems());
@@ -974,6 +976,7 @@ namespace Inventory_Management_System.Forms
             if (_equipment.PurchaseDate.HasValue)
                 dtpPurchaseDate.Value =
                     _equipment.PurchaseDate.Value.ToDateTime(TimeOnly.MinValue);
+            txtPrice.Text = _equipment.Price.HasValue ? _equipment.Price.Value.ToString("0.##") : "";
 
             cmbCategory.SelectedItem = _equipment.Category ?? "";
             txtDescription.Text = _equipment.Description ?? "";
@@ -1033,7 +1036,19 @@ namespace Inventory_Management_System.Forms
             _equipment.SerialNumber = txtSerialNumber.Text.Trim();
             _equipment.CurrentStatus = UnformatStatus(cmbStatus.SelectedItem?.ToString() ?? "In Store");
             _equipment.PurchaseDate = DateOnly.FromDateTime(dtpPurchaseDate.Value);
-
+            if (!string.IsNullOrWhiteSpace(txtPrice.Text))
+            {
+                if (!decimal.TryParse(txtPrice.Text, out var price))
+                {
+                    ToastHelper.Show(this, "Purchase Price must be a valid number.", ToastType.Warning);
+                    return;
+                }
+                _equipment.Price = price;
+            }
+            else
+            {
+                _equipment.Price = null;
+            }
             _equipment.Category =
                 cmbCategory.SelectedItem?.ToString() is { Length: > 0 } cat ? cat : null;
             _equipment.Description =

@@ -1,14 +1,14 @@
 // Forms/EquipmentDetailPopup.cs
+using Inventory_Management_System.Helpers;
+using Inventory_Management_System.Models;
+using Inventory_Management_System.Services;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
-using Microsoft.EntityFrameworkCore;
-using Inventory_Management_System.Models;
-using Inventory_Management_System.Helpers;
-using Inventory_Management_System.Services;
 
 namespace Inventory_Management_System.Forms
 {
@@ -16,19 +16,23 @@ namespace Inventory_Management_System.Forms
     {
         private Equipment _equipment;
 
-        // ── Layout Constants ─────────────────────────────────────────────────
-        private const int DialogWidth = 860;
-        private const int PaddingOuter = 20;
-        private const int ColLeft = 30;
-        private const int ColRight = 450;
-        private const int ColWidth = 380;
-        private const int RowH = 36;
-        private const int SectionGap = 14;
-        private const int LabelW = 180;
-        private const int ValueX = 185;
-        private const int ValueW = 185;
+        // ── Compact Layout Constants ─────────────────────────────────────────
+        private const int DialogWidth = 760;
+        private const int PaddingOuter = 8;
+        private const int CardPadding = 8;
+        private const int ColGap = 16;
+        private const int RowH = 26;
+        private const int SectionGap = 6;
+        private const int FooterHeight = 42;
 
-        // ── Color Overrides (supplement ThemeHelper) ─────────────────────────
+        private int ColWidth;
+        private int ColLeft;
+        private int ColRight;
+        private int LabelW;
+        private int ValueX;
+        private int ValueW;
+
+        // ── Colors ─────────────────────────────────────────────────────────
         private static readonly Color BgPage = Color.FromArgb(245, 247, 250);
         private static readonly Color CardBg = Color.White;
         private static readonly Color CardBorderColor = Color.FromArgb(220, 225, 230);
@@ -36,7 +40,6 @@ namespace Inventory_Management_System.Forms
         private static readonly Color RowEven = Color.White;
         private static readonly Color RowOdd = Color.FromArgb(248, 250, 248);
         private static readonly Color SeparatorColor = Color.FromArgb(234, 237, 241);
-        private static readonly Color BadgeBorder = Color.FromArgb(200, 210, 200);
 
         public EquipmentDetailPopup(Equipment equipment)
         {
@@ -58,47 +61,147 @@ namespace Inventory_Management_System.Forms
         private void InitializeUI()
         {
             Text = $"Equipment Details — {_equipment.EquipmentCode}";
+            AutoScaleMode = AutoScaleMode.None;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
             BackColor = BgPage;
 
-            // ── Header Strip ────────────────────────────────────────────────
+            var _ = this.Handle;
+
+            // ── Header Bar ───────────────────────────────────────────────────
             var header = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 52,
+                Height = 38,
                 BackColor = ThemeHelper.Header,
             };
 
+            var lblHeaderIcon = new Label
+            {
+                Text = "⊞",
+                Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(12, 8),
+                BackColor = Color.Transparent
+            };
+            header.Controls.Add(lblHeaderIcon);
+
             var lblTitle = new Label
             {
-                Text = $"  Equipment Details — {_equipment.EquipmentCode}",
-                Dock = DockStyle.Fill,
-                Font = new Font("Segoe UI", 11.5f, FontStyle.Bold, GraphicsUnit.Point),
+                Text = $"Equipment Details — {_equipment.EquipmentCode}",
+                Location = new Point(34, 9),
+                AutoSize = true,
+                Font = new Font("Segoe UI Semibold", 10f, FontStyle.Bold),
                 ForeColor = Color.White,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 0, 0)
+                BackColor = Color.Transparent
             };
             header.Controls.Add(lblTitle);
             Controls.Add(header);
 
-            // ── Card Container ───────────────────────────────────────────────
+            // ── Footer Bar (Centered Close Button) ───────────────────────────
+            var footer = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = FooterHeight,
+                BackColor = BgPage,
+            };
+
+            var btnClose = new Button
+            {
+                Text = "✕  Close",
+                Size = new Size(100, 30),
+                Font = ThemeHelper.FontSmall,
+                Cursor = Cursors.Hand,
+                TabIndex = 0,
+            };
+            ThemeHelper.StyleSecondaryButton(btnClose);
+            btnClose.Click += (s, e) => Close();
+            footer.Controls.Add(btnClose);
+
+            // Keep close button precisely centered
+            footer.Resize += (s, e) =>
+            {
+                btnClose.Location = new Point((footer.Width - btnClose.Width) / 2, (footer.Height - btnClose.Height) / 2);
+            };
+
+            Controls.Add(footer);
+
+            // ── Scrollable Content Area ─────────────────────────────────────
+            var scrollHost = new Panel
+            {
+                BackColor = BgPage,
+                AutoScroll = true,
+                TabIndex = 1,
+            };
+
             var card = new Panel
             {
                 BackColor = CardBg,
-                Location = new Point(PaddingOuter, header.Height + PaddingOuter),
-                Width = DialogWidth - PaddingOuter * 2,
+                Location = new Point(PaddingOuter, PaddingOuter),
             };
             card.Paint += DrawCardBorder;
-            Controls.Add(card);
+            scrollHost.Controls.Add(card);
+
+            var workArea = Screen.GetWorkingArea(this);
+            int formWidth = Math.Min(DialogWidth, workArea.Width - 40);
+            int maxContentHeight = Math.Max(200, workArea.Height - header.Height - footer.Height - 60);
+
+            int fullCardWidth = formWidth - (PaddingOuter * 2) - 16;
+            int cardH = BuildCardContent(card, fullCardWidth);
+
+            bool needsScroll = (cardH + PaddingOuter * 2) > maxContentHeight;
+            int cardWidth = fullCardWidth;
+
+            if (needsScroll)
+            {
+                cardWidth = fullCardWidth - SystemInformation.VerticalScrollBarWidth;
+                cardH = BuildCardContent(card, cardWidth);
+            }
+
+            card.Width = cardWidth;
+            card.Height = cardH;
+
+            // Height snapped directly to card size
+            int contentHeight = cardH + (PaddingOuter * 2);
+            int finalScrollHostHeight = Math.Min(contentHeight, maxContentHeight);
+
+            scrollHost.Size = new Size(formWidth, finalScrollHostHeight);
+            scrollHost.Location = new Point(0, header.Height);
+
+            // Explicit form sizing fits contents with zero trailing empty gap
+            ClientSize = new Size(formWidth, header.Height + finalScrollHostHeight + footer.Height);
+            Controls.Add(scrollHost);
+
+            // Position center on initial load
+            btnClose.Location = new Point((footer.Width - btnClose.Width) / 2, (footer.Height - btnClose.Height) / 2);
+
+            Shown += (s, e) =>
+            {
+                ActiveControl = btnClose;
+                card.Invalidate(true);
+            };
+        }
+
+        private int BuildCardContent(Panel card, int cardWidth)
+        {
+            card.SuspendLayout();
+            card.Controls.Clear();
+
+            ColWidth = (cardWidth - CardPadding * 2 - ColGap) / 2;
+            ColLeft = CardPadding;
+            ColRight = CardPadding + ColWidth + ColGap;
+            LabelW = 125;
+            ValueX = LabelW + 8;
+            ValueW = ColWidth - ValueX - 6;
 
             int yLeft = SectionGap;
             int yRight = SectionGap;
 
-            // ── Left Column: Equipment Information ───────────────────────────
-            AddSectionHeader(card, "Equipment Information", ColLeft, ref yLeft);
+            // ── Left Column: Equipment Information ──────────────────────────
+            AddSectionHeader(card, "i", "Equipment Information", ColLeft, ref yLeft);
 
             bool altLeft = false;
             AddField(card, "Equipment Code", _equipment.EquipmentCode, ColLeft, ref yLeft, ref altLeft);
@@ -111,6 +214,9 @@ namespace Inventory_Management_System.Forms
             AddStatusField(card, "Status", _equipment.CurrentStatus, ColLeft, ref yLeft, ref altLeft);
             AddField(card, "Condition", _equipment.ConditionGrade, ColLeft, ref yLeft, ref altLeft);
             AddField(card, "Purchase Date", _equipment.PurchaseDate?.ToString("yyyy-MM-dd"), ColLeft, ref yLeft, ref altLeft);
+            AddField(card, "Purchase Price",
+                _equipment.Price.HasValue ? $"₨{_equipment.Price.Value:N2}" : "—",
+                ColLeft, ref yLeft, ref altLeft);
             AddField(card, "Procurement Type", _equipment.ProcurementType?.TypeName, ColLeft, ref yLeft, ref altLeft);
             AddField(card, "Vendor Name", _equipment.VendorName, ColLeft, ref yLeft, ref altLeft);
             AddField(card, "Warranty Expiry", _equipment.WarrantyExpiry?.ToString("yyyy-MM-dd") ?? "—", ColLeft, ref yLeft, ref altLeft);
@@ -119,7 +225,7 @@ namespace Inventory_Management_System.Forms
             AddPictureField(card, "Picture", _equipment.PicturePath, ColLeft, ref yLeft, ref altLeft);
 
             // ── Right Column: Current Allocation ─────────────────────────────
-            AddSectionHeader(card, "Current Allocation", ColRight, ref yRight);
+            AddSectionHeader(card, "▲", "Current Allocation", ColRight, ref yRight);
 
             var activeAlloc = _equipment.Allocations.FirstOrDefault(a => a.Status == "approved");
             bool altRight = false;
@@ -140,7 +246,7 @@ namespace Inventory_Management_System.Forms
             AddField(card, "Expected Return Date", activeAlloc?.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
 
             // ── Right Column: Maintenance History ────────────────────────────
-            AddSectionHeader(card, "Maintenance History", ColRight, ref yRight);
+            AddSectionHeader(card, "⚙", "Maintenance History", ColRight, ref yRight);
 
             List<MaintenanceRecord> records = new();
             try
@@ -152,7 +258,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "EquipmentDetailPopup.BuildUI (GetByEquipmentId)");
+                Logger.LogError(ex, "EquipmentDetailPopup.BuildCardContent (GetByEquipmentId)");
             }
 
             if (records.Count == 0)
@@ -164,9 +270,6 @@ namespace Inventory_Management_System.Forms
                 for (int i = 0; i < records.Count; i++)
                 {
                     var rec = records[i];
-
-                    // Small record label so multiple entries are visually separable,
-                    // using the exact same row/label styling as every other field.
                     AddField(card, $"Record #{i + 1}", rec.ReportedDate.ToString("yyyy-MM-dd"), ColRight, ref yRight, ref altRight);
                     AddMaintenanceStatusField(card, "Status", rec.Status, ColRight, ref yRight, ref altRight);
                     AddField(card, "Issue", rec.IssueDescription, ColRight, ref yRight, ref altRight);
@@ -177,74 +280,62 @@ namespace Inventory_Management_System.Forms
                 }
             }
 
-            // ── Divider between columns ──────────────────────────────────────
-            int dividerX = ColRight - 10;
+            int dividerBottom = Math.Max(yLeft, yRight) - 4;
             card.Paint += (s, e) =>
             {
                 using var pen = new Pen(SeparatorColor, 1);
-                e.Graphics.DrawLine(pen, dividerX, SectionGap, dividerX, Math.Max(yLeft, yRight) - 4);
+                int dividerX = CardPadding + ColWidth + ColGap / 2;
+                e.Graphics.DrawLine(pen, dividerX, SectionGap, dividerX, dividerBottom);
             };
 
-            // ── Size card ────────────────────────────────────────────────────
-            int cardH = Math.Max(yLeft, yRight) + SectionGap;
-            card.Height = cardH;
+            card.ResumeLayout(true);
 
-            // ── Close Button ─────────────────────────────────────────────────
-            int btnY = header.Height + PaddingOuter + cardH + 14;
-            var btnClose = new Button
-            {
-                Text = "Close",
-                Size = new Size(100, 34),
-                Location = new Point((DialogWidth - 100) / 2, btnY),
-                Font = ThemeHelper.FontDefault,
-                Cursor = Cursors.Hand,
-            };
-            ThemeHelper.StyleSecondaryButton(btnClose);
-            btnClose.Click += (s, e) => Close();
-            Controls.Add(btnClose);
-
-            ClientSize = new Size(DialogWidth, btnY + 34 + PaddingOuter);
+            return Math.Max(yLeft, yRight) + 8;
         }
 
-        // ── Section Header with left accent bar ──────────────────────────────
-        private void AddSectionHeader(Panel card, string title, int x, ref int y)
+        private void AddSectionHeader(Panel card, string iconSymbol, string title, int x, ref int y)
         {
             var pnl = new Panel
             {
                 Location = new Point(x, y),
-                Size = new Size(ColWidth, 32),
-                BackColor = Color.Transparent,
+                Size = new Size(ColWidth, 28),
+                BackColor = CardBg,
             };
 
-            var accent = new Panel
+            var iconLabel = new Label
             {
-                Location = new Point(0, 4),
-                Size = new Size(3, 22),
-                BackColor = SectionTitle,
+                Text = iconSymbol,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                ForeColor = SectionTitle,
+                BackColor = Color.FromArgb(232, 245, 233),
+                Size = new Size(18, 18),
+                Location = new Point(0, 3),
+                TextAlign = ContentAlignment.MiddleCenter
             };
-            pnl.Controls.Add(accent);
 
-            var lbl = new Label
+            var titleLabel = new Label
             {
                 Text = title,
-                Location = new Point(10, 6),
-                AutoSize = true,
-                Font = new Font("Segoe UI", 10f, FontStyle.Bold, GraphicsUnit.Point),
+                Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold),
                 ForeColor = SectionTitle,
+                BackColor = Color.Transparent,
+                AutoSize = true,
+                Location = new Point(22, 2)
             };
-            pnl.Controls.Add(lbl);
+
+            pnl.Controls.Add(iconLabel);
+            pnl.Controls.Add(titleLabel);
 
             pnl.Paint += (s, e) =>
             {
                 using var pen = new Pen(Color.FromArgb(180, 215, 180), 1);
-                e.Graphics.DrawLine(pen, 0, 31, ColWidth, 31);
+                e.Graphics.DrawLine(pen, 0, 25, ColWidth, 25);
             };
 
             card.Controls.Add(pnl);
-            y += 38;
+            y += 32;
         }
 
-        // ── Standard Field Row ────────────────────────────────────────────────
         private void AddField(Panel card, string labelName, string? valueText, int x, ref int y, ref bool isAlt)
         {
             string val = string.IsNullOrWhiteSpace(valueText) ? "—" : valueText;
@@ -252,7 +343,7 @@ namespace Inventory_Management_System.Forms
             var lblName = new Label
             {
                 Text = labelName + ":",
-                Location = new Point(10, 0),
+                Location = new Point(8, 0),
                 Size = new Size(LabelW, RowH),
                 Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextSecondary,
@@ -272,7 +363,7 @@ namespace Inventory_Management_System.Forms
 
             int prefValH = lblValue.GetPreferredSize(new Size(ValueW, 0)).Height;
             int prefLblH = lblName.GetPreferredSize(new Size(LabelW, 0)).Height;
-            int actualH = Math.Max(RowH, Math.Max(prefValH, prefLblH) + 14);
+            int actualH = Math.Max(RowH, Math.Max(prefValH, prefLblH) + 6);
             lblName.Height = actualH;
             lblValue.Height = actualH;
 
@@ -286,7 +377,7 @@ namespace Inventory_Management_System.Forms
             pnl.Paint += (s, e) =>
             {
                 using var pen = new Pen(SeparatorColor, 1);
-                e.Graphics.DrawLine(pen, 10, pnl.Height - 1, pnl.Width - 10, pnl.Height - 1);
+                e.Graphics.DrawLine(pen, 8, pnl.Height - 1, pnl.Width - 8, pnl.Height - 1);
             };
 
             pnl.Controls.Add(lblName);
@@ -297,8 +388,6 @@ namespace Inventory_Management_System.Forms
             isAlt = !isAlt;
         }
 
-        // ── Picture Row: "View Picture" button if a picture is attached,
-        // otherwise renders exactly like an empty AddField row ("—"). ────────
         private void AddPictureField(Panel card, string labelName, string? picturePath, int x, ref int y, ref bool isAlt)
         {
             bool hasPicture = !string.IsNullOrWhiteSpace(picturePath);
@@ -306,7 +395,7 @@ namespace Inventory_Management_System.Forms
             var lblName = new Label
             {
                 Text = labelName + ":",
-                Location = new Point(10, 0),
+                Location = new Point(8, 0),
                 Size = new Size(LabelW, RowH),
                 Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextSecondary,
@@ -323,7 +412,7 @@ namespace Inventory_Management_System.Forms
             pnl.Paint += (s, e) =>
             {
                 using var pen = new Pen(SeparatorColor, 1);
-                e.Graphics.DrawLine(pen, 10, pnl.Height - 1, pnl.Width - 10, pnl.Height - 1);
+                e.Graphics.DrawLine(pen, 8, pnl.Height - 1, pnl.Width - 8, pnl.Height - 1);
             };
 
             pnl.Controls.Add(lblName);
@@ -333,8 +422,8 @@ namespace Inventory_Management_System.Forms
                 var btnView = new Button
                 {
                     Text = "🖼 View Picture",
-                    Location = new Point(ValueX, 4),
-                    Size = new Size(120, 28),
+                    Location = new Point(ValueX, 2),
+                    Size = new Size(110, 22),
                     Font = ThemeHelper.FontSmall,
                     Cursor = Cursors.Hand,
                 };
@@ -362,9 +451,6 @@ namespace Inventory_Management_System.Forms
             isAlt = !isAlt;
         }
 
-        // ── Opens the picture in a small popup (images) or the OS default
-        // viewer (PDFs, since building an in-app PDF renderer is out of scope
-        // for this feature). ──────────────────────────────────────────────
         private void ShowPicture(string storedValue)
         {
             string fullPath;
@@ -375,15 +461,13 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-               ToastHelper.Show(this, "Could not connect to the shared picture folder: " + ex.Message, ToastType.Error);
-
+                ToastHelper.Show(this, "Could not connect to the shared picture folder: " + ex.Message, ToastType.Error);
                 return;
             }
 
             if (!System.IO.File.Exists(fullPath))
             {
-                ToastHelper.Show(this, "The picture file could not be found on disk. It may have been moved or deleted.", ToastType.Warning);
-
+                ToastHelper.Show(this, "The picture file could not be found on disk.", ToastType.Warning);
                 return;
             }
 
@@ -398,8 +482,7 @@ namespace Inventory_Management_System.Forms
                 }
                 catch (Exception ex)
                 {
-                   ToastHelper.Show(this, "Could not open PDF: " + ex.Message, ToastType.Error);
-
+                    ToastHelper.Show(this, "Could not open PDF: " + ex.Message, ToastType.Error);
                 }
                 return;
             }
@@ -412,7 +495,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-            ToastHelper.Show(this, "Could not load picture: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(this, "Could not load picture: " + ex.Message, ToastType.Error);
                 return;
             }
 
@@ -446,13 +529,12 @@ namespace Inventory_Management_System.Forms
             frm.ShowDialog(this);
         }
 
-        // ── Status Badge Row (Equipment status) ───────────────────────────────
         private void AddStatusField(Panel card, string labelName, string status, int x, ref int y, ref bool isAlt)
         {
             var lblName = new Label
             {
                 Text = labelName + ":",
-                Location = new Point(10, 0),
+                Location = new Point(8, 0),
                 Size = new Size(LabelW, RowH),
                 Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextSecondary,
@@ -491,15 +573,12 @@ namespace Inventory_Management_System.Forms
             isAlt = !isAlt;
         }
 
-        // ── Status Badge Row (Maintenance record status) ──────────────────────
-        // Mirrors AddStatusField exactly so the pill looks identical, just with
-        // maintenance-specific status values instead of equipment status values.
         private void AddMaintenanceStatusField(Panel card, string labelName, string status, int x, ref int y, ref bool isAlt)
         {
             var lblName = new Label
             {
                 Text = labelName + ":",
-                Location = new Point(10, 0),
+                Location = new Point(8, 0),
                 Size = new Size(LabelW, RowH),
                 Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextSecondary,
@@ -530,18 +609,17 @@ namespace Inventory_Management_System.Forms
             isAlt = !isAlt;
         }
 
-        // ── Shared badge-row renderer used by both status methods above ──────
         private void RenderBadgeRow(Panel card, Label lblName, Color badgeBg, string displayText,
             int x, int y, int rowH, bool isAlt)
         {
             var badge = new Label
             {
-                Text = $"  {displayText}  ",
+                Text = displayText,
                 AutoSize = true,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold, GraphicsUnit.Point),
+                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
                 ForeColor = Color.White,
                 BackColor = badgeBg,
-                Padding = new Padding(6, 3, 6, 3),
+                Padding = new Padding(6, 2, 6, 2),
             };
 
             badge.Location = new Point(ValueX, (rowH - badge.GetPreferredSize(Size.Empty).Height) / 2);
@@ -556,14 +634,14 @@ namespace Inventory_Management_System.Forms
             pnl.Paint += (s, e) =>
             {
                 using var pen = new Pen(SeparatorColor, 1);
-                e.Graphics.DrawLine(pen, 10, pnl.Height - 1, pnl.Width - 10, pnl.Height - 1);
+                e.Graphics.DrawLine(pen, 8, pnl.Height - 1, pnl.Width - 8, pnl.Height - 1);
             };
 
             badge.Paint += (s, e) =>
             {
                 var lbl = (Label)s!;
                 var rect = new Rectangle(0, 0, lbl.Width - 1, lbl.Height - 1);
-                using var path = RoundedRect(rect, 10);
+                using var path = RoundedRect(rect, 8);
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 using var brush = new SolidBrush(badgeBg);
                 e.Graphics.FillPath(brush, path);
@@ -578,15 +656,14 @@ namespace Inventory_Management_System.Forms
             card.Controls.Add(pnl);
         }
 
-        // ── Card Border + Shadow ──────────────────────────────────────────────
         private void DrawCardBorder(object? sender, PaintEventArgs e)
         {
             if (sender is not Panel pnl) return;
             var g = e.Graphics;
             var rect = new Rectangle(0, 0, pnl.Width - 1, pnl.Height - 1);
 
-            using var shadowBrush = new SolidBrush(Color.FromArgb(18, 0, 0, 0));
-            g.FillRectangle(shadowBrush, new Rectangle(2, 2, pnl.Width - 1, pnl.Height - 1));
+            using var shadowBrush = new SolidBrush(Color.FromArgb(12, 0, 0, 0));
+            g.FillRectangle(shadowBrush, new Rectangle(1, 1, pnl.Width - 1, pnl.Height - 1));
 
             using var bgBrush = new SolidBrush(CardBg);
             g.FillRectangle(bgBrush, rect);
@@ -595,7 +672,6 @@ namespace Inventory_Management_System.Forms
             g.DrawRectangle(pen, rect);
         }
 
-        // ── Rounded Rectangle Helper ─────────────────────────────────────────
         private static GraphicsPath RoundedRect(Rectangle bounds, int radius)
         {
             int d = radius * 2;

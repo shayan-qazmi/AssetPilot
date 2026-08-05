@@ -82,7 +82,7 @@ namespace Inventory_Management_System.Forms
             panelTop.Controls.Add(btnSearch);
             panelTop.Controls.Add(btnClear);
 
-            lblScanPrompt.Text = "Scan QR / Enter Code:";
+            lblScanPrompt.Text = "Scan QR / Enter Eqp Code:";
             lblScanPrompt.Location = new System.Drawing.Point(12, 24);
             lblScanPrompt.AutoSize = true;
             lblScanPrompt.Name = "lblScanPrompt";

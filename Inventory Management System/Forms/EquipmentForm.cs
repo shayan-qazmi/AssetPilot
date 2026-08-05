@@ -32,6 +32,8 @@ namespace Inventory_Management_System.Forms
         // ── Category filter dropdown ───────────────────────────────────────
         private ComboBox cmbCategory = null!;
         private string _activeCategory = ""; // empty = All
+        private string? _pendingSelectCode;
+        private bool _hasPendingSelection = false;
 
         public EquipmentForm()
         {
@@ -49,8 +51,11 @@ namespace Inventory_Management_System.Forms
             // reliably wins instead of racing it.
             this.Shown += (s, e) =>
             {
-                dgvEquipment.ClearSelection();
-                dgvEquipment.CurrentCell = null;
+                if (!_hasPendingSelection)
+                {
+                    dgvEquipment.ClearSelection();
+                    dgvEquipment.CurrentCell = null;
+                }
             };
         }
 
@@ -69,6 +74,12 @@ namespace Inventory_Management_System.Forms
             }
         }
 
+        public EquipmentForm(string equipmentCode) : this()
+        {
+            _hasPendingSelection = true;
+            _pendingSelectCode = equipmentCode;
+            _suggest?.SetTextWithoutSuggesting(equipmentCode);
+        }
 
         // ── Toolbar layout ─────────────────────────────────────────────────
         // Restores the original designer dimensions for the buttons so text is
@@ -442,19 +453,20 @@ namespace Inventory_Management_System.Forms
                 };
 
                 int rowIdx = dgvEquipment.Rows.Add(
-                    item.EquipmentCode,
-                    item.QrCode,
-                    procType,
-                    item.Name,
-                    item.Make,
-                    item.Model,
-                    item.SerialNumber,
-                    item.Category ?? "",
-                    formattedStatus,
-                    item.ConditionGrade ?? "",
-                    locationName,
-                    item.PurchaseDate?.ToString("yyyy-MM-dd") ?? ""
-                );
+      item.EquipmentCode,
+      item.QrCode,
+      procType,
+      item.Name,
+      item.Make,
+      item.Model,
+      item.SerialNumber,
+      item.Category ?? "",
+      formattedStatus,
+      item.ConditionGrade ?? "",
+      locationName,
+      item.PurchaseDate?.ToString("yyyy-MM-dd") ?? "",
+      item.Price.HasValue ? item.Price.Value.ToString("N2") : ""
+  );
 
                 var statusCell = dgvEquipment.Rows[rowIdx].Cells["Status"];
                 switch (item.CurrentStatus)
@@ -485,7 +497,19 @@ namespace Inventory_Management_System.Forms
                 dgvEquipment.MultiSelect = true;
                 dgvEquipment.SelectAll();
             }
-
+            if (!string.IsNullOrWhiteSpace(_pendingSelectCode))
+            {
+                var match = dgvEquipment.Rows.Cast<DataGridViewRow>()
+                    .FirstOrDefault(r => string.Equals(r.Cells["Code"].Value?.ToString(), _pendingSelectCode, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    dgvEquipment.ClearSelection();
+                    match.Selected = true;
+                    dgvEquipment.CurrentCell = match.Cells[0];
+                    dgvEquipment.FirstDisplayedScrollingRowIndex = match.Index;
+                }
+                _pendingSelectCode = null;
+            }
             lblRowCount.Text = $"Showing {dgvEquipment.Rows.Count} records";
         }
 

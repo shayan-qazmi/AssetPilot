@@ -390,7 +390,7 @@ namespace Inventory_Management_System.Forms
             var card = new Panel
             {
                 Location = new Point(40, nextY),
-                Size = new Size(560, 230),
+                Size = new Size(560, 250),
                 BackColor = Color.White,
                 Padding = new Padding(0)
             };
@@ -419,14 +419,8 @@ namespace Inventory_Management_System.Forms
             };
             card.Controls.Add(lblCo);
 
-            txtCompany = new TextBox
-            {
-                Location = new Point(24, 80),
-                Size = new Size(490, 28)
-            };
-            ThemeHelper.StyleTextBox(txtCompany);
+            txtCompany = MakeTextBox(card, 24, 80, 490);
             txtCompany.TextChanged += (s, e) => UpdateSaveButtonState();
-            card.Controls.Add(txtCompany);
 
             var lblHint = new Label
             {
@@ -434,7 +428,7 @@ namespace Inventory_Management_System.Forms
                 Font = new Font("Segoe UI", 9f),
                 ForeColor = SubtitleColor,
                 AutoSize = true,
-                Location = new Point(24, 112),
+                Location = new Point(24, 128),
                 BackColor = Color.Transparent
             };
             card.Controls.Add(lblHint);
@@ -442,7 +436,7 @@ namespace Inventory_Management_System.Forms
             btnSave = new Button
             {
                 Text = "💾  Save changes",
-                Location = new Point(24, 148),
+                Location = new Point(24, 164),
                 Size = new Size(160, 38)
             };
             StyleGreenBtn(btnSave);
@@ -452,7 +446,7 @@ namespace Inventory_Management_System.Forms
             btnReset = new Button
             {
                 Text = "↺  Reset",
-                Location = new Point(196, 148),
+                Location = new Point(196, 164),
                 Size = new Size(120, 38)
             };
             StyleGrayBtn(btnReset);
@@ -465,7 +459,7 @@ namespace Inventory_Management_System.Forms
                 Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.Success,
                 AutoSize = true,
-                Location = new Point(330, 158),
+                Location = new Point(330, 174),
                 BackColor = Color.Transparent,
                 Visible = false
             };
@@ -474,7 +468,7 @@ namespace Inventory_Management_System.Forms
             // ═══ Card 2: System ═══
             var sysCard = new Panel
             {
-                Location = new Point(40, 344 + headerDelta),
+                Location = new Point(40, 364 + headerDelta),
                 Size = new Size(560, 208),
                 BackColor = Color.White
             };
@@ -539,7 +533,7 @@ namespace Inventory_Management_System.Forms
             // ═══ Card 3: Danger zone ═══
             var dangerCard = new Panel
             {
-                Location = new Point(40, 568 + headerDelta),
+                Location = new Point(40, 588 + headerDelta),
                 Size = new Size(560, 156),
                 BackColor = Color.FromArgb(255, 248, 248)
             };
@@ -1338,8 +1332,33 @@ namespace Inventory_Management_System.Forms
         // ══════════════════════════════════════════════════════════════
         //  CHANGE PASSWORD PANEL
         // ══════════════════════════════════════════════════════════════
+        // ── Placeholder tracking for password fields (Tag holds placeholder text) ──
+        private static bool IsShowingPlaceholder(TextBox txt) =>
+            txt.Tag is string ph && txt.Text == ph;
+
+        private static GraphicsPath RoundedRectPath(RectangleF r, float radius)
+        {
+            var path = new GraphicsPath();
+            float d = radius * 2f;
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
         private Panel BuildPasswordPanel()
         {
+            // ── Light-theme palette (white card, dark text) ──
+            Color cardBg = Color.White;
+            Color inputBg = Color.White;
+            Color inputBorder = Color.FromArgb(209, 213, 219);
+            Color textWhite = Color.FromArgb(17, 24, 39);    // now dark text, name kept for minimal diff
+            Color textMuted = Color.FromArgb(107, 114, 128);
+            Color placeholder = Color.FromArgb(156, 163, 175);
+            Color accentGreen = Color.FromArgb(0x52, 0xA2, 0x3F);
+
             var outer = new Panel
             {
                 BackColor = PageBackground,
@@ -1353,99 +1372,270 @@ namespace Inventory_Management_System.Forms
             var container = new Panel
             {
                 Location = new Point(40, nextY),
-                Size = new Size(1000, 420),
+                Size = new Size(1000, 460),
                 BackColor = Color.Transparent
             };
             outer.Controls.Add(container);
 
-            // ── Left Side: Form Card ──
+            // ══════════════════════════════════════════════════════════════
+            //  LEFT SIDE — dark "Change Password" card
+            // ══════════════════════════════════════════════════════════════
             var formCard = new Panel
             {
                 Location = new Point(0, 0),
-                Size = new Size(560, 400),
-                BackColor = Color.White
+                Size = new Size(560, 440),
+                BackColor = cardBg
             };
-            ApplyCardStyle(container, formCard);
             container.Controls.Add(formCard);
 
-            int y = 30;
-
-            formCard.Controls.Add(MakeLabel("Current Password", 30, y));
-            y += 26;
-            txtCurrentPwd = MakeTextBox(formCard, 30, y, 500);
-            txtCurrentPwd.UseSystemPasswordChar = true;
-            y += 54;
-
-            formCard.Controls.Add(MakeLabel("New Password", 30, y));
-            y += 26;
-            txtNewPwd = MakeTextBox(formCard, 30, y, 500);
-            txtNewPwd.UseSystemPasswordChar = true;
-            txtNewPwd.TextChanged += (s, e) => UpdatePasswordStrength();
-            y += 34;
-
-            _pwdStrengthBar = new Panel
+            void RoundCard(object? s, EventArgs e)
             {
-                Location = new Point(30, y),
-                Size = new Size(0, 5),
-                BackColor = Color.FromArgb(229, 231, 235)
+                if (formCard.Width <= 0 || formCard.Height <= 0) return;
+                using var path = RoundedRectPath(new RectangleF(0, 0, formCard.Width, formCard.Height), 16f);
+                formCard.Region = new Region(path);
+            }
+            formCard.Resize += RoundCard;
+            RoundCard(null, EventArgs.Empty);
+
+            formCard.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using var path = RoundedRectPath(new RectangleF(0.5f, 0.5f, formCard.Width - 1, formCard.Height - 1), 16f);
+                using var pen = new Pen(ThemeHelper.CardBorder, 1f); e.Graphics.DrawPath(pen, path);
             };
+
+            int cardPadX = 28;
+            int cy = 24;
+
+            // Title row — lock icon + "Change Password"
+            var lblIcon = new Label
+            {
+                Text = "🔒",
+                Font = new Font("Segoe UI Emoji", 12f),
+                ForeColor = textWhite,
+                AutoSize = true,
+                Location = new Point(cardPadX, cy),
+                BackColor = Color.Transparent
+            };
+            formCard.Controls.Add(lblIcon);
+
+            var lblCardTitle = new Label
+            {
+                Text = "Change Password",
+                Font = new Font("Segoe UI Semibold", 12.5f),
+                ForeColor = textWhite,
+                AutoSize = true,
+                Location = new Point(cardPadX + 30, cy + 1),
+                BackColor = Color.Transparent
+            };
+            formCard.Controls.Add(lblCardTitle);
+            cy += 30;
+
+            var lblCardSubtitle = new Label
+            {
+                Text = "Update your account password securely.",
+                Font = ThemeHelper.FontSmall,
+                ForeColor = textMuted,
+                AutoSize = true,
+                Location = new Point(cardPadX, cy),
+                BackColor = Color.Transparent
+            };
+            formCard.Controls.Add(lblCardSubtitle);
+            cy += 34;
+
+            int fieldWidth = formCard.Width - cardPadX * 2;
+
+            // Local function: builds one dark, rounded, placeholder-driven
+            // password field with an eye-toggle icon on the right.
+            TextBox BuildPwdField(string labelText, string placeholderText, ref int yPos)
+            {
+                var lbl = new Label
+                {
+                    Text = labelText,
+                    Font = ThemeHelper.FontBold,
+                    ForeColor = textWhite,
+                    AutoSize = true,
+                    Location = new Point(cardPadX, yPos),
+                    BackColor = Color.Transparent
+                };
+                formCard.Controls.Add(lbl);
+                yPos += 22;
+
+                var inputPanel = new Panel
+                {
+                    Location = new Point(cardPadX, yPos),
+                    Size = new Size(fieldWidth, 40),
+                    BackColor = inputBg
+                };
+                formCard.Controls.Add(inputPanel);
+
+                void RoundInput(object? s, EventArgs e)
+                {
+                    if (inputPanel.Width <= 0 || inputPanel.Height <= 0) return;
+                    using var path = RoundedRectPath(new RectangleF(0, 0, inputPanel.Width, inputPanel.Height), 8f);
+                    inputPanel.Region = new Region(path);
+                }
+                inputPanel.Resize += RoundInput;
+                RoundInput(null, EventArgs.Empty);
+
+                inputPanel.Paint += (s, e) =>
+                {
+                    e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                    using var path = RoundedRectPath(new RectangleF(0.5f, 0.5f, inputPanel.Width - 1, inputPanel.Height - 1), 8f);
+                    using var pen = new Pen(inputBorder, 1f);
+                    e.Graphics.DrawPath(pen, path);
+                };
+
+                var eyeIcon = new Label
+                {
+                    Text = "👁",
+                    Font = new Font("Segoe UI Emoji", 9.5f),
+                    ForeColor = textMuted,
+                    AutoSize = false,
+                    Size = new Size(28, 40),
+                    Location = new Point(inputPanel.Width - 34, 0),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    BackColor = Color.Transparent,
+                    Cursor = Cursors.Hand,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right
+                };
+                inputPanel.Controls.Add(eyeIcon);
+
+                var txt = new TextBox
+                {
+                    Text = placeholderText,
+                    Tag = placeholderText,
+                    Font = ThemeHelper.FontDefault,
+                    ForeColor = placeholder,
+                    BackColor = inputBg,
+                    BorderStyle = BorderStyle.None,
+                    Location = new Point(14, 11),
+                    Size = new Size(inputPanel.Width - 54, 20),
+                    UseSystemPasswordChar = false,
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                };
+                inputPanel.Controls.Add(txt);
+                eyeIcon.BringToFront();
+
+                txt.Enter += (s, e) =>
+                {
+                    if (IsShowingPlaceholder(txt))
+                    {
+                        txt.Text = "";
+                        txt.ForeColor = textWhite;
+                        txt.UseSystemPasswordChar = true;
+                    }
+                };
+                txt.Leave += (s, e) =>
+                {
+                    if (string.IsNullOrEmpty(txt.Text))
+                    {
+                        txt.UseSystemPasswordChar = false;
+                        txt.ForeColor = placeholder;
+                        txt.Text = placeholderText;
+                    }
+                };
+                eyeIcon.Click += (s, e) =>
+                {
+                    if (IsShowingPlaceholder(txt)) return; // nothing real to reveal yet
+                    txt.UseSystemPasswordChar = !txt.UseSystemPasswordChar;
+                    eyeIcon.ForeColor = txt.UseSystemPasswordChar ? textMuted : accentGreen;
+                };
+
+                yPos += 54;
+                return txt;
+            }
+
+            txtCurrentPwd = BuildPwdField("Current Password", "Enter current password", ref cy);
+
+            txtNewPwd = BuildPwdField("New Password", "Enter new password", ref cy);
+            txtNewPwd.TextChanged += (s, e) =>
+            {
+                if (!IsShowingPlaceholder(txtNewPwd)) UpdatePasswordStrength();
+            };
+
+            // Strength bar sits just under the New Password field
+            cy -= 30;
             _pwdStrengthTrack = new Panel
             {
-                Location = new Point(30, y),
-                Size = new Size(320, 5),
+                Location = new Point(cardPadX, cy),
+                Size = new Size(fieldWidth - 90, 5),
                 BackColor = Color.FromArgb(229, 231, 235),
                 Visible = false
+            };
+            _pwdStrengthBar = new Panel
+            {
+                Location = new Point(0, 0),
+                Size = new Size(0, 5),
+                BackColor = Color.FromArgb(55, 61, 78)
             };
             _pwdStrengthTrack.Controls.Add(_pwdStrengthBar);
             formCard.Controls.Add(_pwdStrengthTrack);
 
             _lblPwdStrengthText = new Label
             {
-                Location = new Point(360, y - 8),
+                Location = new Point(cardPadX + fieldWidth - 84, cy - 8),
                 AutoSize = true,
                 Font = new Font("Segoe UI", 8f),
-                ForeColor = SubtitleColor,
+                ForeColor = textMuted,
                 BackColor = Color.Transparent,
                 Text = ""
             };
             formCard.Controls.Add(_lblPwdStrengthText);
-            y += 26;
+            cy += 30;
 
-            formCard.Controls.Add(MakeLabel("Confirm New Password", 30, y));
-            y += 26;
-            txtConfirmPwd = MakeTextBox(formCard, 30, y, 500);
-            txtConfirmPwd.UseSystemPasswordChar = true;
-            y += 54;
+            txtConfirmPwd = BuildPwdField("Confirm New Password", "Confirm new password", ref cy);
 
             lblPwdStatus = new Label
             {
-                Location = new Point(30, y),
+                Location = new Point(cardPadX, cy),
                 AutoSize = false,
-                Size = new Size(500, 22),
+                Size = new Size(fieldWidth, 22),
                 Font = ThemeHelper.FontSmall,
                 ForeColor = ThemeHelper.Danger,
                 BackColor = Color.Transparent,
                 Text = ""
             };
             formCard.Controls.Add(lblPwdStatus);
-            y += 30;
+            cy += 26;
 
+            // ── Rounded green "Update Password" button ──
             var btnChange = new Button
             {
-                Text = "Update Password",
-                Location = new Point(30, y),
-                Size = new Size(180, 42)
+                Text = "🔄  Update Password",
+                Location = new Point(cardPadX, cy),
+                Size = new Size(fieldWidth, 44),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = accentGreen,
+                ForeColor = Color.White,
+                Font = ThemeHelper.FontBold,
+                Cursor = Cursors.Hand,
+                UseVisualStyleBackColor = false
             };
-            StyleGreenBtn(btnChange);
+            btnChange.FlatAppearance.BorderSize = 0;
+            btnChange.FlatAppearance.MouseOverBackColor = ControlPaint.Light(accentGreen, 0.1f);
+            btnChange.FlatAppearance.MouseDownBackColor = ControlPaint.Dark(accentGreen, 0.1f);
+
+            void RoundButton(object? s, EventArgs e)
+            {
+                if (btnChange.Width <= 0 || btnChange.Height <= 0) return;
+                using var path = RoundedRectPath(new RectangleF(0, 0, btnChange.Width, btnChange.Height), 10f);
+                btnChange.Region = new Region(path);
+            }
+            btnChange.Resize += RoundButton;
+            RoundButton(null, EventArgs.Empty);
+
             btnChange.Click += BtnChangePwd_Click;
             formCard.Controls.Add(btnChange);
 
-            // ── Right Side: Security Tips Card ──
+            // ══════════════════════════════════════════════════════════════
+            //  RIGHT SIDE — Security Tips (unchanged, light card)
+            // ══════════════════════════════════════════════════════════════
             var tipsCard = new Panel
             {
                 Location = new Point(590, 0),
                 Size = new Size(350, 240),
-                BackColor = Color.FromArgb(240, 253, 244) // Light green bg
+                BackColor = Color.FromArgb(240, 253, 244)
             };
             ApplyCardStyle(container, tipsCard, borderColor: Color.FromArgb(187, 247, 208));
             container.Controls.Add(tipsCard);
@@ -1462,16 +1652,16 @@ namespace Inventory_Management_System.Forms
             tipsCard.Controls.Add(lblTipsTitle);
 
             string[] tips = {
-                "Minimum 8 characters long",
-                "Include numbers and symbols",
-                "Use uppercase letters",
-                "Don't reuse old passwords"
-            };
+            "Minimum 8 characters long",
+            "Include numbers and symbols",
+            "Use uppercase letters",
+            "Don't reuse old passwords"
+        };
 
             int ty = 60;
             foreach (var tip in tips)
             {
-                var lblIcon = new Label
+                var tipIcon = new Label
                 {
                     Text = "✓",
                     Font = ThemeHelper.FontBold,
@@ -1480,7 +1670,7 @@ namespace Inventory_Management_System.Forms
                     Location = new Point(24, ty),
                     BackColor = Color.Transparent
                 };
-                tipsCard.Controls.Add(lblIcon);
+                tipsCard.Controls.Add(tipIcon);
 
                 var lblTip = new Label
                 {
@@ -1607,7 +1797,7 @@ namespace Inventory_Management_System.Forms
             var card = new Panel
             {
                 Location = new Point(40, nextY),
-                Size = new Size(560, 310),
+                Size = new Size(560, 334),
                 BackColor = Color.White
             };
             ApplyCardStyle(outer, card);
@@ -1628,9 +1818,8 @@ namespace Inventory_Management_System.Forms
 
             card.Controls.Add(MakeLabel("Printer Name", 24, y));
             y += 26;
-            txtPrinterName = MakeTextBox(card, 24, y, 490);
-            txtPrinterName.PlaceholderText = "Leave blank to use default printer";
-            y += 42;
+            txtPrinterName = MakeTextBox(card, 24, y, 490, "Leave blank to use default printer");
+            y += 54;
 
             var labelSizeTitle = new Label
             {
@@ -1648,16 +1837,12 @@ namespace Inventory_Management_System.Forms
             card.Controls.Add(MakeLabel("Height (mm)", 260, y));
             y += 26;
 
-            txtLabelWidth = new TextBox { Location = new Point(24, y), Size = new Size(200, 28) };
-            ThemeHelper.StyleTextBox(txtLabelWidth);
+            txtLabelWidth = MakeTextBox(card, 24, y, 200);
             txtLabelWidth.Text = "62";
-            card.Controls.Add(txtLabelWidth);
 
-            txtLabelHeight = new TextBox { Location = new Point(260, y), Size = new Size(200, 28) };
-            ThemeHelper.StyleTextBox(txtLabelHeight);
+            txtLabelHeight = MakeTextBox(card, 260, y, 200);
             txtLabelHeight.Text = "29";
-            card.Controls.Add(txtLabelHeight);
-            y += 54;
+            y += 66;
 
             var actionsDivider = new Panel
             {
@@ -1708,7 +1893,7 @@ namespace Inventory_Management_System.Forms
             var card = new Panel
             {
                 Location = new Point(40, nextY),
-                Size = new Size(560, 430),
+                Size = new Size(560, 450),
                 BackColor = Color.White
             };
             ApplyCardStyle(outer, card);
@@ -1716,8 +1901,7 @@ namespace Inventory_Management_System.Forms
 
             card.Controls.Add(MakeLabel("New Category Name", 24, 22));
 
-            txtNewCategory = new TextBox { Location = new Point(24, 48), Size = new Size(360, 28) };
-            ThemeHelper.StyleTextBox(txtNewCategory);
+            txtNewCategory = MakeTextBox(card, 24, 48, 360);
             txtNewCategory.KeyDown += (s, e) =>
             {
                 if (e.KeyCode == Keys.Enter)
@@ -1726,13 +1910,12 @@ namespace Inventory_Management_System.Forms
                     BtnAddCategory_Click(s, EventArgs.Empty);
                 }
             };
-            card.Controls.Add(txtNewCategory);
 
             var btnAdd = new Button
             {
                 Text = "➕  Add",
-                Location = new Point(394, 47),
-                Size = new Size(120, 30)
+                Location = new Point(394, 48),
+                Size = new Size(120, 40)
             };
             StyleGreenBtn(btnAdd);
             btnAdd.Click += BtnAddCategory_Click;
@@ -1740,7 +1923,7 @@ namespace Inventory_Management_System.Forms
 
             lblCategoryMsg = new Label
             {
-                Location = new Point(24, 84),
+                Location = new Point(24, 98),
                 AutoSize = false,
                 Size = new Size(490, 20),
                 Font = ThemeHelper.FontSmall,
@@ -1750,11 +1933,11 @@ namespace Inventory_Management_System.Forms
             };
             card.Controls.Add(lblCategoryMsg);
 
-            card.Controls.Add(MakeLabel("Existing Categories", 24, 116));
+            card.Controls.Add(MakeLabel("Existing Categories", 24, 130));
 
             lstCategories = new ListBox
             {
-                Location = new Point(24, 144),
+                Location = new Point(24, 158),
                 Size = new Size(490, 210),
                 Font = ThemeHelper.FontDefault,
                 BorderStyle = BorderStyle.FixedSingle,
@@ -1768,7 +1951,7 @@ namespace Inventory_Management_System.Forms
             var btnDelete = new Button
             {
                 Text = "🗑  Delete Selected",
-                Location = new Point(24, 368),
+                Location = new Point(24, 382),
                 Size = new Size(170, 36)
             };
             StyleGrayBtn(btnDelete);
@@ -2117,11 +2300,55 @@ namespace Inventory_Management_System.Forms
             BackColor = Color.Transparent
         };
 
-        private static TextBox MakeTextBox(Panel parent, int x, int y, int width)
+        private static TextBox MakeTextBox(Panel parent, int x, int y, int width, string placeholder = "")
         {
-            var txt = new TextBox { Location = new Point(x, y), Size = new Size(width, 28) };
-            ThemeHelper.StyleTextBox(txt);
-            parent.Controls.Add(txt);
+            Color inputBorder = Color.FromArgb(209, 213, 219);
+            Color focusBorder = Color.FromArgb(0x52, 0xA2, 0x3F);
+            Color currentBorder = inputBorder;
+
+            var inputPanel = new Panel
+            {
+                Location = new Point(x, y),
+                Size = new Size(width, 40),
+                BackColor = Color.White
+            };
+            parent.Controls.Add(inputPanel);
+
+            void RoundInput(object? s, EventArgs e)
+            {
+                if (inputPanel.Width <= 0 || inputPanel.Height <= 0) return;
+                using var path = RoundedRectPath(new RectangleF(0, 0, inputPanel.Width, inputPanel.Height), 8f);
+                inputPanel.Region = new Region(path);
+            }
+            inputPanel.Resize += RoundInput;
+            RoundInput(null, EventArgs.Empty);
+
+            inputPanel.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using var path = RoundedRectPath(new RectangleF(0.5f, 0.5f, inputPanel.Width - 1, inputPanel.Height - 1), 8f);
+                using var pen = new Pen(currentBorder, 1f);
+                e.Graphics.DrawPath(pen, path);
+            };
+
+            var txt = new TextBox
+            {
+                Font = ThemeHelper.FontDefault,
+                ForeColor = ThemeHelper.TextPrimary,
+                BackColor = Color.White,
+                BorderStyle = BorderStyle.None,
+                Location = new Point(14, 11),
+                Size = new Size(inputPanel.Width - 28, 20),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            };
+            if (!string.IsNullOrEmpty(placeholder))
+                txt.PlaceholderText = placeholder;
+            inputPanel.Controls.Add(txt);
+
+            // Green focus ring — same accent as the Change Password fields
+            txt.Enter += (s, e) => { currentBorder = focusBorder; inputPanel.Invalidate(); };
+            txt.Leave += (s, e) => { currentBorder = inputBorder; inputPanel.Invalidate(); };
+
             return txt;
         }
 

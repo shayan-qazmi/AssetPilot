@@ -9,11 +9,12 @@ using System.Windows.Forms;
 namespace Inventory_Management_System.Helpers
 {
     /// <summary>
-    /// Attaches a live fuzzy-suggestion dropdown to a TextBox.
-    /// As the user types, the closest matching equipment records (by code or name)
-    /// appear in a floating ListBox below the TextBox. Selecting a suggestion
-    /// invokes <paramref name="onSelected"/> with the chosen equipment record.
+    /// Sets the textbox's text without triggering the suggestion dropdown.
+    /// Use this when programmatically populating the search box (e.g. jumping
+    /// to a specific record from an external search), where showing the
+    /// fuzzy-suggestion popup would be unwanted UI noise.
     /// </summary>
+  
     public sealed class EquipmentSuggestHelper : IDisposable
     {
         // ── Configuration ──────────────────────────────────────────────────
@@ -74,6 +75,15 @@ namespace Inventory_Management_System.Helpers
         /// Call this once (e.g. in Form.Load) to provide the full equipment list
         /// that the dropdown will search against.
         /// </summary>
+        /// 
+        public void SetTextWithoutSuggesting(string text)
+        {
+            _suppressTextChanged = true;
+            _textBox.Text = text;
+            _textBox.SelectionStart = _textBox.Text.Length;
+            _suppressTextChanged = false;
+            HideDropdown();
+        }
         public void LoadEquipment(List<Equipment> equipment)
         {
             _allEquipment = equipment ?? new List<Equipment>();

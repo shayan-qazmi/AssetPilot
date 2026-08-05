@@ -78,7 +78,7 @@ namespace Inventory_Management_System.Helpers
         /// employee codes, QR codes, etc.) where a small edit-distance does NOT
         /// imply relevance — "EQ008" and "EQ001" differ by one character but are
         /// completely different records. This skips the Levenshtein fallback
-        /// entirely and only rewards exact, prefix, or substring matches.
+        /// and only rewards exact, prefix, substring, or normalized matches.
         /// </summary>
         public static int FuzzyScoreCode(string? source, string query)
         {
@@ -91,6 +91,18 @@ namespace Inventory_Management_System.Helpers
             if (srcLower == qryLower) return 10000;
             if (srcLower.StartsWith(qryLower)) return 9000 - (srcLower.Length - qryLower.Length);
             if (srcLower.Contains(qryLower)) return 8000 - (srcLower.Length - qryLower.Length);
+
+            // Fallback: strip everything except letters/digits and compare again.
+            // Catches format differences like "EQ-003" vs "eq003" vs "EQ 003".
+            string srcNorm = new string(srcLower.Where(char.IsLetterOrDigit).ToArray());
+            string qryNorm = new string(qryLower.Where(char.IsLetterOrDigit).ToArray());
+
+            if (srcNorm.Length > 0 && qryNorm.Length > 0)
+            {
+                if (srcNorm == qryNorm) return 9500;
+                if (srcNorm.StartsWith(qryNorm)) return 8500 - (srcNorm.Length - qryNorm.Length);
+                if (srcNorm.Contains(qryNorm)) return 7500 - (srcNorm.Length - qryNorm.Length);
+            }
 
             return -10000;
         }

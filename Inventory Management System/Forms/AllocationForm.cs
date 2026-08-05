@@ -249,8 +249,8 @@ namespace Inventory_Management_System.Forms
 
             var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
             flow.Controls.Add(cmbSelectMode);
-            // Insert right after the (hidden) btnSelectAll placeholder
-            flow.Controls.SetChildIndex(cmbSelectMode, flow.Controls.IndexOf(btnSelectAll) + 1);
+            // Insert right after the btnExport button
+            flow.Controls.SetChildIndex(cmbSelectMode, flow.Controls.IndexOf(btnExport) + 1);
 
             // Dynamically append Checkbox Column for manual selection (visibly hidden by default)
             if (!dgvAllocation.Columns.Contains("ColSelect"))
@@ -381,7 +381,6 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnApprove, Color.FromArgb(25, 118, 210));
             ThemeHelper.StyleButton(btnReturn, Color.FromArgb(245, 124, 0));
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
-            ThemeHelper.StyleSecondaryButton(btnSelectAll);
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleDangerButton(btnDelete);
             ThemeHelper.StyleTextBox(txtSearch);
@@ -446,9 +445,16 @@ namespace Inventory_Management_System.Forms
             _lastRenderedRows = new List<AllocationRow> { item };
 
             int rowIdx = dgvAllocation.Rows.Add(
-                       item.Id, item.QrCode, item.EquipmentCode, item.EquipmentName,
-                       item.SerialNumber, item.Make, item.Model, item.Employee, item.Location,
-                       item.DateAllocated, item.ExpectedReturn, item.Status, item.Source, item.AllocatedBy);
+                       item.Id,
+                       item.EquipmentCode,
+                       item.EquipmentName,
+                       item.Employee == "—" ? "" : item.Employee,
+                       item.Location == "—" ? "" : item.Location,
+                       item.DateAllocated,
+                       item.ExpectedReturn,
+                       item.Status,
+                       item.Source
+                    );
 
             var statusCell = dgvAllocation.Rows[rowIdx].Cells["Status"];
             switch (item.Status)
@@ -673,19 +679,14 @@ namespace Inventory_Management_System.Forms
             {
                 int rowIdx = dgvAllocation.Rows.Add(
                        item.Id,
-                       item.QrCode,
                        item.EquipmentCode,
                        item.EquipmentName,
-                       item.SerialNumber,
-                       item.Make,
-                       item.Model,
-                       item.Employee,
-                       item.Location,
+                       item.Employee == "—" ? "" : item.Employee,
+                       item.Location == "—" ? "" : item.Location,
                        item.DateAllocated,
                        item.ExpectedReturn,
                        item.Status,
-                       item.Source,
-                       item.AllocatedBy
+                       item.Source
                    );
 
                 var statusCell = dgvAllocation.Rows[rowIdx].Cells["Status"];
@@ -1108,8 +1109,7 @@ namespace Inventory_Management_System.Forms
             LoadAllocations();
         }
 
-        private void btnSelectAll_Click(object sender, EventArgs e)
-            => dgvAllocation.SelectAll();
+  
 
         private void txtSearch_TextChanged(object sender, EventArgs e)
         {

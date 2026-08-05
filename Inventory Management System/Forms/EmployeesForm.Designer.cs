@@ -25,6 +25,7 @@ namespace Inventory_Management_System.Forms
             btnDelete          = new System.Windows.Forms.Button();
             btnRefresh         = new System.Windows.Forms.Button();
             btnExport          = new System.Windows.Forms.Button();
+            btnImport = new System.Windows.Forms.Button();
             txtSearch          = new System.Windows.Forms.TextBox();
             lblPageSize        = new System.Windows.Forms.Label();
             cmbPageSize        = new System.Windows.Forms.ComboBox();
@@ -33,6 +34,7 @@ namespace Inventory_Management_System.Forms
             lblPageIndicator   = new System.Windows.Forms.Label();
             lblRowCount        = new System.Windows.Forms.Label();
             dgvEmployees       = new System.Windows.Forms.DataGridView();
+
 
             panelTop.SuspendLayout();
             flowToolbar.SuspendLayout();
@@ -60,6 +62,7 @@ namespace Inventory_Management_System.Forms
             flowToolbar.Controls.Add(btnDelete);
             flowToolbar.Controls.Add(btnRefresh);
             flowToolbar.Controls.Add(btnExport);
+            flowToolbar.Controls.Add(btnImport);
             flowToolbar.Controls.Add(txtSearch);
 
             btnAdd.Size   = new System.Drawing.Size(90, 32);
@@ -91,6 +94,17 @@ namespace Inventory_Management_System.Forms
             btnExport.Name   = "btnExport";
             btnExport.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnExport.Click += btnExport_Click;
+
+     
+
+            // Button property setups (Place next to btnExport setup)
+            btnImport.Size = new System.Drawing.Size(90, 32);
+            btnImport.Text = "📤 Import";
+            btnImport.Name = "btnImport";
+            btnImport.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnImport.Click += btnImport_Click;
+
+         
 
             txtSearch.Size            = new System.Drawing.Size(200, 27);
             txtSearch.Name            = "txtSearch";
@@ -208,5 +222,6 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Label         lblPageIndicator;
         private System.Windows.Forms.Label         lblRowCount;
         private System.Windows.Forms.DataGridView  dgvEmployees;
+        private System.Windows.Forms.Button btnImport;
     }
 }
