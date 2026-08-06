@@ -193,6 +193,18 @@ Dropdown lists both categories with quick links to the relevant equipment.
 - → "Under Repair": Shows `MaintenanceRecordDialog`. On OK: inserts `MaintenanceRecord { Status = "open", StartDate = UtcNow }` into `maintenance_records`.
 - Away from "Under Repair" (when DB was `under_repair`): finds open `MaintenanceRecord`, sets `Status = "completed"`, `EndDate = UtcNow`, saves.
 
+
+### 4.3 Maintenance Service
+
+**Source:** `Services/MaintenanceService.cs`
+
+- `GetByEquipmentId(int equipmentId)`: Returns a list of maintenance records for the given equipment, ordered by newest first.
+- `OpenRecord(int equipmentId, string issueDescription, string? servicedBy, decimal? cost)`: Validates the description, creates a new `MaintenanceRecord` with status `open`, sets `ReportedDate` to today, and saves it.
+- `ResolveRecord(int recordId, DateOnly resolvedDate, decimal? finalCost)`: Marks the record as `resolved`, sets `ResolvedDate` and optionally updates the cost.
+- `GetOpenRecordForEquipment(int equipmentId)`: Retrieves the most recent record with status `open` or `in_progress` for the equipment.
+
+These methods are consumed by the **Maintenance Record Dialog** shown when the equipment status changes to **Under Repair** or when exiting that status.
+
 **Save path:**
 - Add: `db.Equipment.Add(equipment)` + `db.SaveChanges()`, then `AuditService.Log(id, "equipment_created", null, code)` → `equipment_logs`.
 - Edit: loads entity, updates all fields, `db.SaveChanges()`, then `AuditService.Log(id, "equipment_updated", oldValue, newValue)` → `equipment_logs`.
