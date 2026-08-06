@@ -88,5 +88,29 @@ namespace Inventory_Management_System.Helpers
                 return null;
             }
         }
+
+        /// Attempts to load an employee's picture from the shared network folder.
+        /// Never throws — returns null (caller falls back to the default
+        /// placeholder silhouette) if the share is unreachable or the file
+        /// is missing.
+        public static Image? TryLoadEmployeeImage(string? storedPicturePath)
+        {
+            if (string.IsNullOrWhiteSpace(storedPicturePath)) return null;
+
+            try
+            {
+                NetworkShareHelper.EnsureConnected();
+                string fullPath = NetworkPaths.GetEmployeePictureFullPath(storedPicturePath);
+                if (!File.Exists(fullPath)) return null;
+
+                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
+                return Image.FromStream(stream);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "AvatarHelper.TryLoadEmployeeImage");
+                return null;
+            }
+        }
     }
 }

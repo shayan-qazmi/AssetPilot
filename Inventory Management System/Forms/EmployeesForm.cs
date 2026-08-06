@@ -19,12 +19,16 @@ namespace Inventory_Management_System.Forms
         private int _pageSize = 25;
         private int _totalPages = 1;
 
+        private string? _pendingSelectCode;
+        private bool _hasPendingSelection = false;
+
         public EmployeesForm()
         {
             InitializeComponent();
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             _employeeService = new EmployeeService();
             ApplyTheme();
+            dgvEmployees.CellDoubleClick += DgvEmployees_CellDoubleClick;
             LoadEmployees();
 
             this.Shown += (s, e) =>
@@ -35,11 +39,7 @@ namespace Inventory_Management_System.Forms
                     dgvEmployees.CurrentCell = null;
                 }
             };
-
         }
-
-        private string? _pendingSelectCode;
-        private bool _hasPendingSelection = false;
 
         public EmployeesForm(string employeeCode) : this()
         {
@@ -65,9 +65,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleSecondaryButton(btnNextPage);
         }
 
-        // ── Load — DB-level paging when not searching, in-memory paging
-        //    over the fuzzy-matched set when searching (fuzzy match can't
-        //    run as SQL, so it needs the full set loaded first). ──────────
+        // ── Load — DB-level paging when not searching, in-memory paging over fuzzy matches
         private void LoadEmployees(string searchTerm = "")
         {
             try
@@ -79,7 +77,7 @@ namespace Inventory_Management_System.Forms
                     var result = _employeeService.GetPage(_currentPage, _pageSize);
                     if (!result.Success)
                     {
-                       ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
+                        ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                         return;
                     }
 
@@ -94,15 +92,12 @@ namespace Inventory_Management_System.Forms
                     var result = _employeeService.GetAll();
                     if (!result.Success)
                     {
-                       ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
-
+                        ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                         return;
                     }
 
                     var allEmployees = result.Data ?? new List<Employee>();
 
-                    // Scanned/typed codes need an exact substring match — fuzzy matching
-                    // lets "EMP004" incorrectly match EMP001, EMP002, etc.
                     var codeMatches = allEmployees.Where(e =>
                         (!string.IsNullOrEmpty(e.EmployeeCode) && e.EmployeeCode.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)))
                         .ToList();
@@ -130,6 +125,8 @@ namespace Inventory_Management_System.Forms
                         .Take(_pageSize)
                         .ToList();
 
+                    BindEmployeeRows(pageItems);
+
                     if (!string.IsNullOrWhiteSpace(_pendingSelectCode))
                     {
                         var match = dgvEmployees.Rows.Cast<DataGridViewRow>()
@@ -144,7 +141,6 @@ namespace Inventory_Management_System.Forms
                         _pendingSelectCode = null;
                     }
 
-                    BindEmployeeRows(pageItems);
                     lblRowCount.Text = $"Showing {pageItems.Count} of {fullMatches.Count} records";
                 }
 
@@ -157,7 +153,6 @@ namespace Inventory_Management_System.Forms
             catch (Exception ex)
             {
                 ToastHelper.Show(this, "Error loading employees.\n\n" + ex.Message, ToastType.Error);
-
             }
         }
 
@@ -174,10 +169,27 @@ namespace Inventory_Management_System.Forms
                     item.IsActive ? "Active" : "Inactive"
                 );
 
-                var statusCell = dgvEmployees.Rows[rowIdx].Cells["Status"];
+                var statusCell = dgvEmployees.Rows[rowIdx].Cells[5];
                 statusCell.Style.ForeColor = item.IsActive ? ThemeHelper.Success : ThemeHelper.Danger;
-                statusCell.Style.Font      = ThemeHelper.FontBold;
+                statusCell.Style.Font = ThemeHelper.FontBold;
             }
+        }
+
+        private void DgvEmployees_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+
+            var code = dgvEmployees.Rows[e.RowIndex].Cells[0].Value?.ToString();
+            if (string.IsNullOrEmpty(code)) return;
+
+            var resultAll = _employeeService.GetAll();
+            if (!resultAll.Success || resultAll.Data == null) return;
+
+            var emp = resultAll.Data.Find(x => string.Equals(x.EmployeeCode, code, StringComparison.OrdinalIgnoreCase));
+            if (emp == null) return;
+
+            using var popup = new EmployeeDetailPopup(emp);
+            popup.ShowDialog(this);
         }
 
         private void btnAdd_Click(object sender, EventArgs e)
@@ -192,11 +204,13 @@ namespace Inventory_Management_System.Forms
         private void btnEdit_Click(object sender, EventArgs e)
         {
             if (dgvEmployees.SelectedRows.Count == 0) return;
-            var code = dgvEmployees.SelectedRows[0].Cells[0].Value.ToString();
+            var code = dgvEmployees.SelectedRows[0].Cells[0].Value?.ToString();
+            if (string.IsNullOrEmpty(code)) return;
+
             var resultAll = _employeeService.GetAll();
             if (resultAll.Success && resultAll.Data != null)
             {
-                var emp = resultAll.Data.Find(x => x.EmployeeCode == code);
+                var emp = resultAll.Data.Find(x => string.Equals(x.EmployeeCode, code, StringComparison.OrdinalIgnoreCase));
                 if (emp != null)
                 {
                     using var form = new AddEditEmployeeForm(emp);
@@ -211,11 +225,13 @@ namespace Inventory_Management_System.Forms
         private void btnDelete_Click(object sender, EventArgs e)
         {
             if (dgvEmployees.SelectedRows.Count == 0) return;
-            var code = dgvEmployees.SelectedRows[0].Cells[0].Value.ToString();
+            var code = dgvEmployees.SelectedRows[0].Cells[0].Value?.ToString();
+            if (string.IsNullOrEmpty(code)) return;
+
             var resultAll = _employeeService.GetAll();
             if (resultAll.Success && resultAll.Data != null)
             {
-                var emp = resultAll.Data.Find(x => x.EmployeeCode == code);
+                var emp = resultAll.Data.Find(x => string.Equals(x.EmployeeCode, code, StringComparison.OrdinalIgnoreCase));
                 if (emp != null)
                 {
                     if (MessageBox.Show("Are you sure you want to delete this employee?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
@@ -233,7 +249,6 @@ namespace Inventory_Management_System.Forms
                 }
             }
         }
-
 
         private void btnImport_Click(object sender, EventArgs e)
         {
@@ -256,17 +271,38 @@ namespace Inventory_Management_System.Forms
                     ToastHelper.Show(this, $"Import Warnings:\n{errorMessage}", ToastType.Error);
                 }
 
-                if (items.Count > 0)
+                if (items != null && items.Count > 0)
                 {
                     int importedCount = 0;
+                    var importFailures = new List<string>();
+
                     foreach (var emp in items)
                     {
                         var result = _employeeService.Add(emp);
-                        if (result.Success) importedCount++;
+                        if (result.Success)
+                        {
+                            importedCount++;
+                        }
+                        else if (!string.IsNullOrEmpty(result.ErrorMessage))
+                        {
+                            importFailures.Add($"{emp.FullName}: {result.ErrorMessage}");
+                        }
                     }
 
-                    ToastHelper.Show(this, $"Successfully imported {importedCount} employees.", ToastType.Success);
-                    LoadEmployees(txtSearch.Text.Trim());
+                    if (importFailures.Count > 0)
+                    {
+                        string failMsg = string.Join("\n", importFailures.Take(5));
+                        ToastHelper.Show(this, $"Imported {importedCount} of {items.Count}.\nErrors:\n{failMsg}", ToastType.Error);
+                    }
+                    else
+                    {
+                        ToastHelper.Show(this, $"Successfully imported {importedCount} employees.", ToastType.Success);
+                    }
+
+                    // Reset search filter and pagination to show imported records immediately
+                    txtSearch.Text = string.Empty;
+                    _currentPage = 1;
+                    LoadEmployees();
                 }
                 else if (errors.Count == 0)
                 {
@@ -278,6 +314,7 @@ namespace Inventory_Management_System.Forms
                 ToastHelper.Show(this, $"Import failed: {ex.Message}", ToastType.Error);
             }
         }
+
         private void btnRefresh_Click(object sender, EventArgs e)
         {
             txtSearch.Text = string.Empty;
@@ -325,8 +362,8 @@ namespace Inventory_Management_System.Forms
             {
                 using var sfd = new SaveFileDialog
                 {
-                    Filter   = "CSV Files|*.csv",
-                    Title    = "Export Employees",
+                    Filter = "CSV Files|*.csv",
+                    Title = "Export Employees",
                     FileName = $"Employees_{DateTime.Now:yyyyMMdd_HHmm}.csv"
                 };
 
@@ -337,18 +374,19 @@ namespace Inventory_Management_System.Forms
 
                 foreach (DataGridViewRow row in dgvEmployees.Rows)
                 {
+                    if (row.IsNewRow) continue;
+
                     sb.AppendLine(string.Join(",",
-                        $"\"{row.Cells["ID"]?.Value}\"",
-                        $"\"{row.Cells["Name"]?.Value}\"",
-                        $"\"{row.Cells["Department"]?.Value}\"",
-                        $"\"{row.Cells["Email"]?.Value}\"",
-                        $"\"{row.Cells["Phone"]?.Value}\"",
-                        $"\"{row.Cells["Status"]?.Value}\""));
+                        $"\"{row.Cells[0]?.Value}\"",
+                        $"\"{row.Cells[1]?.Value}\"",
+                        $"\"{row.Cells[2]?.Value}\"",
+                        $"\"{row.Cells[3]?.Value}\"",
+                        $"\"{row.Cells[4]?.Value}\"",
+                        $"\"{row.Cells[5]?.Value}\""));
                 }
 
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
                 ToastHelper.Show(this, "Employees exported successfully.", ToastType.Success);
-
             }
             catch (Exception ex)
             {

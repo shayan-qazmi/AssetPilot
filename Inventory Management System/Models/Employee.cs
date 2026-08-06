@@ -1,4 +1,3 @@
-// Models/Employee.cs
 using System;
 using System.Collections.Generic;
 
@@ -21,6 +20,8 @@ public partial class Employee
     public int? DefaultLocationId { get; set; }
 
     public bool IsActive { get; set; }
+
+    public string? PicturePath { get; set; }
 
     public DateTime? CreatedAt { get; set; }
 

@@ -1,309 +1,682 @@
-using ClosedXML.Excel;
-using Inventory_Management_System.Models;
-using Inventory_Management_System.Services;
+#nullable disable
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Inventory_Management_System.Models;
+using ClosedXML.Excel;
 
 namespace Inventory_Management_System.Helpers
 {
     public static class ExcelHelper
     {
-        // Valid status values — must match the application's canonical set.
-        private static readonly HashSet<string> ValidStatuses = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "in_store", "allocated", "under_repair", "decommissioned"
-        };
-
-        /// <summary>
-        /// Reads equipment rows from an Excel file using header-name lookup.
-        /// </summary>
-        public static (List<Equipment> Items, List<string> Errors) ImportEquipment(
-            string filePath,
-            EquipmentService equipmentService)
-        {
-            var items = new List<Equipment>();
-            var errors = new List<string>();
-
-            using var wb = new XLWorkbook(filePath);
-            var ws = wb.Worksheet(1);
-
-            var headerRow = ws.Row(1);
-            var colMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (var cell in headerRow.CellsUsed())
-            {
-                var header = cell.GetString().Trim().ToLowerInvariant();
-                if (!string.IsNullOrWhiteSpace(header) && !colMap.ContainsKey(header))
-                    colMap[header] = cell.Address.ColumnNumber;
-            }
-
-            string CellStr(IXLRow row, string colName)
-            {
-                if (!colMap.TryGetValue(colName, out int col)) return "";
-                return row.Cell(col).GetString().Trim();
-            }
-
-            DateOnly? CellDate(IXLRow row, string colName)
-            {
-                if (!colMap.TryGetValue(colName, out int col)) return null;
-                var cell = row.Cell(col);
-                if (cell.TryGetValue<DateTime>(out var dt)) return DateOnly.FromDateTime(dt);
-                var raw = cell.GetString().Trim();
-                if (DateTime.TryParse(raw, out var parsed)) return DateOnly.FromDateTime(parsed);
-                return null;
-            }
-
-            decimal? CellDecimal(IXLRow row, string colName)
-            {
-                if (!colMap.TryGetValue(colName, out int col)) return null;
-                var cell = row.Cell(col);
-                if (cell.TryGetValue<decimal>(out var d)) return d;
-                var raw = cell.GetString().Trim();
-                if (decimal.TryParse(raw, out var parsed)) return parsed;
-                return null;
-            }
-
-            int rowNum = 1;
-            foreach (var row in ws.RowsUsed().Skip(1))
-            {
-                rowNum++;
-                try
-                {
-                    var name = CellStr(row, "name");
-                    var serialNumber = CellStr(row, "serial_number");
-
-                    if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(serialNumber))
-                        continue;
-
-                    if (string.IsNullOrWhiteSpace(name))
-                    {
-                        errors.Add($"Row {rowNum}: 'name' is required but was blank — row skipped.");
-                        continue;
-                    }
-                    if (string.IsNullOrWhiteSpace(serialNumber))
-                    {
-                        errors.Add($"Row {rowNum}: 'serial_number' is required but was blank — row skipped.");
-                        continue;
-                    }
-
-                    var rawStatus = CellStr(row, "current_status");
-                    string status;
-                    if (string.IsNullOrWhiteSpace(rawStatus))
-                    {
-                        status = "in_store";
-                    }
-                    else if (ValidStatuses.Contains(rawStatus))
-                    {
-                        status = rawStatus.ToLowerInvariant();
-                    }
-                    else
-                    {
-                        errors.Add($"Row {rowNum}: Invalid current_status '{rawStatus}'. Defaulting to 'in_store'.");
-                        status = "in_store";
-                    }
-
-                    var procTypeName = CellStr(row, "procurement_type");
-                    int? procTypeId = string.IsNullOrWhiteSpace(procTypeName)
-                        ? null
-                        : equipmentService.ResolveProcurementTypeId(procTypeName);
-
-                    var eq = new Equipment
-                    {
-                        Name = name,
-                        SerialNumber = serialNumber,
-                        Make = CellStr(row, "make").NullIfEmpty(),
-                        Model = CellStr(row, "model").NullIfEmpty(),
-                        CurrentStatus = status,
-                        PurchaseDate = CellDate(row, "purchase_date"),
-                        Price = CellDecimal(row, "price"),
-                        Category = CellStr(row, "category").NullIfEmpty(),
-                        Description = CellStr(row, "description").NullIfEmpty(),
-                        VendorName = CellStr(row, "vendor_name").NullIfEmpty(),
-                        ConditionGrade = CellStr(row, "condition_grade").NullIfEmpty(),
-                        WarrantyExpiry = CellDate(row, "warranty_expiry"),
-                        Notes = CellStr(row, "notes").NullIfEmpty(),
-                        ProcurementTypeId = procTypeId,
-                        CreatedByUserId = 1
-                    };
-
-                    items.Add(eq);
-                }
-                catch (Exception ex)
-                {
-                    errors.Add($"Row {rowNum}: Unexpected error — {ex.Message} — row skipped.");
-                }
-            }
-
-            return (items, errors);
-        }
-
-        /// <summary>
-        /// Exports a list of equipment to an Excel file.
-        /// </summary>
-        public static void ExportEquipment(List<Equipment> items, string filePath)
-        {
-            using var wb = new XLWorkbook();
-            var ws = wb.Worksheets.Add("Equipment");
-
-            ws.Cell(1, 1).Value = "Equipment Code";
-            ws.Cell(1, 2).Value = "QR Code";
-            ws.Cell(1, 3).Value = "Name";
-            ws.Cell(1, 4).Value = "Make";
-            ws.Cell(1, 5).Value = "Model";
-            ws.Cell(1, 6).Value = "Serial Number";
-            ws.Cell(1, 7).Value = "Status";
-            ws.Cell(1, 8).Value = "Purchase Date";
-
-            var headerRow = ws.Range(1, 1, 1, 8);
-            headerRow.Style.Font.Bold = true;
-            headerRow.Style.Fill.BackgroundColor = XLColor.FromArgb(46, 125, 50);
-            headerRow.Style.Font.FontColor = XLColor.White;
-
-            int row = 2;
-            foreach (var item in items)
-            {
-                ws.Cell(row, 1).Value = item.EquipmentCode;
-                ws.Cell(row, 2).Value = item.QrCode;
-                ws.Cell(row, 3).Value = item.Name;
-                ws.Cell(row, 4).Value = item.Make;
-                ws.Cell(row, 5).Value = item.Model;
-                ws.Cell(row, 6).Value = item.SerialNumber;
-                ws.Cell(row, 7).Value = item.CurrentStatus;
-                ws.Cell(row, 8).Value = item.PurchaseDate?.ToString("yyyy-MM-dd") ?? "";
-                row++;
-            }
-
-            ws.Columns().AdjustToContents();
-            wb.SaveAs(filePath);
-        }
-
-        /// <summary>
-        /// Reads Employee rows from an Excel file using header lookup.
-        /// </summary>
+        #region Employee Import & Export
         public static (List<Employee> Items, List<string> Errors) ImportEmployees(string filePath)
         {
             var items = new List<Employee>();
             var errors = new List<string>();
 
-            using var wb = new XLWorkbook(filePath);
-            var ws = wb.Worksheet(1);
-
-            var headerRow = ws.Row(1);
-            var colMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (var cell in headerRow.CellsUsed())
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
             {
-                var header = cell.GetString().Trim().ToLowerInvariant();
-                if (!string.IsNullOrWhiteSpace(header) && !colMap.ContainsKey(header))
-                    colMap[header] = cell.Address.ColumnNumber;
+                errors.Add("Selected file does not exist.");
+                return (items, errors);
             }
 
-            string CellStr(IXLRow row, params string[] colNames)
+            string ext = Path.GetExtension(filePath).ToLower();
+
+            if (ext == ".csv")
+                return ImportEmployeesFromCsv(filePath);
+            else
+                return ImportEmployeesFromExcel(filePath);
+        }
+
+        private static (List<Employee> Items, List<string> Errors) ImportEmployeesFromExcel(string filePath)
+        {
+            var items = new List<Employee>();
+            var errors = new List<string>();
+
+            try
             {
-                foreach (var colName in colNames)
+                using var workbook = new XLWorkbook(filePath);
+
+                IXLWorksheet worksheet = workbook.Worksheets.FirstOrDefault(w =>
+                    w.Name.Equals("Employees", StringComparison.OrdinalIgnoreCase));
+
+                if (worksheet == null)
                 {
-                    if (colMap.TryGetValue(colName, out int col))
-                        return row.Cell(col).GetString().Trim();
+                    foreach (var ws in workbook.Worksheets)
+                    {
+                        if (HasHeader(ws, "Full Name", "Name"))
+                        {
+                            worksheet = ws;
+                            break;
+                        }
+                    }
                 }
-                return "";
+
+                worksheet ??= workbook.Worksheets.FirstOrDefault();
+
+                if (worksheet == null)
+                {
+                    errors.Add("No valid worksheets found in the file.");
+                    return (items, errors);
+                }
+
+                IXLRow headerRow = null;
+                int nameCol = -1, deptCol = -1, emailCol = -1, phoneCol = -1, codeCol = -1, statusCol = -1;
+
+                int maxScan = Math.Min(15, worksheet.LastRowUsed()?.RowNumber() ?? 1);
+                for (int r = 1; r <= maxScan; r++)
+                {
+                    var row = worksheet.Row(r);
+                    foreach (var cell in row.CellsUsed())
+                    {
+                        string val = GetCellText(cell);
+                        if (val.Equals("Full Name", StringComparison.OrdinalIgnoreCase) ||
+                            val.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                        {
+                            headerRow = row;
+                            break;
+                        }
+                    }
+                    if (headerRow != null) break;
+                }
+
+                if (headerRow == null)
+                {
+                    errors.Add("Could not find header row containing 'Full Name' or 'Name'.");
+                    return (items, errors);
+                }
+
+                foreach (var cell in headerRow.CellsUsed())
+                {
+                    string h = GetCellText(cell);
+                    if (h.Equals("Full Name", StringComparison.OrdinalIgnoreCase) || h.Equals("Name", StringComparison.OrdinalIgnoreCase)) nameCol = cell.Address.ColumnNumber;
+                    else if (h.Equals("Designation", StringComparison.OrdinalIgnoreCase) || h.Equals("Department", StringComparison.OrdinalIgnoreCase)) deptCol = cell.Address.ColumnNumber;
+                    else if (h.Equals("Email", StringComparison.OrdinalIgnoreCase)) emailCol = cell.Address.ColumnNumber;
+                    else if (h.Equals("Phone", StringComparison.OrdinalIgnoreCase)) phoneCol = cell.Address.ColumnNumber;
+                    else if (h.Equals("Employee Code", StringComparison.OrdinalIgnoreCase) || h.Equals("Code", StringComparison.OrdinalIgnoreCase)) codeCol = cell.Address.ColumnNumber;
+                    else if (h.Equals("Status", StringComparison.OrdinalIgnoreCase)) statusCol = cell.Address.ColumnNumber;
+                }
+
+                int autoCodeIndex = 1;
+                int lastRow = worksheet.LastRowUsed()?.RowNumber() ?? headerRow.RowNumber();
+
+                for (int r = headerRow.RowNumber() + 1; r <= lastRow; r++)
+                {
+                    var row = worksheet.Row(r);
+                    string fullName = nameCol > 0 ? GetCellText(row.Cell(nameCol)) : "";
+                    if (string.IsNullOrWhiteSpace(fullName)) continue;
+
+                    string code = codeCol > 0 ? GetCellText(row.Cell(codeCol)) : "";
+                    if (string.IsNullOrWhiteSpace(code)) code = $"EMP{autoCodeIndex:D3}";
+                    autoCodeIndex++;
+
+                    string dept = deptCol > 0 ? GetCellText(row.Cell(deptCol)) : "";
+                    string email = emailCol > 0 ? GetCellText(row.Cell(emailCol)).Replace("\n", "").Replace("\r", "") : "";
+                    string phone = phoneCol > 0 ? GetCellText(row.Cell(phoneCol)) : "";
+                    string status = statusCol > 0 ? GetCellText(row.Cell(statusCol)) : "Active";
+
+                    bool isActive = string.IsNullOrWhiteSpace(status) ||
+                                    status.Equals("Active", StringComparison.OrdinalIgnoreCase) ||
+                                    status.Equals("1") ||
+                                    status.Equals("True", StringComparison.OrdinalIgnoreCase);
+
+                    items.Add(new Employee
+                    {
+                        EmployeeCode = code,
+                        FullName = fullName,
+                        Department = dept,
+                        Email = email,
+                        Phone = phone,
+                        IsActive = isActive
+                    });
+                }
             }
-
-            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
-
-            for (int r = 2; r <= lastRow; r++)
+            catch (Exception ex)
             {
-                var row = ws.Row(r);
-                string name = CellStr(row, "name", "full_name", "fullname");
-                string email = CellStr(row, "email");
-                string phone = CellStr(row, "phone");
-                string department = CellStr(row, "department", "designation");
-                string statusStr = CellStr(row, "status");
-
-                if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(email))
-                    continue;
-
-                if (string.IsNullOrWhiteSpace(name))
-                {
-                    errors.Add($"Row {r}: Name is required.");
-                    continue;
-                }
-
-                bool isActive = string.IsNullOrWhiteSpace(statusStr) ||
-                                statusStr.Equals("Active", StringComparison.OrdinalIgnoreCase) ||
-                                statusStr.Equals("1", StringComparison.OrdinalIgnoreCase) ||
-                                statusStr.Equals("True", StringComparison.OrdinalIgnoreCase);
-
-                items.Add(new Employee
-                {
-                    FullName = name,
-                    Email = email,
-                    Phone = phone,
-                    Department = department,
-                    IsActive = isActive
-                });
+                errors.Add($"Excel import error: {ex.Message}");
             }
 
             return (items, errors);
         }
 
-        /// <summary>
-        /// Reads Location rows from an Excel file using header lookup.
-        /// </summary>
+        private static (List<Employee> Items, List<string> Errors) ImportEmployeesFromCsv(string filePath)
+        {
+            var items = new List<Employee>();
+            var errors = new List<string>();
+
+            try
+            {
+                string[] lines = File.ReadAllLines(filePath);
+                int headerLineIdx = -1;
+                int nameIdx = -1, deptIdx = -1, emailIdx = -1, phoneIdx = -1, codeIdx = -1, statusIdx = -1;
+
+                for (int i = 0; i < Math.Min(15, lines.Length); i++)
+                {
+                    string[] cols = ParseCsvLine(lines[i]);
+                    for (int c = 0; c < cols.Length; c++)
+                    {
+                        string val = cols[c].Trim();
+                        if (val.Equals("Full Name", StringComparison.OrdinalIgnoreCase) ||
+                            val.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                        {
+                            headerLineIdx = i;
+                            break;
+                        }
+                    }
+                    if (headerLineIdx != -1) break;
+                }
+
+                if (headerLineIdx == -1)
+                {
+                    errors.Add("Could not find CSV header row with 'Full Name' or 'Name'.");
+                    return (items, errors);
+                }
+
+                string[] headerCols = ParseCsvLine(lines[headerLineIdx]);
+                for (int c = 0; c < headerCols.Length; c++)
+                {
+                    string h = headerCols[c].Trim();
+                    if (h.Equals("Full Name", StringComparison.OrdinalIgnoreCase) || h.Equals("Name", StringComparison.OrdinalIgnoreCase)) nameIdx = c;
+                    else if (h.Equals("Designation", StringComparison.OrdinalIgnoreCase) || h.Equals("Department", StringComparison.OrdinalIgnoreCase)) deptIdx = c;
+                    else if (h.Equals("Email", StringComparison.OrdinalIgnoreCase)) emailIdx = c;
+                    else if (h.Equals("Phone", StringComparison.OrdinalIgnoreCase)) phoneIdx = c;
+                    else if (h.Equals("Employee Code", StringComparison.OrdinalIgnoreCase) || h.Equals("Code", StringComparison.OrdinalIgnoreCase)) codeIdx = c;
+                    else if (h.Equals("Status", StringComparison.OrdinalIgnoreCase)) statusIdx = c;
+                }
+
+                int autoCodeIndex = 1;
+                for (int i = headerLineIdx + 1; i < lines.Length; i++)
+                {
+                    if (string.IsNullOrWhiteSpace(lines[i])) continue;
+                    string[] cols = ParseCsvLine(lines[i]);
+
+                    string fullName = (nameIdx >= 0 && nameIdx < cols.Length) ? cols[nameIdx].Trim() : "";
+                    if (string.IsNullOrWhiteSpace(fullName)) continue;
+
+                    string code = (codeIdx >= 0 && codeIdx < cols.Length) ? cols[codeIdx].Trim() : "";
+                    if (string.IsNullOrWhiteSpace(code)) code = $"EMP{autoCodeIndex:D3}";
+                    autoCodeIndex++;
+
+                    string dept = (deptIdx >= 0 && deptIdx < cols.Length) ? cols[deptIdx].Trim() : "";
+                    string email = (emailIdx >= 0 && emailIdx < cols.Length) ? cols[emailIdx].Trim().Replace("\n", "").Replace("\r", "") : "";
+                    string phone = (phoneIdx >= 0 && phoneIdx < cols.Length) ? cols[phoneIdx].Trim() : "";
+                    string status = (statusIdx >= 0 && statusIdx < cols.Length) ? cols[statusIdx].Trim() : "Active";
+
+                    bool isActive = string.IsNullOrWhiteSpace(status) ||
+                                    status.Equals("Active", StringComparison.OrdinalIgnoreCase) ||
+                                    status.Equals("1") ||
+                                    status.Equals("True", StringComparison.OrdinalIgnoreCase);
+
+                    items.Add(new Employee
+                    {
+                        EmployeeCode = code,
+                        FullName = fullName,
+                        Department = dept,
+                        Email = email,
+                        Phone = phone,
+                        IsActive = isActive
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"CSV import error: {ex.Message}");
+            }
+
+            return (items, errors);
+        }
+
+        public static bool ExportEmployees(string filePath, IEnumerable<Employee> employees)
+        {
+            try
+            {
+                using var workbook = new XLWorkbook();
+                var ws = workbook.Worksheets.Add("Employees");
+                ws.Cell(1, 1).Value = "Employee Code";
+                ws.Cell(1, 2).Value = "Full Name";
+                ws.Cell(1, 3).Value = "Department";
+                ws.Cell(1, 4).Value = "Phone";
+                ws.Cell(1, 5).Value = "Email";
+                ws.Cell(1, 6).Value = "Status";
+
+                int row = 2;
+                foreach (var emp in employees ?? Enumerable.Empty<Employee>())
+                {
+                    ws.Cell(row, 1).Value = emp.EmployeeCode;
+                    ws.Cell(row, 2).Value = emp.FullName;
+                    ws.Cell(row, 3).Value = emp.Department;
+                    ws.Cell(row, 4).Value = emp.Phone;
+                    ws.Cell(row, 5).Value = emp.Email;
+                    ws.Cell(row, 6).Value = emp.IsActive ? "Active" : "Inactive";
+                    row++;
+                }
+                workbook.SaveAs(filePath);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        public static bool ExportEmployees(IEnumerable<Employee> employees, string filePath) => ExportEmployees(filePath, employees);
+        #endregion
+
+        #region Location Import & Export
         public static (List<Location> Items, List<string> Errors) ImportLocations(string filePath)
         {
             var items = new List<Location>();
             var errors = new List<string>();
 
-            using var wb = new XLWorkbook(filePath);
-            var ws = wb.Worksheet(1);
-
-            var headerRow = ws.Row(1);
-            var colMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            foreach (var cell in headerRow.CellsUsed())
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
             {
-                var header = cell.GetString().Trim().ToLowerInvariant();
-                if (!string.IsNullOrWhiteSpace(header) && !colMap.ContainsKey(header))
-                    colMap[header] = cell.Address.ColumnNumber;
+                errors.Add("Selected file does not exist.");
+                return (items, errors);
             }
 
-            string CellStr(IXLRow row, params string[] colNames)
+            string ext = Path.GetExtension(filePath).ToLower();
+            if (ext == ".csv")
             {
-                foreach (var colName in colNames)
+                return ImportLocationsFromCsv(filePath);
+            }
+
+            try
+            {
+                using var workbook = new XLWorkbook(filePath);
+                IXLWorksheet worksheet = workbook.Worksheets.FirstOrDefault(w => w.Name.Equals("Locations", StringComparison.OrdinalIgnoreCase))
+                                         ?? workbook.Worksheets.FirstOrDefault();
+
+                if (worksheet == null)
                 {
-                    if (colMap.TryGetValue(colName, out int col))
-                        return row.Cell(col).GetString().Trim();
+                    errors.Add("No valid worksheets found for Locations.");
+                    return (items, errors);
                 }
-                return "";
-            }
 
-            var lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
+                IXLRow headerRow = null;
+                int nameCol = -1, bldgCol = -1, roomNoCol = -1, roomNameCol = -1;
 
-            for (int r = 2; r <= lastRow; r++)
-            {
-                var row = ws.Row(r);
-                string locationName = CellStr(row, "location_name", "name", "locationname");
-                string building = CellStr(row, "building");
-                string roomNumber = CellStr(row, "room_number", "roomnumber");
-                string roomName = CellStr(row, "room_name", "roomname");
-
-                if (string.IsNullOrWhiteSpace(locationName))
-                    continue;
-
-                items.Add(new Location
+                int maxScan = Math.Min(15, worksheet.LastRowUsed()?.RowNumber() ?? 1);
+                for (int r = 1; r <= maxScan; r++)
                 {
-                    LocationName = locationName,
-                    Building = building,
-                    RoomNumber = roomNumber,
-                    RoomName = string.IsNullOrWhiteSpace(roomName) ? null : roomName
-                });
+                    var row = worksheet.Row(r);
+                    foreach (var cell in row.CellsUsed())
+                    {
+                        string val = GetCellText(cell);
+                        if (val.Equals("Location Name", StringComparison.OrdinalIgnoreCase) || val.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                        {
+                            headerRow = row;
+                            break;
+                        }
+                    }
+                    if (headerRow != null) break;
+                }
+
+                if (headerRow != null)
+                {
+                    foreach (var cell in headerRow.CellsUsed())
+                    {
+                        string h = GetCellText(cell);
+                        if (h.Equals("Location Name", StringComparison.OrdinalIgnoreCase) || h.Equals("Name", StringComparison.OrdinalIgnoreCase) || h.Equals("Location ID", StringComparison.OrdinalIgnoreCase)) nameCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Building", StringComparison.OrdinalIgnoreCase) || h.Equals("Address", StringComparison.OrdinalIgnoreCase)) bldgCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Room Number", StringComparison.OrdinalIgnoreCase) || h.Equals("RoomNo", StringComparison.OrdinalIgnoreCase)) roomNoCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Room Name", StringComparison.OrdinalIgnoreCase) || h.Equals("Allocated Person", StringComparison.OrdinalIgnoreCase)) roomNameCol = cell.Address.ColumnNumber;
+                    }
+
+                    int lastRow = worksheet.LastRowUsed()?.RowNumber() ?? headerRow.RowNumber();
+                    for (int r = headerRow.RowNumber() + 1; r <= lastRow; r++)
+                    {
+                        var row = worksheet.Row(r);
+                        string locName = nameCol > 0 ? GetCellText(row.Cell(nameCol)) : "";
+                        if (string.IsNullOrWhiteSpace(locName)) continue;
+
+                        var loc = new Location();
+                        SetProp(loc, "LocationName", locName);
+                        SetProp(loc, "Name", locName);
+
+                        string bldg = bldgCol > 0 ? GetCellText(row.Cell(bldgCol)) : "";
+                        SetProp(loc, "Building", bldg);
+                        SetProp(loc, "Address", bldg);
+
+                        string roomNo = roomNoCol > 0 ? GetCellText(row.Cell(roomNoCol)) : "";
+                        SetProp(loc, "RoomNumber", roomNo);
+
+                        string roomName = roomNameCol > 0 ? GetCellText(row.Cell(roomNameCol)) : "";
+                        SetProp(loc, "RoomName", roomName);
+
+                        items.Add(loc);
+                    }
+                }
+                else
+                {
+                    errors.Add("Could not find header row with 'Location Name' or 'Name'.");
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Location import error: {ex.Message}");
             }
 
             return (items, errors);
         }
-    }
 
-    internal static class StringExcelExtensions
-    {
-        public static string? NullIfEmpty(this string? s)
-            => string.IsNullOrWhiteSpace(s) ? null : s;
+        private static (List<Location> Items, List<string> Errors) ImportLocationsFromCsv(string filePath)
+        {
+            var items = new List<Location>();
+            var errors = new List<string>();
+
+            try
+            {
+                string[] lines = File.ReadAllLines(filePath);
+                int headerIdx = -1;
+                int nameIdx = -1, bldgIdx = -1, roomNoIdx = -1, roomNameIdx = -1;
+
+                for (int i = 0; i < Math.Min(15, lines.Length); i++)
+                {
+                    string[] cols = ParseCsvLine(lines[i]);
+                    for (int c = 0; c < cols.Length; c++)
+                    {
+                        string val = cols[c].Trim();
+                        if (val.Equals("Location Name", StringComparison.OrdinalIgnoreCase) || val.Equals("Name", StringComparison.OrdinalIgnoreCase))
+                        {
+                            headerIdx = i;
+                            break;
+                        }
+                    }
+                    if (headerIdx != -1) break;
+                }
+
+                if (headerIdx == -1)
+                {
+                    errors.Add("Could not find CSV header containing 'Location Name' or 'Name'.");
+                    return (items, errors);
+                }
+
+                string[] headers = ParseCsvLine(lines[headerIdx]);
+                for (int c = 0; c < headers.Length; c++)
+                {
+                    string h = headers[c].Trim();
+                    if (h.Equals("Location Name", StringComparison.OrdinalIgnoreCase) || h.Equals("Name", StringComparison.OrdinalIgnoreCase)) nameIdx = c;
+                    else if (h.Equals("Building", StringComparison.OrdinalIgnoreCase) || h.Equals("Address", StringComparison.OrdinalIgnoreCase)) bldgIdx = c;
+                    else if (h.Equals("Room Number", StringComparison.OrdinalIgnoreCase)) roomNoIdx = c;
+                    else if (h.Equals("Room Name", StringComparison.OrdinalIgnoreCase) || h.Equals("Allocated Person", StringComparison.OrdinalIgnoreCase)) roomNameIdx = c;
+                }
+
+                for (int i = headerIdx + 1; i < lines.Length; i++)
+                {
+                    if (string.IsNullOrWhiteSpace(lines[i])) continue;
+                    string[] cols = ParseCsvLine(lines[i]);
+
+                    string locName = (nameIdx >= 0 && nameIdx < cols.Length) ? cols[nameIdx].Trim() : "";
+                    if (string.IsNullOrWhiteSpace(locName)) continue;
+
+                    var loc = new Location();
+                    SetProp(loc, "LocationName", locName);
+                    SetProp(loc, "Name", locName);
+
+                    string bldg = (bldgIdx >= 0 && bldgIdx < cols.Length) ? cols[bldgIdx].Trim() : "";
+                    SetProp(loc, "Building", bldg);
+                    SetProp(loc, "Address", bldg);
+
+                    string roomNo = (roomNoIdx >= 0 && roomNoIdx < cols.Length) ? cols[roomNoIdx].Trim() : "";
+                    SetProp(loc, "RoomNumber", roomNo);
+
+                    string roomName = (roomNameIdx >= 0 && roomNameIdx < cols.Length) ? cols[roomNameIdx].Trim() : "";
+                    SetProp(loc, "RoomName", roomName);
+
+                    items.Add(loc);
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"CSV import error: {ex.Message}");
+            }
+
+            return (items, errors);
+        }
+
+        public static bool ExportLocations(string filePath, IEnumerable<Location> locations)
+        {
+            try
+            {
+                using var workbook = new XLWorkbook();
+                var ws = workbook.Worksheets.Add("Locations");
+                ws.Cell(1, 1).Value = "Location Name";
+                ws.Cell(1, 2).Value = "Building";
+                ws.Cell(1, 3).Value = "Room Number";
+                ws.Cell(1, 4).Value = "Room Name";
+
+                int row = 2;
+                foreach (var loc in locations ?? Enumerable.Empty<Location>())
+                {
+                    ws.Cell(row, 1).Value = GetPropStr(loc, "LocationName", "Name");
+                    ws.Cell(row, 2).Value = GetPropStr(loc, "Building", "Address", "AddressLine");
+                    ws.Cell(row, 3).Value = GetPropStr(loc, "RoomNumber");
+                    ws.Cell(row, 4).Value = GetPropStr(loc, "RoomName");
+                    row++;
+                }
+                workbook.SaveAs(filePath);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        public static bool ExportLocations(IEnumerable<Location> locations, string filePath) => ExportLocations(filePath, locations);
+        #endregion
+
+        #region Equipment Import & Export
+        public static (List<Equipment> Items, List<string> Errors) ImportEquipment(string filePath, object service = null)
+        {
+            var items = new List<Equipment>();
+            var errors = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            {
+                errors.Add("Selected file does not exist.");
+                return (items, errors);
+            }
+
+            try
+            {
+                using var workbook = new XLWorkbook(filePath);
+                IXLWorksheet worksheet = workbook.Worksheets.FirstOrDefault(w => w.Name.Equals("Equipment", StringComparison.OrdinalIgnoreCase))
+                                         ?? workbook.Worksheets.FirstOrDefault();
+
+                if (worksheet == null)
+                {
+                    errors.Add("No valid worksheets found for Equipment.");
+                    return (items, errors);
+                }
+
+                IXLRow headerRow = null;
+                int codeCol = -1, nameCol = -1, catCol = -1, locCol = -1, statusCol = -1, serialCol = -1;
+
+                for (int r = 1; r <= 15; r++)
+                {
+                    var row = worksheet.Row(r);
+                    foreach (var cell in row.CellsUsed())
+                    {
+                        string val = GetCellText(cell);
+                        if (val.Equals("Equipment Code", StringComparison.OrdinalIgnoreCase) ||
+                            val.Equals("Name", StringComparison.OrdinalIgnoreCase) ||
+                            val.Equals("Equipment Name", StringComparison.OrdinalIgnoreCase))
+                        {
+                            headerRow = row;
+                            break;
+                        }
+                    }
+                    if (headerRow != null) break;
+                }
+
+                if (headerRow != null)
+                {
+                    foreach (var cell in headerRow.CellsUsed())
+                    {
+                        string h = GetCellText(cell);
+                        if (h.Equals("Equipment Code", StringComparison.OrdinalIgnoreCase) || h.Equals("Code", StringComparison.OrdinalIgnoreCase)) codeCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Equipment Name", StringComparison.OrdinalIgnoreCase) || h.Equals("Name", StringComparison.OrdinalIgnoreCase)) nameCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Category", StringComparison.OrdinalIgnoreCase)) catCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Location", StringComparison.OrdinalIgnoreCase)) locCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Status", StringComparison.OrdinalIgnoreCase)) statusCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Serial Number", StringComparison.OrdinalIgnoreCase) || h.Equals("Serial No", StringComparison.OrdinalIgnoreCase)) serialCol = cell.Address.ColumnNumber;
+                    }
+
+                    int lastRow = worksheet.LastRowUsed()?.RowNumber() ?? headerRow.RowNumber();
+                    int autoIndex = 1;
+
+                    for (int r = headerRow.RowNumber() + 1; r <= lastRow; r++)
+                    {
+                        var row = worksheet.Row(r);
+                        string eqName = nameCol > 0 ? GetCellText(row.Cell(nameCol)) : "";
+                        if (string.IsNullOrWhiteSpace(eqName)) continue;
+
+                        string eqCode = codeCol > 0 ? GetCellText(row.Cell(codeCol)) : $"EQ{autoIndex:D4}";
+                        autoIndex++;
+
+                        var eq = new Equipment();
+                        SetProp(eq, "EquipmentCode", eqCode);
+                        SetProp(eq, "Code", eqCode);
+                        SetProp(eq, "Name", eqName);
+
+                        string cat = catCol > 0 ? GetCellText(row.Cell(catCol)) : "";
+                        SetProp(eq, "Category", cat);
+                        SetProp(eq, "CategoryName", cat);
+
+                        string loc = locCol > 0 ? GetCellText(row.Cell(locCol)) : "";
+                        SetProp(eq, "Location", loc);
+                        SetProp(eq, "LocationName", loc);
+
+                        string status = statusCol > 0 ? GetCellText(row.Cell(statusCol)) : "Available";
+                        SetProp(eq, "Status", status);
+                        SetProp(eq, "EquipmentStatus", status);
+
+                        string serial = serialCol > 0 ? GetCellText(row.Cell(serialCol)) : "";
+                        SetProp(eq, "SerialNumber", serial);
+                        SetProp(eq, "SerialNo", serial);
+
+                        items.Add(eq);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"Equipment import error: {ex.Message}");
+            }
+
+            return (items, errors);
+        }
+
+        public static bool ExportEquipment(string filePath, IEnumerable<Equipment> equipments)
+        {
+            try
+            {
+                using var workbook = new XLWorkbook();
+                var ws = workbook.Worksheets.Add("Equipment");
+                ws.Cell(1, 1).Value = "Equipment Code";
+                ws.Cell(1, 2).Value = "Name";
+                ws.Cell(1, 3).Value = "Category";
+                ws.Cell(1, 4).Value = "Location";
+                ws.Cell(1, 5).Value = "Status";
+                ws.Cell(1, 6).Value = "Serial Number";
+
+                int row = 2;
+                foreach (var eq in equipments ?? Enumerable.Empty<Equipment>())
+                {
+                    ws.Cell(row, 1).Value = GetPropStr(eq, "EquipmentCode", "Code");
+                    ws.Cell(row, 2).Value = GetPropStr(eq, "Name");
+                    ws.Cell(row, 3).Value = GetPropStr(eq, "Category", "CategoryName");
+                    ws.Cell(row, 4).Value = GetPropStr(eq, "Location", "LocationName");
+                    ws.Cell(row, 5).Value = GetPropStr(eq, "Status", "EquipmentStatus");
+                    ws.Cell(row, 6).Value = GetPropStr(eq, "SerialNumber", "SerialNo");
+                    row++;
+                }
+                workbook.SaveAs(filePath);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        public static bool ExportEquipment(IEnumerable<Equipment> equipments, string filePath) => ExportEquipment(filePath, equipments);
+        #endregion
+
+        #region Property Helper Utilities
+        private static bool HasHeader(IXLWorksheet ws, params string[] headerNames)
+        {
+            int maxR = Math.Min(10, ws.LastRowUsed()?.RowNumber() ?? 1);
+            for (int r = 1; r <= maxR; r++)
+            {
+                foreach (var cell in ws.Row(r).CellsUsed())
+                {
+                    string val = GetCellText(cell);
+                    if (headerNames.Any(hn => val.Equals(hn, StringComparison.OrdinalIgnoreCase)))
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        private static string GetCellText(IXLCell cell)
+        {
+            if (cell == null || cell.IsEmpty()) return string.Empty;
+            return cell.GetFormattedString().Trim();
+        }
+
+        private static void SetProp(object obj, string propName, object value)
+        {
+            var p = obj.GetType().GetProperty(propName);
+            if (p != null && p.CanWrite)
+            {
+                try
+                {
+                    if (p.PropertyType == typeof(string))
+                        p.SetValue(obj, value?.ToString() ?? "");
+                    else if (p.PropertyType == typeof(int) || p.PropertyType == typeof(int?))
+                    {
+                        if (int.TryParse(value?.ToString(), out int val))
+                            p.SetValue(obj, val);
+                    }
+                }
+                catch { }
+            }
+        }
+
+        private static string GetPropStr(object obj, params string[] propNames)
+        {
+            foreach (var name in propNames)
+            {
+                var p = obj.GetType().GetProperty(name);
+                if (p != null)
+                {
+                    var val = p.GetValue(obj);
+                    if (val != null) return val.ToString();
+                }
+            }
+            return string.Empty;
+        }
+
+        private static string[] ParseCsvLine(string line)
+        {
+            var result = new List<string>();
+            bool inQuotes = false;
+            var current = new System.Text.StringBuilder();
+
+            foreach (char c in line)
+            {
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                }
+                else if (c == ',' && !inQuotes)
+                {
+                    result.Add(current.ToString());
+                    current.Clear();
+                }
+                else
+                {
+                    current.Append(c);
+                }
+            }
+            result.Add(current.ToString());
+            return result.ToArray();
+        }
+        #endregion
     }
 }

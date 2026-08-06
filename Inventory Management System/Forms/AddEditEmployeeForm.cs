@@ -1,6 +1,7 @@
 // Forms/AddEditEmployeeForm.cs
 using System;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using Inventory_Management_System.Helpers;
@@ -23,6 +24,14 @@ namespace Inventory_Management_System.Forms
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
+        // ── Profile picture (optional) ──────────────────────────────────
+        private Panel pnlAvatar = null!;
+        private Button btnUploadPicture = null!;
+        private Button btnRemovePicture = null!;
+        private Image? _avatarImage;
+        private string? _pendingPictureFile; // local file chosen via dialog, not yet copied to the share
+        private bool _removePicture;         // true if user cleared an existing picture
+
         private static readonly Color CardBorder = Color.FromArgb(224, 224, 224);
         private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
 
@@ -34,6 +43,8 @@ namespace Inventory_Management_System.Forms
 
             InitializeUI();
             LoadData();
+
+            FormClosed += (s, e) => _avatarImage?.Dispose();
         }
 
         private void InitializeUI()
@@ -195,6 +206,43 @@ namespace Inventory_Management_System.Forms
             PlaceControl(txtPhone);
             y += 8;
 
+            // ── Profile Picture (optional) ──
+            const int avatarSize = 72;
+            FieldLabel("Profile Picture");
+
+            pnlAvatar = new Panel
+            {
+                Location = new Point(margin, y),
+                Size = new Size(avatarSize, avatarSize),
+                BackColor = Color.Transparent
+            };
+            pnlAvatar.Paint += (s, e) =>
+                AvatarHelper.DrawAvatar(e.Graphics, new Rectangle(0, 0, avatarSize - 1, avatarSize - 1), _avatarImage);
+            body.Controls.Add(pnlAvatar);
+
+            btnUploadPicture = new Button
+            {
+                Text = "Upload...",
+                Size = new Size(120, 28),
+                Location = new Point(margin + avatarSize + 14, y + 6)
+            };
+            ThemeHelper.StyleSecondaryButton(btnUploadPicture);
+            btnUploadPicture.Click += BtnUploadPicture_Click;
+            body.Controls.Add(btnUploadPicture);
+
+            btnRemovePicture = new Button
+            {
+                Text = "Remove",
+                Size = new Size(120, 28),
+                Location = new Point(margin + avatarSize + 14, y + 40)
+            };
+            ThemeHelper.StyleSecondaryButton(btnRemovePicture);
+            btnRemovePicture.Click += BtnRemovePicture_Click;
+            body.Controls.Add(btnRemovePicture);
+
+            y += avatarSize + 8;
+            Hint("Optional — shown on the employee's detail view. Leave blank for a default profile icon.");
+
             chkIsActive = new CheckBox
             {
                 Text = "Is Active",
@@ -224,8 +272,68 @@ namespace Inventory_Management_System.Forms
                 txtDesignation.Text = _employee.Department;
                 txtEmail.Text = _employee.Email;
                 txtPhone.Text = _employee.Phone;
+
+                if (!string.IsNullOrWhiteSpace(_employee.PicturePath))
+                {
+                    _avatarImage = AvatarHelper.TryLoadEmployeeImage(_employee.PicturePath);
+                    pnlAvatar.Invalidate();
+                }
             }
             chkIsActive.Checked = _employee.IsActive;
+        }
+
+        // ── Profile picture handlers ────────────────────────────────────
+        private void BtnUploadPicture_Click(object? sender, EventArgs e)
+        {
+            using var ofd = new OpenFileDialog
+            {
+                Title = "Select Profile Picture",
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.gif"
+            };
+            if (ofd.ShowDialog() != DialogResult.OK) return;
+
+            try
+            {
+                var newImage = Image.FromFile(ofd.FileName);
+                _avatarImage?.Dispose();
+                _avatarImage = newImage;
+                _pendingPictureFile = ofd.FileName;
+                _removePicture = false;
+                pnlAvatar.Invalidate();
+            }
+            catch (Exception ex)
+            {
+                ToastHelper.Show(this, "Could not load image: " + ex.Message, ToastType.Error);
+            }
+        }
+
+        private void BtnRemovePicture_Click(object? sender, EventArgs e)
+        {
+            _avatarImage?.Dispose();
+            _avatarImage = null;
+            _pendingPictureFile = null;
+            _removePicture = true;
+            pnlAvatar.Invalidate();
+        }
+
+        private static string SanitizeForFileName(string value)
+        {
+            var invalid = Path.GetInvalidFileNameChars();
+            var clean = new string(value.Where(c => !invalid.Contains(c)).ToArray()).Replace(' ', '_');
+            return string.IsNullOrWhiteSpace(clean) ? "employee" : clean;
+        }
+
+        private static string SaveEmployeePictureToShare(string sourceFile, string displayName)
+        {
+            NetworkShareHelper.EnsureConnected();
+            Directory.CreateDirectory(NetworkPaths.EmployeePicturesDir);
+
+            string ext = Path.GetExtension(sourceFile);
+            string fileName = $"{SanitizeForFileName(displayName)}_{Guid.NewGuid():N}{ext}";
+            string destPath = Path.Combine(NetworkPaths.EmployeePicturesDir, fileName);
+
+            File.Copy(sourceFile, destPath, true);
+            return fileName;
         }
 
         private void BtnSave_Click(object? sender, EventArgs e)
@@ -251,6 +359,24 @@ namespace Inventory_Management_System.Forms
                 if (isDuplicate)
                 {
                     ToastHelper.Show(this, $"An employee named \"{name}\" already exists. Please use a different name.", ToastType.Warning);
+                    return;
+                }
+            }
+
+            // ── Profile picture ──────────────────────────────────────────
+            if (_removePicture)
+            {
+                _employee.PicturePath = null;
+            }
+            else if (_pendingPictureFile != null)
+            {
+                try
+                {
+                    _employee.PicturePath = SaveEmployeePictureToShare(_pendingPictureFile, name);
+                }
+                catch (Exception ex)
+                {
+                    ToastHelper.Show(this, "Could not save picture: " + ex.Message, ToastType.Error);
                     return;
                 }
             }
