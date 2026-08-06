@@ -11,10 +11,12 @@ namespace Inventory_Management_System.Services
     public class EquipmentService
     {
         private readonly AuditService _audit;
+        private readonly int _currentUserId;
 
         public EquipmentService(int currentUserId = 1)
         {
             _audit = new AuditService(currentUserId);
+            _currentUserId = currentUserId;
         }
 
         public ServiceResult<List<Equipment>> GetAll()
@@ -37,23 +39,34 @@ namespace Inventory_Management_System.Services
             }
         }
 
-        public ServiceResult<PagedResult<Equipment>> GetPage(int pageNumber, int pageSize)
+
+        private static int ExtractCodeNumber(string code)
+        {
+            if (string.IsNullOrWhiteSpace(code)) return int.MaxValue;
+            var digits = new string(code.Where(char.IsDigit).ToArray());
+            return int.TryParse(digits, out int n) ? n : int.MaxValue;
+        }
+
+        public ServiceResult<PagedResult<Equipment>> GetPage(int pageNumber, int pageSize, string category = null)
         {
             try
             {
                 using var db = new InventoryDbContext();
-                var query = db.Equipment
-                    .Where(e => !e.IsDeleted)
-                    .Include(e => e.Allocations)
-                        .ThenInclude(a => a.Location)
-                    .Include(e => e.ProcurementType)
-                    .OrderBy(e => e.EquipmentCode);
+                var query = db.Equipment.Where(e => !e.IsDeleted);
 
-                var totalCount = query.Count();
-                var items = query
-                    .Skip((pageNumber - 1) * pageSize)
-                    .Take(pageSize)
+                if (!string.IsNullOrWhiteSpace(category))
+                    query = query.Where(e => e.Category == category);
+
+                query = query
+                    .Include(e => e.Allocations).ThenInclude(a => a.Location)
+                    .Include(e => e.ProcurementType);
+
+                var all = query.ToList()
+                    .OrderBy(e => ExtractCodeNumber(e.EquipmentCode))
                     .ToList();
+
+                var totalCount = all.Count;
+                var items = all.Skip((pageNumber - 1) * pageSize).Take(pageSize).ToList();
 
                 return ServiceResult<PagedResult<Equipment>>.Ok(new PagedResult<Equipment>
                 {
@@ -87,6 +100,36 @@ namespace Inventory_Management_System.Services
             {
                 var innerMsg = ex.InnerException?.Message ?? ex.Message;
                 return ServiceResult<Equipment>.Fail($"Error retrieving equipment: {innerMsg}");
+            }
+        }
+
+        public ServiceResult<int> DeleteRange(IEnumerable<int> ids)
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var idList = ids.ToList();
+
+                var items = db.Equipment.Where(e => idList.Contains(e.Id)).ToList();
+                if (items.Count == 0)
+                    return ServiceResult<int>.Fail("No matching equipment found.");
+
+                foreach (var eq in items)
+                    eq.IsDeleted = true;
+
+                db.SaveChanges();   // ✅ ONE round-trip for all of them, not one per item
+
+                // Batch audit log — one entry summarizing the bulk action, instead of
+                // 100 separate DB writes for 100 separate audit entries.
+                _audit.Log(0, AuditService.ActionEquipmentDeleted,
+                    null, $"Bulk deleted {items.Count} equipment item(s): " +
+                          string.Join(", ", items.Select(e => e.EquipmentCode)));
+
+                return ServiceResult<int>.Ok(items.Count);
+            }
+            catch (Exception ex)
+            {
+                return ServiceResult<int>.Fail($"Bulk delete failed: {ex.Message}");
             }
         }
 
@@ -130,54 +173,38 @@ namespace Inventory_Management_System.Services
             }
         }
 
-        private string GenerateEquipmentCode(InventoryDbContext db)
+        private int GetNextEquipmentNumber(InventoryDbContext db)
         {
-            var codes = db.Equipment
-                .Select(e => e.EquipmentCode)
-                .Where(c => c != null && c.StartsWith("EQ"))
-                .ToList();
+            var usedNumbers = new HashSet<int>();
 
-            int maxNum = 0;
-            foreach (var c in codes)
+            foreach (var c in db.Equipment.Select(e => e.EquipmentCode).Where(c => c != null && c.StartsWith("EQ")).ToList())
             {
                 var digits = new string(c!.Skip(2).TakeWhile(char.IsDigit).ToArray());
-                if (int.TryParse(digits, out int n) && n > maxNum) maxNum = n;
+                if (int.TryParse(digits, out int n)) usedNumbers.Add(n);
+            }
+            foreach (var c in db.Equipment.Select(e => e.QrCode).Where(c => c != null && c.StartsWith("QR")).ToList())
+            {
+                var digits = new string(c!.Skip(2).TakeWhile(char.IsDigit).ToArray());
+                if (int.TryParse(digits, out int n)) usedNumbers.Add(n);
             }
 
-            string candidate;
-            int next = maxNum + 1;
-            do
-            {
-                candidate = $"EQ{next:000}";
-                next++;
-            } while (db.Equipment.Any(e => e.EquipmentCode == candidate));
-
+            int candidate = 1;
+            while (usedNumbers.Contains(candidate)) candidate++;
             return candidate;
         }
 
-        private string GenerateQrCode(InventoryDbContext db)
+        private (string EquipmentCode, string QrCode) GenerateCodes(InventoryDbContext db)
         {
-            var codes = db.Equipment
-                .Select(e => e.QrCode)
-                .Where(c => c != null && c.StartsWith("QR"))
-                .ToList();
-
-            int maxNum = 0;
-            foreach (var c in codes)
-            {
-                var digits = new string(c!.Skip(2).TakeWhile(char.IsDigit).ToArray());
-                if (int.TryParse(digits, out int n) && n > maxNum) maxNum = n;
-            }
-
-            string candidate;
-            int next = maxNum + 1;
+            int next = GetNextEquipmentNumber(db);
+            string eqCandidate, qrCandidate;
             do
             {
-                candidate = $"QR{next:000}";
+                eqCandidate = $"EQ{next:000}";
+                qrCandidate = $"QR{next:000}";
                 next++;
-            } while (db.Equipment.Any(e => e.QrCode == candidate));
+            } while (db.Equipment.Any(e => e.EquipmentCode == eqCandidate || e.QrCode == qrCandidate));
 
-            return candidate;
+            return (eqCandidate, qrCandidate);
         }
 
         public int? ResolveProcurementTypeId(string? typeName)
@@ -210,29 +237,57 @@ namespace Inventory_Management_System.Services
             {
                 if (string.IsNullOrWhiteSpace(equipment.Name))
                     return ServiceResult<Equipment>.Fail("Equipment name is required.");
-                if (string.IsNullOrWhiteSpace(equipment.SerialNumber))
-                    return ServiceResult<Equipment>.Fail("Serial number is required.");
 
-                equipment.SerialNumber = equipment.SerialNumber.Trim().ToUpper();
+                // Normalise serial number: treat "N/A", "NA", "-" and whitespace-only as null
+                if (!string.IsNullOrWhiteSpace(equipment.SerialNumber))
+                {
+                    var sn = equipment.SerialNumber.Trim();
+                    if (sn.Equals("N/A", StringComparison.OrdinalIgnoreCase) ||
+                        sn.Equals("NA", StringComparison.OrdinalIgnoreCase) ||
+                        sn == "-")
+                        equipment.SerialNumber = null;
+                    else
+                        equipment.SerialNumber = sn.ToUpper();
+                }
+                else
+                {
+                    equipment.SerialNumber = null;
+                }
                 equipment.Name = equipment.Name.Trim();
 
                 using var db = new InventoryDbContext();
 
-                if (string.IsNullOrWhiteSpace(equipment.EquipmentCode))
-                    equipment.EquipmentCode = GenerateEquipmentCode(db);
+                if (string.IsNullOrWhiteSpace(equipment.EquipmentCode) && string.IsNullOrWhiteSpace(equipment.QrCode))
+                {
+                    // Neither provided — generate both using the SAME number,
+                    // so EQ and QR codes can never drift apart again.
+                    var (genCode, genQr) = GenerateCodes(db);
+                    equipment.EquipmentCode = genCode;
+                    equipment.QrCode = genQr;
+                }
                 else
-                    equipment.EquipmentCode = equipment.EquipmentCode.Trim().ToUpper();
+                {
+                    if (string.IsNullOrWhiteSpace(equipment.EquipmentCode))
+                        equipment.EquipmentCode = GenerateCodes(db).EquipmentCode;
+                    else
+                        equipment.EquipmentCode = equipment.EquipmentCode.Trim().ToUpper();
 
-                if (string.IsNullOrWhiteSpace(equipment.QrCode))
-                    equipment.QrCode = GenerateQrCode(db);
+                    if (string.IsNullOrWhiteSpace(equipment.QrCode))
+                        equipment.QrCode = GenerateCodes(db).QrCode;
+                }   
 
                 if (db.Equipment.Any(e => e.EquipmentCode == equipment.EquipmentCode))
                     return ServiceResult<Equipment>.Fail($"Equipment code '{equipment.EquipmentCode}' already exists.");
-                if (db.Equipment.Any(e => e.SerialNumber == equipment.SerialNumber))
+                if (!string.IsNullOrWhiteSpace(equipment.SerialNumber) &&
+                    db.Equipment.Any(e => e.SerialNumber == equipment.SerialNumber))
                     return ServiceResult<Equipment>.Fail($"Serial number '{equipment.SerialNumber}' already exists.");
 
                 if (string.IsNullOrWhiteSpace(equipment.CurrentStatus))
                     equipment.CurrentStatus = "in_store";
+
+                db.Equipment.Add(equipment);
+                if (equipment.CreatedByUserId <= 0)
+                    equipment.CreatedByUserId = _currentUserId;
 
                 db.Equipment.Add(equipment);
                 db.SaveChanges();
@@ -244,9 +299,10 @@ namespace Inventory_Management_System.Services
             }
             catch (Exception ex)
             {
-                return ServiceResult<Equipment>.Fail($"Error adding equipment: {ex.Message}");
+                var innerMsg = ex.InnerException?.Message ?? ex.Message;
+                return ServiceResult<Equipment>.Fail($"Error adding equipment: {innerMsg}");
             }
-        }
+        } 
 
         public ServiceResult<Equipment> Update(Equipment equipment)
         {
@@ -256,7 +312,22 @@ namespace Inventory_Management_System.Services
                     return ServiceResult<Equipment>.Fail("Equipment name is required.");
 
                 equipment.EquipmentCode = equipment.EquipmentCode.Trim().ToUpper();
-                equipment.SerialNumber = equipment.SerialNumber?.Trim().ToUpper() ?? string.Empty;
+
+                // Normalise serial number: treat "N/A", "NA", "-" and whitespace-only as null
+                if (!string.IsNullOrWhiteSpace(equipment.SerialNumber))
+                {
+                    var sn = equipment.SerialNumber.Trim();
+                    if (sn.Equals("N/A", StringComparison.OrdinalIgnoreCase) ||
+                        sn.Equals("NA", StringComparison.OrdinalIgnoreCase) ||
+                        sn == "-")
+                        equipment.SerialNumber = null;
+                    else
+                        equipment.SerialNumber = sn.ToUpper();
+                }
+                else
+                {
+                    equipment.SerialNumber = null;
+                }
 
                 using var db = new InventoryDbContext();
                 var existing = db.Equipment.FirstOrDefault(e => e.Id == equipment.Id);
@@ -265,7 +336,8 @@ namespace Inventory_Management_System.Services
 
                 if (db.Equipment.Any(e => e.EquipmentCode == equipment.EquipmentCode && e.Id != equipment.Id))
                     return ServiceResult<Equipment>.Fail($"Equipment code '{equipment.EquipmentCode}' already exists.");
-                if (db.Equipment.Any(e => e.SerialNumber == equipment.SerialNumber && e.Id != equipment.Id))
+                if (!string.IsNullOrWhiteSpace(equipment.SerialNumber) &&
+                    db.Equipment.Any(e => e.SerialNumber == equipment.SerialNumber && e.Id != equipment.Id))
                     return ServiceResult<Equipment>.Fail($"Serial number '{equipment.SerialNumber}' already exists.");
 
                 string oldValue = $"{existing.EquipmentCode} - {existing.Name} - {existing.CurrentStatus}";

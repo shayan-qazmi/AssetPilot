@@ -180,7 +180,8 @@ namespace Inventory_Management_System.Forms
             {
                 var selected = cmbCategory.SelectedItem?.ToString() ?? "";
                 _activeCategory = selected == "All Categories" ? "" : selected;
-                ApplyFilters();
+                _currentPage = 1;                          // reset to page 1 — old page number may not exist in the filtered set
+                LoadEquipment(txtSearch.Text.Trim());       // re-fetch from DB with the new filter, not just re-slice what's already loaded
             };
 
             // Insert cmbCategory right after cmbSelectMode in the flow
@@ -280,7 +281,7 @@ namespace Inventory_Management_System.Forms
         {
             if (string.IsNullOrWhiteSpace(searchTerm))
             {
-                var result = _equipmentService.GetPage(_currentPage, _pageSize);
+                var result = _equipmentService.GetPage(_currentPage, _pageSize, _activeCategory);
                 if (!result.Success)
                 {
                     ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
@@ -298,26 +299,28 @@ namespace Inventory_Management_System.Forms
                 if (_fullEquipmentCache.Count == 0)
                     RefreshEquipmentCache();
 
-                var fullMatches = _fullEquipmentCache
-                    .Select(eq => new
-                    {
-                        Equipment = eq,
-                        Score = Math.Max(
-                            FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, searchTerm),
-                            Math.Max(
-                                FuzzySearchHelper.FuzzyScoreCode(eq.QrCode, searchTerm),
-                                Math.Max(
-                                    FuzzySearchHelper.FuzzyScore(eq.Name, searchTerm),
-                                    Math.Max(
-                                        FuzzySearchHelper.FuzzyScore(eq.Make, searchTerm),
-                                        Math.Max(
-                                            FuzzySearchHelper.FuzzyScore(eq.Model, searchTerm),
-                                            FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, searchTerm))))))
-                    })
-                    .Where(x => x.Score > -10000)
-                    .OrderByDescending(x => x.Score)
-                    .Select(x => x.Equipment)
-                    .ToList();
+                var candidates = string.IsNullOrEmpty(_activeCategory)
+                    ? _fullEquipmentCache
+                    : _fullEquipmentCache.Where(eq => string.Equals(eq.Category, _activeCategory, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                var fullMatches = candidates
+                      .Select(eq => new
+                      {
+                          Equipment = eq,
+                          Score = Math.Max(
+                              FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, searchTerm),
+                              Math.Max(
+                                  FuzzySearchHelper.FuzzyScoreCode(eq.QrCode, searchTerm),
+                                  Math.Max(
+                                      FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, searchTerm),
+                                      Math.Max(
+                                          FuzzySearchHelper.FuzzyScore(eq.Name, searchTerm),
+                                          FuzzySearchHelper.FuzzyScore(eq.Make, searchTerm)))))
+                      })
+                      .Where(x => x.Score >= 5000)
+                      .OrderByDescending(x => x.Score)
+                      .Select(x => x.Equipment)
+                      .ToList();
 
                 // ── TEMP DEBUG — remove after verifying ──────────────────────────
                 System.Diagnostics.Debug.WriteLine($"[FuzzySearch] query='{searchTerm}' matches={fullMatches.Count}: " +
@@ -332,6 +335,8 @@ namespace Inventory_Management_System.Forms
                            .Take(_pageSize)
                            .ToList();
             }
+
+
 
             UpdatePaginationControls();
             ApplyFilters();
@@ -421,13 +426,7 @@ namespace Inventory_Management_System.Forms
         // ── Apply both search-text and category filter to _allEquipment ────
         private void ApplyFilters()
         {
-            var filtered = _allEquipment.AsEnumerable();
-
-            if (!string.IsNullOrEmpty(_activeCategory))
-                filtered = filtered.Where(e =>
-                    string.Equals(e.Category, _activeCategory, StringComparison.OrdinalIgnoreCase));
-
-            RefreshGrid(filtered.ToList());
+            RefreshGrid(_allEquipment);
         }
 
         private void RefreshGrid(List<Equipment> items)
@@ -601,10 +600,26 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            string confirmMessage = selectedList.Count == 1
-                ? $"Are you sure you want to delete '{selectedList[0].Name}' ({selectedList[0].EquipmentCode})?"
-                : $"Are you sure you want to delete these {selectedList.Count} items?\n\n" +
-                  string.Join("\n", selectedList.Select(eq => $"• {eq.Name} ({eq.EquipmentCode})"));
+            const int maxListed = 15; // beyond this, the dialog gets too tall and hides the buttons
+
+            string confirmMessage;
+            if (selectedList.Count == 1)
+            {
+                confirmMessage = $"Are you sure you want to delete '{selectedList[0].Name}' ({selectedList[0].EquipmentCode})?";
+            }
+            else if (selectedList.Count <= maxListed)
+            {
+                confirmMessage = $"Are you sure you want to delete these {selectedList.Count} items?\n\n" +
+                    string.Join("\n", selectedList.Select(eq => $"• {eq.Name} ({eq.EquipmentCode})"));
+            }
+            else
+            {
+                var preview = selectedList.Take(maxListed).Select(eq => $"• {eq.Name} ({eq.EquipmentCode})");
+                int remaining = selectedList.Count - maxListed;
+                confirmMessage = $"Are you sure you want to delete these {selectedList.Count} items?\n\n" +
+                    string.Join("\n", preview) +
+                    $"\n\n...and {remaining} more item(s).";
+            }
 
             // Kept as MessageBox — this is a destructive Yes/No confirmation.
             if (MessageBox.Show(confirmMessage, "Confirm Delete",
@@ -616,25 +631,18 @@ namespace Inventory_Management_System.Forms
 
             foreach (var eq in selectedList)
             {
-                var result = _equipmentService.Delete(eq.Id);
+                var result = _equipmentService.DeleteRange(selectedList.Select(eq => eq.Id));
+
+                LoadEquipment();
+
                 if (result.Success)
-                    successCount++;
+                {
+                    ToastHelper.Show(this, $"{result.Data} item(s) deleted successfully.", ToastType.Success);
+                }
                 else
-                    failures.Add($"{eq.EquipmentCode}: {result.ErrorMessage}");
-            }
-
-            LoadEquipment();
-
-            if (failures.Count == 0)
-            {
-                ToastHelper.Show(this, $"{successCount} item(s) deleted successfully.", ToastType.Success);
-            }
-            else
-            {
-                ToastHelper.Show(this,
-                    $"{successCount} of {selectedList.Count} items deleted. Failures:\n" +
-                    string.Join("\n", failures),
-                    ToastType.Warning);
+                {
+                    ToastHelper.Show(this, result.ErrorMessage, ToastType.Warning);
+                }
             }
         }
 

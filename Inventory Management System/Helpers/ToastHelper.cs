@@ -1,4 +1,5 @@
-﻿using System;
+﻿//Helpers/ToastHelper.cs
+using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
@@ -9,11 +10,32 @@ namespace Inventory_Management_System.Helpers
 
     public static class ToastHelper
     {
+     
         private const int MaxContentWidth = 380; // text wraps once it would exceed this
+        private const int MaxVisibleToasts = 4;  // cap stacked toasts so they can't push off-screen
 
         public static void Show(Form hostForm, string message, ToastType type = ToastType.Success, int durationMs = 3000)
         {
             if (hostForm == null || hostForm.IsDisposed) return;
+            if (hostForm == null || hostForm.IsDisposed) return;
+
+            // If too many toasts are already stacked, remove the oldest one
+            // immediately instead of letting the stack grow past the visible area.
+            var existingToasts = hostForm.Controls
+                .OfType<Panel>()
+                .Where(p => p.Tag as string == "toast")
+                .OrderBy(p => p.Top)
+                .ToList();
+
+            while (existingToasts.Count >= MaxVisibleToasts)
+            {
+                var oldest = existingToasts[0];
+                existingToasts.RemoveAt(0);
+                hostForm.Controls.Remove(oldest);
+                oldest.Dispose();
+            }
+
+
 
             var (bgColor, icon) = type switch
             {

@@ -487,7 +487,10 @@ namespace Inventory_Management_System.Helpers
                 }
 
                 IXLRow headerRow = null;
-                int codeCol = -1, nameCol = -1, catCol = -1, locCol = -1, statusCol = -1, serialCol = -1;
+                int codeCol = -1, qrCol = -1, nameCol = -1, catCol = -1, locCol = -1,
+                    statusCol = -1, serialCol = -1, makeCol = -1, modelCol = -1,
+                    procTypeCol = -1, condCol = -1, purchDateCol = -1, priceCol = -1,
+                    descCol = -1, vendorCol = -1, notesCol = -1, warrantyCol = -1;
 
                 for (int r = 1; r <= 15; r++)
                 {
@@ -510,17 +513,32 @@ namespace Inventory_Management_System.Helpers
                 {
                     foreach (var cell in headerRow.CellsUsed())
                     {
-                        string h = GetCellText(cell);
+                        string raw = GetCellText(cell);
+                        string h = raw.Replace("_", " ").Replace("-", " ").Trim();
                         if (h.Equals("Equipment Code", StringComparison.OrdinalIgnoreCase) || h.Equals("Code", StringComparison.OrdinalIgnoreCase)) codeCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("QR Code", StringComparison.OrdinalIgnoreCase) || h.Equals("QRCode", StringComparison.OrdinalIgnoreCase)) qrCol = cell.Address.ColumnNumber;
                         else if (h.Equals("Equipment Name", StringComparison.OrdinalIgnoreCase) || h.Equals("Name", StringComparison.OrdinalIgnoreCase)) nameCol = cell.Address.ColumnNumber;
                         else if (h.Equals("Category", StringComparison.OrdinalIgnoreCase)) catCol = cell.Address.ColumnNumber;
                         else if (h.Equals("Location", StringComparison.OrdinalIgnoreCase)) locCol = cell.Address.ColumnNumber;
                         else if (h.Equals("Status", StringComparison.OrdinalIgnoreCase)) statusCol = cell.Address.ColumnNumber;
-                        else if (h.Equals("Serial Number", StringComparison.OrdinalIgnoreCase) || h.Equals("Serial No", StringComparison.OrdinalIgnoreCase)) serialCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Serial Number", StringComparison.OrdinalIgnoreCase) || h.Equals("Serial No", StringComparison.OrdinalIgnoreCase) || h.Equals("SerialNumber", StringComparison.OrdinalIgnoreCase)) serialCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Make", StringComparison.OrdinalIgnoreCase) || h.Equals("Manufacturer", StringComparison.OrdinalIgnoreCase) || h.Equals("Brand", StringComparison.OrdinalIgnoreCase)) makeCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Model", StringComparison.OrdinalIgnoreCase)) modelCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Procurement Type", StringComparison.OrdinalIgnoreCase) || h.Equals("ProcurementType", StringComparison.OrdinalIgnoreCase)) procTypeCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Condition", StringComparison.OrdinalIgnoreCase) || h.Equals("Condition Grade", StringComparison.OrdinalIgnoreCase)) condCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Purchase Date", StringComparison.OrdinalIgnoreCase) || h.Equals("PurchaseDate", StringComparison.OrdinalIgnoreCase)) purchDateCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Price", StringComparison.OrdinalIgnoreCase) || h.Equals("Cost", StringComparison.OrdinalIgnoreCase)) priceCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Description", StringComparison.OrdinalIgnoreCase)) descCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Vendor", StringComparison.OrdinalIgnoreCase) || h.Equals("Vendor Name", StringComparison.OrdinalIgnoreCase)) vendorCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Notes", StringComparison.OrdinalIgnoreCase) || h.Equals("Remarks", StringComparison.OrdinalIgnoreCase)) notesCol = cell.Address.ColumnNumber;
+                        else if (h.Equals("Warranty Expiry", StringComparison.OrdinalIgnoreCase) || h.Equals("WarrantyExpiry", StringComparison.OrdinalIgnoreCase) || h.Equals("Warranty", StringComparison.OrdinalIgnoreCase)) warrantyCol = cell.Address.ColumnNumber;
                     }
 
                     int lastRow = worksheet.LastRowUsed()?.RowNumber() ?? headerRow.RowNumber();
                     int autoIndex = 1;
+
+                    // Resolve the EquipmentService for procurement-type resolution (if provided)
+                    var eqService = service as Services.EquipmentService;
 
                     for (int r = headerRow.RowNumber() + 1; r <= lastRow; r++)
                     {
@@ -528,29 +546,108 @@ namespace Inventory_Management_System.Helpers
                         string eqName = nameCol > 0 ? GetCellText(row.Cell(nameCol)) : "";
                         if (string.IsNullOrWhiteSpace(eqName)) continue;
 
-                        string eqCode = codeCol > 0 ? GetCellText(row.Cell(codeCol)) : $"EQ{autoIndex:D4}";
-                        autoIndex++;
+                        string eqCode = codeCol > 0 ? GetCellText(row.Cell(codeCol)) : "";
+                        // Leave blank if the sheet has no code — EquipmentService.Add()
+                        // will generate one that continues the real DB sequence
+                        // (EQ001, EQ002...) instead of a separate counter that
+                        // ignores what's already in the database.
 
                         var eq = new Equipment();
-                        SetProp(eq, "EquipmentCode", eqCode);
-                        SetProp(eq, "Code", eqCode);
+                        if (!string.IsNullOrWhiteSpace(eqCode))
+                        {
+                            SetProp(eq, "EquipmentCode", eqCode);
+                            SetProp(eq, "Code", eqCode);
+                        }
                         SetProp(eq, "Name", eqName);
 
-                        string cat = catCol > 0 ? GetCellText(row.Cell(catCol)) : "";
+                        // QR Code
+                        string qr = qrCol > 0 ? CleanNa(GetCellText(row.Cell(qrCol))) : "";
+                        if (!string.IsNullOrWhiteSpace(qr))
+                        {
+                            SetProp(eq, "QrCode", qr);
+                        }
+
+                        // Serial Number (blank / N/A treated as null by EquipmentService.Add)
+                        string serial = serialCol > 0 ? CleanNa(GetCellText(row.Cell(serialCol))) : "";
+                        SetProp(eq, "SerialNumber", serial);
+                        SetProp(eq, "SerialNo", serial);
+
+                        // Make & Model
+                        string make = makeCol > 0 ? CleanNa(GetCellText(row.Cell(makeCol))) : "";
+                        SetProp(eq, "Make", make);
+
+                        string model = modelCol > 0 ? CleanNa(GetCellText(row.Cell(modelCol))) : "";
+                        SetProp(eq, "Model", model);
+
+                        // Category
+                        string cat = catCol > 0 ? CleanNa(GetCellText(row.Cell(catCol))) : "";
                         SetProp(eq, "Category", cat);
                         SetProp(eq, "CategoryName", cat);
 
-                        string loc = locCol > 0 ? GetCellText(row.Cell(locCol)) : "";
+                        // Location
+                        string loc = locCol > 0 ? CleanNa(GetCellText(row.Cell(locCol))) : "";
                         SetProp(eq, "Location", loc);
                         SetProp(eq, "LocationName", loc);
 
-                        string status = statusCol > 0 ? GetCellText(row.Cell(statusCol)) : "Available";
-                        SetProp(eq, "Status", status);
-                        SetProp(eq, "EquipmentStatus", status);
+                        // Status — default to "in_store" if missing
+                        string status = statusCol > 0 ? CleanNa(GetCellText(row.Cell(statusCol))) : "";
+                        if (string.IsNullOrWhiteSpace(status)) status = "in_store";
+                        // Normalise common display values to DB snake_case
+                        if (status.Equals("In Store", StringComparison.OrdinalIgnoreCase) ||
+                            status.Equals("In-Store", StringComparison.OrdinalIgnoreCase) ||
+                            status.Equals("Available", StringComparison.OrdinalIgnoreCase))
+                            status = "in_store";
+                        else if (status.Equals("Allocated", StringComparison.OrdinalIgnoreCase))
+                            status = "allocated";
+                        else if (status.Equals("Under Repair", StringComparison.OrdinalIgnoreCase))
+                            status = "under_repair";
+                        else if (status.Equals("Decommissioned", StringComparison.OrdinalIgnoreCase))
+                            status = "decommissioned";
+                        SetProp(eq, "CurrentStatus", status);
 
-                        string serial = serialCol > 0 ? GetCellText(row.Cell(serialCol)) : "";
-                        SetProp(eq, "SerialNumber", serial);
-                        SetProp(eq, "SerialNo", serial);
+                        string cond = condCol > 0 ? CleanNa(GetCellText(row.Cell(condCol))) : "";
+                        eq.ConditionGrade = NormalizeConditionGrade(cond);   // set directly — keep true null, don't let SetProp coerce it to ""
+
+                        // Purchase Date
+                        if (purchDateCol > 0)
+                        {
+                            string dateStr = GetCellText(row.Cell(purchDateCol));
+                            if (!string.IsNullOrWhiteSpace(dateStr) && DateTime.TryParse(dateStr, out var dt))
+                                eq.PurchaseDate = DateOnly.FromDateTime(dt);
+                        }
+
+                        // Price
+                        if (priceCol > 0)
+                        {
+                            string priceStr = CleanNa(GetCellText(row.Cell(priceCol)));
+                            if (!string.IsNullOrWhiteSpace(priceStr) && decimal.TryParse(priceStr, out var pv))
+                                eq.Price = pv;
+                        }
+
+                        // Procurement Type — resolve to ID if service available
+                        if (procTypeCol > 0 && eqService != null)
+                        {
+                            string procTypeName = CleanNa(GetCellText(row.Cell(procTypeCol)));
+                            if (!string.IsNullOrWhiteSpace(procTypeName))
+                                eq.ProcurementTypeId = eqService.ResolveProcurementTypeId(procTypeName);
+                        }
+
+                        // Description, Vendor, Notes, Warranty
+                        string desc = descCol > 0 ? CleanNa(GetCellText(row.Cell(descCol))) : "";
+                        SetProp(eq, "Description", desc);
+
+                        string vendor = vendorCol > 0 ? CleanNa(GetCellText(row.Cell(vendorCol))) : "";
+                        SetProp(eq, "VendorName", vendor);
+
+                        string notes = notesCol > 0 ? CleanNa(GetCellText(row.Cell(notesCol))) : "";
+                        SetProp(eq, "Notes", notes);
+
+                        if (warrantyCol > 0)
+                        {
+                            string warStr = GetCellText(row.Cell(warrantyCol));
+                            if (!string.IsNullOrWhiteSpace(warStr) && DateTime.TryParse(warStr, out var wdt))
+                                eq.WarrantyExpiry = DateOnly.FromDateTime(wdt);
+                        }
 
                         items.Add(eq);
                     }
@@ -562,6 +659,42 @@ namespace Inventory_Management_System.Helpers
             }
 
             return (items, errors);
+        }
+
+        /// <summary>Converts "N/A", "NA", "-" to empty string so downstream code treats them as missing.</summary>
+        private static string CleanNa(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return "";
+            var trimmed = value.Trim();
+            if (trimmed.Equals("N/A", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("NA", StringComparison.OrdinalIgnoreCase) ||
+                trimmed == "-")
+                return "";
+            return trimmed;
+        }
+
+        private static readonly string[] ValidConditionGrades = { "New", "Good", "Fair", "Poor", "Unserviceable" };
+
+        private static string NormalizeConditionGrade(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+
+            string trimmed = value.Trim();
+
+            // Exact match (case-insensitive) against the DB enum
+            var match = ValidConditionGrades.FirstOrDefault(v =>
+                v.Equals(trimmed, StringComparison.OrdinalIgnoreCase));
+            if (match != null) return match;
+
+            // Common alternate spellings — extend this list as needed
+            if (trimmed.Equals("Excellent", StringComparison.OrdinalIgnoreCase)) return "New";
+            if (trimmed.Equals("Used", StringComparison.OrdinalIgnoreCase)) return "Fair";
+            if (trimmed.Equals("Damaged", StringComparison.OrdinalIgnoreCase)) return "Poor";
+            if (trimmed.Equals("Not Working", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("Broken", StringComparison.OrdinalIgnoreCase)) return "Unserviceable";
+
+            // Unknown value — don't let it crash the whole import; leave blank instead
+            return null;
         }
 
         public static bool ExportEquipment(string filePath, IEnumerable<Equipment> equipments)
