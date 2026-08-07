@@ -13,10 +13,10 @@ namespace Inventory_Management_System.Services
         private readonly AuditService _audit;
         private readonly int _currentUserId;
 
-        public EquipmentService(int currentUserId = 1)
+        public EquipmentService(int? currentUserId = null)
         {
-            _audit = new AuditService(currentUserId);
-            _currentUserId = currentUserId;
+            _currentUserId = currentUserId ?? AuthService.CurrentUserId;
+            _audit = new AuditService(_currentUserId);
         }
 
         public ServiceResult<List<Equipment>> GetAll()
@@ -117,13 +117,12 @@ namespace Inventory_Management_System.Services
                 foreach (var eq in items)
                     eq.IsDeleted = true;
 
-                db.SaveChanges();   // ✅ ONE round-trip for all of them, not one per item
+                db.SaveChanges();
 
-                // Batch audit log — one entry summarizing the bulk action, instead of
-                // 100 separate DB writes for 100 separate audit entries.
-                _audit.Log(0, AuditService.ActionEquipmentDeleted,
-                    null, $"Bulk deleted {items.Count} equipment item(s): " +
-                          string.Join(", ", items.Select(e => e.EquipmentCode)));
+                foreach (var eq in items)
+                    _audit.Log(eq.Id, AuditService.ActionEquipmentDeleted,
+                        $"{eq.EquipmentCode} - {eq.Name}",
+                        $"Category: {eq.Category ?? "—"} | Status: {eq.CurrentStatus}");
 
                 return ServiceResult<int>.Ok(items.Count);
             }
@@ -340,7 +339,7 @@ namespace Inventory_Management_System.Services
                     db.Equipment.Any(e => e.SerialNumber == equipment.SerialNumber && e.Id != equipment.Id))
                     return ServiceResult<Equipment>.Fail($"Serial number '{equipment.SerialNumber}' already exists.");
 
-                string oldValue = $"{existing.EquipmentCode} - {existing.Name} - {existing.CurrentStatus}";
+                var (oldSummary, newSummary) = AuditService.BuildEquipmentDiff(existing, equipment);
 
                 existing.EquipmentCode = equipment.EquipmentCode;
                 existing.QrCode = equipment.QrCode;
@@ -362,8 +361,7 @@ namespace Inventory_Management_System.Services
 
                 db.SaveChanges();
 
-                _audit.Log(existing.Id, AuditService.ActionEquipmentUpdated,
-                    oldValue, $"{existing.EquipmentCode} - {existing.Name} - {existing.CurrentStatus}");
+                _audit.Log(existing.Id, AuditService.ActionEquipmentUpdated, oldSummary, newSummary);
 
                 return ServiceResult<Equipment>.Ok(existing);
             }
@@ -388,7 +386,9 @@ namespace Inventory_Management_System.Services
                 eq.IsDeleted = true;
                 db.SaveChanges();
 
-                _audit.Log(eq.Id, AuditService.ActionEquipmentDeleted, deletedInfo, null);
+                _audit.Log(eq.Id, AuditService.ActionEquipmentDeleted,
+          $"{eq.EquipmentCode} - {eq.Name}",
+          $"Category: {eq.Category ?? "—"} | Status: {eq.CurrentStatus} | Serial: {eq.SerialNumber ?? "—"}");
 
                 return ServiceResult<bool>.Ok(true);
             }

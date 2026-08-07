@@ -10,6 +10,8 @@ namespace Inventory_Management_System.Services
 {
     public class AllocationService
     {
+
+        private readonly AuditService _audit = new();
         public ServiceResult<List<Allocation>> GetAll()
         {
             try
@@ -70,6 +72,20 @@ namespace Inventory_Management_System.Services
                 }
 
                 db.SaveChanges();
+                string empName = allocation.EmployeeId.HasValue
+    ? db.Employees.FirstOrDefault(x => x.Id == allocation.EmployeeId)?.FullName ?? "Unknown"
+    : "—";
+                string locName = allocation.LocationId.HasValue
+                    ? db.Locations.FirstOrDefault(x => x.Id == allocation.LocationId)?.LocationName ?? "Unknown"
+                    : "—";
+
+                string action = allocation.Status == "approved"
+                    ? AuditService.ActionAllocationApproved
+                    : AuditService.ActionAllocationRequested;
+
+                _audit.Log(equipment.Id, action,
+                    $"Status: {equipment.CurrentStatus}",
+                    $"Employee: {empName} | Location: {locName} | Allocation Status: {allocation.Status}");
                 return ServiceResult<Allocation>.Ok(allocation);
             }
             catch (Exception ex)
@@ -98,6 +114,13 @@ namespace Inventory_Management_System.Services
                 }
 
                 db.SaveChanges();
+                string empName = allocation.EmployeeId.HasValue
+    ? db.Employees.FirstOrDefault(x => x.Id == allocation.EmployeeId)?.FullName ?? "Unknown"
+    : "—";
+
+                _audit.Log(allocation.EquipmentId, AuditService.ActionAllocationReturned,
+                    $"Allocated to: {empName}",
+                    "Status: In Store");
                 return ServiceResult<bool>.Ok(true);
             }
             catch (Exception ex)

@@ -1,4 +1,4 @@
-﻿// Helpers/AvatarHelper.cs
+// Helpers/AvatarHelper.cs
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -109,6 +109,29 @@ namespace Inventory_Management_System.Helpers
             catch (Exception ex)
             {
                 Logger.LogError(ex, "AvatarHelper.TryLoadEmployeeImage");
+                return null;
+            }
+        }
+        /// Attempts to load an equipment picture from the shared network folder.
+        /// Never throws — returns null (caller falls back to the default
+        /// placeholder silhouette) if the share is unreachable or the file
+        /// is missing.
+        public static Image? TryLoadEquipmentImage(string? storedPicturePath)
+        {
+            if (string.IsNullOrWhiteSpace(storedPicturePath)) return null;
+
+            try
+            {
+                NetworkShareHelper.EnsureConnected();
+                string fullPath = NetworkPaths.GetEquipmentPictureFullPath(storedPicturePath);
+                if (!File.Exists(fullPath)) return null;
+
+                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
+                return Image.FromStream(stream);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "AvatarHelper.TryLoadEquipmentImage");
                 return null;
             }
         }

@@ -149,6 +149,7 @@ namespace Inventory_Management_System.Forms
 
             dgvLogs.Columns.AddRange(colId, colEq, colQr, colAct, colUser, colOld, colNew, colDate);
             dgvLogs.ColumnHeaderMouseClick += new System.Windows.Forms.DataGridViewCellMouseEventHandler(this.dgvLogs_ColumnHeaderMouseClick);
+            dgvLogs.CellDoubleClick += new System.Windows.Forms.DataGridViewCellEventHandler(this.dgvLogs_CellDoubleClick);
 
             // ── LogsForm ──────────────────────────────────────────────────
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);

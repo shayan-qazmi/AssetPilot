@@ -56,6 +56,7 @@ namespace Inventory_Management_System.Forms
             if (dgvLogs.Columns["Action"] != null) dgvLogs.Columns["Action"]!.FillWeight = 22;
             if (dgvLogs.Columns["OldValue"] != null) dgvLogs.Columns["OldValue"]!.FillWeight = 18;
             if (dgvLogs.Columns["NewValue"] != null) dgvLogs.Columns["NewValue"]!.FillWeight = 18;
+            if (dgvLogs.Columns["ID"] != null) dgvLogs.Columns["ID"].Visible = false;
         }
 
         private void dgvLogs_ColumnHeaderMouseClick(object sender, DataGridViewCellMouseEventArgs e)
@@ -197,7 +198,7 @@ namespace Inventory_Management_System.Forms
       item.Equipment?.EquipmentCode ?? "—",
       item.Equipment?.QrCode ?? "—",
       FormatAction(item.ActionType),
-      item.ChangedByUser?.FullName ?? "System",
+    item.ChangedByUser != null ? $"{item.ChangedByUser.FullName} (@{item.ChangedByUser.Username})" : "System",
       item.OldValue ?? "",
       item.NewValue ?? "",
       item.CreatedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
@@ -235,6 +236,14 @@ namespace Inventory_Management_System.Forms
                         actionCell.Style.BackColor = Color.FromArgb(255, 224, 178);
                         actionCell.Style.ForeColor = Color.FromArgb(130, 60, 0);
                         break;
+                    case "maintenance_opened":
+                        actionCell.Style.BackColor = Color.FromArgb(255, 224, 130);
+                        actionCell.Style.ForeColor = Color.FromArgb(130, 90, 0);
+                        break;
+                    case "maintenance_resolved":
+                        actionCell.Style.BackColor = Color.FromArgb(197, 225, 165);
+                        actionCell.Style.ForeColor = Color.FromArgb(51, 105, 30);
+                        break;
                 }
                 actionCell.Style.Font = ThemeHelper.FontBold;
             }
@@ -257,6 +266,8 @@ namespace Inventory_Management_System.Forms
             "decommission_approved" => "Decommission Approved",
             "decommission_rejected" => "Decommission Rejected",
             "transferred" => "Transferred",
+            "maintenance_opened" => "Maintenance Opened",
+            "maintenance_resolved" => "Maintenance Resolved",
             _ => raw ?? "Unknown"
         };
 
@@ -271,6 +282,22 @@ namespace Inventory_Management_System.Forms
         {
             _currentPage = 1;
             LoadLogs(txtSearch.Text.Trim());
+        }
+
+        private void dgvLogs_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            var row = dgvLogs.Rows[e.RowIndex];
+
+            string action = row.Cells["Action"].Value?.ToString() ?? "";
+            string user = row.Cells["User"].Value?.ToString() ?? "";
+            string date = row.Cells["Date"].Value?.ToString() ?? "";
+            string eqCode = row.Cells["Equipment"].Value?.ToString() ?? "";
+            string old = row.Cells["OldValue"].Value?.ToString() ?? "";
+            string @new = row.Cells["NewValue"].Value?.ToString() ?? "";
+
+            using var popup = new LogDetailPopup(action, user, date, eqCode, old, @new);
+            popup.ShowDialog(this);
         }
 
         private void cmbPageSize_SelectedIndexChanged(object sender, EventArgs e)

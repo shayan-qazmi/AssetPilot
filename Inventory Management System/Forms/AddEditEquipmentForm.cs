@@ -970,7 +970,19 @@ namespace Inventory_Management_System.Forms
             // set the initial status from loaded data — this is not a user-driven
             // status change and must never trigger the maintenance modal.
             _suppressStatusEvent = true;
-            cmbStatus.SelectedItem = FormatStatus(_equipment.CurrentStatus);
+            string formattedInitialStatus = FormatStatus(_equipment.CurrentStatus);
+            if (!cmbStatus.Items.Contains(formattedInitialStatus))
+            {
+                // Equipment is currently Allocated (or any other status not offered
+                // in this dropdown) — those states are only changed from the
+                // Allocation screen. Add it as a locked, read-only entry so it
+                // displays correctly AND so SelectedItem is never left null, which
+                // previously caused Save to silently fall back to "In Store" and
+                // wipe out the real status.
+                cmbStatus.Items.Add(formattedInitialStatus);
+                cmbStatus.Enabled = false;
+            }
+            cmbStatus.SelectedItem = formattedInitialStatus;
             _suppressStatusEvent = false;
 
             if (_equipment.PurchaseDate.HasValue)

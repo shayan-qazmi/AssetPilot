@@ -74,9 +74,9 @@ namespace Inventory_Management_System.Forms
             btnEdit.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnEdit.Click += BtnEdit_Click;
 
-            btnDelete.Size   = new System.Drawing.Size(90, 32);
-            btnDelete.Text   = "🗑️ Remove Return";
-            btnDelete.Name   = "btnDelete";
+            btnDelete.Size = new System.Drawing.Size(120, 32);
+            btnDelete.Text = "↩️ Undo Return";
+            btnDelete.Name = "btnDelete";
             btnDelete.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnDelete.Click += BtnDelete_Click;
 
@@ -104,13 +104,17 @@ namespace Inventory_Management_System.Forms
             dgvReturns.ReadOnly            = true;
             dgvReturns.SelectionMode       = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             dgvReturns.Name                = "dgvReturns";
-            dgvReturns.Columns.Add("ReturnID",      "Return ID");
+            dgvReturns.Columns.Add("ReturnID", "Return ID");
+            dgvReturns.Columns["ReturnID"].Visible = false;
+            dgvReturns.Columns.Add("QrCode", "QR Code");
             dgvReturns.Columns.Add("EquipmentCode", "Equipment Code");
             dgvReturns.Columns.Add("EquipmentName", "Equipment Name");
-            dgvReturns.Columns.Add("Employee",      "Employee");
-            dgvReturns.Columns.Add("ReturnDate",    "Return Date");
+            dgvReturns.Columns.Add("Employee", "Employee");
+            dgvReturns.Columns.Add("Location", "Location");
+            dgvReturns.Columns.Add("ReturnDate", "Return Date");
             dgvReturns.Columns.Add("Condition",     "Condition");
-            dgvReturns.Columns.Add("Source", "Source");
+            dgvReturns.Columns.Add("Source",        "Source");
+            dgvReturns.Columns.Add("Overdue",       "Overdue");
 
             panelBottom.Dock      = System.Windows.Forms.DockStyle.Bottom;
             panelBottom.Height    = 40;

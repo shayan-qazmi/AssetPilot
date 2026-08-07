@@ -1,4 +1,5 @@
-﻿using System;
+﻿//Models/user.cs
+using System;
 using System.Collections.Generic;
 
 namespace Inventory_Management_System.Models;

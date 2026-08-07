@@ -20,6 +20,7 @@ namespace Inventory_Management_System.Forms
         private readonly LocationService _locationService = new();
         private readonly AuditService _audit = new();
         private List<Allocation> _allAllocations = new(); // currently allocated equipment
+     
 
         private int _currentPage = 1;
         private int _pageSize = 25;
@@ -29,6 +30,7 @@ namespace Inventory_Management_System.Forms
         public TransferForm()
         {
             InitializeComponent();
+            
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
             LoadAllocatedEquipment();
@@ -38,6 +40,19 @@ namespace Inventory_Management_System.Forms
                 dgvTransfer.ClearSelection();
                 dgvTransfer.CurrentCell = null;
             };
+        }
+
+      
+
+        internal static string FormatRoom(Location? loc)
+        {
+            if (loc == null) return "—";
+            bool hasNum = !string.IsNullOrWhiteSpace(loc.RoomNumber);
+            bool hasName = !string.IsNullOrWhiteSpace(loc.RoomName);
+            if (!hasNum && !hasName) return "—";
+            string room = hasNum ? $"Room {loc.RoomNumber}" : "";
+            if (hasName) room = string.IsNullOrEmpty(room) ? loc.RoomName! : $"{room} ({loc.RoomName})";
+            return room;
         }
 
         private void ApplyTheme()
@@ -74,7 +89,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Error loading allocated equipment: " + ex.Message, ToastType.Error);
+                MessageBox.Show(ex.ToString(), "Transfer failed — full details");
             }
         }
 
@@ -124,13 +139,17 @@ namespace Inventory_Management_System.Forms
                                   item.ExpectedReturnDate.Value < DateOnly.FromDateTime(DateTime.Today))
                                   ? "Overdue" : "approved";
 
+                string locName = item.Location?.LocationName ?? "—";
+                string room = FormatRoom(item.Location);
+                string combinedLocation = room == "—" ? locName : $"{locName} - {room}";
+
                 int rowIdx = dgvTransfer.Rows.Add(
                     item.Id,
                     string.IsNullOrWhiteSpace(item.Equipment?.QrCode) ? "—" : item.Equipment!.QrCode,
                     item.Equipment?.EquipmentCode ?? "—",
                     item.Equipment?.Name ?? "—",
                     item.Employee?.FullName ?? "—",
-                    item.Location?.LocationName ?? "—",
+                    combinedLocation,
                     item.AllocationDate.ToString("yyyy-MM-dd"),
                     status
                 );
@@ -177,10 +196,11 @@ namespace Inventory_Management_System.Forms
             {
                 using var db = new InventoryDbContext();
                 var activeAllocations = db.Allocations
-                    .Where(a => a.Status == "approved")
-                    .Include(a => a.Equipment)
-                    .Include(a => a.Employee)
-                    .ToList();
+      .Where(a => a.Status == "approved")
+      .Include(a => a.Equipment)
+      .Include(a => a.Employee)
+      .Include(a => a.Location)
+      .ToList();
 
                 if (activeAllocations.Count == 0)
                 {
@@ -218,15 +238,21 @@ namespace Inventory_Management_System.Forms
                 db.Allocations.Add(newAlloc);
                 db.SaveChanges();
 
+                string oldEmpName = oldAlloc.EmployeeId.HasValue ? db.Employees.FirstOrDefault(x => x.Id == oldAlloc.EmployeeId)?.FullName ?? "Unknown" : "—";
+                string oldLocName = oldAlloc.LocationId.HasValue ? db.Locations.FirstOrDefault(x => x.Id == oldAlloc.LocationId)?.LocationName ?? "Unknown" : "—";
+                string newEmpName = newAlloc.EmployeeId.HasValue ? db.Employees.FirstOrDefault(x => x.Id == newAlloc.EmployeeId)?.FullName ?? "Unknown" : "—";
+                string newLocName = newAlloc.LocationId.HasValue ? db.Locations.FirstOrDefault(x => x.Id == newAlloc.LocationId)?.LocationName ?? "Unknown" : "—";
+
                 _audit.Log(oldAlloc.EquipmentId, AuditService.ActionTransferred,
-                    $"Employee {oldAlloc.EmployeeId}", $"Employee {frm.NewEmployeeId}");
+                    $"Employee: {oldEmpName} | Location: {oldLocName}",
+                    $"Employee: {newEmpName} | Location: {newLocName}");
 
                 LoadAllocatedEquipment();
                 ToastHelper.Show(this, "Equipment transferred successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Transfer failed: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(this, "Transfer failed: " + ex.ToString(), ToastType.Error);
             }
         }
 
@@ -284,9 +310,10 @@ namespace Inventory_Management_System.Forms
                 {
                     string E(object? v) => $"\"{v?.ToString()?.Replace("\"", "\"\"") ?? ""}\"";
                     sb.AppendLine(string.Join(",",
-                        E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
+E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
                         E(row.Cells["EquipmentName"].Value), E(row.Cells["CurrentEmployee"].Value),
-                        E(row.Cells["CurrentLocation"].Value), E(row.Cells["AllocatedSince"].Value)));
+                        E(row.Cells["CurrentLocation"].Value),
+                        E(row.Cells["AllocatedSince"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
                 ToastHelper.Show(this, "Exported successfully.", ToastType.Success);
@@ -312,14 +339,15 @@ namespace Inventory_Management_System.Forms
     public class TransferDialog : Form
     {
         public int OldAllocationId { get; private set; }
-        public int NewEmployeeId { get; private set; }
-        public int NewLocationId { get; private set; }
+        public int? NewEmployeeId { get; private set; }
+        public int? NewLocationId { get; private set; }
 
         private TextBox txtEquipmentSearch = null!;
         private ComboBox cmbAllocation = null!;
         private ComboBox cmbEmployee = null!;
         private ComboBox cmbLocation = null!;
         private ComboBox cmbRoom = null!;
+        private Label lblCurrentDetails = null!;  
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
@@ -350,6 +378,12 @@ namespace Inventory_Management_System.Forms
             public string DisplayName { get; set; } = "";
         }
 
+        private class EmployeeOption
+        {
+            public int? Id { get; set; }
+            public string FullName { get; set; } = "";
+        }
+
         private class RoomOption
         {
             public int Id { get; set; }
@@ -368,6 +402,7 @@ namespace Inventory_Management_System.Forms
 
         private void BuildUI()
         {
+            _suppressSync = true;
             Text = "New Transfer";
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -519,6 +554,18 @@ namespace Inventory_Management_System.Forms
             FieldLabel("Currently Allocated As", required: true);
             PlaceControl(cmbAllocation);
             Hint("Only currently approved allocations are listed");
+            lblCurrentDetails = new Label
+            {
+                Text = "",
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize = false,
+                Size = new Size(contentWidth, 36),
+                Location = new Point(margin, y),
+                BackColor = Color.FromArgb(245, 247, 250)
+            };
+            body.Controls.Add(lblCurrentDetails);
+            y += lblCurrentDetails.Height + 10;
 
             if (_preselectedAllocationId.HasValue)
             {
@@ -527,6 +574,7 @@ namespace Inventory_Management_System.Forms
                 {
                     cmbAllocation.SelectedValue = _preselectedAllocationId.Value;
                     txtEquipmentSearch.Text = $"{preAlloc.Equipment?.EquipmentCode} — {preAlloc.Equipment?.Name}";
+                    UpdateCurrentDetails(preAlloc);
                 }
                 txtEquipmentSearch.Enabled = false;
                 cmbAllocation.Enabled = false;
@@ -536,11 +584,12 @@ namespace Inventory_Management_System.Forms
                 _equipmentSuggest = new EntitySuggestHelper<Allocation>(
                     textBox: txtEquipmentSearch,
                     hostForm: this,
-                    onSelected: alloc =>
-                    {
-                        _suppressSync = true;
-                        int index = _allocationItems.FindIndex(a => a.Id == alloc.Id);
-                        if (index >= 0)
+              onSelected: alloc =>
+              {
+                  UpdateCurrentDetails(alloc);
+                  _suppressSync = true;
+                  int index = _allocationItems.FindIndex(a => a.Id == alloc.Id);
+                  if (index >= 0)
                         {
                             cmbAllocation.SelectedIndex = index;
                         }
@@ -567,9 +616,15 @@ namespace Inventory_Management_System.Forms
             SectionHeader("👤  Transfer To");
 
             cmbEmployee = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            var employeeOptions = new List<EmployeeOption>
+{
+    new EmployeeOption { Id = null, FullName = "-- Keep current employee --" }
+};
+            employeeOptions.AddRange(_employees.Where(e => e.IsActive)
+                .Select(e => new EmployeeOption { Id = e.Id, FullName = e.FullName }));
             cmbEmployee.DisplayMember = "FullName";
             cmbEmployee.ValueMember = "Id";
-            cmbEmployee.DataSource = _employees.Where(e => e.IsActive).ToList();
+            cmbEmployee.DataSource = employeeOptions;
             ThemeHelper.StyleComboBox(cmbEmployee);
             FieldLabel("New Employee", required: true);
             PlaceControl(cmbEmployee);
@@ -578,13 +633,16 @@ namespace Inventory_Management_System.Forms
             cmbLocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbLocation.DisplayMember = "DisplayName";
             cmbLocation.ValueMember = "Name";
-            var locationNameOptions = _locations
+            var locationNameOptions = new List<LocationNameOption>
+{
+    new LocationNameOption { Name = null, DisplayName = "-- Keep current location --" }
+};
+            locationNameOptions.AddRange(_locations
                 .Select(l => l.LocationName)
                 .Where(n => !string.IsNullOrWhiteSpace(n))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-                .Select(n => new LocationNameOption { Name = n, DisplayName = n })
-                .ToList();
+                .Select(n => new LocationNameOption { Name = n, DisplayName = n }));
             cmbLocation.DataSource = locationNameOptions;
             ThemeHelper.StyleComboBox(cmbLocation);
             FieldLabel("New Location", required: true);
@@ -599,8 +657,8 @@ namespace Inventory_Management_System.Forms
             PlaceControl(cmbRoom);
             Hint("The specific room at that location");
 
-            cmbLocation.SelectedIndexChanged += (s, e) => RefreshRoomDropdown();
-            if (cmbLocation.Items.Count > 0) cmbLocation.SelectedIndex = 0; // triggers RefreshRoomDropdown
+            cmbLocation.SelectedIndexChanged += (s, e) => { if (!_suppressSync) RefreshRoomDropdown(); };
+            if (cmbLocation.Items.Count > 0) cmbLocation.SelectedIndex = 0; // placeholder — room stays disabled until a real location is picked
 
             var lblNote = new Label
             {
@@ -622,11 +680,18 @@ namespace Inventory_Management_System.Forms
             ClientSize = new Size(formWidth, totalHeight);
             pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
 
+            _suppressSync = false;
+            if (_preselectedAllocationId.HasValue)
+                UpdateCurrentDetails(_allocations.FirstOrDefault(a => a.Id == _preselectedAllocationId.Value));
+            RefreshRoomDropdown();
+
             AcceptButton = btnSave;
             CancelButton = btnCancel;
         }
 
         private bool _suppressSync = false;
+
+
 
         private void CmbAllocation_SelectedIndexChanged(object? sender, EventArgs e)
         {
@@ -639,31 +704,44 @@ namespace Inventory_Management_System.Forms
             var alloc = _allocations.FirstOrDefault(a => a.Id == selectedId);
             if (alloc == null) return;
 
+            UpdateCurrentDetails(alloc);
+
             _suppressSync = true;
             txtEquipmentSearch.Text = $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}";
             txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
             _suppressSync = false;
         }
 
+        private void UpdateCurrentDetails(Allocation? alloc)
+        {
+            if (alloc == null) { lblCurrentDetails.Text = ""; return; }
+            string emp = alloc.Employee?.FullName ?? "—";
+            string loc = alloc.Location?.LocationName ?? "—";
+            string room = TransferForm.FormatRoom(alloc.Location);  
+            lblCurrentDetails.Text = $"Currently with: {emp}\nLocation: {loc}" + (room != "—" ? $" — {room}" : "");
+        }
+
+
+
 
         private void RefreshRoomDropdown()
         {
             string? selectedName = cmbLocation.SelectedValue as string;
 
-            if (selectedName == null)
+            var rooms = new List<RoomOption>
+    {
+        new RoomOption { Id = 0, Display = "-- Select a room --" }
+    };
+
+            if (selectedName != null)
             {
-                cmbRoom.DataSource = null;
-                cmbRoom.Enabled = false;
-                return;
+                rooms.AddRange(_locations
+                    .Where(l => l.LocationName == selectedName)
+                    .Select(l => new RoomOption { Id = l.Id, Display = RoomOptionDisplay(l) }));
             }
 
-            var rooms = _locations
-                .Where(l => l.LocationName == selectedName)
-                .Select(l => new RoomOption { Id = l.Id, Display = RoomOptionDisplay(l) })
-                .ToList();
-
-            cmbRoom.Enabled = rooms.Count > 0;
             cmbRoom.DataSource = rooms;
+            cmbRoom.Enabled = rooms.Count > 1;   // only real rooms count as "usable"
             if (cmbRoom.Items.Count > 0) cmbRoom.SelectedIndex = 0;
         }
 
@@ -693,19 +771,30 @@ namespace Inventory_Management_System.Forms
 
         private void BtnSave_Click(object? sender, EventArgs e)
         {
-            TryResolveEquipmentFromText(); // last-chance resolve before validating
+            TryResolveEquipmentFromText();
 
-            int? roomId = cmbRoom.Enabled && cmbRoom.SelectedValue is int rid ? rid : (int?)null;
-
-            if (cmbAllocation.SelectedValue == null || (int)cmbAllocation.SelectedValue == 0 ||
-                cmbEmployee.SelectedValue == null || roomId == null)
+            if (cmbAllocation.SelectedValue == null || (int)cmbAllocation.SelectedValue == 0)
             {
-                ToastHelper.Show(this, "Please fill all fields, including a specific room for the new location.", ToastType.Warning);
+                ToastHelper.Show(this, "Please select equipment to transfer.", ToastType.Warning);
                 return;
             }
-            OldAllocationId = (int)cmbAllocation.SelectedValue;
-            NewEmployeeId = (int)cmbEmployee.SelectedValue;
-            NewLocationId = roomId.Value;
+
+            int allocId = (int)cmbAllocation.SelectedValue;
+            var currentAlloc = _allocations.FirstOrDefault(a => a.Id == allocId);
+            if (currentAlloc == null) return;
+
+            int? empId = cmbEmployee.SelectedValue is int eid ? eid : (int?)null;
+            int? roomId = cmbRoom.Enabled && cmbRoom.SelectedValue is int rid ? rid : (int?)null;
+
+            if (empId == null && roomId == null)
+            {
+                ToastHelper.Show(this, "Select a new employee and/or a new location to transfer to.", ToastType.Warning);
+                return;
+            }
+
+            OldAllocationId = allocId;
+            NewEmployeeId = empId ?? currentAlloc.EmployeeId;   // unchanged if left on "keep current"
+            NewLocationId = roomId ?? currentAlloc.LocationId;  // unchanged if left on "keep current"
             DialogResult = DialogResult.OK;
         }
 

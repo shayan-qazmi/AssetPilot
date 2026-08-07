@@ -89,7 +89,9 @@ namespace Inventory_Management_System.Services
 
                 db.SaveChanges();
 
-                _audit.Log(transaction.EquipmentId, AuditService.ActionCheckedOut, "in_store", $"Issued to: {transaction.IssuedTo}");
+                _audit.Log(transaction.EquipmentId, AuditService.ActionCheckedOut,
+                    "Status: In Store",
+                    $"Issued To: {transaction.IssuedTo} | Expected Return: {transaction.ExpectedReturn?.ToString("yyyy-MM-dd") ?? "—"} | Condition: {transaction.ConditionBefore ?? "—"}");
 
                 return ServiceResult<Transaction>.Ok(transaction);
             }
@@ -121,7 +123,9 @@ namespace Inventory_Management_System.Services
 
                 db.SaveChanges();
 
-                _audit.Log(transaction.EquipmentId, AuditService.ActionCheckedIn, "allocated", $"Condition: {conditionAfter}");
+                _audit.Log(transaction.EquipmentId, AuditService.ActionCheckedIn,
+                    $"Status: Allocated | Condition Before: {transaction.ConditionBefore ?? "—"}",
+                    $"Status: In Store | Condition After: {conditionAfter} | Remarks: {(string.IsNullOrWhiteSpace(remarks) ? "—" : remarks)}");
 
                 return ServiceResult<bool>.Ok(true);
             }

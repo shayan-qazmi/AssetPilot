@@ -29,6 +29,8 @@ namespace Inventory_Management_System.Forms
 
         private ComboBox cmbEquipmentFilter = null!;
         private ComboBox cmbSelectMode = null!;          // Select All / Deselect All dropdown
+        private ComboBox cmbAllocCategoryFilter = null!;
+        private string _activeCategoryFilter = "";       // empty = All Categories
         private Button btnEditReturn = null!;
         private string _activeStatusFilter = "All";
         private List<AllocationRow> _lastRenderedRows = new();
@@ -61,6 +63,7 @@ namespace Inventory_Management_System.Forms
         {
             public int Id { get; set; }
             public string Source { get; set; } = "Allocation"; // "Allocation" | "Check In/Out" | "Available"
+            public string Category { get; set; } = "—";
             public string QrCode { get; set; } = "—";
             public string EquipmentCode { get; set; } = "—";
             public string EquipmentName { get; set; } = "—";
@@ -75,6 +78,8 @@ namespace Inventory_Management_System.Forms
             public string Status { get; set; } = "—";
             public string AllocatedBy { get; set; } = "—";
 
+            public string? PicturePath { get; set; }
+
             public Allocation? AllocationRef { get; set; }
             public int? TransactionId { get; set; }
 
@@ -88,6 +93,7 @@ namespace Inventory_Management_System.Forms
             ApplyTheme();
             SetupEquipmentFilterDropdown();
             SetupSelectModeDropdown();   // ← replaces plain btnSelectAll with dropdown
+            SetupCategoryFilterDropdown();
             SetupEditReturnButton();
             LoadAllocations();
             SetupSuggestions();
@@ -162,6 +168,89 @@ namespace Inventory_Management_System.Forms
             var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
             flow.Controls.Add(cmbEquipmentFilter);
             flow.Controls.SetChildIndex(cmbEquipmentFilter, flow.Controls.IndexOf(btnExport) + 1);
+        }
+
+        // ── Category filter dropdown — sits between Select and Equipment: All ──
+        private void SetupCategoryFilterDropdown()
+        {
+            cmbAllocCategoryFilter = new ComboBox
+            {
+                Name = "cmbAllocCategoryFilter",
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Size = new Size(130, btnRefresh.Height),
+                Margin = btnRefresh.Margin,
+                Anchor = btnRefresh.Anchor,
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ThemeHelper.Accent,
+                ForeColor = Color.White,
+                Font = ThemeHelper.FontBold,
+                DrawMode = DrawMode.OwnerDrawFixed,
+                DropDownWidth = 200
+            };
+
+            LoadAllocCategoryFilterItems();
+
+            cmbAllocCategoryFilter.DrawItem += (s, e) =>
+            {
+                if (e.Index < 0) return;
+                bool isHover = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+                using (var brush = new SolidBrush(isHover ? ThemeHelper.Header : ThemeHelper.Accent))
+                    e.Graphics.FillRectangle(brush, e.Bounds);
+                string text = cmbAllocCategoryFilter.Items[e.Index]?.ToString() ?? "";
+                using (var brush = new SolidBrush(Color.White))
+                {
+                    var sf = new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Near };
+                    e.Graphics.DrawString(text, cmbAllocCategoryFilter.Font, brush, e.Bounds, sf);
+                }
+                e.DrawFocusRectangle();
+            };
+
+            cmbAllocCategoryFilter.SelectedIndexChanged += (s, e) =>
+            {
+                var selected = cmbAllocCategoryFilter.SelectedItem?.ToString() ?? "All Categories";
+                _activeCategoryFilter = selected == "All Categories" ? "" : selected;
+                _currentPage = 1;
+                RefreshGrid(txtSearch.Text.Trim());
+            };
+
+            var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
+            flow.Controls.Add(cmbAllocCategoryFilter);
+            flow.Controls.SetChildIndex(cmbAllocCategoryFilter, flow.Controls.IndexOf(cmbEquipmentFilter));
+        }
+
+        private void LoadAllocCategoryFilterItems()
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var dbCategories = db.Equipment
+                    .Where(e => e.Category != null && e.Category != "")
+                    .Select(e => e.Category!)
+                    .Distinct()
+                    .ToList();
+
+                var categoryNames = new CategoryService().GetAll().Data?
+                    .Select(c => c.Name).ToList() ?? new List<string>();
+
+                var allCategories = categoryNames
+                    .Union(dbCategories, StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                cmbAllocCategoryFilter.Items.Clear();
+                cmbAllocCategoryFilter.Items.Add("All Categories");
+                foreach (var cat in allCategories)
+                    cmbAllocCategoryFilter.Items.Add(cat);
+
+                cmbAllocCategoryFilter.SelectedIndex = 0;
+            }
+            catch
+            {
+                cmbAllocCategoryFilter.Items.Clear();
+                cmbAllocCategoryFilter.Items.Add("All Categories");
+                cmbAllocCategoryFilter.SelectedIndex = 0;
+            }
         }
 
         // ── Select dropdown (Select All / Deselect All) ─────────────────────
@@ -338,6 +427,7 @@ namespace Inventory_Management_System.Forms
                     {
                         Id = -(2_000_000 + e.Id),
                         Source = "Available",
+                        Category = string.IsNullOrWhiteSpace(e.Category) ? "—" : e.Category,
                         QrCode = string.IsNullOrWhiteSpace(e.QrCode) ? "—" : e.QrCode,
                         EquipmentCode = e.EquipmentCode,
                         EquipmentName = e.Name,
@@ -371,6 +461,34 @@ namespace Inventory_Management_System.Forms
                 .Concat(GetAvailableEquipmentRows())
                 .OrderByDescending(r => r.SortDate)
                 .ToList();
+        }
+
+        // Formats a Location as "LocationName - Room ..." — mirrors RoomOptionDisplay
+        // used in AddAllocationForm's Room dropdown, but returns just the name when
+        // there's no room info instead of a placeholder.
+        private static string FormatLocationDisplay(Location? loc)
+        {
+            if (loc == null || string.IsNullOrWhiteSpace(loc.LocationName)) return "—";
+
+            bool hasNum = !string.IsNullOrWhiteSpace(loc.RoomNumber);
+            bool hasRoomName = !string.IsNullOrWhiteSpace(loc.RoomName);
+            if (!hasNum && !hasRoomName) return loc.LocationName;
+
+            string room = hasNum ? $"Room {loc.RoomNumber}" : "";
+            if (hasRoomName) room = string.IsNullOrEmpty(room) ? loc.RoomName! : $"{room} ({loc.RoomName})";
+
+            return $"{loc.LocationName} - {room}";
+        }
+
+        // Mirrors the "Name (@username)" identity pattern used elsewhere in the app
+        // (see the sidebar profile footer) — falls back gracefully if either piece is missing.
+        private static string FormatUserDisplay(string? fullName, string? username)
+        {
+            bool hasFull = !string.IsNullOrWhiteSpace(fullName);
+            bool hasUser = !string.IsNullOrWhiteSpace(username);
+            if (!hasFull && !hasUser) return "—";
+            if (hasFull && hasUser) return $"{fullName} (@{username})";
+            return hasFull ? fullName! : $"@{username}";
         }
 
         private void ApplyTheme()
@@ -445,16 +563,21 @@ namespace Inventory_Management_System.Forms
             _lastRenderedRows = new List<AllocationRow> { item };
 
             int rowIdx = dgvAllocation.Rows.Add(
-                       item.Id,
-                       item.EquipmentCode,
-                       item.EquipmentName,
-                       item.Employee == "—" ? "" : item.Employee,
-                       item.Location == "—" ? "" : item.Location,
-                       item.DateAllocated,
-                       item.ExpectedReturn,
-                       item.Status,
-                       item.Source
-                    );
+           item.Id,
+           item.QrCode,
+           item.EquipmentCode,
+           item.EquipmentName,
+           item.SerialNumber,
+           item.Make,
+           item.Model,
+           item.Employee == "—" ? "" : item.Employee,
+           item.Location == "—" ? "" : item.Location,
+           item.DateAllocated,
+           item.ExpectedReturn,
+           item.Status,
+           item.Source,
+           item.AllocatedBy
+        );
 
             var statusCell = dgvAllocation.Rows[rowIdx].Cells["Status"];
             switch (item.Status)
@@ -546,52 +669,58 @@ namespace Inventory_Management_System.Forms
                     .ToList();
 
                 var checkInOutRows = checkInOutRaw
-                    .Where(t => t.Equipment != null &&
-                                t.Equipment.CurrentStatus == "allocated" &&
-                                !approvedEquipmentIds.Contains(t.EquipmentId))
-                    .Select(t => new AllocationRow
-                    {
-                        Id = -t.TransactionId,
-                        Source = "Check In/Out",
-                        QrCode = string.IsNullOrWhiteSpace(t.Equipment?.QrCode) ? "—" : t.Equipment!.QrCode,
-                        EquipmentCode = t.Equipment?.EquipmentCode ?? "—",
-                        EquipmentName = t.Equipment?.Name ?? "—",
-                        SerialNumber = t.Equipment?.SerialNumber ?? "—",
-                        Make = t.Equipment?.Make ?? "—",
-                        Model = t.Equipment?.Model ?? "—",
-                        Employee = string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
-                        Location = string.IsNullOrWhiteSpace(t.Department) ? "—" : t.Department,
-                        AllocatedBy = string.IsNullOrWhiteSpace(t.OperatorName) ? "—" : t.OperatorName,
-                        SortDate = t.TransactionDate,
-                        DateAllocated = t.TransactionDate.ToString("yyyy-MM-dd"),
-                        ExpectedReturn = t.ExpectedReturn?.ToString("yyyy-MM-dd") ?? "—",
-                        Status = t.Status == "Overdue" ? "Overdue" : "approved",
-                        AllocationRef = null,
-                        TransactionId = t.TransactionId
-                    })
-                    .ToList();
+       .Where(t => t.Equipment != null &&
+                   t.Equipment.CurrentStatus == "allocated" &&
+                   !approvedEquipmentIds.Contains(t.EquipmentId))
+       .Select(t => new AllocationRow
+       {
+           Id = -t.TransactionId,
+           Source = "Check In/Out",
+           Category = string.IsNullOrWhiteSpace(t.Equipment?.Category) ? "—" : t.Equipment!.Category,
+           QrCode = string.IsNullOrWhiteSpace(t.Equipment?.QrCode) ? "—" : t.Equipment!.QrCode,
+           EquipmentCode = t.Equipment?.EquipmentCode ?? "—",
+           EquipmentName = t.Equipment?.Name ?? "—",
+           SerialNumber = t.Equipment?.SerialNumber ?? "—",
+           Make = t.Equipment?.Make ?? "—",
+           Model = t.Equipment?.Model ?? "—",
+           PicturePath = t.Equipment?.PicturePath,
+           Employee = string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
+           Location = string.IsNullOrWhiteSpace(t.Department) ? "—" : t.Department,
+           AllocatedBy = string.IsNullOrWhiteSpace(t.OperatorName) ? "—" : t.OperatorName,   // ← fixed back to t.OperatorName
+           SortDate = t.TransactionDate,
+           DateAllocated = t.TransactionDate.ToString("yyyy-MM-dd"),
+           ExpectedReturn = t.ExpectedReturn?.ToString("yyyy-MM-dd") ?? "—",
+           Status = t.Status == "Overdue" ? "Overdue" : "approved",
+           AllocationRef = null,
+           TransactionId = t.TransactionId
+       })
+       .ToList();
 
                 var allocationRows = _suggestSourceAllocations.Select(a => new AllocationRow
                 {
                     Id = a.Id,
                     Source = "Allocation",
+                    Category = string.IsNullOrWhiteSpace(a.Equipment?.Category) ? "—" : a.Equipment!.Category,
                     QrCode = string.IsNullOrWhiteSpace(a.Equipment?.QrCode) ? "—" : a.Equipment!.QrCode,
                     EquipmentCode = a.Equipment?.EquipmentCode ?? "—",
                     EquipmentName = a.Equipment?.Name ?? "—",
                     SerialNumber = a.Equipment?.SerialNumber ?? "—",
                     Make = a.Equipment?.Make ?? "—",
                     Model = a.Equipment?.Model ?? "—",
+                    PicturePath = a.Equipment?.PicturePath,
                     Employee = a.Employee?.FullName ?? "—",
-                    Location = a.Location?.LocationName ?? "—",
-                    AllocatedBy = a.AllocatedByUser?.FullName ?? "—",
+                    Location = FormatLocationDisplay(a.Location),
+                    AllocatedBy = FormatUserDisplay(a.AllocatedByUser?.FullName, a.AllocatedByUser?.Username),   // ← stays here, uses 'a'
                     SortDate = a.AllocationDate,
                     DateAllocated = a.AllocationDate.ToString("yyyy-MM-dd"),
                     ExpectedReturn = a.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—",
                     Status = (a.Status == "approved" && a.ExpectedReturnDate.HasValue &&
-                              a.ExpectedReturnDate.Value < DateOnly.FromDateTime(DateTime.Today))
-                              ? "Overdue" : a.Status,
+                       a.ExpectedReturnDate.Value < DateOnly.FromDateTime(DateTime.Today))
+                       ? "Overdue" : a.Status,
                     AllocationRef = a,
-                    TransactionId = null
+                    TransactionId = null,
+                    EmployeeId = a.EmployeeId,
+                    LocationId = a.LocationId
                 }).ToList();
 
                 _allSourceRows = allocationRows
@@ -631,6 +760,12 @@ namespace Inventory_Management_System.Forms
                     "Pending" => _allSourceRows.Where(r => string.Equals(r.Status, "pending", StringComparison.OrdinalIgnoreCase)).ToList(),
                     _ => GetAllCombinedRows() // "All"
                 };
+            }
+
+            if (!string.IsNullOrEmpty(_activeCategoryFilter))
+            {
+                baseline = baseline.Where(r =>
+                    string.Equals(r.Category, _activeCategoryFilter, StringComparison.OrdinalIgnoreCase)).ToList();
             }
 
             List<AllocationRow> matched;
@@ -678,16 +813,21 @@ namespace Inventory_Management_System.Forms
             foreach (var item in items)
             {
                 int rowIdx = dgvAllocation.Rows.Add(
-                       item.Id,
-                       item.EquipmentCode,
-                       item.EquipmentName,
-                       item.Employee == "—" ? "" : item.Employee,
-                       item.Location == "—" ? "" : item.Location,
-                       item.DateAllocated,
-                       item.ExpectedReturn,
-                       item.Status,
-                       item.Source
-                   );
+          item.Id,
+          item.QrCode,
+          item.EquipmentCode,
+          item.EquipmentName,
+          item.SerialNumber,
+          item.Make,
+          item.Model,
+          item.Employee == "—" ? "" : item.Employee,
+          item.Location == "—" ? "" : item.Location,
+          item.DateAllocated,
+          item.ExpectedReturn,
+          item.Status,
+          item.Source,
+          item.AllocatedBy
+      );
 
                 var statusCell = dgvAllocation.Rows[rowIdx].Cells["Status"];
                 switch (item.Status)
@@ -900,10 +1040,14 @@ namespace Inventory_Management_System.Forms
             var row = _lastRenderedRows.FirstOrDefault(r => r.Id == rowId);
             if (row == null) return;
 
-            // Only makes sense for "Available" equipment — an already-allocated
-            // or checked-out row has nothing to allocate.
-            if (row.Source != "Available") return;
+            // Anything that isn't "Available" already has allocation details to show.
+            if (row.Source != "Available")
+            {
+                ShowAllocationDetailPopup(row);
+                return;
+            }
 
+            // "Available" equipment has nothing to show yet — double-click starts a new allocation.
             string? preselectCode = row.EquipmentCode == "—" ? null : row.EquipmentCode;
 
             using var frm = new AddAllocationForm(
@@ -923,6 +1067,30 @@ namespace Inventory_Management_System.Forms
             }
             else
                 ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
+        }
+
+        private void ShowAllocationDetailPopup(AllocationRow row)
+        {
+            var info = new AllocationDetailInfo
+            {
+                EquipmentCode = row.EquipmentCode,
+                EquipmentName = row.EquipmentName,
+                QrCode = row.QrCode,
+                SerialNumber = row.SerialNumber,
+                Make = row.Make,
+                Model = row.Model,
+                PicturePath = row.PicturePath,
+                Employee = row.Employee,
+                Location = row.Location,
+                DateAllocated = row.DateAllocated,
+                ExpectedReturn = row.ExpectedReturn,
+                Status = row.Status,
+                Source = row.Source,
+                AllocatedBy = row.AllocatedBy
+            };
+
+            using var popup = new AllocationDetailPopup(info);
+            popup.ShowDialog(this);
         }
 
         // ── Bulk-aware action handlers ──────────────────────────────────────

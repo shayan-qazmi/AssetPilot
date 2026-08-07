@@ -45,7 +45,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleToolbarPanel(panelTop);
             ThemeHelper.StyleButton(btnAdd);
             ThemeHelper.StyleButton(btnEdit, Color.FromArgb(245, 158, 11));
-            ThemeHelper.StyleDangerButton(btnDelete);
+            ThemeHelper.StyleButton(btnDelete, Color.FromArgb(99, 102, 241)); // indigo — distinct from Edit/Process/Refresh
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleTextBox(txtSearch);
@@ -114,9 +114,17 @@ namespace Inventory_Management_System.Forms
             dgvReturns.Rows.Clear();
 
             int rowIdx = dgvReturns.Rows.Add(
-                 item.Id, item.QrCode, item.EquipmentCode, item.EquipmentName,
-                 item.Employee, item.ReturnDate, item.Condition, item.Source,
-                 item.IsOverdue ? "Yes" : "No");
+                            item.Id,
+                            item.QrCode,
+                            item.EquipmentCode,
+                            item.EquipmentName,
+                            item.Employee,
+                            item.Location,
+                            item.ReturnDate,
+                            item.Condition,
+                            item.Source,
+                            item.IsOverdue ? "Yes" : "No"
+                        );
 
             if (item.DurationDays > 30)
                 dgvReturns.Rows[rowIdx].Cells["ReturnDate"].Style.ForeColor = ThemeHelper.Warning;
@@ -149,6 +157,7 @@ namespace Inventory_Management_System.Forms
             public string EquipmentCode { get; set; } = "—";
             public string EquipmentName { get; set; } = "—";
             public string Employee { get; set; } = "—";
+            public string Location { get; set; } = "—";
             public DateTime SortDate { get; set; }
             public string ReturnDate { get; set; } = "—";
             public string Condition { get; set; } = "—";
@@ -158,6 +167,17 @@ namespace Inventory_Management_System.Forms
         }
 
         private List<ReturnRow> _allReturnRows = new();
+
+        internal static string FormatLocation(Location? loc)
+        {
+            if (loc == null || string.IsNullOrWhiteSpace(loc.LocationName)) return "—";
+            bool hasNum = !string.IsNullOrWhiteSpace(loc.RoomNumber);
+            bool hasName = !string.IsNullOrWhiteSpace(loc.RoomName);
+            if (!hasNum && !hasName) return loc.LocationName;
+            string room = hasNum ? $"Room {loc.RoomNumber}" : "";
+            if (hasName) room = string.IsNullOrEmpty(room) ? loc.RoomName! : $"{room} ({loc.RoomName})";
+            return $"{loc.LocationName} - {room}";
+        }
 
         private void LoadReturns()
         {
@@ -186,6 +206,7 @@ namespace Inventory_Management_System.Forms
                         EquipmentCode = item.Equipment?.EquipmentCode ?? "—",
                         EquipmentName = item.Equipment?.Name ?? "—",
                         Employee = item.Employee?.FullName ?? "—",
+                        Location = FormatLocation(item.Location),
                         SortDate = returnDate,
                         ReturnDate = item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
                         Condition = item.Equipment?.ConditionGrade ?? "—",
@@ -213,6 +234,7 @@ namespace Inventory_Management_System.Forms
                         EquipmentCode = t.Equipment?.EquipmentCode ?? "—",
                         EquipmentName = t.Equipment?.Name ?? "—",
                         Employee = string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
+                        Location = string.IsNullOrWhiteSpace(t.Department) ? "—" : t.Department,
                         SortDate = returnDate,
                         ReturnDate = t.ActualReturn?.ToString("yyyy-MM-dd") ?? "—",
                         Condition = t.ConditionAfter ?? "—",
@@ -279,19 +301,12 @@ namespace Inventory_Management_System.Forms
 
             foreach (var item in pageItems)
             {
-        int rowIdx = dgvReturns.Rows.Add(
-                          item.Id,
-                          item.QrCode,
-                          item.EquipmentCode,
-                          item.EquipmentName,
-                          item.Employee,
-                          item.ReturnDate,
-                          item.Condition,
-                          item.Source,
-                          item.IsOverdue ? "Yes" : "No"
-                      );
+                int rowIdx = dgvReturns.Rows.Add(
+                          item.Id, item.QrCode, item.EquipmentCode, item.EquipmentName,
+                          item.Employee, item.Location, item.ReturnDate, item.Condition, item.Source,
+                          item.IsOverdue ? "Yes" : "No");
 
-        if (item.DurationDays > 30)
+                if (item.DurationDays > 30)
             dgvReturns.Rows[rowIdx].Cells["ReturnDate"].Style.ForeColor = ThemeHelper.Warning;
 
         var overdueCell = dgvReturns.Rows[rowIdx].Cells["Overdue"];
@@ -486,17 +501,18 @@ namespace Inventory_Management_System.Forms
                 if (sfd.ShowDialog() != DialogResult.OK) return;
 
                 var sb = new StringBuilder();
-        sb.AppendLine("Return ID,QR Code,Equipment Code,Equipment Name,Returned By,Return Date,Condition,Overdue");
-        foreach (DataGridViewRow row in dgvReturns.Rows)
-        {
-            string E(object? v) => $"\"{v?.ToString()?.Replace("\"", "\"\"") ?? ""}\"";
-            sb.AppendLine(string.Join(",",
-                E(row.Cells["ReturnID"].Value), E(row.Cells["QRCode"].Value),
-                E(row.Cells["EquipmentCode"].Value), E(row.Cells["EquipmentName"].Value),
-                E(row.Cells["Employee"].Value), E(row.Cells["ReturnDate"].Value),
-                E(row.Cells["Condition"].Value), E(row.Cells["Overdue"].Value)));
-        }
-        System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
+                sb.AppendLine("Return ID,QR Code,Equipment Code,Equipment Name,Returned By,Location,Return Date,Condition,Overdue");
+                foreach (DataGridViewRow row in dgvReturns.Rows)
+                {
+                    string E(object? v) => $"\"{v?.ToString()?.Replace("\"", "\"\"") ?? ""}\"";
+                    sb.AppendLine(string.Join(",",
+                        E(row.Cells["ReturnID"].Value), E(row.Cells["QRCode"].Value),
+                        E(row.Cells["EquipmentCode"].Value), E(row.Cells["EquipmentName"].Value),
+                        E(row.Cells["Employee"].Value), E(row.Cells["Location"].Value),
+                        E(row.Cells["ReturnDate"].Value),
+                        E(row.Cells["Condition"].Value), E(row.Cells["Overdue"].Value)));
+                }
+                System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
                 ToastHelper.Show(this, "Exported successfully.", ToastType.Success);
             }
             catch (Exception ex)
@@ -524,6 +540,7 @@ namespace Inventory_Management_System.Forms
 
         private TextBox txtEquipmentSearch = null!;
         private ComboBox cmbAllocation = null!;
+        private Label lblAllocDetails = null!;
         private DateTimePicker dtpReturnDate = null!;
         private ComboBox cmbCondition = null!;
         private Button btnSave = null!;
@@ -696,6 +713,17 @@ namespace Inventory_Management_System.Forms
             PlaceControl(cmbAllocation);
             Hint(_isEdit ? "This record cannot be changed" : "Only approved allocations are listed");
 
+            lblAllocDetails = new Label
+            {
+                Text = "",
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize = false,
+                Size = new Size(contentWidth, 36),
+                BackColor = Color.FromArgb(245, 247, 250)
+            };
+            PlaceControl(lblAllocDetails, height: 36);
+
             if (_isEdit && existing != null)
             {
                 _suppressSync = true;
@@ -704,6 +732,7 @@ namespace Inventory_Management_System.Forms
                 _suppressSync = false;
                 cmbAllocation.Enabled = false;
                 txtEquipmentSearch.Enabled = false;
+                UpdateAllocDetails(existing);
             }
             else
             {
@@ -713,14 +742,15 @@ namespace Inventory_Management_System.Forms
                 _equipmentSuggest = new EntitySuggestHelper<Allocation>(
                     textBox: txtEquipmentSearch,
                     hostForm: this,
-                    onSelected: alloc =>
-                    {
-                        _suppressSync = true;
-                        cmbAllocation.SelectedValue = alloc.Id;
-                        txtEquipmentSearch.Text = $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}";
-                        txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
-                        _suppressSync = false;
-                    },
+                 onSelected: alloc =>
+                 {
+                     _suppressSync = true;
+                     cmbAllocation.SelectedValue = alloc.Id;
+                     txtEquipmentSearch.Text = $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}";
+                     txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
+                     _suppressSync = false;
+                     UpdateAllocDetails(alloc);
+                 },
                     scoreFn: (alloc, term) => Math.Max(
                         FuzzySearchHelper.FuzzyScoreCode(alloc.Equipment?.EquipmentCode, term),
                         Math.Max(
@@ -781,6 +811,15 @@ namespace Inventory_Management_System.Forms
             txtEquipmentSearch.Text = $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}";
             txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
             _suppressSync = false;
+            UpdateAllocDetails(alloc);
+        }
+
+        private void UpdateAllocDetails(Allocation? alloc)
+        {
+            if (alloc == null) { lblAllocDetails.Text = ""; return; }
+            string emp = alloc.Employee?.FullName ?? "—";
+            string loc = ReturnsForm.FormatLocation(alloc.Location);
+            lblAllocDetails.Text = $"With: {emp}\nLocation: {loc}";
         }
 
         // ── Resolves typed search text to an allocation, in case the

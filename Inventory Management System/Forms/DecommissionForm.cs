@@ -168,8 +168,13 @@ namespace Inventory_Management_System.Forms
                 eq.CurrentStatus = "decommissioned";
                 db.SaveChanges();
 
+                string activeAllocInfo = activeAllocations.Count > 0
+     ? string.Join(", ", activeAllocations.Select(a => $"Alloc #{a.Id} closed"))
+     : "No active allocation";
+
                 _audit.Log(eq.Id, AuditService.ActionDecommissionApproved,
-                    oldStatus, frm.Reason);
+                    $"Status: {FormatStatusForLog(oldStatus)} | {activeAllocInfo}",
+                    $"Status: Decommissioned | Reason: {frm.Reason}");
 
                 LoadDecommissioned();
                 ToastHelper.Show(this, $"'{eq.Name}' has been decommissioned.", ToastType.Success);
@@ -179,6 +184,14 @@ namespace Inventory_Management_System.Forms
                 ToastHelper.Show(this, "Decommission failed: " + ex.Message, ToastType.Error);
             }
         }
+
+        private static string FormatStatusForLog(string s) => s switch
+        {
+            "in_store" => "In Store",
+            "allocated" => "Allocated",
+            "under_repair" => "Under Repair",
+            _ => s
+        };
 
         private void btnRefresh_Click(object sender, EventArgs e)
         {
