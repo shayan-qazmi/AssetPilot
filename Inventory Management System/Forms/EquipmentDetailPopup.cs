@@ -193,7 +193,7 @@ namespace Inventory_Management_System.Forms
             ColWidth = (cardWidth - CardPadding * 2 - ColGap) / 2;
             ColLeft = CardPadding;
             ColRight = CardPadding + ColWidth + ColGap;
-            LabelW = 125;
+            LabelW = 155;
             ValueX = LabelW + 8;
             ValueW = ColWidth - ValueX - 6;
 
@@ -201,8 +201,7 @@ namespace Inventory_Management_System.Forms
             int yRight = SectionGap;
 
             // ── Left Column: Equipment Information ──────────────────────────
-            AddSectionHeader(card, "i", "Equipment Information", ColLeft, ref yLeft);
-
+            AddSectionHeader(card, "i", "Equipment Information", ColLeft, ref yLeft); // keeps "i" — reads fine as a circle badge now
             bool altLeft = false;
             AddField(card, "Equipment Code", _equipment.EquipmentCode, ColLeft, ref yLeft, ref altLeft);
             AddField(card, "QR Code", _equipment.QrCode, ColLeft, ref yLeft, ref altLeft);
@@ -225,7 +224,7 @@ namespace Inventory_Management_System.Forms
             AddPictureField(card, "Picture", _equipment.PicturePath, ColLeft, ref yLeft, ref altLeft);
 
             // ── Right Column: Current Allocation ─────────────────────────────
-            AddSectionHeader(card, "▲", "Current Allocation", ColRight, ref yRight);
+            AddSectionHeader(card, "▣", "Current Allocation", ColRight, ref yRight);
 
             var activeAlloc = _equipment.Allocations.FirstOrDefault(a => a.Status == "approved");
             bool altRight = false;
@@ -246,7 +245,7 @@ namespace Inventory_Management_System.Forms
             AddField(card, "Expected Return Date", activeAlloc?.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
 
             // ── Right Column: Maintenance History ────────────────────────────
-            AddSectionHeader(card, "⚙", "Maintenance History", ColRight, ref yRight);
+            AddSectionHeader(card, "🔧", "Maintenance History", ColRight, ref yRight);
 
             List<MaintenanceRecord> records = new();
             try
@@ -302,15 +301,29 @@ namespace Inventory_Management_System.Forms
                 BackColor = CardBg,
             };
 
-            var iconLabel = new Label
+            const int badgeSize = 20;
+            var iconBadge = new Label
             {
                 Text = iconSymbol,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
-                ForeColor = SectionTitle,
-                BackColor = Color.FromArgb(232, 245, 233),
-                Size = new Size(18, 18),
+                Font = new Font("Segoe UI Emoji", 8.5f, FontStyle.Regular),
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                Size = new Size(badgeSize, badgeSize),
                 Location = new Point(0, 3),
                 TextAlign = ContentAlignment.MiddleCenter
+            };
+            iconBadge.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using var brush = new SolidBrush(SectionTitle);
+                e.Graphics.FillEllipse(brush, 0, 0, badgeSize - 1, badgeSize - 1);
+                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                using var textBrush = new SolidBrush(Color.White);
+                e.Graphics.DrawString(iconSymbol, iconBadge.Font, textBrush,
+                    new RectangleF(0, 0, badgeSize - 1, badgeSize - 1), sf);
+
+                e.Graphics.DrawString(iconSymbol, iconBadge.Font, textBrush,
+    new RectangleF(0, 0, badgeSize - 1, badgeSize - 1), sf);
             };
 
             var titleLabel = new Label
@@ -320,10 +333,10 @@ namespace Inventory_Management_System.Forms
                 ForeColor = SectionTitle,
                 BackColor = Color.Transparent,
                 AutoSize = true,
-                Location = new Point(22, 2)
+                Location = new Point(badgeSize + 8, 2)
             };
 
-            pnl.Controls.Add(iconLabel);
+            pnl.Controls.Add(iconBadge);
             pnl.Controls.Add(titleLabel);
 
             pnl.Paint += (s, e) =>
@@ -370,7 +383,7 @@ namespace Inventory_Management_System.Forms
             var pnl = new Panel
             {
                 Location = new Point(x, y),
-                Size = new Size(ColWidth, actualH),
+                Size = new Size(ColWidth, RowH + 6),
                 BackColor = isAlt ? RowOdd : RowEven,
             };
 
@@ -384,19 +397,20 @@ namespace Inventory_Management_System.Forms
             pnl.Controls.Add(lblValue);
             card.Controls.Add(pnl);
 
-            y += actualH;
+            y += RowH + 6;
             isAlt = !isAlt;
         }
 
         private void AddPictureField(Panel card, string labelName, string? picturePath, int x, ref int y, ref bool isAlt)
         {
             bool hasPicture = !string.IsNullOrWhiteSpace(picturePath);
+            const int rowHeight = 36;
 
             var lblName = new Label
             {
                 Text = labelName + ":",
                 Location = new Point(8, 0),
-                Size = new Size(LabelW, RowH),
+                Size = new Size(LabelW, rowHeight),
                 Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextSecondary,
                 TextAlign = ContentAlignment.MiddleLeft,
@@ -405,7 +419,7 @@ namespace Inventory_Management_System.Forms
             var pnl = new Panel
             {
                 Location = new Point(x, y),
-                Size = new Size(ColWidth, RowH),
+                Size = new Size(ColWidth, rowHeight),
                 BackColor = isAlt ? RowOdd : RowEven,
             };
 
@@ -421,11 +435,15 @@ namespace Inventory_Management_System.Forms
             {
                 var btnView = new Button
                 {
-                    Text = "🖼 View Picture",
-                    Location = new Point(ValueX, 2),
-                    Size = new Size(110, 22),
+                    Text = "🖼  View Picture",
+                    Location = new Point(ValueX, (rowHeight - 26) / 2),
+                    Size = new Size(130, 26),
                     Font = ThemeHelper.FontSmall,
                     Cursor = Cursors.Hand,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    AutoSize = true,
+                    AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                    Padding = new Padding(6, 2, 6, 2),
                 };
                 ThemeHelper.StyleSecondaryButton(btnView);
                 btnView.Click += (s, e) => ShowPicture(picturePath!);
@@ -437,7 +455,7 @@ namespace Inventory_Management_System.Forms
                 {
                     Text = "—",
                     Location = new Point(ValueX, 0),
-                    Size = new Size(ValueW, RowH),
+                    Size = new Size(ValueW, rowHeight),
                     Font = ThemeHelper.FontDefault,
                     ForeColor = ThemeHelper.TextPrimary,
                     TextAlign = ContentAlignment.MiddleLeft,
@@ -447,7 +465,7 @@ namespace Inventory_Management_System.Forms
 
             card.Controls.Add(pnl);
 
-            y += RowH;
+            y += rowHeight;
             isAlt = !isAlt;
         }
 

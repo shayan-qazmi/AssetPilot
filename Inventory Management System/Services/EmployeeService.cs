@@ -18,10 +18,10 @@ namespace Inventory_Management_System.Services
                 using var db = new InventoryDbContext();
                 var total = db.Employees.Count();
                 var items = db.Employees
-                    .OrderBy(e => e.FullName)
-                    .Skip((pageNumber - 1) * pageSize)
-                    .Take(pageSize)
-                    .ToList();
+         .OrderBy(e => e.EmployeeCode)
+         .Skip((pageNumber - 1) * pageSize)
+         .Take(pageSize)
+         .ToList();
 
                 return ServiceResult<PagedResult<Employee>>.Ok(new PagedResult<Employee>
                 {
