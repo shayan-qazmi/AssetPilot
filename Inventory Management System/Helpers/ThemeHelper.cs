@@ -322,12 +322,16 @@ private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
         }
 
         // ── CreateStatCard ─────────────────────────────────────────────────
-        public static Panel CreateStatCard(string title, string value, Color cardColor, string icon = "📦")
+        // trendValues: optional recent-history points (e.g. last 7 days) — when
+        // provided, an animated sparkline draws in under the value and a delta
+        // badge appears. Pass null (or omit) to get the original card unchanged.
+        public static Panel CreateStatCard(string title, string value, Color cardColor, string icon = "📦",
+            float[]? trendValues = null, string? deltaText = null)
         {
             var card = new Panel
             {
                 BackColor = cardColor,
-                Cursor    = Cursors.Hand
+                Cursor = Cursors.Hand
             };
 
             Action<Control>? wireHover = null;
@@ -341,42 +345,61 @@ private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
                 };
             };
 
+            bool hasTrend = trendValues != null && trendValues.Length >= 2;
+
             var lblValue = new Label
             {
-                Name      = "lblValue",
-                Text      = value,
-                Font      = new Font("Segoe UI", 22f, FontStyle.Bold, GraphicsUnit.Point),
+                Name = "lblValue",
+                Text = value,
+                Font = new Font("Segoe UI", 22f, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = Color.White,
-                AutoSize  = false,
-                Size      = new Size(190, 80),
-                Location  = new Point(12, 12),
+                AutoSize = false,
+                Size = new Size(190, hasTrend ? 40 : 80),
+                Location = new Point(12, 12),
                 TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Color.Transparent
             };
 
-           
-
             var lblTitle = new Label
             {
-                Name      = "lblTitle",
-                Text      = title,
-                Font      = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point),
+                Name = "lblTitle",
+                Text = title,
+                Font = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point),
                 ForeColor = Color.FromArgb(220, 255, 255, 255),
-                AutoSize  = false,
-                Height    = 22,
-                Location  = new Point(12, 56),
+                AutoSize = false,
+                Height = 22,
+                Location = new Point(12, 56),
                 TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Color.Transparent
             };
 
             card.Controls.Add(lblValue);
-          
             card.Controls.Add(lblTitle);
 
             wireHover(card);
             wireHover(lblValue);
-         
             wireHover(lblTitle);
+
+            // ── Sparkline animation state ────────────────────────────────────
+            float sparkProgress = 0f;
+            System.Windows.Forms.Timer? sparkTimer = null;
+
+            if (hasTrend)
+            {
+                sparkTimer = new System.Windows.Forms.Timer { Interval = 15 };
+                sparkTimer.Tick += (s, e) =>
+                {
+                    sparkProgress = Math.Min(1f, sparkProgress + 0.04f);
+                    card.Invalidate();
+                    if (sparkProgress >= 1f)
+                    {
+                        sparkTimer.Stop();
+                        sparkTimer.Dispose();
+                    }
+                };
+                card.HandleCreated += (s, e) => sparkTimer.Start();
+                card.Disposed += (s, e) => { sparkTimer?.Stop(); sparkTimer?.Dispose(); };
+            }
 
             card.Paint += (s, e) =>
             {
@@ -384,37 +407,73 @@ private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
                 using var path = new GraphicsPath();
-                int cr   = 12;
+                int cr = 12;
                 var rect = new Rectangle(0, 0, card.Width - 1, card.Height - 1);
-                path.AddArc(rect.X,          rect.Y,          cr, cr, 180, 90);
-                path.AddArc(rect.Right - cr, rect.Y,          cr, cr, 270, 90);
-                path.AddArc(rect.Right - cr, rect.Bottom - cr, cr, cr, 0,   90);
-                path.AddArc(rect.X,          rect.Bottom - cr, cr, cr, 90,  90);
+                path.AddArc(rect.X, rect.Y, cr, cr, 180, 90);
+                path.AddArc(rect.Right - cr, rect.Y, cr, cr, 270, 90);
+                path.AddArc(rect.Right - cr, rect.Bottom - cr, cr, cr, 0, 90);
+                path.AddArc(rect.X, rect.Bottom - cr, cr, cr, 90, 90);
                 path.CloseFigure();
                 card.Region = new Region(path);
                 using var emojiFont = new Font("Segoe UI Emoji", 20f, FontStyle.Regular, GraphicsUnit.Point);
-                using var emojiSf   = new StringFormat
+                using var emojiSf = new StringFormat
                 {
-                    Alignment     = StringAlignment.Center,
+                    Alignment = StringAlignment.Center,
                     LineAlignment = StringAlignment.Center
                 };
                 g.DrawString(icon, emojiFont, Brushes.White,
                     new RectangleF(card.Width - 54, 4, 50, 50), emojiSf);
 
+                // ── Sparkline + delta badge ────────────────────────────────
+                if (hasTrend)
+                {
+                    int sparkX = 12, sparkY = 56, sparkW = card.Width - 24, sparkH = 26;
+                    float min = trendValues!.Min(), max = trendValues.Max();
+                    if (max - min < 0.001f) max = min + 1f; // avoid divide-by-zero on flat data
+
+                    var points = new PointF[trendValues.Length];
+                    for (int i = 0; i < trendValues.Length; i++)
+                    {
+                        float nx = sparkX + (sparkW * i / (float)(trendValues.Length - 1));
+                        float ny = sparkY + sparkH - ((trendValues[i] - min) / (max - min) * sparkH);
+                        points[i] = new PointF(nx, ny);
+                    }
+
+                    int visibleCount = Math.Max(2, (int)(points.Length * sparkProgress) + 1);
+                    visibleCount = Math.Min(visibleCount, points.Length);
+                    if (visibleCount >= 2)
+                    {
+                        using var sparkPen = new Pen(Color.FromArgb(210, 255, 255, 255), 2f)
+                        { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+                        g.DrawLines(sparkPen, points[..visibleCount]);
+
+                        var last = points[visibleCount - 1];
+                        using var dotBrush = new SolidBrush(Color.White);
+                        g.FillEllipse(dotBrush, last.X - 3, last.Y - 3, 6, 6);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(deltaText) && sparkProgress >= 1f)
+                    {
+                        using var deltaFont = new Font("Segoe UI", 8f, FontStyle.Bold, GraphicsUnit.Point);
+                        using var deltaFg = new SolidBrush(Color.FromArgb(230, 255, 255, 255));
+                        g.DrawString(deltaText, deltaFont, deltaFg, sparkX, sparkY + sparkH + 2);
+                    }
+                }
+
                 // Add "More info" footer strip
                 int stripH = 26;
                 int stripY = card.Height - stripH;
-                
+
                 using var footerBg = new SolidBrush(Color.FromArgb(25, Color.Black));
                 using var topBorder = new Pen(Color.FromArgb(30, Color.White), 1f);
                 g.FillRectangle(footerBg, 0, stripY, card.Width, stripH);
                 g.DrawLine(topBorder, 0, stripY, card.Width, stripY);
-                
+
                 using var footerFont = new Font("Segoe UI", 8.25f, FontStyle.Regular, GraphicsUnit.Point);
                 using var footerFg = new SolidBrush(Color.FromArgb(190, 255, 255, 255));
                 string footerText = "More info";
                 var fSize = g.MeasureString(footerText, footerFont);
-                float totalW = fSize.Width + 14; 
+                float totalW = fSize.Width + 14;
                 float sx = (card.Width - totalW) / 2f;
                 float sy = stripY + (stripH - fSize.Height) / 2f;
                 g.DrawString(footerText, footerFont, footerFg, sx, sy);
@@ -422,8 +481,7 @@ private static void SidebarBtn_MouseEnter(object? sender, EventArgs e)
 
                 // Pin title to bottom (above footer), icon to top-right
                 lblTitle.Location = new Point(12, card.Height - 28 - stripH);
-                lblTitle.Width    = card.Width - 24;
-                
+                lblTitle.Width = card.Width - 24;
             };
 
             return card;

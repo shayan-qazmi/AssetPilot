@@ -1259,6 +1259,44 @@ namespace Inventory_Management_System
             _profilePopup = popup;
             popup.Show(this);
         }
+
+        // Returns 7 daily counts (oldest → today) for the sparkline. Currently
+        // only "equipment" is wired up, sourced from EquipmentLogs the same way
+        // RecomputeBarChartForPeriod() already reads that table. Returns all
+        // zeros (sparkline just won't show anything meaningful) if the DB call
+        // fails, so a bad connection never crashes card rendering.
+        private float[] GetLast7DayCounts(string metric)
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var today = DateTime.Today;
+                var counts = new float[7];
+
+                for (int i = 0; i < 7; i++)
+                {
+                    var day = today.AddDays(-6 + i);
+                    var nextDay = day.AddDays(1);
+
+                    counts[i] = metric switch
+                    {
+                        "equipment" => db.EquipmentLogs.Count(l =>
+                            l.CreatedAt.HasValue &&
+                            l.CreatedAt.Value >= day &&
+                            l.CreatedAt.Value < nextDay),
+                        _ => 0
+                    };
+                }
+
+                return counts;
+            }
+            catch
+            {
+                return new float[] { 0, 0, 0, 0, 0, 0, 0 };
+            }
+
+
+        }
         // ════════════════════════════════════════════════════════════════
         //  STATS + CHARTS
         // ════════════════════════════════════════════════════════════════
@@ -1313,15 +1351,15 @@ namespace Inventory_Management_System
                 _statCards.Clear();
 
                 var cardDefs = new[]
-                {
-                    (title:"Total Equipment",    value:totalEquipment.ToString(),    color:Color.FromArgb(94, 53, 177), icon:"🖥"),
-                    (title:"Allocated",          value:_cntAllocated.ToString(),     color:Color.FromArgb(245, 124, 0),   icon:"📋"),
-                    (title:"In Stock",           value:_cntInStore.ToString(),       color:Color.FromArgb(56,  142, 60),  icon:"✅"),
-                    (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(33,  150, 243), icon:"🔧"),
-                    (title:"Currently Overdue",  value:overdueCount.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️"),
-                    (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68,  68),  icon:"🚫"),
-                    (title:"Total Employees",    value:_cntEmployees.ToString(),     color:Color.FromArgb(123, 31,  162), icon:"👤"),
-                };
+    {
+    (title:"Total Equipment",    value:totalEquipment.ToString(),    color:Color.FromArgb(94, 53, 177), icon:"🖥", trendValues:GetLast7DayCounts("equipment"), deltaText:"+6 this week"),
+    (title:"Allocated",          value:_cntAllocated.ToString(),     color:Color.FromArgb(245, 124, 0),   icon:"📋", trendValues:(float[]?)null, deltaText:(string?)null),
+    (title:"In Stock",           value:_cntInStore.ToString(),       color:Color.FromArgb(56,  142, 60),  icon:"✅", trendValues:(float[]?)null, deltaText:(string?)null),
+    (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(33,  150, 243), icon:"🔧", trendValues:(float[]?)null, deltaText:(string?)null),
+    (title:"Currently Overdue",  value:overdueCount.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️", trendValues:(float[]?)null, deltaText:(string?)null),
+    (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68,  68),  icon:"🚫", trendValues:(float[]?)null, deltaText:(string?)null),
+    (title:"Total Employees",    value:_cntEmployees.ToString(),     color:Color.FromArgb(123, 31,  162), icon:"👤", trendValues:(float[]?)null, deltaText:(string?)null),
+};
 
                 int padL  = 12;
                 int gap   = 10;
@@ -1337,7 +1375,7 @@ namespace Inventory_Management_System
 
                 foreach (var def in cardDefs)
                 {
-                    var card      = ThemeHelper.CreateStatCard(def.title, def.value, def.color, def.icon);
+                    var card = ThemeHelper.CreateStatCard(def.title, def.value, def.color, def.icon, def.trendValues, def.deltaText);
                     Rectangle targetBounds = new Rectangle(x, 8, cardW, cardH);
 
                     CardAnimState animState;
