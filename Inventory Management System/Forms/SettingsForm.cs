@@ -29,6 +29,7 @@ namespace Inventory_Management_System.Forms
         private Panel _panelPassword = null!;
         private Panel _panelPrinting = null!;
         private Panel _panelCategories = null!;
+        private Panel _panelSystemConfig = null!;
         private Button _activeNavBtn = null!;
         private Panel _pwdStrengthTrack = null!;
         // ── Sidebar (distinct styling + slide-in animation) ─────────────
@@ -80,6 +81,11 @@ namespace Inventory_Management_System.Forms
         private Label _lblLastBackupValue = null!;
         private DateTime? _lastBackupTime;
 
+        // ── System Configuration (DB connection) fields ──────────────────
+        private Label _lblConnStatus = null!;
+        private Label _lblConnServer = null!;
+        private Label _lblConnLast = null!;
+
         private static readonly string BackupInfoPath = Path.Combine(
       Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
       "QInventory", "lastbackup.txt");
@@ -91,7 +97,7 @@ namespace Inventory_Management_System.Forms
         private string? _mysqldumpPath;
         private string? _mysqlPath;
 
-        public enum InitialSection { General, Users, Password, Printing, Categories }
+        public enum InitialSection { General, Users, Password, Printing, Categories, SystemConfiguration }
 
         private readonly InitialSection _initialSection;
 
@@ -167,16 +173,17 @@ namespace Inventory_Management_System.Forms
             _panelPassword = BuildPasswordPanel();
             _panelPrinting = BuildPrintingPanel();
             _panelCategories = BuildCategoriesPanel();
+            _panelSystemConfig = BuildSystemConfigPanel();
 
-            foreach (var p in new[] { _panelGeneral, _panelUsers, _panelPassword, _panelPrinting, _panelCategories })
+            foreach (var p in new[] { _panelGeneral, _panelUsers, _panelPassword, _panelPrinting, _panelCategories, _panelSystemConfig })
             {
                 p.Dock = DockStyle.Fill;
                 p.Visible = false;
                 content.Controls.Add(p);
             }
 
-            // Nav button definitions
-            var navDefs = new[]
+            // Nav button definitions — System Configuration is Admin-only.
+            var navDefsList = new List<(string, Panel)>
             {
                 ("⊞  General",         _panelGeneral),
                 ("👥  Users",           _panelUsers),
@@ -184,6 +191,11 @@ namespace Inventory_Management_System.Forms
                 ("🖨  Printing",        _panelPrinting),
                 ("🏷  Categories",      _panelCategories),
             };
+
+            if (AuthService.IsAdmin)
+                navDefsList.Add(("🔧  System Configuration", _panelSystemConfig));
+
+            var navDefs = navDefsList.ToArray();
 
             var navBtns = new List<Button>();
             foreach (var (label, panel) in navDefs)
@@ -253,10 +265,17 @@ namespace Inventory_Management_System.Forms
                 InitialSection.Password => 2,
                 InitialSection.Printing => 3,
                 InitialSection.Categories => 4,
+                InitialSection.SystemConfiguration => 5,
                 _ => 0
             };
-            var initialPanel = new[]
-                { _panelGeneral, _panelUsers, _panelPassword, _panelPrinting, _panelCategories }[initialIndex];
+            // Guard: non-admins have no 6th nav button, so clamp to the last
+            // one actually built (avoids an out-of-range click if a caller
+            // somehow requests SystemConfiguration for a non-admin session).
+            if (initialIndex >= navBtns.Count) initialIndex = 0;
+
+            var allPanelsInOrder = new[]
+                { _panelGeneral, _panelUsers, _panelPassword, _panelPrinting, _panelCategories, _panelSystemConfig };
+            var initialPanel = allPanelsInOrder[initialIndex == 5 && navBtns.Count > 5 ? 5 : initialIndex];
             _activeNavBtn = navBtns[initialIndex];
             ShowSection(initialPanel, navBtns[initialIndex], navBtns);
         }
@@ -314,7 +333,7 @@ namespace Inventory_Management_System.Forms
 
         private void ShowSection(Panel panel, Button btn, List<Button> allBtns)
         {
-            foreach (var p in new[] { _panelGeneral, _panelUsers, _panelPassword, _panelPrinting, _panelCategories })
+            foreach (var p in new[] { _panelGeneral, _panelUsers, _panelPassword, _panelPrinting, _panelCategories, _panelSystemConfig })
                 p.Visible = false;
             panel.Visible = true;
 
@@ -341,7 +360,7 @@ namespace Inventory_Management_System.Forms
             if (panel == _panelUsers) LoadUsers();
             if (panel == _panelCategories) LoadCategories();
 
-           
+
         }
 
         // ══════════════════════════════════════════════════════════════
@@ -488,7 +507,7 @@ namespace Inventory_Management_System.Forms
 
             var lblSysSubtitle = MakeSubtitle("Application version, database connection, and backups.", 24, 44);
             sysCard.Controls.Add(lblSysSubtitle);
-            
+
             string appVersion = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
 
             sysCard.Controls.Add(MakeSysInfoLabel("App version", appVersion, 24, 66));
@@ -863,12 +882,12 @@ namespace Inventory_Management_System.Forms
                 {
                     File.WriteAllText(sfd.FileName, output);
                     SaveLastBackupTimeNow();
-                  ToastHelper.Show(this, "Backup completed successfully.", ToastType.Success);
+                    ToastHelper.Show(this, "Backup completed successfully.", ToastType.Success);
 
                 }
                 else
                 {
-                   ToastHelper.Show(this, "mysqldump did not complete successfully:\n\n" + errors, ToastType.Error);
+                    ToastHelper.Show(this, "mysqldump did not complete successfully:\n\n" + errors, ToastType.Error);
 
                 }
             }
@@ -915,18 +934,18 @@ namespace Inventory_Management_System.Forms
 
                 if (proc.ExitCode == 0)
                 {
-                   ToastHelper.Show(this, "Database restored successfully. Please restart the application.", ToastType.Success);
+                    ToastHelper.Show(this, "Database restored successfully. Please restart the application.", ToastType.Success);
 
                 }
                 else
                 {
-                  ToastHelper.Show(this, "Restore did not complete successfully:\n\n" + errors, ToastType.Error);
+                    ToastHelper.Show(this, "Restore did not complete successfully:\n\n" + errors, ToastType.Error);
 
                 }
             }
             catch (Exception ex)
             {
-              ToastHelper.Show(this, "Restore failed: " + ex.Message + "\n\nMake sure mysql.exe is installed and available on your system PATH.", ToastType.Error);
+                ToastHelper.Show(this, "Restore failed: " + ex.Message + "\n\nMake sure mysql.exe is installed and available on your system PATH.", ToastType.Error);
 
             }
         }
@@ -947,12 +966,12 @@ namespace Inventory_Management_System.Forms
                 var logs = db.EquipmentLogs.ToList();
                 db.EquipmentLogs.RemoveRange(logs);
                 db.SaveChanges();
-               ToastHelper.Show(this, $"{logs.Count} log entries deleted.", ToastType.Success);
+                ToastHelper.Show(this, $"{logs.Count} log entries deleted.", ToastType.Success);
 
             }
             catch (Exception ex)
             {
-               ToastHelper.Show(this, "Could not clear logs: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(this, "Could not clear logs: " + ex.Message, ToastType.Error);
 
             }
         }
@@ -998,7 +1017,7 @@ namespace Inventory_Management_System.Forms
             if (errors.Count > 0)
                 summary += "\n\nSome tables could not be cleared:\n" + string.Join("\n", errors);
 
-           ToastHelper.Show(this, summary, errors.Count > 0 ? ToastType.Warning : ToastType.Success);
+            ToastHelper.Show(this, summary, errors.Count > 0 ? ToastType.Warning : ToastType.Success);
 
         }
 
@@ -1195,7 +1214,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-               ToastHelper.Show(this, "Error loading users: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(this, "Error loading users: " + ex.Message, ToastType.Error);
 
             }
         }
@@ -1693,7 +1712,7 @@ namespace Inventory_Management_System.Forms
         {
             if (_pwdStrengthBar == null) return;
             string pwd = txtNewPwd.Text;
-            _pwdStrengthTrack.Visible = pwd.Length > 0;   
+            _pwdStrengthTrack.Visible = pwd.Length > 0;
 
 
             int score = 0;
@@ -1797,11 +1816,10 @@ namespace Inventory_Management_System.Forms
             var card = new Panel
             {
                 Location = new Point(40, nextY),
-                Size = new Size(560, 334),
+                Size = new Size(560, 500), // temporary — recalculated below once content is laid out
                 BackColor = Color.White
             };
-            ApplyCardStyle(outer, card);
-            outer.Controls.Add(card);
+            outer.Controls.Add(card); // add first, style applied after final height is known
 
             var cardTitle = new Label
             {
@@ -1872,6 +1890,15 @@ namespace Inventory_Management_System.Forms
             StyleGreenBtn(btnSave);
             btnSave.Click += btnSave_Click;
             card.Controls.Add(btnSave);
+
+
+            // Auto-size the card to whatever the last control actually needs, plus padding —
+            // so it can never silently clip content again if a field gets added later.
+            int cardBottom = 0;
+            foreach (Control c in card.Controls)
+                cardBottom = Math.Max(cardBottom, c.Bottom);
+            card.Height = cardBottom + 24;
+            ApplyCardStyle(outer, card);
 
             return outer;
         }
@@ -2042,6 +2069,243 @@ namespace Inventory_Management_System.Forms
             e.Graphics.DrawLine(linePen, e.Bounds.X, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
 
             e.DrawFocusRectangle();
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        //  SYSTEM CONFIGURATION PANEL  — Admin-only DB connection settings
+        // ══════════════════════════════════════════════════════════════
+        private Panel BuildSystemConfigPanel()
+        {
+            var outer = new Panel
+            {
+                BackColor = PageBackground,
+                AutoScroll = true
+            };
+
+            var (title, subtitle, nextY) = AddSectionHeader(outer, "System Configuration (Admin)",
+                "Manage database connection and application updates.");
+
+            // ═══ Database Connection Details card ═══
+            var card = new Panel
+            {
+                Location = new Point(40, nextY),
+                Size = new Size(560, 500), // temporary — recalculated below once content is laid out
+                BackColor = Color.White
+            };
+            outer.Controls.Add(card);
+
+            card.Controls.Add(new Label
+            {
+                Text = "Database Connection Details",
+                Font = new Font("Segoe UI Semibold", 11f),
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize = true,
+                Location = new Point(24, 20),
+                BackColor = Color.Transparent
+            });
+
+            int y = 54;
+            card.Controls.Add(MakeLabel("Database Server (IP)", 24, y)); y += 26;
+            var txtDbServer = MakeTextBox(card, 24, y, 490); y += 54;
+
+            card.Controls.Add(MakeLabel("Database Name", 24, y)); y += 26;
+            var txtDbName = MakeTextBox(card, 24, y, 490); y += 54;
+
+            card.Controls.Add(MakeLabel("Database Username", 24, y)); y += 26;
+            var txtDbUser = MakeTextBox(card, 24, y, 490); y += 54;
+
+            card.Controls.Add(MakeLabel("Database Password", 24, y)); y += 26;
+            var txtDbPass = MakeTextBox(card, 24, y, 490);
+            txtDbPass.UseSystemPasswordChar = true;
+
+            // Eye icon to toggle password visibility — sits inside the same
+            // rounded input panel that MakeTextBox created (txtDbPass.Parent).
+            var dbPassInputPanel = (Panel)txtDbPass.Parent!;
+            var eyeIconDbPass = new Label
+            {
+                Text = "👁",
+                Font = new Font("Segoe UI Emoji", 9.5f),
+                ForeColor = ThemeHelper.TextSecondary,
+                AutoSize = false,
+                Size = new Size(28, 40),
+                Location = new Point(dbPassInputPanel.Width - 34, 0),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            dbPassInputPanel.Controls.Add(eyeIconDbPass);
+            eyeIconDbPass.BringToFront();
+            txtDbPass.Width -= 26; // make room so typed text doesn't sit under the icon
+
+            eyeIconDbPass.Click += (s, e) =>
+            {
+                txtDbPass.UseSystemPasswordChar = !txtDbPass.UseSystemPasswordChar;
+                eyeIconDbPass.ForeColor = txtDbPass.UseSystemPasswordChar
+                    ? ThemeHelper.TextSecondary
+                    : ThemeHelper.Accent;
+            };
+
+            y += 60;
+
+            var lblDbMsg = new Label
+            {
+                Location = new Point(24, y),
+                Size = new Size(490, 20),
+                Font = ThemeHelper.FontSmall,
+                ForeColor = ThemeHelper.Danger,
+                BackColor = Color.Transparent,
+                Text = ""
+            };
+            card.Controls.Add(lblDbMsg);
+            y += 26;
+
+            var btnTest = new Button
+            {
+                Text = "✔  Test Connection",
+                Location = new Point(24, y),
+                Size = new Size(170, 38)
+            };
+            StyleGreenBtn(btnTest);
+            card.Controls.Add(btnTest);
+
+            var btnSaveConn = new Button
+            {
+                Text = "💾  Save Connection",
+                Location = new Point(202, y),
+                Size = new Size(170, 38),
+                Enabled = false
+            };
+            StyleGrayBtn(btnSaveConn);
+            card.Controls.Add(btnSaveConn);
+
+            // ═══ Connection Status card ═══
+            var statusCard = new Panel
+            {
+                Location = new Point(620, nextY),
+                Size = new Size(340, 200),
+                BackColor = Color.White
+            };
+            ApplyCardStyle(outer, statusCard);
+            outer.Controls.Add(statusCard);
+
+            statusCard.Controls.Add(new Label
+            {
+                Text = "Connection Status",
+                Font = new Font("Segoe UI Semibold", 11f),
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize = true,
+                Location = new Point(24, 20),
+                BackColor = Color.Transparent
+            });
+
+            statusCard.Controls.Add(MakeLabel("Current Status", 24, 56));
+            _lblConnStatus = new Label
+            {
+                Location = new Point(24, 74),
+                AutoSize = true,
+                Font = ThemeHelper.FontDefault,
+                BackColor = Color.Transparent
+            };
+            statusCard.Controls.Add(_lblConnStatus);
+
+            statusCard.Controls.Add(MakeLabel("Active Server", 24, 104));
+            _lblConnServer = new Label
+            {
+                Location = new Point(24, 122),
+                AutoSize = true,
+                Font = ThemeHelper.FontDefault,
+                ForeColor = ThemeHelper.TextPrimary,
+                BackColor = Color.Transparent
+            };
+            statusCard.Controls.Add(_lblConnServer);
+
+            statusCard.Controls.Add(MakeLabel("Last Successful Connection", 24, 148));
+            _lblConnLast = new Label
+            {
+                Location = new Point(24, 166),
+                AutoSize = true,
+                Font = ThemeHelper.FontDefault,
+                ForeColor = ThemeHelper.TextPrimary,
+                BackColor = Color.Transparent
+            };
+            statusCard.Controls.Add(_lblConnLast);
+
+            // ── Load current saved values into the fields ──
+            void RefreshFromSaved()
+            {
+                try
+                {
+                    var s = Services.DbConnectionSettingsService.Load();
+                    txtDbServer.Text = s.Server;
+                    txtDbName.Text = s.Database;
+                    txtDbUser.Text = s.Username;
+                    txtDbPass.Text = "";
+                    _lblConnServer.Text = $"{s.Database} · {s.Server}";
+
+                    var pwd = Services.DbConnectionSettingsService.DecryptPassword(s);
+                    bool ok = Services.DbConnectionSettingsService.TestConnection(s, pwd, out _);
+                    _lblConnStatus.Text = ok ? "🟢 Connected" : "🔴 Disconnected";
+                    _lblConnStatus.ForeColor = ok ? ThemeHelper.Success : ThemeHelper.Danger;
+                    _lblConnLast.Text = ok ? DateTime.Now.ToString("yyyy-MM-dd · h:mm tt") : "—";
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "SettingsForm.BuildSystemConfigPanel.RefreshFromSaved");
+                }
+            }
+            RefreshFromSaved();
+
+            btnTest.Click += (s, e) =>
+            {
+                var settings = new Models.DbConnectionSettings
+                {
+                    Server = txtDbServer.Text.Trim(),
+                    Port = 3306,
+                    Database = txtDbName.Text.Trim(),
+                    Username = txtDbUser.Text.Trim(),
+                    ServerVersion = "11.8.6-mariadb"
+                };
+                if (Services.DbConnectionSettingsService.TestConnection(settings, txtDbPass.Text, out var err))
+                {
+                    lblDbMsg.ForeColor = ThemeHelper.Success;
+                    lblDbMsg.Text = "✅ Connection successful.";
+                    btnSaveConn.Enabled = true;
+                }
+                else
+                {
+                    lblDbMsg.ForeColor = ThemeHelper.Danger;
+                    lblDbMsg.Text = "❌ " + err;
+                    btnSaveConn.Enabled = false;
+                }
+            };
+
+            btnSaveConn.Click += (s, e) =>
+            {
+                var settings = new Models.DbConnectionSettings
+                {
+                    Server = txtDbServer.Text.Trim(),
+                    Port = 3306,
+                    Database = txtDbName.Text.Trim(),
+                    Username = txtDbUser.Text.Trim(),
+                    ServerVersion = "11.8.6-mariadb"
+                };
+                Services.DbConnectionSettingsService.Save(settings, txtDbPass.Text);
+                ToastHelper.Show(this, "Connection saved. New connections will use this immediately.", ToastType.Success);
+                RefreshFromSaved();
+                btnSaveConn.Enabled = false;
+            };
+
+            // Auto-size the card to whatever the last control actually needs, plus padding.
+            int cardBottom = 0;
+            foreach (Control c in card.Controls)
+                cardBottom = Math.Max(cardBottom, c.Bottom);
+            card.Height = cardBottom + 24;
+            ApplyCardStyle(outer, card);
+
+            return outer;
+
+            return outer;
         }
 
         // ══════════════════════════════════════════════════════════════

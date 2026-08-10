@@ -9,6 +9,7 @@ using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Windows.Forms;
+using System.Drawing.Drawing2D;
 
 namespace Inventory_Management_System.Forms
 {
@@ -45,6 +46,95 @@ namespace Inventory_Management_System.Forms
         private bool _userClickedGridRow = false;
 
         private bool _updatingToolbarHeight = false;
+
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+        private const int GWL_EXSTYLE = -20;
+        private const int WS_EX_CLIENTEDGE = 0x200;
+
+        private static GraphicsPath RoundedRectPath(RectangleF r, float radius)
+        {
+            var path = new GraphicsPath();
+            float d = radius * 2f;
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
+        private void ApplyRoundedSearchStyle(TextBox txt)
+        {
+            var parent = txt.Parent;
+            if (parent == null) return;
+
+            var originalSize = txt.Size;
+            var originalMargin = txt.Margin;
+            int idx = parent.Controls.GetChildIndex(txt);
+            parent.Controls.Remove(txt);
+
+            var wrapper = new Panel
+            {
+                Size = originalSize,
+                Margin = originalMargin,
+                BackColor = Color.White
+            };
+
+            Color inputBorder = Color.FromArgb(209, 213, 219);
+            Color focusBorder = Color.FromArgb(0x52, 0xA2, 0x3F);
+            Color currentBorder = inputBorder;
+
+            void RoundInput(object? s, EventArgs e)
+            {
+                if (wrapper.Width <= 0 || wrapper.Height <= 0) return;
+                using var path = RoundedRectPath(new RectangleF(0, 0, wrapper.Width, wrapper.Height), 8f);
+                wrapper.Region = new Region(path);
+            }
+            wrapper.Resize += RoundInput;
+
+            wrapper.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using var path = RoundedRectPath(new RectangleF(0.5f, 0.5f, wrapper.Width - 1, wrapper.Height - 1), 8f);
+                using var pen = new Pen(currentBorder, 1f);
+                e.Graphics.DrawPath(pen, path);
+            };
+
+            var searchIcon = new Label
+            {
+                Text = "🔍",
+                Font = new Font("Segoe UI Emoji", 8.5f),
+                ForeColor = ThemeHelper.TextSecondary,
+                AutoSize = false,
+                Size = new Size(24, wrapper.Height),
+                Location = new Point(6, 0),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = Color.Transparent
+            };
+
+            txt.BorderStyle = BorderStyle.None;
+            int exStyle = GetWindowLong(txt.Handle, GWL_EXSTYLE);
+            SetWindowLong(txt.Handle, GWL_EXSTYLE, exStyle & ~WS_EX_CLIENTEDGE);
+            txt.BackColor = Color.White;
+            txt.Location = new Point(30, (wrapper.Height - txt.Height) / 2);
+            txt.Width = wrapper.Width - 38;
+
+            wrapper.Controls.Add(searchIcon);
+            wrapper.Controls.Add(txt);
+            parent.Controls.Add(wrapper);
+            parent.Controls.SetChildIndex(wrapper, idx);
+
+            txt.Enter += (s, e) => { currentBorder = focusBorder; wrapper.Invalidate(); };
+            txt.Leave += (s, e) => { currentBorder = inputBorder; wrapper.Invalidate(); };
+
+            RoundInput(null, EventArgs.Empty);
+        }
 
         private void FlowToolbar_Layout(object? sender, LayoutEventArgs e)
         {
@@ -501,7 +591,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleDangerButton(btnDelete);
-            ThemeHelper.StyleTextBox(txtSearch);
+            ApplyRoundedSearchStyle(txtSearch); 
             ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
             ThemeHelper.StyleSecondaryButton(btnNextPage);
@@ -934,29 +1024,14 @@ namespace Inventory_Management_System.Forms
 
         private void UpdateActionButtonsForSelection()
         {
-            var rows = GetSelectedRows();
-            bool none = rows.Count == 0;
-            // A Check-In/Out row has no AllocationRef — disable real-allocation actions for those
-            bool anyCheckInOut = rows.Any(r => r.AllocationRef == null && r.Source == "Check In/Out");
-            bool allCheckInOut = rows.Count > 0 && rows.All(r => r.AllocationRef == null);
-
-            // Approve: enabled when there is at least one pending allocation selected
-            btnApprove.Enabled = !none && !allCheckInOut &&
-                                 rows.Any(r => r.AllocationRef?.Status == "pending");
-
-            // Return: enabled when there is at least one approved/overdue allocation selected
-            btnReturn.Enabled = !none && !allCheckInOut &&
-                                rows.Any(r => r.AllocationRef != null &&
-                                             r.AllocationRef.Status != "returned");
-
-            // Delete: enabled when at least one non-approved allocation selected
-            btnDelete.Enabled = !none && !allCheckInOut &&
-                                rows.Any(r => r.AllocationRef?.Status != "approved");
-
-            // Edit Return: single non-returned allocation only
-            var single = rows.Count == 1 ? rows[0] : null;
-            btnEditReturn.Enabled = single != null && single.AllocationRef != null &&
-                                   !string.Equals(single.Status, "returned", StringComparison.OrdinalIgnoreCase);
+            // Buttons stay enabled at all times — validation and feedback happen
+            // inside each click handler via ToastHelper, so the user always gets
+            // a message explaining why an action can't proceed (e.g. selecting
+            // "Available" equipment for Approve/Return/Edit/Delete).
+            btnApprove.Enabled = true;
+            btnReturn.Enabled = true;
+            btnDelete.Enabled = true;
+            btnEditReturn.Enabled = true;
         }
 
         private void btnEditReturn_Click(object? sender, EventArgs e)
@@ -988,6 +1063,11 @@ namespace Inventory_Management_System.Forms
 
                 _audit.Log(alloc.EquipmentId, "Expected Return Date Updated",
                     oldVal, frm.SelectedDate?.ToString("yyyy-MM-dd") ?? "none");
+
+                _audit.Log(alloc.EquipmentId, "Expected Return Date Updated",
+    oldVal, frm.SelectedDate?.ToString("yyyy-MM-dd") ?? "none");
+                ToastHelper.Show(this, "Expected return date updated.", ToastType.Success);
+                LoadAllocations();
 
                 // Overdue/approved status is already derived from ExpectedReturnDate
                 // vs. today in LoadAllocations() — reloading picks up the new status
@@ -1024,6 +1104,13 @@ namespace Inventory_Management_System.Forms
                 _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
                     null, $"Allocated to Employee ID {frm.Result.EmployeeId}");
                 LoadAllocations();
+                if (result.Success)
+                {
+                    _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
+                        null, $"Allocated to Employee ID {frm.Result.EmployeeId}");
+                    ToastHelper.Show(this, "Allocation request created.", ToastType.Success);
+                    LoadAllocations();
+                }
             }
             else
                 ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
@@ -1047,7 +1134,6 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            // "Available" equipment has nothing to show yet — double-click starts a new allocation.
             string? preselectCode = row.EquipmentCode == "—" ? null : row.EquipmentCode;
 
             using var frm = new AddAllocationForm(
@@ -1063,6 +1149,7 @@ namespace Inventory_Management_System.Forms
             {
                 _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
                     null, $"Allocated to Employee ID {frm.Result.EmployeeId}");
+                ToastHelper.Show(this, "Allocation request created.", ToastType.Success);
                 LoadAllocations();
             }
             else
@@ -1098,8 +1185,8 @@ namespace Inventory_Management_System.Forms
         private void btnApprove_Click(object sender, EventArgs e)
         {
             var rows = GetSelectedRows()
-                .Where(r => r.AllocationRef?.Status == "pending")
-                .ToList();
+                  .Where(r => r.AllocationRef != null && r.AllocationRef.Status == "pending")
+                  .ToList();
 
             if (rows.Count == 0)
             {
@@ -1171,6 +1258,8 @@ namespace Inventory_Management_System.Forms
                 if (a.Equipment != null) a.Equipment.CurrentStatus = "allocated";
                 db.SaveChanges();
                 _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved");
+                _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved");
+                ToastHelper.Show(this, "Allocation approved.", ToastType.Success);
                 LoadAllocations();
             }
             catch (Exception ex)
@@ -1197,7 +1286,12 @@ namespace Inventory_Management_System.Forms
                 if (MessageBox.Show($"Return '{alloc.Equipment?.Name}' from '{alloc.Employee?.FullName}'?",
                     "Confirm Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
                 var res = _allocationService.Deallocate(alloc.Id);
-                if (res.Success) { _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store"); LoadAllocations(); }
+                if (res.Success)
+                {
+                    _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store");
+                    ToastHelper.Show(this, "Return processed.", ToastType.Success);
+                    LoadAllocations();
+                }
                 else ToastHelper.Show(this, "Return Failed: " + res.ErrorMessage, ToastType.Error);
                 return;
             }
@@ -1254,6 +1348,8 @@ namespace Inventory_Management_System.Forms
             }
             if (fail > 0)
                 ToastHelper.Show(this, $"{ok} deleted, {fail} failed.", ToastType.Warning);
+            else if (ok > 0)
+                ToastHelper.Show(this, ok == 1 ? "Allocation deleted." : $"{ok} allocations deleted.", ToastType.Success);
             LoadAllocations();
         }
 

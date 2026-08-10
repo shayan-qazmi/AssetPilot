@@ -2331,6 +2331,12 @@ namespace Inventory_Management_System
             OpenChildForm(new EmployeesForm(), btnEmployees);
         }
 
+        public void NavigateToEmployee(string employeeCode)
+        {
+            AnimateTitleTo("Employees");
+            OpenChildForm(new EmployeesForm(employeeCode), btnEmployees);
+        }
+
         private void btnLocations_Click(object? sender, EventArgs e)
         {
             AnimateTitleTo("Locations");

@@ -240,7 +240,7 @@ namespace Inventory_Management_System.Forms
                 currentLocStr = roomName;
 
             AddField(card, "Current Location", currentLocStr, ColRight, ref yRight, ref altRight);
-            AddField(card, "Currently Assigned To", activeAlloc?.Employee?.FullName ?? "—", ColRight, ref yRight, ref altRight);
+            AddEmployeeField(card, "Currently Assigned To", activeAlloc?.Employee, ColRight, ref yRight, ref altRight);
             AddField(card, "Allocation Date", activeAlloc?.AllocationDate.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
             AddField(card, "Expected Return Date", activeAlloc?.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
 
@@ -349,6 +349,12 @@ namespace Inventory_Management_System.Forms
             y += 32;
         }
 
+        // Fixed: the row panel and the y-advance now use the SAME measured
+        // height as the label itself, instead of a hardcoded RowH + 6. Before,
+        // a wrapped multi-line value (e.g. a long location string) would be
+        // sized correctly by GetPreferredSize() but then get clipped because
+        // the containing panel stayed locked at 32px regardless. AutoEllipsis
+        // is also off now so long text wraps instead of getting "…"-truncated.
         private void AddField(Panel card, string labelName, string? valueText, int x, ref int y, ref bool isAlt)
         {
             string val = string.IsNullOrWhiteSpace(valueText) ? "—" : valueText;
@@ -371,19 +377,19 @@ namespace Inventory_Management_System.Forms
                 Font = ThemeHelper.FontDefault,
                 ForeColor = ThemeHelper.TextPrimary,
                 TextAlign = ContentAlignment.MiddleLeft,
-                AutoEllipsis = true,
+                AutoEllipsis = false,
             };
 
             int prefValH = lblValue.GetPreferredSize(new Size(ValueW, 0)).Height;
             int prefLblH = lblName.GetPreferredSize(new Size(LabelW, 0)).Height;
-            int actualH = Math.Max(RowH, Math.Max(prefValH, prefLblH) + 6);
-            lblName.Height = actualH;
-            lblValue.Height = actualH;
+            int rowHeight = Math.Max(RowH, Math.Max(prefValH, prefLblH) + 6);
+            lblName.Height = rowHeight;
+            lblValue.Height = rowHeight;
 
             var pnl = new Panel
             {
                 Location = new Point(x, y),
-                Size = new Size(ColWidth, RowH + 6),
+                Size = new Size(ColWidth, rowHeight + 6),
                 BackColor = isAlt ? RowOdd : RowEven,
             };
 
@@ -397,14 +403,87 @@ namespace Inventory_Management_System.Forms
             pnl.Controls.Add(lblValue);
             card.Controls.Add(pnl);
 
-            y += RowH + 6;
+            y += rowHeight + 6;
             isAlt = !isAlt;
         }
 
+        // New: same row shape as AddField, but the value is a clickable label
+        // when an employee is present. Clicking closes this popup and opens
+        // EmployeesForm pre-filtered to that employee, using the same
+        // EmployeesForm(string employeeCode) constructor EquipmentForm already
+        // uses for its own pending-selection flow.
+        private void AddEmployeeField(Panel card, string labelName, Employee? employee, int x, ref int y, ref bool isAlt)
+        {
+            string val = employee?.FullName ?? "—";
+            bool clickable = employee != null && !string.IsNullOrWhiteSpace(employee.EmployeeCode);
+
+            var lblName = new Label
+            {
+                Text = labelName + ":",
+                Location = new Point(8, 0),
+                Size = new Size(LabelW, RowH),
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary,
+                TextAlign = ContentAlignment.MiddleLeft,
+            };
+
+            var lblValue = new Label
+            {
+                Text = val,
+                Location = new Point(ValueX, 0),
+                Size = new Size(ValueW, RowH),
+                Font = clickable ? new Font(ThemeHelper.FontDefault, FontStyle.Underline) : ThemeHelper.FontDefault,
+                ForeColor = clickable ? ThemeHelper.Header : ThemeHelper.TextPrimary,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoEllipsis = false,
+                Cursor = clickable ? Cursors.Hand : Cursors.Default,
+            };
+
+            if (clickable)
+            {
+                lblValue.Click += (s, e) =>
+                {
+                    string code = employee!.EmployeeCode;
+                    var dashboard = Application.OpenForms.OfType<DashboardForm>().FirstOrDefault();
+                    this.Close();
+                    dashboard?.NavigateToEmployee(code);
+                };
+            }
+
+            int prefValH = lblValue.GetPreferredSize(new Size(ValueW, 0)).Height;
+            int prefLblH = lblName.GetPreferredSize(new Size(LabelW, 0)).Height;
+            int rowHeight = Math.Max(RowH, Math.Max(prefValH, prefLblH) + 6);
+            lblName.Height = rowHeight;
+            lblValue.Height = rowHeight;
+
+            var pnl = new Panel
+            {
+                Location = new Point(x, y),
+                Size = new Size(ColWidth, rowHeight + 6),
+                BackColor = isAlt ? RowOdd : RowEven,
+            };
+
+            pnl.Paint += (s, e) =>
+            {
+                using var pen = new Pen(SeparatorColor, 1);
+                e.Graphics.DrawLine(pen, 8, pnl.Height - 1, pnl.Width - 8, pnl.Height - 1);
+            };
+
+            pnl.Controls.Add(lblName);
+            pnl.Controls.Add(lblValue);
+            card.Controls.Add(pnl);
+
+            y += rowHeight + 6;
+            isAlt = !isAlt;
+        }
+
+        // Now matches AllocationDetailPopup's btnViewPicture exactly: same
+        // size (140x30), same font, same enabled/disabled colors, and the
+        // same "No Picture" disabled state instead of a plain "—" label.
         private void AddPictureField(Panel card, string labelName, string? picturePath, int x, ref int y, ref bool isAlt)
         {
             bool hasPicture = !string.IsNullOrWhiteSpace(picturePath);
-            const int rowHeight = 36;
+            const int rowHeight = 44;
 
             var lblName = new Label
             {
@@ -431,37 +510,33 @@ namespace Inventory_Management_System.Forms
 
             pnl.Controls.Add(lblName);
 
+            var btnView = new Button
+            {
+                Text = hasPicture ? "🖼  View Picture" : "🖼  No Picture",
+                Size = new Size(140, 30),
+                Location = new Point(ValueX, (rowHeight - 30) / 2),
+                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Enabled = hasPicture,
+                Cursor = hasPicture ? Cursors.Hand : Cursors.Default,
+                UseVisualStyleBackColor = false,
+            };
             if (hasPicture)
             {
-                var btnView = new Button
-                {
-                    Text = "🖼  View Picture",
-                    Location = new Point(ValueX, (rowHeight - 26) / 2),
-                    Size = new Size(130, 26),
-                    Font = ThemeHelper.FontSmall,
-                    Cursor = Cursors.Hand,
-                    TextAlign = ContentAlignment.MiddleCenter,
-                    AutoSize = true,
-                    AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                    Padding = new Padding(6, 2, 6, 2),
-                };
-                ThemeHelper.StyleSecondaryButton(btnView);
+                btnView.BackColor = Color.FromArgb(238, 242, 255);
+                btnView.ForeColor = ThemeHelper.Header;
+                btnView.FlatAppearance.BorderColor = Color.FromArgb(199, 210, 254);
+                btnView.FlatAppearance.MouseOverBackColor = Color.FromArgb(224, 231, 255);
                 btnView.Click += (s, e) => ShowPicture(picturePath!);
-                pnl.Controls.Add(btnView);
             }
             else
             {
-                var lblValue = new Label
-                {
-                    Text = "—",
-                    Location = new Point(ValueX, 0),
-                    Size = new Size(ValueW, rowHeight),
-                    Font = ThemeHelper.FontDefault,
-                    ForeColor = ThemeHelper.TextPrimary,
-                    TextAlign = ContentAlignment.MiddleLeft,
-                };
-                pnl.Controls.Add(lblValue);
+                btnView.BackColor = Color.FromArgb(243, 244, 246);
+                btnView.ForeColor = Color.FromArgb(156, 163, 175);
+                btnView.FlatAppearance.BorderColor = Color.FromArgb(229, 231, 235);
             }
+            btnView.FlatAppearance.BorderSize = 1;
+            pnl.Controls.Add(btnView);
 
             card.Controls.Add(pnl);
 
@@ -702,4 +777,4 @@ namespace Inventory_Management_System.Forms
             return path;
         }
     }
-}
+}   

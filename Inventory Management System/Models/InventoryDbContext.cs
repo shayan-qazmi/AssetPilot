@@ -46,10 +46,29 @@ public partial class InventoryDbContext : DbContext
     public virtual DbSet<Category> Categories { get; set; }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    => optionsBuilder.UseMySql(
-    "server=192.168.18.240;port=3306;database=inventory_management;user=ims_user;password=DBPassword123!;",
-    ServerVersion.Parse("11.8.6-mariadb")
-);
+    {
+        // If options were already supplied (e.g. by DbConnectionSettingsService.TestConnection
+        // building its own throwaway context), don't override them.
+        if (optionsBuilder.IsConfigured) return;
+
+        // One-time migration: seeds the settings file from what used to be
+        // hardcoded here, so existing installs keep working after this update
+        // with zero manual steps.
+        Services.DbConnectionSettingsService.SeedIfMissing(
+            server: "192.168.18.240",
+            port: 3306,
+            database: "inventory_management",
+            username: "ims_user",
+            password: "DBPassword123!",
+            serverVersion: "11.8.6-mariadb");
+
+        var settings = Services.DbConnectionSettingsService.Load();
+        var password = Services.DbConnectionSettingsService.DecryptPassword(settings);
+        var connStr = Services.DbConnectionSettingsService.BuildConnectionString(settings, password);
+
+        optionsBuilder.UseMySql(connStr, Microsoft.EntityFrameworkCore.ServerVersion.Parse(settings.ServerVersion));
+    }
+
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -602,4 +621,4 @@ public partial class InventoryDbContext : DbContext
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
-}
+}   

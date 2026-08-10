@@ -341,7 +341,7 @@ namespace Inventory_Management_System.Forms
                 int labelPrefH = lblToggleLabel.PreferredHeight;
                 int toggleCenterY = pnlToggle.Top + 18;
                 int labelTop = toggleCenterY - (labelPrefH / 2);
-                lblToggleLabel.Location = new System.Drawing.Point(pnlToggle.Right + 8, labelTop);
+                lblToggleLabel.Location = new System.Drawing.Point(pnlToggle.Right + 2, labelTop);
             }
 
             panelRight.Resize += (s, e) => CenterCard();
