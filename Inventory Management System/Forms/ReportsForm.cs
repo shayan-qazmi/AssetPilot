@@ -235,8 +235,8 @@ namespace Inventory_Management_System.Forms
 
             foreach (var item in equipmentList)
             {
-                string location = item.Allocations
-                    .FirstOrDefault(a => a.Status == "approved")?.Location?.LocationName ?? "—";
+                string location = ReturnsForm.FormatLocation(
+                    item.Allocations.FirstOrDefault(a => a.Status == "approved")?.Location) ?? "—";
 
                 int rowIdx = _preview.Rows.Add(
        item.EquipmentCode, item.QrCode ?? "—", item.Name, item.Make ?? "—", item.Model ?? "—",
@@ -273,8 +273,9 @@ namespace Inventory_Management_System.Forms
             _preview.Rows.Clear();
             _preview.Columns.Add("EmpCode", "Employee Code");
             _preview.Columns.Add("Employee", "Employee");
-            _preview.Columns.Add("Department", "Department");
+            _preview.Columns.Add("Designation", "Designation");
             _preview.Columns.Add("Email", "Email");
+            _preview.Columns.Add("Phone", "Phone");
             _preview.Columns.Add("ActiveCount", "Items Currently Held");
             _preview.Columns.Add("TotalCount", "Total Ever Allocated");
             _preview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
@@ -289,7 +290,7 @@ namespace Inventory_Management_System.Forms
 
                 if (totalCount == 0) continue; // skip employees with no history
 
-                _preview.Rows.Add(emp.EmployeeCode ?? "—", emp.FullName, emp.Department ?? "—", emp.Email ?? "—", activeCount, totalCount);
+                _preview.Rows.Add(emp.EmployeeCode ?? "—", emp.FullName, emp.Department ?? "—", emp.Email ?? "—", emp.Phone ?? "—", activeCount, totalCount);
             }
         }
 
@@ -311,25 +312,29 @@ namespace Inventory_Management_System.Forms
             _preview.Columns.Add("Code", "Equipment Code");
             _preview.Columns.Add("QRCode", "QR Code");
             _preview.Columns.Add("Name", "Equipment Name");
-            _preview.Columns.Add("Employee", "Allocated To");
+            _preview.Columns.Add("Employee", "Employee");
             _preview.Columns.Add("Location", "Location");
             _preview.Columns.Add("Date", "Allocated On");
             _preview.Columns.Add("Expected", "Expected Return");
             _preview.Columns.Add("Status", "Status");
+            _preview.Columns.Add("Source", "Source");
             _preview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
             foreach (var item in (result.Data ?? new List<Allocation>())
                                   .Where(a => a.Status == "approved" || a.Status == "pending"))
             {
+                string fullLocation = ReturnsForm.FormatLocation(item.Location);
+
                 int rowIdx = _preview.Rows.Add(
                     item.Equipment?.EquipmentCode ?? "—",
                     item.Equipment?.QrCode ?? "—",
                     item.Equipment?.Name ?? "—",
                     item.Employee?.FullName ?? "—",
-                    item.Location?.LocationName ?? "—",
+                    fullLocation,
                     item.AllocationDate.ToString("yyyy-MM-dd"),
                     item.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—",
-                    item.Status);
+                    item.Status,
+                    "Allocation");
 
                 var statusCell = _preview.Rows[rowIdx].Cells["Status"];
                 statusCell.Style.ForeColor = item.Status == "approved" ? ThemeHelper.Success : ThemeHelper.Warning;
@@ -342,42 +347,94 @@ namespace Inventory_Management_System.Forms
             _currentReport = "Return";
             _previewTitle.Text = $"Returns History Report — {_companyName}";
 
-            var result = _allocationService.GetAll();
-            if (!result.Success)
+            try
             {
-                ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
-                return;
-            }
-
             _preview.Columns.Clear();
             _preview.Rows.Clear();
-            _preview.Columns.Add("Code", "Equipment Code");
             _preview.Columns.Add("QRCode", "QR Code");
+            _preview.Columns.Add("Code", "Equipment Code");
             _preview.Columns.Add("Name", "Equipment Name");
-            _preview.Columns.Add("Employee", "Returned By");
-            _preview.Columns.Add("Allocated", "Allocated On");
+            _preview.Columns.Add("Employee", "Employee");
+            _preview.Columns.Add("Location", "Location");
             _preview.Columns.Add("Returned", "Return Date");
-            _preview.Columns.Add("Duration", "Duration (days)");
+            _preview.Columns.Add("Condition", "Condition");
+            _preview.Columns.Add("Source", "Source");
+            _preview.Columns.Add("Overdue", "Overdue");
             _preview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
-            foreach (var item in (result.Data ?? new List<Allocation>()).Where(a => a.Status == "returned"))
+            // Load allocation-based returns
+            using var db = new InventoryDbContext();
+            var returnedAllocations = db.Allocations
+                .Where(a => a.Status == "returned")
+                .Include(a => a.Equipment)
+                .Include(a => a.Employee)
+                .Include(a => a.Location)
+                .OrderByDescending(a => a.ActualReturnDate)
+                .ToList();
+
+            foreach (var item in returnedAllocations)
             {
                 var returnDate = item.ActualReturnDate.HasValue
                     ? item.ActualReturnDate.Value.ToDateTime(TimeOnly.MinValue)
                     : DateTime.Today;
-                int duration = (returnDate - item.AllocationDate).Days;
+                bool isOverdue = item.ExpectedReturnDate.HasValue && item.ActualReturnDate.HasValue &&
+                                 item.ActualReturnDate.Value > item.ExpectedReturnDate.Value;
+                string fullLocation = ReturnsForm.FormatLocation(item.Location);
 
                 int rowIdx = _preview.Rows.Add(
-        item.Equipment?.EquipmentCode ?? "—",
-        item.Equipment?.QrCode ?? "—",
-        item.Equipment?.Name ?? "—",
-        item.Employee?.FullName ?? "—",
-        item.AllocationDate.ToString("yyyy-MM-dd"),
-        item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
-        duration);
+                    item.Equipment?.QrCode ?? "—",
+                    item.Equipment?.EquipmentCode ?? "—",
+                    item.Equipment?.Name ?? "—",
+                    item.Employee?.FullName ?? "—",
+                    fullLocation,
+                    item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
+                    item.Equipment?.ConditionGrade ?? "—",
+                    "Allocation",
+                    isOverdue ? "Yes" : "No");
 
-                if (duration > 30)
-                    _preview.Rows[rowIdx].Cells["Duration"].Style.ForeColor = ThemeHelper.Warning;
+                var overdueCell = _preview.Rows[rowIdx].Cells["Overdue"];
+                overdueCell.Style.Font = ThemeHelper.FontBold;
+                overdueCell.Style.ForeColor = isOverdue ? ThemeHelper.Danger : ThemeHelper.TextSecondary;
+
+                var sourceCell = _preview.Rows[rowIdx].Cells["Source"];
+                sourceCell.Style.ForeColor = Color.FromArgb(107, 114, 128);
+            }
+
+            // Load Check In/Out completed returns
+            var completedCheckIns = db.Transactions
+                .Include(t => t.Equipment)
+                .Where(t => t.Status == "Completed" && t.ActualReturn.HasValue && t.TransactionType == "Check-Out")
+                .OrderByDescending(t => t.ActualReturn)
+                .ToList();
+
+            foreach (var t in completedCheckIns)
+            {
+                bool isOverdue = t.ExpectedReturn.HasValue && t.ActualReturn.HasValue &&
+                                 t.ActualReturn.Value > t.ExpectedReturn.Value;
+
+                int rowIdx = _preview.Rows.Add(
+                    t.Equipment?.QrCode ?? "—",
+                    t.Equipment?.EquipmentCode ?? "—",
+                    t.Equipment?.Name ?? "—",
+                    string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
+                    string.IsNullOrWhiteSpace(t.Department) ? "—" : t.Department,
+                    t.ActualReturn?.ToString("yyyy-MM-dd") ?? "—",
+                    t.ConditionAfter ?? "—",
+                    "Check In/Out",
+                    isOverdue ? "Yes" : "No");
+
+                var overdueCell = _preview.Rows[rowIdx].Cells["Overdue"];
+                overdueCell.Style.Font = ThemeHelper.FontBold;
+                overdueCell.Style.ForeColor = isOverdue ? ThemeHelper.Danger : ThemeHelper.TextSecondary;
+
+                var sourceCell = _preview.Rows[rowIdx].Cells["Source"];
+                sourceCell.Style.ForeColor = Color.FromArgb(25, 118, 210);
+                sourceCell.Style.Font = ThemeHelper.FontBold;
+            }
+            }
+            catch (Exception ex)
+            {
+                ToastHelper.Show(this, "Error loading returns report: " + ex.Message, ToastType.Error);
             }
         }
 

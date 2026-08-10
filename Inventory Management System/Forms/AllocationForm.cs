@@ -136,7 +136,7 @@ namespace Inventory_Management_System.Forms
             RoundInput(null, EventArgs.Empty);
         }
 
-        private void FlowToolbar_Layout(object? sender, LayoutEventArgs e)
+        private void RecalcToolbarHeight()
         {
             if (_updatingToolbarHeight) return;
 
@@ -147,6 +147,11 @@ namespace Inventory_Management_System.Forms
                 panelTop.Height = needed;
                 _updatingToolbarHeight = false;
             }
+        }
+
+        private void FlowToolbar_Layout(object? sender, LayoutEventArgs e)
+        {
+            RecalcToolbarHeight();
         }
 
         private class AllocationRow
@@ -180,6 +185,9 @@ namespace Inventory_Management_System.Forms
         public AllocationForm()
         {
             InitializeComponent();
+
+            flowToolbar.Layout += FlowToolbar_Layout;   // ← moved up: must be wired before Setup* adds controls
+
             ApplyTheme();
             SetupEquipmentFilterDropdown();
             SetupSelectModeDropdown();   // ← replaces plain btnSelectAll with dropdown
@@ -199,9 +207,9 @@ namespace Inventory_Management_System.Forms
             {
                 dgvAllocation.ClearSelection();
                 dgvAllocation.CurrentCell = null;
+                RecalcToolbarHeight();   // ← final correction once ClientSize.Width is accurate
             };
-            flowToolbar.Layout += FlowToolbar_Layout;
-        }
+        }   
 
         private void SetupEquipmentFilterDropdown()
         {
@@ -591,7 +599,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleDangerButton(btnDelete);
-            ApplyRoundedSearchStyle(txtSearch); 
+            ApplyRoundedSearchStyle(txtSearch);
             ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
             ThemeHelper.StyleSecondaryButton(btnNextPage);
@@ -1373,7 +1381,7 @@ namespace Inventory_Management_System.Forms
             LoadAllocations();
         }
 
-  
+
 
         private void txtSearch_TextChanged(object sender, EventArgs e)
         {

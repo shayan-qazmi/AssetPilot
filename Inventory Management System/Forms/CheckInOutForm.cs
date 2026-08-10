@@ -133,6 +133,16 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnConfirmCheckOut);
             ThemeHelper.StyleButton(btnConfirmCheckIn);
 
+            // Apply rounded corners to confirm buttons — re-apply on resize so the
+            // region always matches the actual button size after layout.
+            void RoundConfirmBtn(Button btn)
+            {
+                ApplyButtonRounding(btn, 10);
+                btn.SizeChanged += (s, e) => ApplyButtonRounding(btn, 10);
+            }
+            RoundConfirmBtn(btnConfirmCheckOut);
+            RoundConfirmBtn(btnConfirmCheckIn);
+
             ThemeHelper.StyleLabel(lblGridTitle, bold: true);
             lblNoResult.ForeColor = ThemeHelper.TextSecondary;
             lblNoResult.Font = ThemeHelper.FontDefault;
@@ -377,9 +387,22 @@ namespace Inventory_Management_System.Forms
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
             var rect = pnlEmptyState.ClientRectangle;
-            rect.Y += dgvRecentTransactions.ColumnHeadersHeight;
-            rect.Height -= dgvRecentTransactions.ColumnHeadersHeight;
             if (rect.Width <= 0 || rect.Height <= 0) return;
+
+            // Center under the "Issued To" column (index 2)
+            int centerX = rect.Width / 2;
+            try
+            {
+                if (dgvRecentTransactions.Columns.Count > 2)
+                {
+                    var colRect = dgvRecentTransactions.GetColumnDisplayRectangle(2, true);
+                    if (colRect.Width > 0)
+                    {
+                        centerX = colRect.X + (colRect.Width / 2);
+                    }
+                }
+            }
+            catch { /* fallback to center if grid isn't fully laid out */ }
 
             Size iconSize = TextRenderer.MeasureText(g, lblEmptyIcon.Text, lblEmptyIcon.Font);
             Size titleSize = TextRenderer.MeasureText(g, lblEmptyTitle.Text, lblEmptyTitle.Font);
@@ -390,17 +413,17 @@ namespace Inventory_Management_System.Forms
             int startY = rect.Top + Math.Max(0, (rect.Height - totalH) / 2);
 
             TextRenderer.DrawText(g, lblEmptyIcon.Text, lblEmptyIcon.Font,
-                new Point(rect.Left + (rect.Width - iconSize.Width) / 2, startY),
+                new Point(centerX - iconSize.Width / 2, startY),
                 lblEmptyIcon.ForeColor, TextFormatFlags.NoPadding);
 
             int titleY = startY + iconSize.Height + gap1;
             TextRenderer.DrawText(g, lblEmptyTitle.Text, lblEmptyTitle.Font,
-                new Point(rect.Left + (rect.Width - titleSize.Width) / 2, titleY),
+                new Point(centerX - titleSize.Width / 2, titleY),
                 lblEmptyTitle.ForeColor, TextFormatFlags.NoPadding);
 
             int subtitleY = titleY + titleSize.Height + gap2;
             TextRenderer.DrawText(g, lblEmptySubtitle.Text, lblEmptySubtitle.Font,
-                new Point(rect.Left + (rect.Width - subtitleSize.Width) / 2, subtitleY),
+                new Point(centerX - subtitleSize.Width / 2, subtitleY),
                 lblEmptySubtitle.ForeColor, TextFormatFlags.NoPadding);
         }
 

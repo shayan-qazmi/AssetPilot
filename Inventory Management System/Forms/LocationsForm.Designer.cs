@@ -94,7 +94,7 @@ namespace Inventory_Management_System.Forms
             dgvLocations.Name                = "dgvLocations";
             dgvLocations.Columns.Add("ID",              "Location ID");
             dgvLocations.Columns.Add("Name",            "Location Name");
-            dgvLocations.Columns.Add("Building",        "Address");
+            dgvLocations.Columns.Add("Building", "Address/Building");
             dgvLocations.Columns.Add("RoomNumber",      "Room Number");
             dgvLocations.Columns.Add("RoomName", "Room Name");
 

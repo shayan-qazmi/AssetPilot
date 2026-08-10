@@ -166,7 +166,7 @@ ToastHelper.Show(this, result.ErrorMessage ?? "Location not found.", ToastType.E
         if (sfd.ShowDialog() != DialogResult.OK) return;
 
         var sb = new System.Text.StringBuilder();
-                sb.AppendLine("Location ID,Location Name,Address,Room Number,Allocated Person");    
+                sb.AppendLine("Location ID,Location Name,Address/Building,Room Number,Allocated Person");    
 
                 foreach (DataGridViewRow row in dgvLocations.Rows)
         {

@@ -316,7 +316,7 @@ namespace Inventory_Management_System.Forms
             outY += 85;
 
             btnConfirmCheckOut.Location = new System.Drawing.Point(160, outY);
-            btnConfirmCheckOut.Size = new System.Drawing.Size(200, 40);
+            btnConfirmCheckOut.Size = new System.Drawing.Size(controlWidth, 40);
             btnConfirmCheckOut.Text = "✅ Confirm Check-Out";
             btnConfirmCheckOut.Name = "btnConfirmCheckOut";
             btnConfirmCheckOut.Click += btnConfirmCheckOut_Click;
@@ -366,7 +366,7 @@ namespace Inventory_Management_System.Forms
             inY += 85;
 
             btnConfirmCheckIn.Location = new System.Drawing.Point(160, inY);
-            btnConfirmCheckIn.Size = new System.Drawing.Size(500, 50);
+            btnConfirmCheckIn.Size = new System.Drawing.Size(controlWidth, 40);
             btnConfirmCheckIn.Text = "✅ Confirm Check-In";
             btnConfirmCheckIn.Name = "btnConfirmCheckIn";
             btnConfirmCheckIn.Click += btnConfirmCheckIn_Click;
