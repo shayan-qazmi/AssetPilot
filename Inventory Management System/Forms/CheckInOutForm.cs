@@ -268,7 +268,11 @@ namespace Inventory_Management_System.Forms
                 };
                 lblStatusValue.Font = CardLabelFont;
 
-                var activeAlloc = equipment.Allocations.FirstOrDefault(a => a.Status == "approved");
+                var activeAlloc = equipment.Allocations
+                    .Where(a => a.Status == "approved")
+                    .OrderByDescending(a => a.EmployeeId.HasValue)
+                    .ThenByDescending(a => a.Id)
+                    .FirstOrDefault();
                 lblLocationValue.Text = activeAlloc?.Location?.LocationName ?? "—";
 
                 _activeTransaction = db.Transactions

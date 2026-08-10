@@ -129,7 +129,7 @@ namespace Inventory_Management_System.Forms
             dgvAllocation.Columns.Add("SerialNumber", "Serial Number");
             dgvAllocation.Columns["SerialNumber"].Visible = false;
             dgvAllocation.Columns.Add("Make", "Make");
-            dgvAllocation.Columns["Make"].Visible = false;
+            dgvAllocation.Columns["Make"].Visible = true;
             dgvAllocation.Columns.Add("Model", "Model");
             dgvAllocation.Columns["Model"].Visible = false;
 

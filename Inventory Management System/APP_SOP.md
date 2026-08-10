@@ -149,7 +149,7 @@ Dropdown lists both categories with quick links to the relevant equipment.
 
 **Category filter ComboBox:** Built by unioning `CategoryService.GetAll()` names with distinct `Equipment.Category` values from DB (case-insensitive, alphabetical).
 
-**Grid columns:** `Equipment Code` · `QR Code` · `Procurement Type` · `Name` · `Make` · `Model` · `Serial Number` · `Category` · `Status` · `Purchase Date`
+**Grid columns:** `Equipment Code` · `QR Code` · `Procurement Type` · `Name` · `Make` · `Model` · `Serial Number` · `Category` · `Status` · `Condition` · `Location` (includes room name after a hyphen) · `Purchase Date` · `Price`
 
 **Row colour by status:** `decommissioned` → red · `under_repair` → orange · `allocated` → blue · `in_store` → green
 
@@ -322,6 +322,8 @@ No search or pagination. Add/Edit/Delete each write to `equipment_logs` via `_au
 1. `Allocations WHERE Status != "returned"` with `Include(Equipment, Employee, Location, AllocatedByUser)`.
 2. `Transactions WHERE TransactionType == "Check-Out" AND (Status == "Pending" OR Status == "Overdue")` — included only if `Equipment.CurrentStatus == "allocated"` AND not already in allocation ids. Mapped with `Source = "Check-In/Out"`, synthetic `Id = -(TransactionId)`.
 3. Available rows: equipment not decommissioned/under repair and not in any active allocation or transaction. Synthetic `Id = -(2_000_000 + Equipment.Id)`.
+
+**Grid columns:** `QR Code` · `Equipment Code` · `Equipment Name` · `Make` · `Employee` · `Location` (includes room name after a hyphen) · `Date Allocated` · `Expected Return` · `Status` · `Source`
 
 **Equipment filter dropdown:** "Equipment: All" / "Equipment: Available" / "Equipment: Allocated" / "Equipment: Pending" (custom-drawn green ComboBox)
 

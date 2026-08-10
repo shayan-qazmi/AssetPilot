@@ -226,7 +226,11 @@ namespace Inventory_Management_System.Forms
             // ── Right Column: Current Allocation ─────────────────────────────
             AddSectionHeader(card, "▣", "Current Allocation", ColRight, ref yRight);
 
-            var activeAlloc = _equipment.Allocations.FirstOrDefault(a => a.Status == "approved");
+            var activeAlloc = _equipment.Allocations
+                .Where(a => a.Status == "approved")
+                .OrderByDescending(a => a.EmployeeId.HasValue)
+                .ThenByDescending(a => a.Id)
+                .FirstOrDefault();
             bool altRight = false;
 
             string locName = activeAlloc?.Location?.LocationName;

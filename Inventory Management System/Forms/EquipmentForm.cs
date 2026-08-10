@@ -525,10 +525,12 @@ namespace Inventory_Management_System.Forms
 
             foreach (var item in items)
             {
-                string locationName = item.Allocations
-                    .FirstOrDefault(a => a.Status != null &&
-                                        a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase))
-                    ?.Location?.LocationName ?? "";
+                var activeAlloc = item.Allocations
+                    .Where(a => a.Status != null && a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(a => a.EmployeeId.HasValue)
+                    .ThenByDescending(a => a.Id)
+                    .FirstOrDefault();
+                string locationName = FormatLocationDisplay(activeAlloc?.Location);
 
                 string procType = item.ProcurementType?.TypeName ?? "";
 
@@ -600,6 +602,20 @@ namespace Inventory_Management_System.Forms
                 _pendingSelectCode = null;
             }
             lblRowCount.Text = $"Showing {dgvEquipment.Rows.Count} records";
+        }
+
+        private static string FormatLocationDisplay(Location? loc)
+        {
+            if (loc == null || string.IsNullOrWhiteSpace(loc.LocationName)) return "";
+
+            bool hasNum = !string.IsNullOrWhiteSpace(loc.RoomNumber);
+            bool hasRoomName = !string.IsNullOrWhiteSpace(loc.RoomName);
+            if (!hasNum && !hasRoomName) return loc.LocationName;
+
+            string room = hasNum ? $"Room {loc.RoomNumber}" : "";
+            if (hasRoomName) room = string.IsNullOrEmpty(room) ? loc.RoomName! : $"{room} ({loc.RoomName})";
+
+            return $"{loc.LocationName} - {room}";
         }
 
         // ── Selection helpers ──────────────────────────────────────────────
