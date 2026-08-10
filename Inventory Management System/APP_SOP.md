@@ -3,7 +3,7 @@
 > **Ground-truth document** — every claim is traced from source code:
 > UI form event handler → service method → EF Core / DbContext → database table + column.
 > No assumption-based descriptions. Source file + method cited per section.
-> Last generated: 2026-07-29
+> Last updated: 2026-08-10
 
 **Tech Stack:** WinForms · C# · .NET 8 · Entity Framework Core · MariaDB
 **Database:** `inventory_management` @ `192.168.18.240`
@@ -31,6 +31,7 @@
 17. [Data Model Reference](#17-data-model-reference)
 18. [Cross-Module Effects Summary](#18-cross-module-effects-summary)
 19. [Known Issues & Observations](#19-known-issues--observations)
+20. [New Features & Recent Changes (2026-08-10)](#20-new-features--recent-changes-2026-08-10)
 
 ---
 
@@ -198,16 +199,33 @@ Dropdown lists both categories with quick links to the relevant equipment.
 
 **Source:** `Services/MaintenanceService.cs`
 
-- `GetByEquipmentId(int equipmentId)`: Returns a list of maintenance records for the given equipment, ordered by newest first.
-- `OpenRecord(int equipmentId, string issueDescription, string? servicedBy, decimal? cost)`: Validates the description, creates a new `MaintenanceRecord` with status `open`, sets `ReportedDate` to today, and saves it.
-- `ResolveRecord(int recordId, DateOnly resolvedDate, decimal? finalCost)`: Marks the record as `resolved`, sets `ResolvedDate` and optionally updates the cost.
+- `GetByEquipmentId(int equipmentId)`: Returns a list of maintenance records for the given equipment, ordered by newest first (`ReportedDate DESC`, `CreatedAt DESC`).
+- `OpenRecord(int equipmentId, string issueDescription, string? servicedBy, decimal? cost)`: Validates the description, creates a new `MaintenanceRecord` with status `open`, sets `ReportedDate` to today, saves, and **writes an audit log**: `AuditService.Log(equipmentId, "maintenance_opened", "Status: In Store", "Issue: ... | Serviced By: ... | Est. Cost: ...")` → `equipment_logs`.
+- `ResolveRecord(int recordId, DateOnly resolvedDate, decimal? finalCost)`: Marks the record as `resolved`, sets `ResolvedDate`, optionally updates cost, and **writes an audit log**: `AuditService.Log(equipmentId, "maintenance_resolved", "Status: Under Repair | Issue: ...", "Status: In Store | Resolved: ... | Final Cost: ...")` → `equipment_logs`.
 - `GetOpenRecordForEquipment(int equipmentId)`: Retrieves the most recent record with status `open` or `in_progress` for the equipment.
 
 These methods are consumed by the **Maintenance Record Dialog** shown when the equipment status changes to **Under Repair** or when exiting that status.
 
-**Save path:**
+### 4.4 Equipment Detail Popup — `EquipmentDetailPopup`
+
+**Source:** `Forms/EquipmentDetailPopup.cs`
+
+Opened by double-clicking any row in the Equipment grid. Displays a two-column card popup:
+
+**Left column — Equipment Information:**
+`Equipment Code` · `QR Code` · `Name` · `Make` · `Model` · `Serial Number` · `Category` · `Status` (colour-coded badge) · `Condition` · `Purchase Date` · `Purchase Price` · `Procurement Type` · `Vendor Name` · `Warranty Expiry` · `Description` · `Notes` · `Picture` ("View Picture" button)
+
+**Right column — Current Allocation:**
+`Current Location` · `Currently Assigned To` (employee name) · `Allocation Date` · `Expected Return Date`
+
+**Right column — Maintenance History:**
+Calls `MaintenanceService.GetByEquipmentId(_equipment.Id)`. If no records: displays "No maintenance history recorded." Otherwise, lists each record with: `Record #N` (reported date) · `Status` (colour-coded: `open`=red, `in_progress`=amber, `resolved`=green) · `Issue` · `Serviced By` · `Cost` · `Resolved` (date)
+
+The dialog auto-sizes and scrolls if content exceeds the screen working area. A vertical separator divides the two columns.
+
+**Save path (Equipment Add/Edit):**
 - Add: `db.Equipment.Add(equipment)` + `db.SaveChanges()`, then `AuditService.Log(id, "equipment_created", null, code)` → `equipment_logs`.
-- Edit: loads entity, updates all fields, `db.SaveChanges()`, then `AuditService.Log(id, "equipment_updated", oldValue, newValue)` → `equipment_logs`.
+- Edit: loads entity, updates all fields, `db.SaveChanges()`, then `AuditService.Log(id, "equipment_updated", oldSummary, newSummary)` → `equipment_logs`. The `oldSummary` and `newSummary` are produced by `AuditService.BuildEquipmentDiff(before, after)` which compares all fields field-by-field and emits only the changed ones as `"Field: value"` pipe-separated strings.
 - `CreatedByUserId` is hardcoded to `1` in add mode. The logged-in user id is not used.
 
 **Picture lifecycle:** Staged path stored; on save, old file deleted and new path persisted. On form close (cancel), staged file is deleted.
@@ -224,7 +242,7 @@ These methods are consumed by the **Maintenance Record Dialog** shown when the e
 - No search: `EmployeeService.GetPage(_currentPage, _pageSize)` → server-side `SKIP/TAKE` on `employees` ordered by `FullName`.
 - With search: `EmployeeService.GetAll()` → in-memory code-first / fuzzy across `FullName`, `Department`, `Email`, `Phone`.
 
-**Grid columns:** `Employee Code` · `Full Name` · `Department` · `Email` · `Phone` · `Status` (Active/Inactive)
+**Grid columns:** `Employee Code` · `Full Name` · `Designation` · `Email` · `Phone` · `Status` (Active/Inactive)
 
 **Actions:**
 
@@ -234,6 +252,15 @@ These methods are consumed by the **Maintenance Record Dialog** shown when the e
 | Edit | Calls `GetAll()`, finds by `EmployeeCode`, opens `AddEditEmployeeForm(emp)`. |
 | Delete | Confirms → `EmployeeService.Delete(emp.Id)`. |
 | Export | CSV of current page's grid. |
+| Import | CSV import of employees. |
+
+**Double-click row:** Opens `EmployeeDetailPopup` showing a card with the employee's avatar (circle crop, default grey silhouette if no picture), `Employee Code`, `Designation`, `Email`, `Phone`, and `Status` badge. Profile picture is loaded via `AvatarHelper.TryLoadUserImage(PicturePath)`.
+
+### 5.3 Add/Edit Employee Form — `AddEditEmployeeForm`
+
+Fields: `Full Name` (required) · `Designation` · `Email` · `Phone` · `Profile Picture` (Upload/Remove buttons, optional) · `Is Active` checkbox.
+
+Profile picture upload copies the file to the network share (`NetworkPaths.EmployeePicturesDir`) via `NetworkShareHelper.EnsureConnected()`. The filename saved is `{EmployeeCode}_{GUID}{ext}`. On cancel/close, staged pictures are discarded.
 
 ### 5.2 Service Methods — `EmployeeService`
 
@@ -287,6 +314,7 @@ No search or pagination. Add/Edit/Delete each write to `equipment_logs` via `_au
 | `returned` | Returned; `Equipment.CurrentStatus = "in_store"` |
 | `rejected` | Rejected; equipment status unchanged |
 | `Overdue` | **UI-only computed** — `approved` + `ExpectedReturnDate < today`. Never stored in DB. |
+| `available` | **UI-only synthetic** — equipment not in any active allocation, not decommissioned/under repair. Never stored in DB. |
 
 ### 7.2 List View — `AllocationForm`
 
@@ -295,9 +323,15 @@ No search or pagination. Add/Edit/Delete each write to `equipment_logs` via `_au
 2. `Transactions WHERE TransactionType == "Check-Out" AND (Status == "Pending" OR Status == "Overdue")` — included only if `Equipment.CurrentStatus == "allocated"` AND not already in allocation ids. Mapped with `Source = "Check-In/Out"`, synthetic `Id = -(TransactionId)`.
 3. Available rows: equipment not decommissioned/under repair and not in any active allocation or transaction. Synthetic `Id = -(2_000_000 + Equipment.Id)`.
 
-**Equipment filter dropdown:** "All" / "Available" / "Allocated" / "Pending"
+**Equipment filter dropdown:** "Equipment: All" / "Equipment: Available" / "Equipment: Allocated" / "Equipment: Pending" (custom-drawn green ComboBox)
+
+**Category filter dropdown:** Separate green `cmbAllocCategoryFilter` to further filter by category.
 
 **Action button rules:** `btnApprove`, `btnReturn`, `btnDelete`, `btnEditReturn` are all **disabled** when a Check-In/Out sourced row is selected.
+
+**Double-click row → `AllocationDetailPopup`:**
+Opens `AllocationDetailPopup` with a card showing the equipment photo (or gear icon placeholder) + status badge on the left, and labeled detail rows on the right:
+`QR Code / Equipment Code` · `Equipment Name` · `Serial / Make / Model` · `Employee` · `Location` · `Date Allocated` · `Expected Return` · `Source` (`Allocation` or `Check-In/Out`) · `Allocated By` · `"View Picture"` button (opens the equipment picture in the default viewer).
 
 ### 7.3 Create Allocation
 
@@ -469,7 +503,11 @@ Inline dialog offers Restore / Delete / Cancel for the single row. Same service 
 2. Inserts `EquipmentLog { EquipmentId, ActionType, ChangedByUserId = _systemUserId, OldValue, NewValue, CreatedAt = UtcNow }`.
 3. `SaveChanges`. **Exceptions are silently swallowed.**
 
-`_systemUserId` defaults to `1`. Every caller uses `new AuditService()` with no argument. **All audit entries record `ChangedByUserId = 1` regardless of who is logged in.**
+`AuditService` constructor signature: `public AuditService(int? systemUserId = null)`. **When called with no argument, `_systemUserId` is now set to `AuthService.CurrentUserId` (the logged-in user's ID)** — not a hardcoded `1`. This means audit entries now correctly attribute actions to the active session user.
+
+### 12.1a `AuditService.BuildEquipmentDiff(Equipment before, Equipment after)`
+
+A static helper that compares two equipment snapshots field-by-field and returns `(string? OldSummary, string? NewSummary)` containing only the fields that actually changed, formatted as `"Field: value | Field: value"` pipe-delimited strings. Fields compared: `Name`, `Make`, `Model`, `Serial Number`, `Status` (human-readable), `Category`, `Purchase Date`, `Price`, `Description`, `Vendor`, `Condition`, `Warranty Expiry`, `Notes`, `Picture` (added/removed/replaced). Used by `AddEditEquipmentForm` to produce precise audit diffs instead of full serialized dumps.
 
 ### 12.2 Defined Action Type Constants
 
@@ -477,6 +515,8 @@ Inline dialog offers Restore / Delete / Cancel for the single row. Same service 
 |----------|-------------------------------|
 | `ActionEquipmentCreated` | `equipment_created` |
 | `ActionEquipmentUpdated` | `equipment_updated` |
+| `ActionEquipmentDeleted` | `equipment_deleted` |
+| `ActionEquipmentRestored` | `equipment_restored` |
 | `ActionLocationChanged` | `location_changed` |
 | `ActionAllocationRequested` | `allocation_requested` |
 | `ActionAllocationApproved` | `allocation_approved` |
@@ -494,12 +534,15 @@ Inline dialog offers Restore / Delete / Cancel for the single row. Same service 
 | `ActionLocationCreated` | `location_created` |
 | `ActionLocationUpdated` | `location_updated` |
 | `ActionLocationDeleted` | `location_deleted` |
+| `ActionMaintenanceOpened` | `maintenance_opened` |
+| `ActionMaintenanceResolved` | `maintenance_resolved` |
 
 ### 12.3 Who Writes Audit Logs
 
 | Action | Action type |
 |--------|-------------|
 | Equipment Add | `equipment_created` |
+| Equipment Edit | `equipment_updated` (via `BuildEquipmentDiff`) |
 | Allocation Create | `allocation_requested` |
 | Allocation Approve | `allocation_approved` |
 | Allocation Return (from Allocation screen) | `allocation_returned` |
@@ -510,24 +553,31 @@ Inline dialog offers Restore / Delete / Cancel for the single row. Same service 
 | Decommission | `decommission_approved` |
 | Check-Out | `checked_out` |
 | Check-In | `checked_in` |
-| Equipment Edit | `equipment_updated` |
 | Employee Add | `employee_created` |
 | Employee Edit | `employee_updated` |
 | Employee Delete | `employee_deleted` |
 | Location Add | `location_created` |
 | Location Edit | `location_updated` |
 | Location Delete | `location_deleted` |
+| Status → Under Repair | `maintenance_opened` |
+| Status Away from Under Repair (resolved) | `maintenance_resolved` |
 
-**Not logged:** Equipment soft-delete, restore, hard-delete.
+**Not logged:** Equipment soft-delete, restore, hard-delete, user management actions, password changes.
 
 ### 12.4 LogsForm Data Load
 
 - No search: server-side `SKIP/TAKE` on `equipment_logs ORDER BY CreatedAt DESC`.
 - With search: full load then in-memory code-first / fuzzy on `ActionType`, `ChangedByUser.FullName`, `OldValue`, `NewValue`.
 
-**Grid columns:** `ID` · `Equipment Code` · `QR Code` · `Action` (formatted) · `Changed By` · `Previous Value` · `New Value` · `Timestamp`
+**Grid columns:** `Equipment Code` · `QR Code` · `Action` (formatted) · `Changed By` · `Previous Value` · `New Value` · `Timestamp`
 
 **Export:** CSV of current page. Action column colour-coded: green / blue / yellow / red / purple / orange per action type.
+
+**Double-click row → `LogDetailPopup`:**
+Opens a `LogDetailPopup` modal showing formatted detail:
+- `Action` · `Changed By` · `When` · `Equipment` (code)
+- **Before** panel: `OldValue` split on `" | "`, each field shown as a bullet in a light-red box.
+- **After** panel: `NewValue` split on `" | "`, each field shown as a bullet in a light-green box.
 
 ---
 
@@ -661,7 +711,7 @@ Category selection from context menu (same union logic as Equipment module filte
 
 **Source:** `Forms/SettingsForm.cs`
 
-Entirely code-built; no Designer layout. Left sidebar slides in on load via a timer animation. Five sections.
+Entirely code-built; no Designer layout. Left sidebar slides in on load via a timer animation. **Six sections** (five for Operators; System Configuration is Admin-only).
 
 ### 16.1 General — Company Information
 
@@ -670,7 +720,7 @@ Entirely code-built; no Designer layout. Left sidebar slides in on load via a ti
 **Save (`btnSave_Click`):**
 - Validates `CompanyName` non-empty; `LabelWidthMm` and `LabelHeightMm` positive integers.
 - Upserts `AppSetting`. Sets `Theme = "Light"` (**hardcoded**, no theme switching implemented).
-- `SaveChanges`. On General panel: shows inline `"✓ Saved"` pill. On Printing panel: shows `MessageBox`.
+- `SaveChanges`. On General panel: shows inline `"✓ Saved"` pill (Save button disabled until Company Name is changed — dirty-check via `_originalCompanyName`). On Printing panel: shows `MessageBox`.
 
 **System card:** App version from `Assembly.GetName().Version`. Last backup from `%AppData%\QInventory\lastbackup.txt`. Database name from loaded `AppSetting.DbName + " · " + DbServer`.
 
@@ -678,25 +728,40 @@ Entirely code-built; no Designer layout. Left sidebar slides in on load via a ti
 
 | Button | Action |
 |--------|--------|
-| Clear all logs | Loads all `EquipmentLog` rows, `RemoveRange`, `SaveChanges`. |
-| Reset application data | Requires user to type `"RESET"`. Deletes all `Allocations` (one `SaveChanges`), then all `Equipment` (second `SaveChanges`). **No transaction wrapper — partial failure possible.** Users, roles, categories, settings unaffected. |
+| Clear all logs | Confirms with MessageBox → loads all `EquipmentLog` rows, `RemoveRange`, `SaveChanges`. Shows toast with deleted count. |
+| Reset application data | Opens `ShowTypedConfirm` dialog — user must type `"RESET"` to enable the confirm button. Deletes all `Allocations` (one `SaveChanges`), then all `Equipment` (second `SaveChanges`). **No transaction wrapper — partial failure possible.** Users, roles, categories, settings unaffected. |
 
 ### 16.2 Backup / Restore
 
-**Backup:** Prompts for credentials → spawns `mysqldump.exe -h {host} -u {user} [-p{pass}] {db}` as a process. Reads `StandardOutput` to `.sql` file. Writes timestamp to `lastbackup.txt`. Locates `mysqldump.exe` via: cached path → common dirs (`C:\xampp\mysql\bin`, MySQL 8.0/8.4, WAMP) → `OpenFileDialog`. **Password passed as CLI argument — visible in process listings.**
+**Backup:** Prompts for credentials (Host, Database, Username, Password dialog) → spawns `mysqldump.exe -h {host} -u {user} [-p{pass}] {db}` as a process. Reads `StandardOutput` to `.sql` file. Writes timestamp to `%AppData%\QInventory\lastbackup.txt`. Locates `mysqldump.exe` via: cached path in `%AppData%\QInventory\mysqltools.txt` → common dirs (`C:\xampp\mysql\bin`, MySQL 8.0/8.4, WAMP64) → `OpenFileDialog` prompt. **Password passed as CLI argument — visible in process listings.** Success/failure shown as toast notification.
 
-**Restore:** Selects `.sql` file → spawns `mysql.exe`, pipes file to `StandardInput`. Recommends app restart after.
+**Restore:** Selects `.sql` file → confirms destructive overwrite with MessageBox → spawns `mysql.exe`, pipes file to `StandardInput`. Success/failure shown as toast. Recommends app restart after.
 
 ### 16.3 Users Management
 
+**Source:** `Forms/SettingsForm.cs` (Users panel) + `Forms/AddEditUserForm.cs`
+
 **Load:** `db.Users.ToList()` + `db.Roles.ToList()` + `db.UserRoles.ToList()` → role resolved per user.
+
+**Grid columns:** `ID` · `Username` · `Full Name` · `Email` · `Role` · `Status` (🟢 Active / 🔴 Inactive, colour-coded).
 
 | Action | Detail |
 |--------|--------|
-| Add User | Opens `AddEditUserForm`. |
-| Edit User | Opens `AddEditUserForm(user)`. |
-| Toggle Active | Flips `User.IsActive`. Blocked if `id == AuthService.CurrentUserId`. |
-| Delete User | Removes `UserRoles WHERE UserId = id`, then `Users.Remove(entity)`. Blocked if own account. FK violation surfaced as error. |
+| Add User | Opens `AddEditUserForm` (add mode). On OK → `LoadUsers()`. |
+| Edit User | Opens `AddEditUserForm(user)` (edit mode). Username field disabled in edit mode. |
+| Toggle Active | Flips `User.IsActive`. Blocked if `id == AuthService.CurrentUserId`. Uses MessageBox confirmation. |
+| Delete User | Removes `UserRoles WHERE UserId = id`, then `Users.Remove(entity)`. Blocked if own account. Shows toast. FK violation shown as toast error. |
+
+**Double-click row → `UserDetailPopup`:** Shows user avatar, username, full name, email, role, status.
+
+**`AddEditUserForm` — fields:**
+- `Username` (required, unique; disabled in edit mode)
+- `Full Name` (required)
+- `Email` (optional, unique across users)
+- `New Password` / `Confirm Password` (required in add mode; blank = keep existing in edit mode)
+- `Role` (required ComboBox from `roles` table)
+- **Profile Picture** (optional): Upload button → `OpenFileDialog` (JPG/PNG/BMP/GIF) → staged locally. On save, copied to `NetworkPaths.UserPicturesDir` as `{username}_{GUID}{ext}` via `NetworkShareHelper.EnsureConnected()`. Remove button clears the picture. Avatar drawn as circle crop via `AvatarHelper.DrawAvatar`.
+- `Is Active Account` checkbox
 
 **No audit log for any user operation.**
 
@@ -709,7 +774,12 @@ Entirely code-built; no Designer layout. Left sidebar slides in on load via a ti
 5. `user.PasswordHash = newPassword` — **stored in plain text**.
 6. `SaveChanges`.
 
-Password strength meter is UI-only; only the 4-character minimum is enforced.
+**Visual improvements:**
+- All three password fields are rounded input panels with an **eye (👁) icon** for reveal/hide toggle.
+- A live **password strength meter** (coloured progress bar + label: Weak/Medium/Strong) appears beneath the New Password field as the user types. Scoring: length ≥ 4 (+1), ≥ 8 (+1), mixed case (+1), digit (+1), symbol (+1).
+- Security Tips card on the right panel lists best-practice guidance.
+
+Only the 4-character minimum is enforced server-side.
 
 ### 16.5 Printing
 
@@ -719,11 +789,44 @@ Fields: `PrinterName` (blank = system default), `LabelWidthMm` (62), `LabelHeigh
 
 ### 16.6 Categories
 
-**Load:** `CategoryService.GetAll()` → `db.Categories.ToList()`.
+**Load:** `CategoryService.GetAll()` → `db.Categories.ToList()`. Displayed in a custom owner-drawn `ListBox` with numbered items.
 
-**Add:** `CategoryService.Add(name)` — validates non-empty, checks uniqueness, inserts into `categories`.
+**Add:** `CategoryService.Add(name)` — validates non-empty, checks uniqueness, inserts into `categories`. Enter key in the text field triggers add.
 
 **Delete:** `CategoryService.Delete(id)` → `db.Categories.Remove` + `SaveChanges`. **Hard delete. Does not update `Equipment.Category` — orphaned string values remain on equipment records.**
+
+### 16.7 System Configuration — Admin Only
+
+**Source:** `Forms/SettingsForm.cs` (`BuildSystemConfigPanel()`) + `Services/DbConnectionSettingsService.cs`
+
+Visible only when `AuthService.IsAdmin` is true. Manages the database connection credentials independently of the application settings table.
+
+**Database Connection Details card:**
+
+| Field | Detail |
+|-------|--------|
+| Database Server (IP) | The MariaDB host address |
+| Database Name | Schema name |
+| Database Username | DB login user |
+| Database Password | Hidden input with eye-icon toggle (👁) |
+
+**Buttons:**
+
+| Button | Behaviour |
+|--------|-----------|
+| ✔ Test Connection | Builds a connection string from the form values, creates a temporary `InventoryDbContext` with those options, calls `db.Database.CanConnect()`. Shows ✅ or ❌ in inline label. Enables "Save Connection" only on success. |
+| 💾 Save Connection | Calls `DbConnectionSettingsService.Save(settings, plainPassword)`. Password is **DPAPI-encrypted** (`ProtectedData.Protect` with `DataProtectionScope.CurrentUser`) before writing to `%AppData%\QInventory\dbconnection.json`. Shows toast on success. |
+
+**Connection Status card:** Displays `Current Status` (🟢 Connected / 🔴 Disconnected), `Active Server` (database · host), `Last Successful Connection` (timestamp). Values are populated by `RefreshFromSaved()` which loads the saved settings and tests the connection on panel load.
+
+**`DbConnectionSettingsService` key methods:**
+- `Load()`: Deserializes `dbconnection.json` → `DbConnectionSettings`.
+- `Save(settings, plainPassword)`: DPAPI-encrypts password → serializes to JSON.
+- `DecryptPassword(settings)`: DPAPI-decrypts `settings.EncryptedPassword`.
+- `TestConnection(settings, plainPassword, out error)`: Uses EF Core `Database.CanConnect()` — no extra NuGet dependency.
+- `SeedIfMissing(...)`: One-time migration — if no settings file exists, seeds from the previously hardcoded connection string so existing installs don't break on upgrade.
+
+**File storage:** `%AppData%\QInventory\dbconnection.json`
 
 ---
 
@@ -836,10 +939,10 @@ Roles      (1) --< UserRoles          (N)  [RoleId FK]
 | # | Issue | Detail |
 |---|-------|--------|
 | 1 | **Passwords stored in plain text** | `Users.PasswordHash` stores raw passwords. No hashing. All comparisons are plain-string equality. |
-| 2 | **`ChangedByUserId` always `1`** | `AuditService` defaults `_systemUserId = 1`. No caller passes `AuthService.CurrentUserId`. All log entries attribute changes to user #1. |
+| 2 | **~~`ChangedByUserId` always `1`~~** | ✅ **FIXED** — `AuditService` constructor now defaults `_systemUserId = AuthService.CurrentUserId`. All audit entries now correctly attribute changes to the logged-in user. |
 | 3 | **Undo Return writes `allocation_returned`** | Same action key as a real return — cannot distinguish undo from return in the logs without reading `OldValue`/`NewValue`. |
 | 4 | **Transfer pollutes Returns view** | The old allocation's `Status = "returned"` causes it to appear in the Returns module grid and Returns History report. |
-| 5 | **`ApprovedByUserId = 1` hardcoded** | Both Approve and Transfer hardcode this. The acting user is never recorded. |
+| 5 | **`ApprovedByUserId = 1` hardcoded** | Both Approve and Transfer hardcode this. The acting user is never recorded in `allocations.approved_by_user_id`. |
 | 6 | **`AllocationService.Allocate` silently approves** | If `allocation.Status` is empty or blank, it is promoted to `"approved"` without requiring a separate approve step — bypassing the `pending → approved` workflow. |
 | 7 | **"Overdue" is UI-only** | Allocations past their expected return date remain `"approved"` in the DB. The status is computed on every load. |
 | 8 | **Category delete orphans equipment records** | Deleting a category from the `categories` table does not update `Equipment.Category`. Orphaned strings persist and continue to appear in filter dropdowns. |
@@ -853,3 +956,68 @@ Roles      (1) --< UserRoles          (N)  [RoleId FK]
 | 16 | **Audit failure is silently swallowed** | `AuditService.Log` catches all exceptions. If the DB insert fails (connectivity, FK), the triggering operation has already committed and no error is shown. |
 | 17 | **"Expected Return Date Updated" is a free-form string** | Not a defined `AuditService` constant. `LogsForm.FormatAction` has no case for it — it displays verbatim, inconsistent with other formatted action types. |
 | 18 | **`CreatedByUserId = 1` hardcoded in Equipment Add** | The add form sets `_equipment.CreatedByUserId = 1` unconditionally; the session user is not recorded. |
+| 19 | **DB password DPAPI-bound to OS user** | The password stored in `dbconnection.json` uses `ProtectedData.Protect` with `DataProtectionScope.CurrentUser`. The file cannot be decrypted on a different Windows user account or machine. |
+| 20 | **`BuildSystemConfigPanel` has a duplicate `return outer`** | Lines 2307–2308 both return `outer` — the second `return` is dead code (compile-time unreachable). No functional impact. |
+
+---
+
+## 20. New Features & Recent Changes (2026-08-10)
+
+This section summarizes all significant features and improvements added as of the 2026-08-10 update.
+
+### 20.1 System Configuration Panel (Admin-Only)
+
+A new sixth Settings tab — **System Configuration** — is available exclusively to Admin users. It provides a live database connection management UI:
+- Fields for `Database Server (IP)`, `Database Name`, `Database Username`, `Database Password` (with eye-toggle).
+- **Test Connection** button that validates connectivity without saving.
+- **Save Connection** button (enabled only after a successful test) that DPAPI-encrypts the password and writes to `%AppData%\QInventory\dbconnection.json`.
+- **Connection Status** card showing live status (🟢/🔴), active server, and last successful connection time.
+
+### 20.2 Profile Pictures — Users & Employees
+
+- **Users (`AddEditUserForm`):** Upload / Remove buttons for profile picture. File is copied to the network share (`NetworkPaths.UserPicturesDir`) as `{username}_{GUID}{ext}`. Picture is displayed as a circle-cropped avatar via `AvatarHelper.DrawAvatar`. Double-clicking a user row opens `UserDetailPopup` showing the avatar.
+- **Employees (`AddEditEmployeeForm`):** Same Upload/Remove pattern using `NetworkPaths.EmployeePicturesDir`. Double-clicking an employee row opens `EmployeeDetailPopup` showing avatar, `Employee Code`, `Designation`, `Email`, `Phone`, `Status` badge.
+
+### 20.3 Detail Popups on Double-Click
+
+| Screen | Double-click opens |
+|--------|--------------------|
+| Equipment grid | `EquipmentDetailPopup` — full two-column card: Equipment Info (left) + Current Allocation + Maintenance History (right) |
+| Allocation grid | `AllocationDetailPopup` — equipment photo + labeled allocation rows + View Picture button |
+| Logs grid | `LogDetailPopup` — Action, Changed By, When, Equipment code; Before/After value panels |
+| Employees grid | `EmployeeDetailPopup` — avatar, Employee Code, Designation, Email, Phone, Status |
+| Users grid (Settings) | `UserDetailPopup` — avatar, Username, Full Name, Email, Role, Status |
+
+### 20.4 Maintenance History in Equipment Detail
+
+`EquipmentDetailPopup` now shows a **Maintenance History** section in the right column. It calls `MaintenanceService.GetByEquipmentId()` and lists each record with: Report date, Status (colour-coded badge: open/in_progress/resolved), Issue, Serviced By, Cost, Resolved date.
+
+### 20.5 Audit Service — Session-Aware & Field-Level Diffs
+
+- **`ChangedByUserId` is now the real logged-in user** (`AuthService.CurrentUserId`) instead of the hardcoded `1`.
+- **`BuildEquipmentDiff`** produces field-level change summaries: only changed fields appear in audit `OldValue`/`NewValue`, formatted as `"Field: old | Field: old"`.
+- **New constants:** `ActionEquipmentDeleted`, `ActionEquipmentRestored`, `ActionMaintenanceOpened`, `ActionMaintenanceResolved`.
+- **Maintenance events** are now audited: opening a maintenance record writes `maintenance_opened`; resolving one writes `maintenance_resolved` — both with detailed before/after descriptions.
+
+### 20.6 Allocation Form — Enhanced UI & Filtering
+
+- **Category filter:** Separate `cmbAllocCategoryFilter` ComboBox in the toolbar filters by equipment category.
+- **Equipment filter:** Renamed items include `"Equipment: Available"`, `"Equipment: Allocated"`, `"Equipment: Pending"` — custom-drawn green ComboBox.
+- **`AllocationDetailPopup`:** Rich double-click popup showing equipment photo, QR/equipment code, employee, location, dates, source, and who allocated.
+- **`AllocatedBy` field** displayed in the allocation detail (resolved from `AllocatedByUser`).
+
+### 20.7 Settings — UX Improvements
+
+- **Sidebar navigation:** Now has a fading hover animation (`FadeNavButtonColor`) for smooth colour transitions between inactive/hover/active states. Active item styled as a green rounded pill.
+- **Company Name dirty-check:** Save button disabled until the company name differs from the original loaded value. Shows inline `"✓ Saved"` pill on save.
+- **Change Password:** All three fields use rounded input panels with eye-toggle icons and a live strength meter bar (Weak/Medium/Strong with colour).
+- **Toast notifications** replace `MessageBox` for all success/info/error feedback (backup, restore, user actions, log clear, reset, connection save).
+- **Users grid:** Double-click opens `UserDetailPopup`; rows show 🟢/🔴 status dots with colour-coded text; inactive rows displayed in muted grey.
+
+### 20.8 Log Detail Popup
+
+`LogDetailPopup` (`Forms/LogDetailPopup.cs`) is a new modal opened by double-clicking any row in the Logs grid. It renders the full audit entry in a structured card: Action, Changed By, When, Equipment Code, then colour-coded **Before** (light red) and **After** (light green) panels with bullet-separated field values.
+
+### 20.9 Dashboard — Recent Activities Panel
+
+The Dashboard `Recent Activities` panel (visible in the screenshot) lists the latest allocation/return/transfer events with timestamps (e.g. `"7h ago"`), equipment name, and action description. This is an in-dashboard live feed sourced from `equipment_logs ORDER BY CreatedAt DESC`.
