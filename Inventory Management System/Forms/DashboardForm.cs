@@ -279,7 +279,7 @@ namespace Inventory_Management_System
             }
             catch { /* logo missing — header stays icon-only, no fallback text */ }
 
-            var logoDivider = _pnlSidebarHeader.Controls.OfType<Panel>().FirstOrDefault(p => p.Name == "pnlLogoDivider");
+            var logoDivider = _pnlSidebarHeader!.Controls.OfType<Panel>().FirstOrDefault(p => p.Name == "pnlLogoDivider");
             if (logoDivider == null)
             {
                 logoDivider = new Panel
@@ -544,13 +544,22 @@ namespace Inventory_Management_System
                 }
                 else if (e.KeyCode == Keys.Enter)
                 {
+                    if (_searchSelectedIndex == -1 && _searchResultRows.Count > 0)
+                        _searchSelectedIndex = 0;
+
                     if (_searchSelectedIndex >= 0 && _searchSelectedIndex < _searchResultRows.Count)
                         _searchResultRows[_searchSelectedIndex].OnSelect();
-                    e.SuppressKeyPress = true;
+
+                    e.Handled = true; e.SuppressKeyPress = true;
                 }
                 else if (e.KeyCode == Keys.Escape)
                 {
-                    _searchResultsPopup?.Close();
+                    if (_searchResultsPopup != null)
+                    {
+                        _searchResultsPopup.Close();
+                        _txtSearch?.Focus();
+                    }
+                    e.Handled = true; e.SuppressKeyPress = true;
                 }
             };
 
@@ -590,7 +599,11 @@ namespace Inventory_Management_System
 
         private void RunGlobalSearch(string term)
         {
-            _searchResultsPopup?.Close();
+            if (_searchResultsPopup != null)
+            {
+                _searchResultsPopup.Close();
+                _txtSearch?.Focus();
+            }
             if (string.IsNullOrWhiteSpace(term)) return;
 
             var equipMatches = (_searchEquipmentService.GetAll().Data ?? new List<Equipment>())
@@ -695,6 +708,7 @@ namespace Inventory_Management_System
                 void Go()
                 {
                     popup.Close();
+                    if (_txtSearch != null) _txtSearch.Text = "";
                     onClick();
                 }
 
@@ -732,6 +746,7 @@ namespace Inventory_Management_System
             popup.FormClosed += (s, e) => { _searchResultsPopup = null; _searchResultRows.Clear(); _searchSelectedIndex = -1; };
             _searchResultsPopup = popup;
             popup.Show(this);
+            _txtSearch?.Focus();
         }   
 
         private void PositionTopSearchBar()
@@ -1314,26 +1329,26 @@ namespace Inventory_Management_System
 
                 using var db = new InventoryDbContext();
 
-                int totalEquipment = db.Equipment.Count();
-                var checkedOutIds = db.Transactions
-      .Where(t => t.Status == "Pending" || t.Status == "Overdue")
-      .Select(t => t.EquipmentId);
+                var activeEq = db.Equipment.Where(e => !e.IsDeleted);
+                int totalEquipment = activeEq.Count();
 
-                var activelyAllocatedIds = db.Allocations
-                    .Where(a => a.Status == "pending" || a.Status == "approved")
-                    .Select(a => a.EquipmentId);
-
-                _cntAllocated = checkedOutIds.Union(activelyAllocatedIds).Distinct().Count();
-                _cntInStore        = db.Equipment.Count(e => e.CurrentStatus == "in_store");
-                _cntUnderRepair    = db.Equipment.Count(e => e.CurrentStatus == "under_repair");
-                _cntDecommission   = db.Equipment.Count(e => e.CurrentStatus == "decommissioned");
+                _cntAllocated      = activeEq.Count(e => e.CurrentStatus == "allocated");
+                _cntInStore        = activeEq.Count(e => e.CurrentStatus == "in_store");
+                _cntUnderRepair    = activeEq.Count(e => e.CurrentStatus == "under_repair");
+                _cntDecommission   = activeEq.Count(e => e.CurrentStatus == "decommissioned");
                 _cntEmployees      = db.Employees.Count(e => e.IsActive);
-                int overdueCount = db.Allocations.Count(a =>
-                    a.Status == "approved" &&
-                    a.ExpectedReturnDate.HasValue &&
-                    a.ExpectedReturnDate.Value < DateOnly.FromDateTime(DateTime.Today) &&
-                    a.ActualReturnDate == null);
-                _cntOverdue = overdueCount;
+
+                var today = DateOnly.FromDateTime(DateTime.Today);
+                _cntOverdue = db.Allocations
+                    .Where(a => !a.Equipment.IsDeleted && 
+                                a.Equipment.CurrentStatus == "allocated" &&
+                                a.Status == "approved" &&
+                                a.ExpectedReturnDate.HasValue &&
+                                a.ExpectedReturnDate.Value < today &&
+                                a.ActualReturnDate == null)
+                    .Select(a => a.EquipmentId)
+                    .Distinct()
+                    .Count();
 
 
                 // Category breakdown — equipment count per category
@@ -1356,7 +1371,7 @@ namespace Inventory_Management_System
     (title:"Allocated",          value:_cntAllocated.ToString(),     color:Color.FromArgb(245, 124, 0),   icon:"📋", trendValues:(float[]?)null, deltaText:(string?)null),
     (title:"In Stock",           value:_cntInStore.ToString(),       color:Color.FromArgb(56,  142, 60),  icon:"✅", trendValues:(float[]?)null, deltaText:(string?)null),
     (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(33,  150, 243), icon:"🔧", trendValues:(float[]?)null, deltaText:(string?)null),
-    (title:"Currently Overdue",  value:overdueCount.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️", trendValues:(float[]?)null, deltaText:(string?)null),
+    (title:"Currently Overdue",  value:_cntOverdue.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️", trendValues:(float[]?)null, deltaText:(string?)null),
     (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68,  68),  icon:"🚫", trendValues:(float[]?)null, deltaText:(string?)null),
     (title:"Total Employees",    value:_cntEmployees.ToString(),     color:Color.FromArgb(123, 31,  162), icon:"👤", trendValues:(float[]?)null, deltaText:(string?)null),
 };
@@ -1919,13 +1934,14 @@ namespace Inventory_Management_System
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
-            int total = _cntInStore + _cntAllocated + _cntUnderRepair + _cntDecommission + _cntOverdue;
+            int allocatedNotOverdue = Math.Max(0, _cntAllocated - _cntOverdue);
+            int total = _cntInStore + allocatedNotOverdue + _cntUnderRepair + _cntDecommission + _cntOverdue;
             if (total == 0) total = 1;
 
             var segs = new[]
             {
                 (Label:"In Stock",       Count:_cntInStore,      Color:Color.FromArgb(56,  142, 60)),
-                (Label:"Allocated",      Count:_cntAllocated,    Color:Color.FromArgb(245, 124, 0)),
+                (Label:"Allocated",      Count:allocatedNotOverdue, Color:Color.FromArgb(245, 124, 0)),
                 (Label:"Under Repair",   Count:_cntUnderRepair,  Color:Color.FromArgb(33,  150, 243)),
                 (Label:"Overdue",        Count:_cntOverdue,      Color:Color.FromArgb(255, 160, 0)),
                 (Label:"Decommissioned", Count:_cntDecommission, Color:Color.FromArgb(239, 68,  68)),
@@ -1999,10 +2015,11 @@ namespace Inventory_Management_System
             int underRepair = _periodOverrideCounts?.GetValueOrDefault("under_repair", 0) ?? _cntUnderRepair;
             int decommissioned = _periodOverrideCounts?.GetValueOrDefault("decommissioned", 0) ?? _cntDecommission;
 
+            int allocatedNotOverdue = Math.Max(0, _cntAllocated - _cntOverdue);
             var bars = new[]
             {
     (Label:"In Stock",        Count:inStock,          Color:Color.FromArgb(56,  142, 60)),
-    (Label:"Allocated",       Count:_cntAllocated,    Color:Color.FromArgb(245, 124, 0)),
+    (Label:"Allocated",       Count:allocatedNotOverdue, Color:Color.FromArgb(245, 124, 0)),
     (Label:"Under Repair",    Count:underRepair,      Color:Color.FromArgb(33,  150, 243)),
     (Label:"Decommissioned",  Count:decommissioned,   Color:Color.FromArgb(239, 68,  68)),
     (Label:"Overdue",         Count:_cntOverdue,      Color:Color.FromArgb(255, 160, 0)),

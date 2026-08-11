@@ -21,7 +21,7 @@ namespace Inventory_Management_System.Forms
         private readonly LocationService _locationService = new();
         private readonly AuditService _audit = new();
         private List<Allocation> _allAllocations = new(); // currently allocated equipment
-     
+
 
         private int _currentPage = 1;
         private int _pageSize = 25;
@@ -31,7 +31,7 @@ namespace Inventory_Management_System.Forms
         public TransferForm()
         {
             InitializeComponent();
-            
+
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
             LoadAllocatedEquipment();
@@ -423,8 +423,9 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
         public string DisplayText { get; set; } = "";
     }
 
-    // ── Transfer Dialog — restyled to match Location/Allocation dialogs;
-    // Transfer button color is intentionally left unchanged (purple). ──
+    // ── Transfer Dialog — two-column layout (Equipment | Transfer To),
+    // matching the Allocation dialog. Transfer button color is
+    // intentionally left unchanged (purple). ──
     public class TransferDialog : Form
     {
         public int OldAllocationId { get; private set; }
@@ -436,7 +437,7 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
         private ComboBox cmbEmployee = null!;
         private ComboBox cmbLocation = null!;
         private ComboBox cmbRoom = null!;
-        private Label lblCurrentDetails = null!;  
+        private Label lblCurrentDetails = null!;
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
@@ -489,6 +490,8 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
             return room;
         }
 
+        private bool _suppressSync = false;
+
         private void BuildUI()
         {
             _suppressSync = true;
@@ -501,9 +504,14 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
             Font = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
 
-            const int formWidth = 460;
+            // ── Widened + split into two columns, like the Allocation dialog ──
+            const int formWidth = 820;
             const int margin = 28;
+            const int colGap = 30;
             int contentWidth = formWidth - margin * 2;
+            int colWidth = (contentWidth - colGap) / 2;
+            int leftX = margin;
+            int rightX = margin + colWidth + colGap;
 
             // ── Header — kept in Transfer's purple accent ──
             var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = TransferAccent };
@@ -539,6 +547,15 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
             var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10), AutoScroll = false };
             Controls.Add(body);
 
+            // ── Vertical divider between the two columns ──
+            var divider = new Panel
+            {
+                BackColor = CardBorder,
+                Width = 1,
+                Location = new Point(leftX + colWidth + colGap / 2, 24)
+            };
+            body.Controls.Add(divider);
+
             // ── Footer — buttons centered, Transfer button color unchanged ──
             const int footerHeight = 72;
             var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
@@ -561,28 +578,27 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
             pnlFooter.Controls.Add(btnSave);
             Controls.Add(pnlFooter);
 
-            int y = 24;
-
-            void SectionHeader(string title)
+            // ── Column-aware layout helpers ──
+            void SectionHeader(string title, int x, int width, ref int y)
             {
-                body.Controls.Add(new Panel { BackColor = TransferAccent, Size = new Size(4, 22), Location = new Point(margin, y) });
+                body.Controls.Add(new Panel { BackColor = TransferAccent, Size = new Size(4, 22), Location = new Point(x, y) });
                 body.Controls.Add(new Label
                 {
                     Text = title,
                     Font = new Font("Segoe UI", 12f, FontStyle.Bold),
                     ForeColor = ThemeHelper.TextPrimary,
                     AutoSize = true,
-                    Location = new Point(margin + 12, y - 1)
+                    Location = new Point(x + 12, y - 1)
                 });
                 y += 34;
             }
 
-            void FieldLabel(string label, bool required = false)
+            void FieldLabel(string label, int x, ref int y, bool required = false)
             {
                 body.Controls.Add(new Label
                 {
                     Text = required ? $"{label}  *" : label,
-                    Location = new Point(margin, y),
+                    Location = new Point(x, y),
                     AutoSize = true,
                     Font = ThemeHelper.FontBold,
                     ForeColor = ThemeHelper.TextPrimary
@@ -590,38 +606,42 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
                 y += 20;
             }
 
-            void PlaceControl(Control ctrl, int height = 30)
+            void PlaceControl(Control ctrl, int x, int width, ref int y, int height = 30)
             {
-                ctrl.Location = new Point(margin, y);
-                ctrl.Width = contentWidth;
+                ctrl.Location = new Point(x, y);
+                ctrl.Width = width;
                 if (ctrl.Height < height) ctrl.Height = height;
                 body.Controls.Add(ctrl);
                 y += ctrl.Height + 4;
             }
 
-            void Hint(string text)
+            void Hint(string text, int x, int width, ref int y)
             {
                 var font = new Font("Segoe UI", 7.8f, FontStyle.Italic);
-                var sz = TextRenderer.MeasureText(text, font, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+                var sz = TextRenderer.MeasureText(text, font, new Size(width, int.MaxValue), TextFormatFlags.WordBreak);
                 body.Controls.Add(new Label
                 {
                     Text = text,
                     Font = font,
                     ForeColor = MutedText,
                     AutoSize = false,
-                    Size = new Size(contentWidth, sz.Height + 4),
-                    Location = new Point(margin, y)
+                    Size = new Size(width, sz.Height + 4),
+                    Location = new Point(x, y)
                 });
                 y += sz.Height + 4 + 10;
             }
 
-            SectionHeader("🖥  Equipment");
+            int yLeft = 24;
+            int yRight = 24;
+
+            // ══════════════════ LEFT COLUMN — Equipment ══════════════════
+            SectionHeader("🖥  Equipment", leftX, colWidth, ref yLeft);
 
             txtEquipmentSearch = new TextBox { PlaceholderText = "Search by equipment code, name, or serial…" };
             ThemeHelper.StyleTextBox(txtEquipmentSearch);
-            FieldLabel("Find Equipment", required: true);
-            PlaceControl(txtEquipmentSearch);
-            Hint("Type to search, then pick a suggestion");
+            FieldLabel("Find Equipment", leftX, ref yLeft, required: true);
+            PlaceControl(txtEquipmentSearch, leftX, colWidth, ref yLeft);
+            Hint("Type to search, then pick a suggestion", leftX, colWidth, ref yLeft);
             txtEquipmentSearch.Leave += (s, e) => TryResolveEquipmentFromText();
 
             _allocationItems = new List<TransferEquipmentOption>
@@ -640,21 +660,22 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
             cmbAllocation.DataSource = _allocationItems;
             cmbAllocation.SelectedIndexChanged += CmbAllocation_SelectedIndexChanged;
             ThemeHelper.StyleComboBox(cmbAllocation);
-            FieldLabel("Currently Allocated As", required: true);
-            PlaceControl(cmbAllocation);
-            Hint("Only currently approved allocations are listed");
+            FieldLabel("Currently Allocated As", leftX, ref yLeft, required: true);
+            PlaceControl(cmbAllocation, leftX, colWidth, ref yLeft);
+            Hint("Only currently approved allocations are listed", leftX, colWidth, ref yLeft);
+
             lblCurrentDetails = new Label
             {
                 Text = "",
                 Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextPrimary,
                 AutoSize = false,
-                Size = new Size(contentWidth, 36),
-                Location = new Point(margin, y),
+                Size = new Size(colWidth, 52),
+                Location = new Point(leftX, yLeft),
                 BackColor = Color.FromArgb(245, 247, 250)
             };
             body.Controls.Add(lblCurrentDetails);
-            y += lblCurrentDetails.Height + 10;
+            yLeft += lblCurrentDetails.Height + 10;
 
             if (_preselectedAllocationId.HasValue)
             {
@@ -679,13 +700,13 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
                   _suppressSync = true;
                   int index = _allocationItems.FindIndex(a => a.Id == alloc.Id);
                   if (index >= 0)
-                        {
-                            cmbAllocation.SelectedIndex = index;
-                        }
-                        txtEquipmentSearch.Text = $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}";
-                        txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
-                        _suppressSync = false;
-                    },
+                  {
+                      cmbAllocation.SelectedIndex = index;
+                  }
+                  txtEquipmentSearch.Text = $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}";
+                  txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
+                  _suppressSync = false;
+              },
                     scoreFn: (alloc, term) => Math.Max(
                         FuzzySearchHelper.FuzzyScoreCode(alloc.Equipment?.EquipmentCode, term),
                         Math.Max(
@@ -701,8 +722,8 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
                 _equipmentSuggest.LoadItems(_allocations);
             }
 
-            y += 6;
-            SectionHeader("👤  Transfer To");
+            // ══════════════════ RIGHT COLUMN — Transfer To ══════════════════
+            SectionHeader("👤  Transfer To", rightX, colWidth, ref yRight);
 
             cmbEmployee = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             var employeeOptions = new List<EmployeeOption>
@@ -715,9 +736,9 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
             cmbEmployee.ValueMember = "Id";
             cmbEmployee.DataSource = employeeOptions;
             ThemeHelper.StyleComboBox(cmbEmployee);
-            FieldLabel("New Employee", required: true);
-            PlaceControl(cmbEmployee);
-            Hint("Who this equipment is being transferred to");
+            FieldLabel("New Employee", rightX, ref yRight, required: true);
+            PlaceControl(cmbEmployee, rightX, colWidth, ref yRight);
+            Hint("Who this equipment is being transferred to", rightX, colWidth, ref yRight);
 
             cmbLocation = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbLocation.DisplayMember = "DisplayName";
@@ -731,24 +752,29 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
                 .Where(n => !string.IsNullOrWhiteSpace(n))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-                .Select(n => new LocationNameOption { Name = n, DisplayName = n }));
+                .Select(n => new LocationNameOption { Name = n ?? "", DisplayName = n ?? "" }));
             cmbLocation.DataSource = locationNameOptions;
             ThemeHelper.StyleComboBox(cmbLocation);
-            FieldLabel("New Location", required: true);
-            PlaceControl(cmbLocation);
-            Hint("The site or building");
+            FieldLabel("New Location", rightX, ref yRight, required: true);
+            PlaceControl(cmbLocation, rightX, colWidth, ref yRight);
+            Hint("The site or building", rightX, colWidth, ref yRight);
 
             cmbRoom = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbRoom.DisplayMember = "Display";
             cmbRoom.ValueMember = "Id";
             ThemeHelper.StyleComboBox(cmbRoom);
-            FieldLabel("Room", required: true);
-            PlaceControl(cmbRoom);
-            Hint("The specific room at that location");
+            FieldLabel("Room", rightX, ref yRight, required: true);
+            PlaceControl(cmbRoom, rightX, colWidth, ref yRight);
+            Hint("The specific room at that location", rightX, colWidth, ref yRight);
 
             cmbLocation.SelectedIndexChanged += (s, e) => { if (!_suppressSync) RefreshRoomDropdown(); };
             if (cmbLocation.Items.Count > 0) cmbLocation.SelectedIndex = 0; // placeholder — room stays disabled until a real location is picked
 
+            // ── Row height reconciled, divider sized to match ──
+            int columnsBottom = Math.Max(yLeft, yRight);
+            divider.Height = columnsBottom - divider.Top - 6;
+
+            int yNote = columnsBottom + 6;
             var lblNote = new Label
             {
                 Text = "ℹ  After transferring, you can set a new expected return date from the Allocations screen.",
@@ -756,15 +782,15 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
                 ForeColor = MutedText,
                 AutoSize = false,
                 Size = new Size(contentWidth, 32),
-                Location = new Point(margin, y)
+                Location = new Point(margin, yNote)
             };
             int noteH = TextRenderer.MeasureText(lblNote.Text, lblNote.Font, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak).Height;
             lblNote.Height = noteH;
             body.Controls.Add(lblNote);
-            y += noteH + 8;
+            yNote += noteH + 8;
 
             // ── Final sizing — no scrollbar, dialog fits exactly ──
-            body.Size = new Size(formWidth, y);
+            body.Size = new Size(formWidth, yNote);
             int totalHeight = pnlHeader.Height + body.Height + footerHeight;
             ClientSize = new Size(formWidth, totalHeight);
             pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
@@ -777,10 +803,6 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
             AcceptButton = btnSave;
             CancelButton = btnCancel;
         }
-
-        private bool _suppressSync = false;
-
-
 
         private void CmbAllocation_SelectedIndexChanged(object? sender, EventArgs e)
         {
@@ -806,7 +828,7 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
             if (alloc == null) { lblCurrentDetails.Text = ""; return; }
             string emp = alloc.Employee?.FullName ?? "—";
             string loc = alloc.Location?.LocationName ?? "—";
-            string room = TransferForm.FormatRoom(alloc.Location);  
+            string room = TransferForm.FormatRoom(alloc.Location);
             lblCurrentDetails.Text = $"Currently with: {emp}\nLocation: {loc}" + (room != "—" ? $" — {room}" : "");
         }
 
@@ -892,5 +914,5 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
             _equipmentSuggest?.Dispose();
             base.OnFormClosed(e);
         }
-    }   
+    }
 }

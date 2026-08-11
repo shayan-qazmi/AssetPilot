@@ -2304,8 +2304,6 @@ namespace Inventory_Management_System.Forms
             ApplyCardStyle(outer, card);
 
             return outer;
-
-            return outer;
         }
 
         // ══════════════════════════════════════════════════════════════

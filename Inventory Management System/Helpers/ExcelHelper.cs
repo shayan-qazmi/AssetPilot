@@ -535,7 +535,6 @@ namespace Inventory_Management_System.Helpers
                     }
 
                     int lastRow = worksheet.LastRowUsed()?.RowNumber() ?? headerRow.RowNumber();
-                    int autoIndex = 1;
 
                     // Resolve the EquipmentService for procurement-type resolution (if provided)
                     var eqService = service as Services.EquipmentService;

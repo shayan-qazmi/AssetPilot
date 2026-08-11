@@ -734,8 +734,6 @@ namespace Inventory_Management_System.Forms
                     MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
 
-            var failures = new List<string>();
-            int successCount = 0;
 
             var result = _equipmentService.DeleteRange(selectedList.Select(eq => eq.Id));
             LoadEquipment();

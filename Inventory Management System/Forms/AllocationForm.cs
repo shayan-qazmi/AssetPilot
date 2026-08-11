@@ -1861,7 +1861,7 @@ namespace Inventory_Management_System.Forms
                     .Where(n => !string.IsNullOrWhiteSpace(n))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
-                    .Select(n => new LocationNameOption { Name = n, DisplayName = n }));
+                    .Select(n => new LocationNameOption { Name = n ?? "", DisplayName = n ?? "" }));
             cmbLocation.DataSource = locationNameOptions;
             ThemeHelper.StyleComboBox(cmbLocation);
             FieldLabel(rightX, ref yRight, "Location");
