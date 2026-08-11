@@ -83,7 +83,7 @@ Q-Inventory has two roles, assigned per user account and cached for the session 
 |---|:---:|:---:|
 | Dashboard & Charts | ✅ | ✅ |
 | Equipment — View / Add / Edit | ✅ | ✅ |
-| Equipment — Delete | ✅ | ❌ Delete button hidden |
+| Equipment — Restore | ✅ | ❌ Restore button hidden |
 | Employees — Full management | ✅ | ✅ |
 | Locations — Full management | ✅ | ✅ |
 | Allocation — Allocate / Approve / Return | ✅ | ✅ |
