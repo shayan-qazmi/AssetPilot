@@ -513,7 +513,6 @@ namespace Inventory_Management_System.Forms
             base.OnFormClosed(e);
         }
 
-        // ── Apply both search-text and category filter to _allEquipment ────
         private void ApplyFilters()
         {
             RefreshGrid(_allEquipment);
@@ -534,14 +533,24 @@ namespace Inventory_Management_System.Forms
 
                 string procType = item.ProcurementType?.TypeName ?? "";
 
-                string formattedStatus = item.CurrentStatus switch
+                var normalizedStatus = (item.CurrentStatus ?? string.Empty).Trim().ToLowerInvariant();
+                string formattedStatus;
+                // If there is an approved allocation, display Allocated regardless of stored status
+                if (activeAlloc != null)
                 {
-                    "in_store" => "In Store",
-                    "allocated" => "Allocated",
-                    "decommissioned" => "Decommissioned",
-                    "under_repair" => "Under Repair",
-                    _ => item.CurrentStatus
-                };
+                    formattedStatus = "Allocated";
+                }
+                else
+                {
+                    formattedStatus = normalizedStatus switch
+                    {
+                        "in_store" => "In Store",
+                        "allocated" => "Allocated",
+                        "decommissioned" => "Decommissioned",
+                        "under_repair" => "Under Repair",
+                        _ => item.CurrentStatus
+                    };
+                }
 
                 int rowIdx = dgvEquipment.Rows.Add(
       item.EquipmentCode,
@@ -560,18 +569,18 @@ namespace Inventory_Management_System.Forms
   );
 
                 var statusCell = dgvEquipment.Rows[rowIdx].Cells["Status"];
-                switch (item.CurrentStatus)
+                switch (formattedStatus)
                 {
-                    case "in_store":
+                    case "In Store":
                         statusCell.Style.BackColor = ThemeHelper.Success;
                         break;
-                    case "allocated":
+                    case "Allocated":
                         statusCell.Style.BackColor = ThemeHelper.Warning;
                         break;
-                    case "under_repair":
+                    case "Under Repair":
                         statusCell.Style.BackColor = Color.FromArgb(255, 112, 67);
                         break;
-                    case "decommissioned":
+                    case "Decommissioned":
                         statusCell.Style.BackColor = ThemeHelper.Danger;
                         break;
                     default:

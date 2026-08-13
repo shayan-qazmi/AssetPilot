@@ -339,9 +339,8 @@ namespace Inventory_Management_System.Forms
     // ── Decommission Dialog ───────────────────────────────────────────────
     public class DecommissionDialog : Form
     {
-        public int    EquipmentId { get; private set; }
-        public string Reason      { get; private set; } = "";
-
+        private ComboBox  cmbCategoryFilter  = null!;
+        private TextBox   txtEquipmentSearch = null!;
         private ComboBox  cmbEquipment = null!;
         private ComboBox  cmbReason    = null!;
         private TextBox   txtNotes     = null!;
@@ -349,6 +348,12 @@ namespace Inventory_Management_System.Forms
         private Button    btnCancel    = null!;
 
         private readonly List<Equipment> _equipment;
+        private EntitySuggestHelper<Equipment>? _equipmentSuggest;
+        private bool _suppressEquipmentSync = false;
+
+        // Public properties to expose selected equipment and decommission reason
+        public int EquipmentId { get; private set; }
+        public string Reason { get; private set; }
 
         private static readonly Color DangerAccent = Color.FromArgb(211, 47, 47);
         private static readonly Color CardBorder   = Color.FromArgb(224, 224, 224);
@@ -358,6 +363,15 @@ namespace Inventory_Management_System.Forms
         {
             _equipment = equipment;
             BuildUI();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _equipmentSuggest?.Dispose();
+            }
+            base.Dispose(disposing);
         }
 
         private void BuildUI()
@@ -487,20 +501,73 @@ namespace Inventory_Management_System.Forms
 
             SectionHeader("🗑  Decommission Details");
 
-            var equipmentOptions = _equipment.Select(e => new DecommissionEquipmentOption
-            {
-                Id          = e.Id,
-                DisplayText = string.IsNullOrWhiteSpace(e.EquipmentCode) ? e.Name : $"{e.EquipmentCode} — {e.Name}"
-            }).ToList();
+            cmbCategoryFilter = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+            var categoryNames = new CategoryService().GetAll().Data?.Select(c => c.Name) ?? Enumerable.Empty<string>();
+            var equipmentCategories = _equipment.Where(e => !string.IsNullOrWhiteSpace(e.Category)).Select(e => e.Category!).Distinct();
+            var allCategoryOptions = new List<string> { "All Categories" };
+            allCategoryOptions.AddRange(categoryNames.Union(equipmentCategories, StringComparer.OrdinalIgnoreCase).OrderBy(c => c, StringComparer.OrdinalIgnoreCase));
+            cmbCategoryFilter.DataSource = allCategoryOptions;
+            ThemeHelper.StyleComboBox(cmbCategoryFilter);
+            FieldLabel("Filter by Category");
+            PlaceControl(cmbCategoryFilter);
+            Hint("Narrows the equipment list below — optional");
+            cmbCategoryFilter.SelectedIndexChanged += (s, e) => RefreshEquipmentDropdown();
+
+            txtEquipmentSearch = new TextBox { PlaceholderText = "Search by code, name, or serial..." };
+            ThemeHelper.StyleTextBox(txtEquipmentSearch);
+            FieldLabel("Find Equipment", required: true);
+            PlaceControl(txtEquipmentSearch);
+            Hint("Type to search, then pick a suggestion");
 
             cmbEquipment = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbEquipment.DisplayMember = "DisplayText";
             cmbEquipment.ValueMember   = "Id";
-            cmbEquipment.DataSource    = equipmentOptions;
             ThemeHelper.StyleComboBox(cmbEquipment);
             FieldLabel("Select Equipment to Decommission", required: true);
             PlaceControl(cmbEquipment);
             Hint("Choose the item you want to mark as decommissioned");
+
+            cmbEquipment.SelectedIndexChanged += (s, e) =>
+            {
+                if (_suppressEquipmentSync) return;
+                if (cmbEquipment.SelectedValue == null) return;
+                int selectedId = (int)cmbEquipment.SelectedValue;
+                if (selectedId == 0) return;
+
+                var eq = _equipment.FirstOrDefault(x => x.Id == selectedId);
+                if (eq == null) return;
+                
+                _suppressEquipmentSync = true;
+                txtEquipmentSearch.Text = $"{eq.EquipmentCode} — {eq.Name}";
+                txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
+                _suppressEquipmentSync = false;
+            };
+
+            _equipmentSuggest = new EntitySuggestHelper<Equipment>(
+                textBox: txtEquipmentSearch,
+                hostForm: this,
+                onSelected: eq =>
+                {
+                    cmbEquipment.SelectedValue = eq.Id;
+                    txtEquipmentSearch.Text = $"{eq.EquipmentCode} — {eq.Name}";
+                    txtEquipmentSearch.SelectionStart = txtEquipmentSearch.Text.Length;
+                },
+                scoreFn: (eq, term) => Math.Max(
+                    FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, term),
+                    Math.Max(
+                        FuzzySearchHelper.FuzzyScoreCode(eq.QrCode, term),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScore(eq.Name, term),
+                            FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, term)))),
+                line1Selector: eq => $"{eq.EquipmentCode} — {eq.Name}",
+                line2Selector: eq => string.IsNullOrWhiteSpace(eq.SerialNumber) ? (eq.Category ?? "—") : $"S/N: {eq.SerialNumber}");
+
+            RefreshEquipmentDropdown();
+            // Ensure no equipment is pre-selected
+            cmbEquipment.SelectedIndex = 0;
+            txtEquipmentSearch.Text = string.Empty;
+            // Default category filter to All Categories
+            cmbCategoryFilter.SelectedIndex = 0;
 
             cmbReason = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbReason.Items.AddRange(new[] { "Damaged", "Obsolete", "Beyond Repair", "End of Life", "Lost", "Other" });
@@ -526,9 +593,34 @@ namespace Inventory_Management_System.Forms
             CancelButton = btnCancel;
         }
 
+        private void RefreshEquipmentDropdown()
+        {
+            string selectedCategory = cmbCategoryFilter?.SelectedItem?.ToString() ?? "All Categories";
+
+            var filtered = selectedCategory == "All Categories"
+                ? _equipment
+                : _equipment.Where(e => string.Equals(e.Category, selectedCategory, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            var equipmentOptions = new List<DecommissionEquipmentOption>
+            {
+                new DecommissionEquipmentOption { Id = 0, DisplayText = "-- Select equipment --" }
+            };
+            equipmentOptions.AddRange(filtered.Select(e => new DecommissionEquipmentOption
+            {
+                Id          = e.Id,
+                DisplayText = string.IsNullOrWhiteSpace(e.EquipmentCode) ? e.Name : $"{e.EquipmentCode} — {e.Name}"
+            }));
+
+            _suppressEquipmentSync = true;
+            cmbEquipment.DataSource = equipmentOptions;
+            _suppressEquipmentSync = false;
+
+            _equipmentSuggest?.LoadItems(filtered);
+        }
+
         private void BtnSave_Click(object? sender, EventArgs e)
         {
-            if (cmbEquipment.SelectedValue == null)
+            if (cmbEquipment.SelectedValue == null || (int)cmbEquipment.SelectedValue == 0)
             {
                 ToastHelper.Show(this, "Please select equipment.", ToastType.Warning);
                 return;

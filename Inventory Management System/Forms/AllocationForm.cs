@@ -504,21 +504,8 @@ namespace Inventory_Management_System.Forms
             {
                 using var db = new InventoryDbContext();
 
-                var checkedOutEquipmentIds = new HashSet<int>(
-                    db.Transactions
-                        .Where(t => t.Status == "Pending" || t.Status == "Overdue")
-                        .Select(t => t.EquipmentId));
-
-                var activelyAllocatedEquipmentIds = new HashSet<int>(
-                    db.Allocations
-                        .Where(a => a.Status == "pending" || a.Status == "approved")
-                        .Select(a => a.EquipmentId));
-
                 return db.Equipment
-                    .Where(e => e.CurrentStatus != "decommissioned" &&
-                                e.CurrentStatus != "under_repair" &&
-                                !checkedOutEquipmentIds.Contains(e.Id) &&
-                                !activelyAllocatedEquipmentIds.Contains(e.Id))
+                    .Where(e => !e.IsDeleted && e.CurrentStatus == "in_store")
                     .OrderBy(e => e.EquipmentCode)
                     .ToList()
                     .Select(e => new AllocationRow
@@ -1537,10 +1524,18 @@ namespace Inventory_Management_System.Forms
                         .Select(a => a.EquipmentId));
 
                 _equipment = equipment.Where(e =>
-                    !checkedOutEquipmentIds.Contains(e.Id) &&
-                    !activelyAllocatedEquipmentIds.Contains(e.Id) &&
-                    e.CurrentStatus != "decommissioned" &&
-                    e.CurrentStatus != "under_repair").ToList();
+                {
+                    if (activelyAllocatedEquipmentIds.Contains(e.Id)) return false;
+                    
+                    bool isAllocated = string.Equals(e.CurrentStatus, "allocated", StringComparison.OrdinalIgnoreCase);
+                    if (isAllocated) return !checkedOutEquipmentIds.Contains(e.Id);
+                    
+                    bool isDecomm = string.Equals(e.CurrentStatus, "decommissioned", StringComparison.OrdinalIgnoreCase);
+                    bool isRepair = string.Equals(e.CurrentStatus, "under_repair", StringComparison.OrdinalIgnoreCase) || 
+                                    string.Equals(e.CurrentStatus, "under repair", StringComparison.OrdinalIgnoreCase);
+                                    
+                    return !isDecomm && !isRepair;
+                }).ToList();
             }
             _employees = employees.Where(e => e.IsActive).ToList();
             _locations = locations;

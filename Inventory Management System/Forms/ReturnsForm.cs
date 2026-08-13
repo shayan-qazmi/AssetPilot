@@ -519,10 +519,6 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            if (MessageBox.Show(
-                $"This will undo the return for '{ret.Equipment?.EquipmentCode} — {ret.Equipment?.Name}', reverting it back to an active allocation. Continue?",
-                "Undo Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-
             try
             {
                 using var db = new InventoryDbContext();
@@ -530,15 +526,35 @@ namespace Inventory_Management_System.Forms
                 if (alloc == null)
                 {
                     ToastHelper.Show(this, "Return record not found.", ToastType.Error);
-                    return;   // ← ADD THIS
+                    return;
                 }
+
+                var activeAlloc = db.Allocations
+                    .Include(a => a.Employee)
+                    .FirstOrDefault(a => a.EquipmentId == alloc.EquipmentId
+                                       && a.Status == "approved"
+                                       && a.Id != alloc.Id);
+
+                if (activeAlloc != null)
+                {
+                    ToastHelper.Show(this,
+                        $"Can't undo — '{alloc.Equipment?.EquipmentCode}' is currently allocated to " +
+                        $"{activeAlloc.Employee?.FullName ?? "someone"}. Undo that allocation first.",
+                        ToastType.Warning);
+                    return;
+                }
+
+                if (MessageBox.Show(
+                    $"This will undo the return for '{ret.Equipment?.EquipmentCode} — {ret.Equipment?.Name}', reverting it back to an active allocation. Continue?",
+                    "Undo Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+
                 string oldValue = $"{alloc.Equipment?.EquipmentCode} - returned";
                 alloc.Status = "approved";
                 alloc.ActualReturnDate = null;
                 if (alloc.Equipment != null) alloc.Equipment.CurrentStatus = "allocated";
                 db.SaveChanges();
                 _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned,
-     oldValue, $"{alloc.Equipment?.EquipmentCode} - approved (return undone)");
+                    oldValue, $"{alloc.Equipment?.EquipmentCode} - approved (return undone)");
                 ToastHelper.Show(this, $"Return undone — '{alloc.Equipment?.EquipmentCode}' is active again.", ToastType.Success);
                 LoadReturns();
             }

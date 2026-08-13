@@ -140,6 +140,8 @@ namespace Inventory_Management_System.Forms
 
             var colId = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "ID", HeaderText = "Log ID", FillWeight = 6 };
             var colEq = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Equipment", HeaderText = "Equipment Code", FillWeight = 12 };
+            var colName = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Name", HeaderText = "Name", FillWeight = 12 };
+            var colMake = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Make", HeaderText = "Make", FillWeight = 10 };
             var colQr = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "QRCode", HeaderText = "QR Code", FillWeight = 10 };
             var colAct = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Action", HeaderText = "Action", FillWeight = 18 };
             var colUser = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "User", HeaderText = "Changed By", FillWeight = 14 };
@@ -147,7 +149,7 @@ namespace Inventory_Management_System.Forms
             var colNew = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "NewValue", HeaderText = "New Value", FillWeight = 18 };
             var colDate = new System.Windows.Forms.DataGridViewTextBoxColumn { Name = "Date", HeaderText = "Timestamp", FillWeight = 14 };
 
-            dgvLogs.Columns.AddRange(colId, colEq, colQr, colAct, colUser, colOld, colNew, colDate);
+            dgvLogs.Columns.AddRange(colId, colEq, colName, colMake, colQr, colAct, colUser, colOld, colNew, colDate);
             dgvLogs.ColumnHeaderMouseClick += new System.Windows.Forms.DataGridViewCellMouseEventHandler(this.dgvLogs_ColumnHeaderMouseClick);
             dgvLogs.CellDoubleClick += new System.Windows.Forms.DataGridViewCellEventHandler(this.dgvLogs_CellDoubleClick);
 
