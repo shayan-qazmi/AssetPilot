@@ -19,7 +19,8 @@ namespace Inventory_Management_System.Helpers
 
     public sealed class EntitySuggestHelper<T> : IDisposable where T : class
     {
-        private const int MaxSuggestions = 8;
+        private const int MaxSuggestions = 100;
+        private const int MaxVisibleItems = 8;
         private const int MinQueryLength = 1;
         private const int ItemHeight     = 40;
 
@@ -215,7 +216,15 @@ namespace Inventory_Management_System.Helpers
         {
             Point tbBottomLeft  = _textBox.Parent!.PointToScreen(new Point(_textBox.Left, _textBox.Bottom));
             Point formRelative  = _hostForm.PointToClient(tbBottomLeft);
-            int   dropH         = Math.Min(itemCount, MaxSuggestions) * ItemHeight + 2;
+            int   dropH         = Math.Min(itemCount, MaxVisibleItems) * ItemHeight + 2;
+
+            int maxAllowedHeight = _hostForm.ClientSize.Height - formRelative.Y - 10;
+            if (maxAllowedHeight < ItemHeight) maxAllowedHeight = ItemHeight;
+            
+            if (dropH > maxAllowedHeight)
+            {
+                dropH = maxAllowedHeight;
+            }
 
             _listBox.SetBounds(formRelative.X, formRelative.Y, Math.Max(_textBox.Width, 260), dropH);
         }

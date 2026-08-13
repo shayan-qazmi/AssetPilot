@@ -28,6 +28,7 @@ namespace Inventory_Management_System.Forms
         public LogsForm()
         {
             InitializeComponent();
+            SetupPageSizeOptions();
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
             LoadLogs();
@@ -126,6 +127,19 @@ namespace Inventory_Management_System.Forms
             txt.Leave += (s, e) => { currentBorder = inputBorder; wrapper.Invalidate(); };
 
             RoundInput(null, EventArgs.Empty);
+        }
+
+        public LogsForm(string equipmentCode) : this()
+        {
+            txtSearch.Text = equipmentCode;
+        }
+
+        private void SetupPageSizeOptions()
+        {
+            string current = cmbPageSize.SelectedItem?.ToString() ?? "25";
+            cmbPageSize.Items.Clear();
+            cmbPageSize.Items.AddRange(new object[] { "25", "50", "100", "250", "500", "1000" });
+            cmbPageSize.SelectedItem = cmbPageSize.Items.Contains(current) ? current : "25";
         }
 
 
@@ -286,15 +300,17 @@ namespace Inventory_Management_System.Forms
             foreach (var item in filtered)
             {
                 int rowIdx = dgvLogs.Rows.Add(
-      item.Id,
-      item.Equipment?.EquipmentCode ?? "—",
-      item.Equipment?.QrCode ?? "—",
-      FormatAction(item.ActionType),
-    item.ChangedByUser != null ? $"{item.ChangedByUser.FullName} (@{item.ChangedByUser.Username})" : "System",
-      item.OldValue ?? "",
-      item.NewValue ?? "",
-      item.CreatedAt?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
-  );
+                    item.Id,
+                    item.Equipment?.EquipmentCode ?? "—",
+                    item.Equipment?.Name ?? "—",
+                    item.Equipment?.Make ?? "—",
+                    item.Equipment?.QrCode ?? "—",
+                    FormatAction(item.ActionType),
+                  item.ChangedByUser != null ? $"{item.ChangedByUser.FullName} (@{item.ChangedByUser.Username})" : "System",
+                    item.OldValue ?? "",
+                    item.NewValue ?? "",
+                    TimeHelper.ToPakistanTime(item.CreatedAt)?.ToString("dd MMM yyyy, hh:mm tt") ?? "—"
+);
 
                 var row = dgvLogs.Rows[rowIdx];
                 var actionCell = row.Cells["Action"];
@@ -360,6 +376,7 @@ namespace Inventory_Management_System.Forms
             "transferred" => "Transferred",
             "maintenance_opened" => "Maintenance Opened",
             "maintenance_resolved" => "Maintenance Resolved",
+            "Maintenance History Cleared" => "Maintenance History Cleared",
             _ => raw ?? "Unknown"
         };
 
@@ -385,10 +402,21 @@ namespace Inventory_Management_System.Forms
             string user = row.Cells["User"].Value?.ToString() ?? "";
             string date = row.Cells["Date"].Value?.ToString() ?? "";
             string eqCode = row.Cells["Equipment"].Value?.ToString() ?? "";
+            string qrCode = row.Cells["QRCode"].Value?.ToString() ?? "";
+            string eqName = row.Cells["Name"].Value?.ToString() ?? "";
+            string make = row.Cells["Make"].Value?.ToString() ?? "";
             string old = row.Cells["OldValue"].Value?.ToString() ?? "";
             string @new = row.Cells["NewValue"].Value?.ToString() ?? "";
 
-            using var popup = new LogDetailPopup(action, user, date, eqCode, old, @new);
+            // Model isn't a grid column — pull it from the underlying log by ID
+            string model = "—";
+            if (int.TryParse(row.Cells["ID"].Value?.ToString(), out int logId))
+            {
+                var log = _allLogs.FirstOrDefault(l => l.Id == logId);
+                model = log?.Equipment?.Model ?? "—";
+            }
+
+            using var popup = new LogDetailPopup(action, user, date, eqCode, qrCode, eqName, make, model, old, @new);
             popup.ShowDialog(this);
         }
 

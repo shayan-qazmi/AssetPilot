@@ -190,6 +190,29 @@ namespace Inventory_Management_System.Forms
             btnViewPicture.FlatAppearance.BorderSize = 1;
             card.Controls.Add(btnViewPicture);
 
+            var btnViewLogs = new Button
+            {
+                Text = "📜  View Logs",
+                Size = new Size(IconSize, 30),
+                Location = new Point(iconX, btnViewPicture.Bottom + 8),
+                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand,
+                UseVisualStyleBackColor = false,
+                BackColor = Color.FromArgb(238, 242, 255),
+                ForeColor = ThemeHelper.Header,
+            };
+            btnViewLogs.FlatAppearance.BorderColor = Color.FromArgb(199, 210, 254);
+            btnViewLogs.FlatAppearance.MouseOverBackColor = Color.FromArgb(224, 231, 255);
+            btnViewLogs.FlatAppearance.BorderSize = 1;
+            btnViewLogs.Click += (s, e) =>
+            {
+                var dashboard = Application.OpenForms.OfType<DashboardForm>().FirstOrDefault();
+                this.Close();
+                dashboard?.NavigateToLogs(_info.EquipmentCode);
+            };
+            card.Controls.Add(btnViewLogs);
+
             // ── Right side: detail block with icon-labeled rows ──
             int detailX = iconPanel.Right + 32;
             int detailW = (DialogWidth - PaddingOuter * 2) - detailX - 24;
@@ -325,7 +348,7 @@ namespace Inventory_Management_System.Forms
             detailBlock.Resize += RoundDetailBlock;
             RoundDetailBlock(null, EventArgs.Empty);
 
-            int cardH = Math.Max(btnViewPicture.Bottom + 24, detailBlock.Bottom + 24);
+            int cardH = Math.Max(btnViewLogs.Bottom + 24, detailBlock.Bottom + 24);
             card.Height = cardH;
 
             // ── Close Button ──

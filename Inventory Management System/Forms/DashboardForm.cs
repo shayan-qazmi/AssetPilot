@@ -67,8 +67,7 @@ namespace Inventory_Management_System
         private int _cntDecommission = 0;
         private int _cntOverdue      = 0;
         private int _cntEmployees    = 0;
-        private int _lastActivityRowCount = -1;
-        private List<(string Category, int Count)> _categoryBreakdown = new();
+              private List<(string Category, int Count)> _categoryBreakdown = new();
         private List<Panel> _statCards = new();
         private List<(Panel Row, Action OnSelect)> _searchResultRows = new();
         private int _searchSelectedIndex = -1;
@@ -1296,9 +1295,24 @@ namespace Inventory_Management_System
                     counts[i] = metric switch
                     {
                         "equipment" => db.EquipmentLogs.Count(l =>
-                            l.CreatedAt.HasValue &&
-                            l.CreatedAt.Value >= day &&
-                            l.CreatedAt.Value < nextDay),
+                            l.CreatedAt.HasValue && l.CreatedAt.Value >= day && l.CreatedAt.Value < nextDay),
+
+                        "allocated" => db.EquipmentLogs.Count(l =>
+                            l.ActionType == "allocation_approved" &&
+                            l.CreatedAt.HasValue && l.CreatedAt.Value >= day && l.CreatedAt.Value < nextDay),
+
+                        "in_store" => db.EquipmentLogs.Count(l =>
+                            l.ActionType == "allocation_returned" &&
+                            l.CreatedAt.HasValue && l.CreatedAt.Value >= day && l.CreatedAt.Value < nextDay),
+
+                        "under_repair" => db.EquipmentLogs.Count(l =>
+                            l.ActionType == "maintenance_opened" &&
+                            l.CreatedAt.HasValue && l.CreatedAt.Value >= day && l.CreatedAt.Value < nextDay),
+
+                        "decommissioned" => db.EquipmentLogs.Count(l =>
+                            l.ActionType == "decommission_approved" &&
+                            l.CreatedAt.HasValue && l.CreatedAt.Value >= day && l.CreatedAt.Value < nextDay),
+
                         _ => 0
                     };
                 }
@@ -1309,8 +1323,38 @@ namespace Inventory_Management_System
             {
                 return new float[] { 0, 0, 0, 0, 0, 0, 0 };
             }
+        }
 
+        // Compares this-week total vs previous-week total for a metric, formatted
+        // as delta text under the card number (e.g. "+3 this week").
+        private string? GetWeeklyDeltaText(string metric)
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var today = DateTime.Today;
+                var thisWeekStart = today.AddDays(-6);
+                var lastWeekStart = today.AddDays(-13);
 
+                Func<DateTime, DateTime, int> countInRange = (start, end) => metric switch
+                {
+                    "equipment" => db.EquipmentLogs.Count(l => l.CreatedAt.HasValue && l.CreatedAt.Value >= start && l.CreatedAt.Value < end),
+                    "allocated" => db.EquipmentLogs.Count(l => l.ActionType == "allocation_approved" && l.CreatedAt.HasValue && l.CreatedAt.Value >= start && l.CreatedAt.Value < end),
+                    "in_store" => db.EquipmentLogs.Count(l => l.ActionType == "allocation_returned" && l.CreatedAt.HasValue && l.CreatedAt.Value >= start && l.CreatedAt.Value < end),
+                    "under_repair" => db.EquipmentLogs.Count(l => l.ActionType == "maintenance_opened" && l.CreatedAt.HasValue && l.CreatedAt.Value >= start && l.CreatedAt.Value < end),
+                    "decommissioned" => db.EquipmentLogs.Count(l => l.ActionType == "decommission_approved" && l.CreatedAt.HasValue && l.CreatedAt.Value >= start && l.CreatedAt.Value < end),
+                    _ => 0
+                };
+
+                int thisWeek = countInRange(thisWeekStart, today.AddDays(1));
+                int lastWeek = countInRange(lastWeekStart, thisWeekStart);
+                int delta = thisWeek - lastWeek;
+
+                if (delta == 0) return "No change this week";
+                string sign = delta > 0 ? "+" : "";
+                return $"{sign}{delta} this week";
+            }
+            catch { return null; }
         }
         // ════════════════════════════════════════════════════════════════
         //  STATS + CHARTS
@@ -1366,16 +1410,15 @@ namespace Inventory_Management_System
                 _statCards.Clear();
 
                 var cardDefs = new[]
-    {
-    (title:"Total Equipment",    value:totalEquipment.ToString(),    color:Color.FromArgb(94, 53, 177), icon:"🖥", trendValues:GetLast7DayCounts("equipment"), deltaText:"+6 this week"),
-    (title:"Allocated",          value:_cntAllocated.ToString(),     color:Color.FromArgb(245, 124, 0),   icon:"📋", trendValues:(float[]?)null, deltaText:(string?)null),
-    (title:"In Stock",           value:_cntInStore.ToString(),       color:Color.FromArgb(56,  142, 60),  icon:"✅", trendValues:(float[]?)null, deltaText:(string?)null),
-    (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(33,  150, 243), icon:"🔧", trendValues:(float[]?)null, deltaText:(string?)null),
+                {
+    (title:"Total Equipment",    value:totalEquipment.ToString(),    color:Color.FromArgb(94, 53, 177), icon:"🖥", trendValues:GetLast7DayCounts("equipment"),      deltaText:GetWeeklyDeltaText("equipment")),
+    (title:"Allocated",          value:_cntAllocated.ToString(),     color:Color.FromArgb(245, 124, 0),   icon:"📋", trendValues:GetLast7DayCounts("allocated"),      deltaText:GetWeeklyDeltaText("allocated")),
+    (title:"In Stock",           value:_cntInStore.ToString(),       color:Color.FromArgb(56,  142, 60),  icon:"✅", trendValues:GetLast7DayCounts("in_store"),       deltaText:GetWeeklyDeltaText("in_store")),
+    (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(33,  150, 243), icon:"🔧", trendValues:GetLast7DayCounts("under_repair"),   deltaText:GetWeeklyDeltaText("under_repair")),
     (title:"Currently Overdue",  value:_cntOverdue.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️", trendValues:(float[]?)null, deltaText:(string?)null),
-    (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68,  68),  icon:"🚫", trendValues:(float[]?)null, deltaText:(string?)null),
+    (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68,  68),  icon:"🚫", trendValues:GetLast7DayCounts("decommissioned"), deltaText:GetWeeklyDeltaText("decommissioned")),
     (title:"Total Employees",    value:_cntEmployees.ToString(),     color:Color.FromArgb(123, 31,  162), icon:"👤", trendValues:(float[]?)null, deltaText:(string?)null),
 };
-
                 int padL  = 12;
                 int gap   = 10;
                 int count = cardDefs.Length;
@@ -1466,15 +1509,15 @@ namespace Inventory_Management_System
 
                     EventHandler? clickHandler = def.title switch
                     {
-                        "Total Equipment"  => btnEquipment_Click,
-                        "Allocated"        => btnAllocation_Click,
-                        "In Stock"         => btnEquipment_Click,
-                        "Under Repair"     => btnEquipment_Click,
-                        "Currently Overdue" => btnAllocation_Click,
-                        "Decommissioned"   => AuthService.IsAdmin ? btnDecommission_Click : null,
-                        "Total Employees"  => btnEmployees_Click,
-                        _                  => null
-                    };
+                        "Total Equipment" => btnEquipment_Click,
+                        "Allocated" => btnAllocation_Click,
+                        "In Stock" => (EventHandler)((s, e) => OpenAllocationAvailable()),
+                        "Under Repair" => (EventHandler)((s, e) => OpenEquipmentByStatus("under_repair")),
+                        "Currently Overdue" => (EventHandler)((s, e) => OpenOverdueEquipment()),
+                        "Decommissioned" => AuthService.IsAdmin ? btnDecommission_Click : null,
+                        "Total Employees" => btnEmployees_Click,
+                        _ => null
+                    };  
 
                     if (clickHandler != null)
                     {
@@ -1772,17 +1815,14 @@ namespace Inventory_Management_System
             card.Controls.Add(lnkViewAll);
             lnkViewAll.BringToFront();
 
-            listHost.Resize += (s, e) => LoadRecentActivities(listHost);
             LoadRecentActivities(listHost);
         }
 
         private void LoadRecentActivities(Panel listHost)
         {
-            const int rowHeight = 50; // 46px row + 4px gap, matches BuildActivityRow/y increment below
-            int desiredCount = Math.Max(4, listHost.Height / rowHeight + 1); // +1 avoids a visible gap at the bottom
+            int desiredCount = 25; // Load a fixed number of recent activities to allow scrolling
 
-            if (desiredCount == _lastActivityRowCount && listHost.Controls.Count > 0) return;
-            _lastActivityRowCount = desiredCount;
+          
 
             listHost.Controls.Clear();
             try
@@ -1813,9 +1853,14 @@ namespace Inventory_Management_System
                     };
 
                     string message = $"{equipName} — {log.ActionType} by {userName}";
-                    string timeAgo = log.CreatedAt.HasValue ? FormatTimeAgo(log.CreatedAt.Value) : "";
+                    string timeLine = "";
+                    if (log.CreatedAt.HasValue)
+                    {
+                        var local = TimeHelper.ToPakistanTime(log.CreatedAt.Value);
+                        timeLine = $"{FormatTimeAgo(log.CreatedAt.Value)} at {local:hh:mm tt}, {local:dd MMM yyyy}";
+                    }
 
-                    var row = BuildActivityRow(icon, message, timeAgo, listHost.Width - 20);
+                    var row = BuildActivityRow(icon, message, timeLine, listHost.Width - 20);
                     row.Location = new Point(10, y);
                     row.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
                     listHost.Controls.Add(row);
@@ -1838,7 +1883,7 @@ namespace Inventory_Management_System
             catch { /* DB unavailable */ }
         }
 
-        private static Panel BuildActivityRow(string icon, string message, string timeAgo, int width)
+        private static Panel BuildActivityRow(string icon, string message, string timeLine, int width)
         {
             var row = new Panel { Size = new Size(width, 46), BackColor = Color.Transparent };
 
@@ -1868,7 +1913,7 @@ namespace Inventory_Management_System
 
             var lblTime = new Label
             {
-                Text = timeAgo,
+                Text = timeLine,
                 Font = new Font("Segoe UI", 7.5f),
                 ForeColor = Color.FromArgb(156, 163, 175),
                 AutoSize = true,
@@ -1877,11 +1922,12 @@ namespace Inventory_Management_System
             row.Controls.Add(lblTime);
 
             return row;
-        }
+        }   
 
         private static string FormatTimeAgo(DateTime dt)
         {
-            var span = DateTime.Now - dt;
+            var localDt = TimeHelper.ToPakistanTime(dt);
+            var span = TimeHelper.NowPakistan() - localDt;
             if (span.TotalMinutes < 1) return "just now";
             if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes} min ago";
             if (span.TotalHours < 24) return $"{(int)span.TotalHours} hr ago";
@@ -2374,6 +2420,47 @@ namespace Inventory_Management_System
 
         private void btnDashboard_Click(object? sender, EventArgs e) => ShowDashboard();
 
+        private void OpenAllocationAvailable()
+        {
+            AnimateTitleTo("Allocation");
+            OpenChildForm(new AllocationForm(true), btnAllocation);
+        }
+
+        private void OpenEquipmentByStatus(string status)
+        {
+            AnimateTitleTo("Equipment");
+            var frm = new EquipmentForm();
+            OpenChildForm(frm, btnEquipment);
+            frm.ApplyStatusFilter(status);
+        }
+
+        private void OpenOverdueEquipment()
+        {
+            AnimateTitleTo("Equipment");
+            var frm = new EquipmentForm();
+            OpenChildForm(frm, btnEquipment);
+
+            var overdueIds = new HashSet<int>();
+            try
+            {
+                using var db = new InventoryDbContext();
+                var today = DateOnly.FromDateTime(DateTime.Today);
+                overdueIds = db.Allocations
+                    .Where(a => !a.Equipment.IsDeleted &&
+                                a.Equipment.CurrentStatus == "allocated" &&
+                                a.Status == "approved" &&
+                                a.ExpectedReturnDate.HasValue &&
+                                a.ExpectedReturnDate.Value < today &&
+                                a.ActualReturnDate == null)
+                    .Select(a => a.EquipmentId)
+                    .Distinct()
+                    .ToHashSet();
+            }
+            catch { /* leaves overdueIds empty — grid will just show nothing */ }
+
+            frm.ApplyCustomFilter(eq => overdueIds.Contains(eq.Id));
+        }
+
         private void btnEquipment_Click(object? sender, EventArgs e)
         {
             AnimateTitleTo("Equipment");
@@ -2391,6 +2478,14 @@ namespace Inventory_Management_System
             AnimateTitleTo("Employees");
             OpenChildForm(new EmployeesForm(employeeCode), btnEmployees);
         }
+
+
+        public void NavigateToLogs(string equipmentCode)
+        {
+            AnimateTitleTo("Logs");
+            OpenChildForm(new LogsForm(equipmentCode), btnLogs);
+        }
+
 
         private void btnLocations_Click(object? sender, EventArgs e)
         {

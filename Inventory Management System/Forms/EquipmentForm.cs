@@ -36,9 +36,13 @@ namespace Inventory_Management_System.Forms
         private string? _pendingSelectCode;
         private bool _hasPendingSelection = false;
 
+
+        private string? _statusFilter = null;
+        private Func<Equipment, bool>? _customFilter = null;
         public EquipmentForm()
         {
             InitializeComponent();
+            SetupPageSizeOptions();
             ApplyTheme();
             SetupToolbarLayout();
             LoadCategoryFilter();
@@ -97,6 +101,22 @@ namespace Inventory_Management_System.Forms
             return path;
         }
 
+
+        public void ApplyStatusFilter(string status)
+        {
+            _statusFilter = status;
+            _customFilter = null;
+            _currentPage = 1;
+            LoadEquipment();
+        }
+
+        public void ApplyCustomFilter(Func<Equipment, bool> filter)
+        {
+            _customFilter = filter;
+            _statusFilter = null;
+            _currentPage = 1;
+            LoadEquipment();
+        }
         private void ApplyRoundedSearchStyle(TextBox txt)
         {
             var parent = txt.Parent;
@@ -369,6 +389,32 @@ namespace Inventory_Management_System.Forms
 
         private void LoadEquipment(string searchTerm = "")
         {
+            if (_statusFilter != null || _customFilter != null)
+            {
+                if (_fullEquipmentCache.Count == 0)
+                    RefreshEquipmentCache();
+
+                Func<Equipment, bool> predicate = _customFilter
+                    ?? (eq => string.Equals(eq.CurrentStatus, _statusFilter, StringComparison.OrdinalIgnoreCase));
+
+                var filtered = _fullEquipmentCache.Where(predicate).ToList();
+
+                if (!string.IsNullOrEmpty(_activeCategory))
+                    filtered = filtered.Where(eq => string.Equals(eq.Category, _activeCategory, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                _totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)_pageSize));
+                if (_currentPage > _totalPages) _currentPage = _totalPages;
+
+                _allEquipment = filtered
+                    .Skip((_currentPage - 1) * _pageSize)
+                    .Take(_pageSize)
+                    .ToList();
+
+                UpdatePaginationControls();
+                ApplyFilters();
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(searchTerm))
             {
                 var result = _equipmentService.GetPage(_currentPage, _pageSize, _activeCategory);
@@ -385,7 +431,6 @@ namespace Inventory_Management_System.Forms
             }
             else
             {
-                // Lazy-load the cache if suggestions setup ever failed silently
                 if (_fullEquipmentCache.Count == 0)
                     RefreshEquipmentCache();
 
@@ -412,11 +457,6 @@ namespace Inventory_Management_System.Forms
                       .Select(x => x.Equipment)
                       .ToList();
 
-                // ── TEMP DEBUG — remove after verifying ──────────────────────────
-                System.Diagnostics.Debug.WriteLine($"[FuzzySearch] query='{searchTerm}' matches={fullMatches.Count}: " +
-                    string.Join(", ", fullMatches.Select(x => x.EquipmentCode)));
-                // ──────────────────────────────────────────────────────────────────
-
                 _totalPages = Math.Max(1, (int)Math.Ceiling(fullMatches.Count / (double)_pageSize));
                 if (_currentPage > _totalPages) _currentPage = _totalPages;
 
@@ -425,8 +465,6 @@ namespace Inventory_Management_System.Forms
                            .Take(_pageSize)
                            .ToList();
             }
-
-
 
             UpdatePaginationControls();
             ApplyFilters();
@@ -513,7 +551,6 @@ namespace Inventory_Management_System.Forms
             base.OnFormClosed(e);
         }
 
-        // ── Apply both search-text and category filter to _allEquipment ────
         private void ApplyFilters()
         {
             RefreshGrid(_allEquipment);
@@ -534,14 +571,24 @@ namespace Inventory_Management_System.Forms
 
                 string procType = item.ProcurementType?.TypeName ?? "";
 
-                string formattedStatus = item.CurrentStatus switch
+                var normalizedStatus = (item.CurrentStatus ?? string.Empty).Trim().ToLowerInvariant();
+                string formattedStatus;
+                // If there is an approved allocation, display Allocated regardless of stored status
+                if (activeAlloc != null)
                 {
-                    "in_store" => "In Store",
-                    "allocated" => "Allocated",
-                    "decommissioned" => "Decommissioned",
-                    "under_repair" => "Under Repair",
-                    _ => item.CurrentStatus
-                };
+                    formattedStatus = "Allocated";
+                }
+                else
+                {
+                    formattedStatus = normalizedStatus switch
+                    {
+                        "in_store" => "In Store",
+                        "allocated" => "Allocated",
+                        "decommissioned" => "Decommissioned",
+                        "under_repair" => "Under Repair",
+                        _ => item.CurrentStatus
+                    };
+                }
 
                 int rowIdx = dgvEquipment.Rows.Add(
       item.EquipmentCode,
@@ -560,18 +607,18 @@ namespace Inventory_Management_System.Forms
   );
 
                 var statusCell = dgvEquipment.Rows[rowIdx].Cells["Status"];
-                switch (item.CurrentStatus)
+                switch (formattedStatus)
                 {
-                    case "in_store":
+                    case "In Store":
                         statusCell.Style.BackColor = ThemeHelper.Success;
                         break;
-                    case "allocated":
+                    case "Allocated":
                         statusCell.Style.BackColor = ThemeHelper.Warning;
                         break;
-                    case "under_repair":
+                    case "Under Repair":
                         statusCell.Style.BackColor = Color.FromArgb(255, 112, 67);
                         break;
-                    case "decommissioned":
+                    case "Decommissioned":
                         statusCell.Style.BackColor = ThemeHelper.Danger;
                         break;
                     default:
@@ -752,6 +799,8 @@ namespace Inventory_Management_System.Forms
         {
             txtSearch.Text = string.Empty;
             _currentPage = 1;
+            _statusFilter = null;
+            _customFilter = null;
 
             // Reset Select mode back to normal browsing — Refresh doubles as
             // the way to exit checkbox/select-all mode since there's no
@@ -1243,6 +1292,14 @@ namespace Inventory_Management_System.Forms
                 _currentPage = 1;
                 LoadEquipment(txtSearch.Text.Trim());
             }
+        }
+
+        private void SetupPageSizeOptions()
+        {
+            string current = cmbPageSize.SelectedItem?.ToString() ?? "25";
+            cmbPageSize.Items.Clear();
+            cmbPageSize.Items.AddRange(new object[] { "25", "50", "100", "250", "500", "1000" });
+            cmbPageSize.SelectedItem = cmbPageSize.Items.Contains(current) ? current : "25";
         }
 
         private void btnPrevPage_Click(object sender, EventArgs e)

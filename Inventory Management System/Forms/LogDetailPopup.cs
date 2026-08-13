@@ -9,7 +9,9 @@ namespace Inventory_Management_System.Forms
     public class LogDetailPopup : Form
     {
         public LogDetailPopup(string action, string changedBy, string when,
-                               string equipmentCode, string oldValue, string newValue)
+                               string equipmentCode, string qrCode,
+                               string equipmentName, string make, string model,
+                               string oldValue, string newValue)
         {
             const int w = 480;
             Text = "Log Details";
@@ -36,6 +38,9 @@ namespace Inventory_Management_System.Forms
             Controls.Add(body);
 
             int y = 18;
+            int maxWidth = w - 40;
+
+            // Row now measures the text and wraps/grows instead of clipping at a fixed height
             void Row(string icon, string label, string value)
             {
                 var lbl = new Label
@@ -49,23 +54,31 @@ namespace Inventory_Management_System.Forms
                 body.Controls.Add(lbl);
                 y += 18;
 
+                var text = string.IsNullOrWhiteSpace(value) ? "—" : value;
+                var sz = TextRenderer.MeasureText(text, ThemeHelper.FontBold,
+                    new Size(maxWidth, int.MaxValue), TextFormatFlags.WordBreak);
+
                 var val = new Label
                 {
-                    Text = string.IsNullOrWhiteSpace(value) ? "—" : value,
+                    Text = text,
                     Font = ThemeHelper.FontBold,
                     ForeColor = ThemeHelper.TextPrimary,
                     AutoSize = false,
-                    Size = new Size(w - 40, 20),
+                    Size = new Size(maxWidth, sz.Height + 4),
                     Location = new Point(20, y)
                 };
                 body.Controls.Add(val);
-                y += 30;
+                y += val.Height + 12;
             }
 
             Row("🔖", "Action", action);
             Row("👤", "Changed By", changedBy);
             Row("🕒", "When", when);
-            Row("🏷", "Equipment", equipmentCode);
+            Row("🏷", "Equipment Code | QR Code", $"{equipmentCode}  |  {qrCode}");
+
+            string details = string.Join("  •  ", new[] { equipmentName, make, model }
+                .Where(v => !string.IsNullOrWhiteSpace(v) && v != "—"));
+            Row("🧾", "Name, Make, Model", string.IsNullOrWhiteSpace(details) ? "—" : details);
 
             var divider = new Panel { Location = new Point(20, y), Size = new Size(w - 40, 1), BackColor = Color.FromArgb(220, 225, 230) };
             body.Controls.Add(divider);
@@ -96,19 +109,24 @@ namespace Inventory_Management_System.Forms
                 };
 
                 int innerY = 8;
+                int innerWidth = w - 56;
                 foreach (var line in lines)
                 {
+                    var lineText = "•  " + line.Trim();
+                    var lineSz = TextRenderer.MeasureText(lineText, ThemeHelper.FontDefault,
+                        new Size(innerWidth, int.MaxValue), TextFormatFlags.WordBreak);
+
                     var lblLine = new Label
                     {
-                        Text = "•  " + line.Trim(),
+                        Text = lineText,
                         Font = ThemeHelper.FontDefault,
                         ForeColor = fg,
                         AutoSize = false,
-                        Size = new Size(w - 56, 20),
+                        Size = new Size(innerWidth, lineSz.Height + 4),
                         Location = new Point(8, innerY)
                     };
                     panel.Controls.Add(lblLine);
-                    innerY += 22;
+                    innerY += lblLine.Height + 4;
                 }
                 panel.Height = innerY + 6;
                 body.Controls.Add(panel);
@@ -133,4 +151,4 @@ namespace Inventory_Management_System.Forms
             ClientSize = new Size(w, header.Height + body.Height);
         }
     }
-}
+}   

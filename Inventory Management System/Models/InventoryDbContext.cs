@@ -113,6 +113,8 @@ public partial class InventoryDbContext : DbContext
 
             entity.HasIndex(e => e.PreviousAllocationId, "previous_allocation_id");
 
+            entity.Property(e => e.ReturnProcessedAt).HasColumnName("return_processed_at");
+
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.ActualReturnDate).HasColumnName("actual_return_date");
             entity.Property(e => e.AllocatedByUserId)
@@ -522,6 +524,7 @@ public partial class InventoryDbContext : DbContext
 
             entity.Property(e => e.TransactionId).HasColumnName("transaction_id");
             entity.Property(e => e.EquipmentId).HasColumnName("equipment_id");
+            entity.Property(e => e.ReturnProcessedAt).HasColumnName("return_processed_at");
             entity.Property(e => e.TransactionType)
                 .HasColumnType("enum('Check-In','Check-Out','Transfer','Maintenance','Disposal')")
                 .HasColumnName("transaction_type");

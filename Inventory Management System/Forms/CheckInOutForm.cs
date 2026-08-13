@@ -31,6 +31,8 @@ namespace Inventory_Management_System.Forms
         private static readonly Font CardLabelFont = new Font("Segoe UI", 8f, FontStyle.Bold);
         private static readonly Font CardValueFont = new Font("Segoe UI", 8f, FontStyle.Regular);
 
+        private Button btnHistory = null!;
+
         public CheckInOutForm()
         {
             InitializeComponent();
@@ -50,6 +52,25 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleToolbarPanel(panelTop);
             ThemeHelper.StyleButton(btnSearch);
             ThemeHelper.StyleSecondaryButton(btnClear);
+
+            btnHistory = new Button
+            {
+                Text = "🕘  History",
+                Size = new Size(110, btnSearch.Height),
+                Cursor = Cursors.Hand,
+            };
+            ThemeHelper.StyleSecondaryButton(btnHistory);
+            btnHistory.Click += (s, e) => ShowHistoryView();
+            panelTop.Controls.Add(btnHistory);
+            btnHistory.BringToFront();
+
+            void PositionHistoryButton()
+            {
+                btnHistory.Location = new Point(panelTop.ClientSize.Width - btnHistory.Width - 20, btnSearch.Top);
+            }
+            PositionHistoryButton();
+
+            panelTop.Resize += (s, e) => PositionHistoryButton();
             ThemeHelper.StyleDataGridView(dgvRecentTransactions);
 
             // ── QR icon badge, left of the search box ──────────────────────
@@ -159,6 +180,33 @@ namespace Inventory_Management_System.Forms
             pnlEmptyState.Paint += PnlEmptyState_Paint;
 
             SwitchTab(true);
+        }
+
+        private CheckInOutHistoryPanel? _historyPanel;
+
+        private void ShowHistoryView()
+        {
+            if (_historyPanel == null)
+            {
+                _historyPanel = new CheckInOutHistoryPanel { Dock = DockStyle.Fill };
+                _historyPanel.BackRequested += (s, e) => ShowScanView();
+                Controls.Add(_historyPanel);
+            }
+            _historyPanel.Visible = true;
+            _historyPanel.BringToFront();
+            _historyPanel.RefreshData();
+
+            panelTop.Visible = false;       // scan bar goes away completely
+            panelMainContent.Visible = false;
+            lblNoResult.Visible = false;
+        }
+
+        private void ShowScanView()
+        {
+            if (_historyPanel != null) _historyPanel.Visible = false;
+            panelTop.Visible = true;
+            panelMainContent.Visible = _scannedEquipment != null;
+            lblNoResult.Visible = _scannedEquipment == null;
         }
 
         private static void CardBorderPaint(object? sender, PaintEventArgs e)

@@ -182,17 +182,30 @@ namespace Inventory_Management_System.Forms
             public int? LocationId { get; set; }
         }
 
+        private void SetupPageSizeOptions()
+        {
+            cmbPageSize.Items.Clear();
+            cmbPageSize.Items.Add("10");
+            cmbPageSize.Items.Add("25");
+            cmbPageSize.Items.Add("50");
+            cmbPageSize.Items.Add("100");
+            cmbPageSize.Items.Add("250");
+            cmbPageSize.Items.Add("500");
+            cmbPageSize.Items.Add("1000");
+            cmbPageSize.SelectedIndex = 1;
+        }
+
         public AllocationForm()
         {
             InitializeComponent();
-
-            flowToolbar.Layout += FlowToolbar_Layout;   // ← moved up: must be wired before Setup* adds controls
+            flowToolbar.Layout += FlowToolbar_Layout;
 
             ApplyTheme();
             SetupEquipmentFilterDropdown();
-            SetupSelectModeDropdown();   // ← replaces plain btnSelectAll with dropdown
+            SetupSelectModeDropdown();
             SetupCategoryFilterDropdown();
             SetupEditReturnButton();
+            SetupPageSizeOptions();   // ← moved here
             LoadAllocations();
             SetupSuggestions();
 
@@ -209,7 +222,16 @@ namespace Inventory_Management_System.Forms
                 dgvAllocation.CurrentCell = null;
                 RecalcToolbarHeight();   // ← final correction once ClientSize.Width is accurate
             };
-        }   
+        }
+
+        public AllocationForm(bool showAvailableOnly) : this()
+        {
+            if (showAvailableOnly)
+            {
+                int idx = cmbEquipmentFilter.Items.IndexOf("Equipment: Available");
+                if (idx >= 0) cmbEquipmentFilter.SelectedIndex = idx;
+            }
+        }
 
         private void SetupEquipmentFilterDropdown()
         {
@@ -504,21 +526,8 @@ namespace Inventory_Management_System.Forms
             {
                 using var db = new InventoryDbContext();
 
-                var checkedOutEquipmentIds = new HashSet<int>(
-                    db.Transactions
-                        .Where(t => t.Status == "Pending" || t.Status == "Overdue")
-                        .Select(t => t.EquipmentId));
-
-                var activelyAllocatedEquipmentIds = new HashSet<int>(
-                    db.Allocations
-                        .Where(a => a.Status == "pending" || a.Status == "approved")
-                        .Select(a => a.EquipmentId));
-
                 return db.Equipment
-                    .Where(e => e.CurrentStatus != "decommissioned" &&
-                                e.CurrentStatus != "under_repair" &&
-                                !checkedOutEquipmentIds.Contains(e.Id) &&
-                                !activelyAllocatedEquipmentIds.Contains(e.Id))
+                    .Where(e => !e.IsDeleted && e.CurrentStatus == "in_store")
                     .OrderBy(e => e.EquipmentCode)
                     .ToList()
                     .Select(e => new AllocationRow
@@ -1537,10 +1546,18 @@ namespace Inventory_Management_System.Forms
                         .Select(a => a.EquipmentId));
 
                 _equipment = equipment.Where(e =>
-                    !checkedOutEquipmentIds.Contains(e.Id) &&
-                    !activelyAllocatedEquipmentIds.Contains(e.Id) &&
-                    e.CurrentStatus != "decommissioned" &&
-                    e.CurrentStatus != "under_repair").ToList();
+                {
+                    if (activelyAllocatedEquipmentIds.Contains(e.Id)) return false;
+                    
+                    bool isAllocated = string.Equals(e.CurrentStatus, "allocated", StringComparison.OrdinalIgnoreCase);
+                    if (isAllocated) return !checkedOutEquipmentIds.Contains(e.Id);
+                    
+                    bool isDecomm = string.Equals(e.CurrentStatus, "decommissioned", StringComparison.OrdinalIgnoreCase);
+                    bool isRepair = string.Equals(e.CurrentStatus, "under_repair", StringComparison.OrdinalIgnoreCase) || 
+                                    string.Equals(e.CurrentStatus, "under repair", StringComparison.OrdinalIgnoreCase);
+                                    
+                    return !isDecomm && !isRepair;
+                }).ToList();
             }
             _employees = employees.Where(e => e.IsActive).ToList();
             _locations = locations;
@@ -1888,6 +1905,8 @@ namespace Inventory_Management_System.Forms
             pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
         }
 
+
+
         private void CmbEquipment_SelectedIndexChanged(object? sender, EventArgs e)
         {
             if (_suppressEquipmentSync) return;
@@ -1993,6 +2012,8 @@ namespace Inventory_Management_System.Forms
             base.OnFormClosed(e);
         }
     }
+
+
 
     // ── Edit Expected Return Date Dialog ───────────────────────────────────
     public class EditExpectedReturnDialog : Form
