@@ -41,6 +41,13 @@ namespace Inventory_Management_System.Forms
         private static readonly Color RowOdd = Color.FromArgb(248, 250, 248);
         private static readonly Color SeparatorColor = Color.FromArgb(234, 237, 241);
 
+
+        private List<MaintenanceRecord> _maintenanceRecords = new();
+        private Button? _btnClearMaintenance;
+        private Panel? _card;
+        private Panel? _scrollHost;
+
+
         public EquipmentDetailPopup(Equipment equipment)
         {
             _equipment = equipment;
@@ -55,6 +62,7 @@ namespace Inventory_Management_System.Forms
                 .FirstOrDefault(e => e.Id == equipment.Id);
             if (eq != null) _equipment = eq;
 
+            LoadMaintenanceRecords();
             InitializeUI();
         }
 
@@ -144,6 +152,9 @@ namespace Inventory_Management_System.Forms
             };
             card.Paint += DrawCardBorder;
             scrollHost.Controls.Add(card);
+            _card = card;
+            _scrollHost = scrollHost;
+
 
             var workArea = Screen.GetWorkingArea(this);
             int formWidth = Math.Min(DialogWidth, workArea.Width - 40);
@@ -222,6 +233,7 @@ namespace Inventory_Management_System.Forms
             AddField(card, "Description", _equipment.Description, ColLeft, ref yLeft, ref altLeft);
             AddField(card, "Notes", _equipment.Notes, ColLeft, ref yLeft, ref altLeft);
             AddPictureField(card, "Picture", _equipment.PicturePath, ColLeft, ref yLeft, ref altLeft);
+            AddLogsAndClearButtons(card, ColLeft, ref yLeft, ref altLeft, _equipment.EquipmentCode);
 
             // ── Right Column: Current Allocation ─────────────────────────────
             AddSectionHeader(card, "▣", "Current Allocation", ColRight, ref yRight);
@@ -248,40 +260,42 @@ namespace Inventory_Management_System.Forms
             AddField(card, "Allocation Date", activeAlloc?.AllocationDate.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
             AddField(card, "Expected Return Date", activeAlloc?.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—", ColRight, ref yRight, ref altRight);
 
-            // ── Right Column: Maintenance History ────────────────────────────
+            // ── Right Column: Maintenance History (scrollable, capped to Logs row) ──
             AddSectionHeader(card, "🔧", "Maintenance History", ColRight, ref yRight);
 
-            List<MaintenanceRecord> records = new();
-            try
+            int maintAvailH = Math.Max(60, yLeft - yRight - 8);
+            var maintPanel = new Panel
             {
-                var svc = new MaintenanceService();
-                var result = svc.GetByEquipmentId(_equipment.Id);
-                if (result.Success && result.Data != null)
-                    records = result.Data;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "EquipmentDetailPopup.BuildCardContent (GetByEquipmentId)");
-            }
+                Location = new Point(ColRight, yRight),
+                Size = new Size(ColWidth, maintAvailH),
+                BackColor = CardBg,
+                AutoScroll = true,
+            };
 
-            if (records.Count == 0)
+            int my = 0;
+            bool altMaint = false;
+
+            if (_maintenanceRecords.Count == 0)
             {
-                AddField(card, "History", "No maintenance history recorded.", ColRight, ref yRight, ref altRight);
+                AddField(maintPanel, "History", "No maintenance history recorded.", 0, ref my, ref altMaint);
             }
             else
             {
-                for (int i = 0; i < records.Count; i++)
+                for (int i = 0; i < _maintenanceRecords.Count; i++)
                 {
-                    var rec = records[i];
-                    AddField(card, $"Record #{i + 1}", rec.ReportedDate.ToString("yyyy-MM-dd"), ColRight, ref yRight, ref altRight);
-                    AddMaintenanceStatusField(card, "Status", rec.Status, ColRight, ref yRight, ref altRight);
-                    AddField(card, "Issue", rec.IssueDescription, ColRight, ref yRight, ref altRight);
-                    AddField(card, "Serviced By", rec.ServicedBy, ColRight, ref yRight, ref altRight);
+                    var rec = _maintenanceRecords[i];
+                    AddField(maintPanel, $"Record #{i + 1}", rec.ReportedDate.ToString("yyyy-MM-dd"), 0, ref my, ref altMaint);
+                    AddMaintenanceStatusField(maintPanel, "Status", rec.Status, 0, ref my, ref altMaint);
+                    AddField(maintPanel, "Issue", rec.IssueDescription, 0, ref my, ref altMaint);
+                    AddField(maintPanel, "Serviced By", rec.ServicedBy, 0, ref my, ref altMaint);
                     string costStr = rec.Cost.HasValue ? $"₨{rec.Cost.Value:N2}" : "—";
-                    AddField(card, "Cost", costStr, ColRight, ref yRight, ref altRight);
-                    AddField(card, "Resolved", rec.ResolvedDate?.ToString("yyyy-MM-dd"), ColRight, ref yRight, ref altRight);
+                    AddField(maintPanel, "Cost", costStr, 0, ref my, ref altMaint);
+                    AddField(maintPanel, "Resolved", rec.ResolvedDate?.ToString("yyyy-MM-dd"), 0, ref my, ref altMaint);
                 }
             }
+
+            card.Controls.Add(maintPanel);
+            yRight = yLeft; // never let the right column push the card taller than the Logs row
 
             int dividerBottom = Math.Max(yLeft, yRight) - 4;
             card.Paint += (s, e) =>
@@ -548,6 +562,22 @@ namespace Inventory_Management_System.Forms
             isAlt = !isAlt;
         }
 
+
+        private void LoadMaintenanceRecords()
+        {
+            try
+            {
+                var svc = new MaintenanceService();
+                var result = svc.GetByEquipmentId(_equipment.Id);
+                _maintenanceRecords = (result.Success && result.Data != null) ? result.Data : new List<MaintenanceRecord>();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "EquipmentDetailPopup.LoadMaintenanceRecords");
+                _maintenanceRecords = new List<MaintenanceRecord>();
+            }
+        }
+
         private void ShowPicture(string storedValue)
         {
             string fullPath;
@@ -751,6 +781,131 @@ namespace Inventory_Management_System.Forms
             pnl.Controls.Add(lblName);
             pnl.Controls.Add(badge);
             card.Controls.Add(pnl);
+        }
+
+        private void AddLogsAndClearButtons(Panel card, int x, ref int y, ref bool isAlt, string equipmentCode)
+        {
+            const int rowHeight = 44;
+
+            var pnl = new Panel
+            {
+                Location = new Point(x, y),
+                Size = new Size(ColWidth, rowHeight),
+                BackColor = isAlt ? RowOdd : RowEven,
+            };
+            pnl.Paint += (s, e) =>
+            {
+                using var pen = new Pen(SeparatorColor, 1);
+                e.Graphics.DrawLine(pen, 8, pnl.Height - 1, pnl.Width - 8, pnl.Height - 1);
+            };
+
+            var btnLogs = new Button
+            {
+                Text = "📜  View Logs",
+                Size = new Size(130, 30),
+                Location = new Point(8, (rowHeight - 30) / 2),
+                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand,
+                UseVisualStyleBackColor = false,
+                BackColor = Color.FromArgb(238, 242, 255),
+                ForeColor = ThemeHelper.Header,
+            };
+            btnLogs.FlatAppearance.BorderColor = Color.FromArgb(199, 210, 254);
+            btnLogs.FlatAppearance.MouseOverBackColor = Color.FromArgb(224, 231, 255);
+            btnLogs.FlatAppearance.BorderSize = 1;
+            btnLogs.Click += (s, e) =>
+            {
+                var dashboard = Application.OpenForms.OfType<DashboardForm>().FirstOrDefault();
+                this.Close();
+                dashboard?.NavigateToLogs(equipmentCode);
+            };
+            pnl.Controls.Add(btnLogs);
+
+            bool hasHistory = _maintenanceRecords.Count > 0;
+            _btnClearMaintenance = new Button
+            {
+                Text = "🗑  Clear History",
+                Size = new Size(140, 30),
+                Location = new Point(btnLogs.Right + 8, (rowHeight - 30) / 2),
+                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = hasHistory ? Cursors.Hand : Cursors.Default,
+                Enabled = hasHistory,
+                UseVisualStyleBackColor = false,
+            };
+            if (hasHistory)
+            {
+                _btnClearMaintenance.BackColor = Color.FromArgb(254, 226, 226);
+                _btnClearMaintenance.ForeColor = Color.FromArgb(185, 28, 28);
+                _btnClearMaintenance.FlatAppearance.BorderColor = Color.FromArgb(252, 165, 165);
+                _btnClearMaintenance.FlatAppearance.MouseOverBackColor = Color.FromArgb(254, 202, 202);
+                _btnClearMaintenance.Click += BtnClearMaintenance_Click;
+            }
+            else
+            {
+                _btnClearMaintenance.BackColor = Color.FromArgb(243, 244, 246);
+                _btnClearMaintenance.ForeColor = Color.FromArgb(156, 163, 175);
+                _btnClearMaintenance.FlatAppearance.BorderColor = Color.FromArgb(229, 231, 235);
+            }
+            _btnClearMaintenance.FlatAppearance.BorderSize = 1;
+            pnl.Controls.Add(_btnClearMaintenance);
+
+            card.Controls.Add(pnl);
+            y += rowHeight;
+            isAlt = !isAlt;
+        }
+
+        private void BtnClearMaintenance_Click(object? sender, EventArgs e)
+        {
+            if (_maintenanceRecords.Count == 0) return;
+
+            var confirm = MessageBox.Show(
+                $"Clear all {_maintenanceRecords.Count} maintenance record(s) for this equipment? This cannot be undone.",
+                "Confirm Clear Maintenance History",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (confirm != DialogResult.Yes) return;
+
+            try
+            {
+                using var db = new InventoryDbContext();
+                var toRemove = db.MaintenanceRecords.Where(m => m.EquipmentId == _equipment.Id).ToList();
+                int removedCount = toRemove.Count;
+                if (removedCount > 0)
+                {
+                    db.MaintenanceRecords.RemoveRange(toRemove);
+                    db.SaveChanges();
+                }
+
+                new AuditService().Log(_equipment.Id, "Maintenance History Cleared",
+                    $"{removedCount} record(s)", "0 records");
+
+                ToastHelper.Show(this, "Maintenance history cleared.", ToastType.Success);
+
+                _maintenanceRecords.Clear();
+                RefreshCardContent();
+            }
+            catch (Exception ex)
+            {
+                ToastHelper.Show(this, "Could not clear maintenance history: " + ex.Message, ToastType.Error);
+            }
+        }
+
+        private void RefreshCardContent()
+        {
+            if (_card == null || _scrollHost == null) return;
+
+            int cardWidth = _card.Width;
+            int cardH = BuildCardContent(_card, cardWidth);
+            _card.Height = cardH;
+
+            var workArea = Screen.GetWorkingArea(this);
+            int contentHeight = cardH + (PaddingOuter * 2);
+            int maxContentHeight = Math.Max(200, workArea.Height - _scrollHost.Top - FooterHeight - 60);
+            int finalScrollHostHeight = Math.Min(contentHeight, maxContentHeight);
+            _scrollHost.Height = finalScrollHostHeight;
+
+            ClientSize = new Size(ClientSize.Width, _scrollHost.Top + finalScrollHostHeight + FooterHeight);
         }
 
         private void DrawCardBorder(object? sender, PaintEventArgs e)

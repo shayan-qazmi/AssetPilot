@@ -86,7 +86,7 @@ namespace Inventory_Management_System.Services
 
                 db.Transactions.Add(transaction);
                 equipment.CurrentStatus = "allocated";
-
+                transaction.ReturnProcessedAt = DateTime.UtcNow;
                 db.SaveChanges();
 
                 _audit.Log(transaction.EquipmentId, AuditService.ActionCheckedOut,
@@ -106,25 +106,42 @@ namespace Inventory_Management_System.Services
             try
             {
                 using var db = new InventoryDbContext();
-                var transaction = db.Transactions.FirstOrDefault(t => t.TransactionId == transactionId);
-                if (transaction == null)
+                var checkOutTx = db.Transactions.Include(t => t.Equipment).FirstOrDefault(t => t.TransactionId == transactionId);
+                if (checkOutTx == null)
                     return ServiceResult<bool>.Fail("Transaction not found.");
 
-                transaction.ActualReturn = DateOnly.FromDateTime(DateTime.Today);
-                transaction.Status = "Completed";
-                transaction.ConditionAfter = conditionAfter;
-                transaction.Remarks = remarks;
+                checkOutTx.ActualReturn = DateOnly.FromDateTime(DateTime.Today);
+                checkOutTx.Status = "Completed";
+                checkOutTx.ConditionAfter = conditionAfter;
+                checkOutTx.Remarks = remarks;
+                checkOutTx.ReturnProcessedAt = DateTime.UtcNow;
 
-                var equipment = db.Equipment.FirstOrDefault(e => e.Id == transaction.EquipmentId);
-                if (equipment != null)
+                // NEW: log the check-in as its own row
+                var checkInTx = new Transaction
                 {
-                    equipment.CurrentStatus = "in_store";
-                }
+                    EquipmentId = checkOutTx.EquipmentId,
+                    TransactionType = "Check-In",
+                    IssuedTo = checkOutTx.IssuedTo,
+                    Department = checkOutTx.Department,
+                    OperatorName = checkOutTx.OperatorName,
+                    TransactionDate = DateTime.UtcNow,
+                    ActualReturn = checkOutTx.ActualReturn,
+                    Status = "Completed",
+                    ConditionBefore = checkOutTx.ConditionBefore,
+                    ConditionAfter = conditionAfter,
+                    Remarks = remarks,
+                    CreatedAt = DateTime.UtcNow,
+                    ReturnProcessedAt = DateTime.UtcNow
+                };
+                db.Transactions.Add(checkInTx);
+
+                var equipment = db.Equipment.FirstOrDefault(e => e.Id == checkOutTx.EquipmentId);
+                if (equipment != null) equipment.CurrentStatus = "in_store";
 
                 db.SaveChanges();
 
-                _audit.Log(transaction.EquipmentId, AuditService.ActionCheckedIn,
-                    $"Status: Allocated | Condition Before: {transaction.ConditionBefore ?? "—"}",
+                _audit.Log(checkOutTx.EquipmentId, AuditService.ActionCheckedIn,
+                    $"Status: Allocated | Condition Before: {checkOutTx.ConditionBefore ?? "—"}",
                     $"Status: In Store | Condition After: {conditionAfter} | Remarks: {(string.IsNullOrWhiteSpace(remarks) ? "—" : remarks)}");
 
                 return ServiceResult<bool>.Ok(true);

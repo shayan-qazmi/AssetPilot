@@ -25,6 +25,34 @@ namespace Inventory_Management_System.Forms
         private int _totalPages = 1;
         private int _totalMatchingCount = 0;
 
+        // ── Pakistan Standard Time (used to render the Timestamp column) ──
+        private static readonly TimeZoneInfo PktZone = ResolvePakistanTimeZone();
+
+        private static TimeZoneInfo ResolvePakistanTimeZone()
+        {
+            try { return TimeZoneInfo.FindSystemTimeZoneById("Pakistan Standard Time"); } // Windows ID
+            catch
+            {
+                try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Karachi"); } // Linux/IANA ID
+                catch
+                {
+                    return TimeZoneInfo.CreateCustomTimeZone(
+                        "PKT_Fallback", TimeSpan.FromHours(5), "Pakistan Standard Time", "PKT");
+                }
+            }
+        }
+
+        /// Formats a UTC timestamp as 12-hour Pakistan local time + date, e.g. "13 Aug 2026, 03:45 PM".
+        private static string FormatPkt(DateTime? utc)
+        {
+            if (!utc.HasValue) return "—";
+            var asUtc = utc.Value.Kind == DateTimeKind.Utc
+                ? utc.Value
+                : DateTime.SpecifyKind(utc.Value, DateTimeKind.Utc);
+            var pkt = TimeZoneInfo.ConvertTimeFromUtc(asUtc, PktZone);
+            return pkt.ToString("dd MMM yyyy, hh:mm tt");
+        }
+
         [System.Runtime.InteropServices.DllImport("user32.dll")]
         private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
@@ -37,6 +65,8 @@ namespace Inventory_Management_System.Forms
         public ReturnsForm()
         {
             InitializeComponent();
+            SetupTimestampColumn();
+            SetupPageSizeOptions();
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
             LoadReturns();
@@ -47,6 +77,36 @@ namespace Inventory_Management_System.Forms
                 dgvReturns.ClearSelection();
                 dgvReturns.CurrentCell = null;
             };
+        }
+
+        /// Inserts a "Timestamp" column right after "Return Date" if it doesn't already exist.
+        /// Done in code so we don't have to hand-edit the Designer file.
+        private void SetupTimestampColumn()
+        {
+            if (dgvReturns.Columns.Contains("Timestamp")) return;
+
+            var col = new DataGridViewTextBoxColumn
+            {
+                Name = "Timestamp",
+                HeaderText = "Timestamp",
+                Width = 175,
+                SortMode = DataGridViewColumnSortMode.NotSortable
+            };
+
+            int insertAt = dgvReturns.Columns.Contains("ReturnDate")
+                ? dgvReturns.Columns["ReturnDate"].Index + 1
+                : dgvReturns.Columns.Count;
+
+            dgvReturns.Columns.Insert(insertAt, col);
+        }
+
+        /// Expands the page-size options to include 250 and 500.
+        private void SetupPageSizeOptions()
+        {
+            string current = cmbPageSize.SelectedItem?.ToString() ?? "25";
+            cmbPageSize.Items.Clear();
+            cmbPageSize.Items.AddRange(new object[] { "25", "50", "100", "250", "500" });
+            cmbPageSize.SelectedItem = cmbPageSize.Items.Contains(current) ? current : "25";
         }
 
         private void ApplyTheme()
@@ -214,6 +274,7 @@ namespace Inventory_Management_System.Forms
                             item.Employee,
                             item.Location,
                             item.ReturnDate,
+                            FormatPkt(item.Timestamp),
                             item.Condition,
                             item.Source,
                             item.IsOverdue ? "Yes" : "No"
@@ -253,6 +314,7 @@ namespace Inventory_Management_System.Forms
             public string Location { get; set; } = "—";
             public DateTime SortDate { get; set; }
             public string ReturnDate { get; set; } = "—";
+            public DateTime? Timestamp { get; set; } // real processed-at moment (UTC), when available
             public string Condition { get; set; } = "—";
             public int DurationDays { get; set; }
             public bool IsOverdue { get; set; }
@@ -283,7 +345,12 @@ namespace Inventory_Management_System.Forms
                     .Include(a => a.Equipment)
                     .Include(a => a.Employee)
                     .Include(a => a.Location)
-                    .OrderByDescending(a => a.ActualReturnDate)
+                    .ToList()
+                    // Ordered in-memory (not translated to SQL) so we can fall back to
+                    // ActualReturnDate for older rows that predate ReturnProcessedAt.
+                    .OrderByDescending(a => a.ReturnProcessedAt)
+                    .ThenByDescending(a => a.ActualReturnDate)
+                    .ThenByDescending(a => a.Id)
                     .ToList();
 
                 var allocRows = _allReturns.Select(item =>
@@ -302,13 +369,13 @@ namespace Inventory_Management_System.Forms
                         Location = FormatLocation(item.Location),
                         SortDate = returnDate,
                         ReturnDate = item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
+                        Timestamp = item.ReturnProcessedAt,
                         Condition = item.Equipment?.ConditionGrade ?? "—",
                         DurationDays = (returnDate - item.AllocationDate).Days,
                         IsOverdue = item.ExpectedReturnDate.HasValue && item.ActualReturnDate.HasValue &&
                                     item.ActualReturnDate.Value > item.ExpectedReturnDate.Value,
                         AllocationRef = item
-                    
-                };
+                    };
                 }).ToList();
 
                 var completedCheckIns = db.Transactions
@@ -330,6 +397,10 @@ namespace Inventory_Management_System.Forms
                         Location = string.IsNullOrWhiteSpace(t.Department) ? "—" : t.Department,
                         SortDate = returnDate,
                         ReturnDate = t.ActualReturn?.ToString("yyyy-MM-dd") ?? "—",
+                        // NOTE: requires a ReturnProcessedAt (DateTime?) column added to Transaction,
+                        // stamped when the check-in/out record is marked Completed. Until that's
+                        // wired up, these rows will show "—" here (same as before this change).
+                        Timestamp = t.ReturnProcessedAt,
                         Condition = t.ConditionAfter ?? "—",
                         DurationDays = (returnDate - t.TransactionDate).Days,
                         IsOverdue = t.ExpectedReturn.HasValue && t.ActualReturn.HasValue &&
@@ -338,8 +409,12 @@ namespace Inventory_Management_System.Forms
                     };
                 }).ToList();
 
+                // Latest activity first: real timestamp wins when we have one, falling back to
+                // the return date, and finally the row id, so ties never look "shuffled".
                 _allReturnRows = allocRows.Concat(checkInRows)
-                    .OrderByDescending(r => r.SortDate)
+                    .OrderByDescending(r => r.Timestamp ?? DateTime.MinValue)
+                    .ThenByDescending(r => r.SortDate)
+                    .ThenByDescending(r => Math.Abs(r.Id))
                     .ToList();
 
                 _suggest?.LoadItems(_allReturns);   // suggestion dropdown stays Allocation-only, unchanged
@@ -347,7 +422,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-               ToastHelper.Show(this, "Error loading returns: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(this, "Error loading returns: " + ex.Message, ToastType.Error);
 
             }
         }
@@ -396,17 +471,18 @@ namespace Inventory_Management_System.Forms
             {
                 int rowIdx = dgvReturns.Rows.Add(
                           item.Id, item.QrCode, item.EquipmentCode, item.EquipmentName,
-                          item.Employee, item.Location, item.ReturnDate, item.Condition, item.Source,
+                          item.Employee, item.Location, item.ReturnDate, FormatPkt(item.Timestamp),
+                          item.Condition, item.Source,
                           item.IsOverdue ? "Yes" : "No");
 
                 if (item.DurationDays > 30)
-            dgvReturns.Rows[rowIdx].Cells["ReturnDate"].Style.ForeColor = ThemeHelper.Warning;
+                    dgvReturns.Rows[rowIdx].Cells["ReturnDate"].Style.ForeColor = ThemeHelper.Warning;
 
-        var overdueCell = dgvReturns.Rows[rowIdx].Cells["Overdue"];
-        overdueCell.Style.Font = ThemeHelper.FontBold;
-        overdueCell.Style.ForeColor = item.IsOverdue ? ThemeHelper.Danger : ThemeHelper.TextSecondary;
+                var overdueCell = dgvReturns.Rows[rowIdx].Cells["Overdue"];
+                overdueCell.Style.Font = ThemeHelper.FontBold;
+                overdueCell.Style.ForeColor = item.IsOverdue ? ThemeHelper.Danger : ThemeHelper.TextSecondary;
 
-        var sourceCell = dgvReturns.Rows[rowIdx].Cells["Source"];
+                var sourceCell = dgvReturns.Rows[rowIdx].Cells["Source"];
                 sourceCell.Style.ForeColor = item.Source == "Check In/Out"
                     ? Color.FromArgb(25, 118, 210)
                     : Color.FromArgb(107, 114, 128);
@@ -440,7 +516,7 @@ namespace Inventory_Management_System.Forms
 
                 if (activeAllocations.Count == 0)
                 {
-                  ToastHelper.Show(this, "There are no active approved allocations to return.", ToastType.Info);
+                    ToastHelper.Show(this, "There are no active approved allocations to return.", ToastType.Info);
 
                     return;
                 }
@@ -455,11 +531,12 @@ namespace Inventory_Management_System.Forms
                 if (alloc == null)
                 {
                     ToastHelper.Show(this, "Allocation not found.", ToastType.Error);
-                    return; 
+                    return;
                 }
 
                 alloc.Status = "returned";
                 alloc.ActualReturnDate = frm.ReturnDate;
+                alloc.ReturnProcessedAt = DateTime.UtcNow; // real "processed at" moment for sorting/display
                 if (alloc.Equipment != null)
                 {
                     alloc.Equipment.CurrentStatus = "in_store";
@@ -469,10 +546,10 @@ namespace Inventory_Management_System.Forms
                 _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store");
                 ToastHelper.Show(this, $"Return processed for '{alloc.Equipment?.EquipmentCode}'.", ToastType.Success);
                 LoadReturns();
-                }
+            }
             catch (Exception ex)
             {
-               ToastHelper.Show(this, "Failed to process return: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(this, "Failed to process return: " + ex.Message, ToastType.Error);
 
             }
         }
@@ -481,7 +558,7 @@ namespace Inventory_Management_System.Forms
         {
             var ret = GetSelectedReturn();
             if (ret == null)
-            { 
+            {
                 ToastHelper.Show(this, "Please select a return to edit.", ToastType.Warning);
                 return;
             }
@@ -499,6 +576,7 @@ namespace Inventory_Management_System.Forms
                     return;
                 }
                 alloc.ActualReturnDate = frm.ReturnDate;
+                alloc.ReturnProcessedAt = DateTime.UtcNow; // bump to reflect the edit as the latest activity
                 if (alloc.Equipment != null) alloc.Equipment.ConditionGrade = frm.ConditionGrade;
                 db.SaveChanges();
                 ToastHelper.Show(this, "Return updated successfully.", ToastType.Success);
@@ -551,6 +629,7 @@ namespace Inventory_Management_System.Forms
                 string oldValue = $"{alloc.Equipment?.EquipmentCode} - returned";
                 alloc.Status = "approved";
                 alloc.ActualReturnDate = null;
+                alloc.ReturnProcessedAt = null; // no longer a "return" — clear the processed-at stamp
                 if (alloc.Equipment != null) alloc.Equipment.CurrentStatus = "allocated";
                 db.SaveChanges();
                 _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned,
@@ -613,7 +692,7 @@ namespace Inventory_Management_System.Forms
                 if (sfd.ShowDialog() != DialogResult.OK) return;
 
                 var sb = new StringBuilder();
-                sb.AppendLine("Return ID,QR Code,Equipment Code,Equipment Name,Returned By,Location,Return Date,Condition,Overdue");
+                sb.AppendLine("Return ID,QR Code,Equipment Code,Equipment Name,Returned By,Location,Return Date,Timestamp,Condition,Overdue");
                 foreach (DataGridViewRow row in dgvReturns.Rows)
                 {
                     string E(object? v) => $"\"{v?.ToString()?.Replace("\"", "\"\"") ?? ""}\"";
@@ -621,7 +700,7 @@ namespace Inventory_Management_System.Forms
                         E(row.Cells["ReturnID"].Value), E(row.Cells["QRCode"].Value),
                         E(row.Cells["EquipmentCode"].Value), E(row.Cells["EquipmentName"].Value),
                         E(row.Cells["Employee"].Value), E(row.Cells["Location"].Value),
-                        E(row.Cells["ReturnDate"].Value),
+                        E(row.Cells["ReturnDate"].Value), E(row.Cells["Timestamp"].Value),
                         E(row.Cells["Condition"].Value), E(row.Cells["Overdue"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
@@ -629,7 +708,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                 ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
             }
         }
 

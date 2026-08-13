@@ -182,17 +182,30 @@ namespace Inventory_Management_System.Forms
             public int? LocationId { get; set; }
         }
 
+        private void SetupPageSizeOptions()
+        {
+            cmbPageSize.Items.Clear();
+            cmbPageSize.Items.Add("10");
+            cmbPageSize.Items.Add("25");
+            cmbPageSize.Items.Add("50");
+            cmbPageSize.Items.Add("100");
+            cmbPageSize.Items.Add("250");
+            cmbPageSize.Items.Add("500");
+            cmbPageSize.Items.Add("1000");
+            cmbPageSize.SelectedIndex = 1;
+        }
+
         public AllocationForm()
         {
             InitializeComponent();
-
-            flowToolbar.Layout += FlowToolbar_Layout;   // ← moved up: must be wired before Setup* adds controls
+            flowToolbar.Layout += FlowToolbar_Layout;
 
             ApplyTheme();
             SetupEquipmentFilterDropdown();
-            SetupSelectModeDropdown();   // ← replaces plain btnSelectAll with dropdown
+            SetupSelectModeDropdown();
             SetupCategoryFilterDropdown();
             SetupEditReturnButton();
+            SetupPageSizeOptions();   // ← moved here
             LoadAllocations();
             SetupSuggestions();
 
@@ -209,7 +222,16 @@ namespace Inventory_Management_System.Forms
                 dgvAllocation.CurrentCell = null;
                 RecalcToolbarHeight();   // ← final correction once ClientSize.Width is accurate
             };
-        }   
+        }
+
+        public AllocationForm(bool showAvailableOnly) : this()
+        {
+            if (showAvailableOnly)
+            {
+                int idx = cmbEquipmentFilter.Items.IndexOf("Equipment: Available");
+                if (idx >= 0) cmbEquipmentFilter.SelectedIndex = idx;
+            }
+        }
 
         private void SetupEquipmentFilterDropdown()
         {
@@ -1883,6 +1905,8 @@ namespace Inventory_Management_System.Forms
             pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
         }
 
+
+
         private void CmbEquipment_SelectedIndexChanged(object? sender, EventArgs e)
         {
             if (_suppressEquipmentSync) return;
@@ -1988,6 +2012,8 @@ namespace Inventory_Management_System.Forms
             base.OnFormClosed(e);
         }
     }
+
+
 
     // ── Edit Expected Return Date Dialog ───────────────────────────────────
     public class EditExpectedReturnDialog : Form

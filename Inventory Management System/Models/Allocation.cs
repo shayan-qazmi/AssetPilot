@@ -1,6 +1,7 @@
 //Models/Allocation.cs
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Inventory_Management_System.Models;
 
@@ -43,6 +44,9 @@ public partial class Allocation
     public virtual Location? Location { get; set; }
 
     public virtual Allocation? PreviousAllocation { get; set; }
+
+    [Column("return_processed_at")]
+    public DateTime? ReturnProcessedAt { get; set; }
 
     public virtual ICollection<Allocation> InversePreviousAllocation { get; set; } = new List<Allocation>();
 }

@@ -48,6 +48,8 @@ public partial class Transaction
     /// <summary>created_at — row creation timestamp</summary>
     public DateTime CreatedAt { get; set; }
 
+    public DateTime? ReturnProcessedAt { get; set; }
+
     // ── Navigation ────────────────────────────────────────────────────────
     public virtual Equipment Equipment { get; set; } = null!;
 }

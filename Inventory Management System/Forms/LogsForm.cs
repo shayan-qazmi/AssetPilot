@@ -28,6 +28,7 @@ namespace Inventory_Management_System.Forms
         public LogsForm()
         {
             InitializeComponent();
+            SetupPageSizeOptions();
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
             LoadLogs();
@@ -126,6 +127,19 @@ namespace Inventory_Management_System.Forms
             txt.Leave += (s, e) => { currentBorder = inputBorder; wrapper.Invalidate(); };
 
             RoundInput(null, EventArgs.Empty);
+        }
+
+        public LogsForm(string equipmentCode) : this()
+        {
+            txtSearch.Text = equipmentCode;
+        }
+
+        private void SetupPageSizeOptions()
+        {
+            string current = cmbPageSize.SelectedItem?.ToString() ?? "25";
+            cmbPageSize.Items.Clear();
+            cmbPageSize.Items.AddRange(new object[] { "25", "50", "100", "250", "500", "1000" });
+            cmbPageSize.SelectedItem = cmbPageSize.Items.Contains(current) ? current : "25";
         }
 
 
@@ -295,8 +309,8 @@ namespace Inventory_Management_System.Forms
                   item.ChangedByUser != null ? $"{item.ChangedByUser.FullName} (@{item.ChangedByUser.Username})" : "System",
                     item.OldValue ?? "",
                     item.NewValue ?? "",
-                  TimeHelper.ToPakistanTime(item.CreatedAt)?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""
-                );
+                    TimeHelper.ToPakistanTime(item.CreatedAt)?.ToString("dd MMM yyyy, hh:mm tt") ?? "—"
+);
 
                 var row = dgvLogs.Rows[rowIdx];
                 var actionCell = row.Cells["Action"];
@@ -362,6 +376,7 @@ namespace Inventory_Management_System.Forms
             "transferred" => "Transferred",
             "maintenance_opened" => "Maintenance Opened",
             "maintenance_resolved" => "Maintenance Resolved",
+            "Maintenance History Cleared" => "Maintenance History Cleared",
             _ => raw ?? "Unknown"
         };
 

@@ -1039,6 +1039,12 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
+            if (string.IsNullOrWhiteSpace(txtSerialNumber.Text))
+            {
+                ToastHelper.Show(this, "Serial Number is required.", ToastType.Warning);
+                return;
+            }
+
             // Equipment Code and QR Code are no longer entered manually —
             // EquipmentService auto-generates them on Add when left blank,
             // and they are simply left untouched on Update.
