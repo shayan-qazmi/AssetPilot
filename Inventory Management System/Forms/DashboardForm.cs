@@ -105,7 +105,10 @@ namespace Inventory_Management_System
         private float _donutAnimProgress = 1f;
         private const int AnimTickIntervalMs = 15;
         private const int CenterCardIndex = 3; // "Under Repair"
-        private const int BellRightOffset = 130;
+        private const int BellRightOffset = 180; // widened to make room for theme-toggle button
+        private Panel? _pnlThemeToggle;
+        private float _toggleThumbProgress = 0f;
+        private System.Windows.Forms.Timer? _toggleAnimTimer;
         private float _barAnimProgress = 1f;
         private float _activitiesAnimProgress = 1f;
         private Rectangle _activitiesTargetBounds;
@@ -190,8 +193,9 @@ namespace Inventory_Management_System
 
             // Dashboard's own top strip color — intentionally NOT ThemeHelper.Header,
             // since that color is shared by other forms' header strips.
-            panelTop.BackColor    = TopBarYellow;
+            panelTop.BackColor    = ThemeHelper.TopBarBg;
             NotificationHelper.AttachBell(panelTop, this, rightOffset: BellRightOffset);
+            BuildThemeToggle();
             BuildTopSearchBar();
             BuildTopProfileWidget();
             panelTop.Resize += (s, e) =>
@@ -209,7 +213,7 @@ namespace Inventory_Management_System
             lblTitle.Dock         = DockStyle.Fill;
             lblTitle.TextAlign    = ContentAlignment.MiddleCenter;
             lblTitle.Font         = new Font(lblTitle.Font.FontFamily, 16F, FontStyle.Bold);
-            lblTitle.ForeColor    = Color.FromArgb(33, 33, 33);
+            lblTitle.ForeColor    = ThemeHelper.TitleForeColor;
             lblTitle.Visible      = true;
             this.Text             = "Q-Inventory";
 
@@ -328,8 +332,8 @@ namespace Inventory_Management_System
             btnLogout.TextAlign = ContentAlignment.MiddleCenter;
             btnLogout.Padding = new Padding(0);
 
-            panelDesktop.BackColor = Color.FromArgb(240, 244, 240);
-            panelStats.BackColor   = Color.FromArgb(240, 244, 240);
+            panelDesktop.BackColor = ThemeHelper.DashboardBg;
+            panelStats.BackColor   = ThemeHelper.DashboardBg;
 
             // Who's logged in — avatar + full name + @username, clickable
             // through to Settings > Users.
@@ -342,17 +346,17 @@ namespace Inventory_Management_System
             var wrap = new Panel
             {
                 Size = new Size(100, 24),
-                BackColor = Color.White,   // SOLID — covers the title underneath completely
+                BackColor = ThemeHelper.PeriodDropBg,   // SOLID — covers the title underneath completely
                 Cursor = Cursors.Hand
             };
             var lbl = new Label
             {
                 Text = _barPeriod + "  ▾",
                 Font = new Font("Segoe UI", 8f),
-                ForeColor = ThemeHelper.TextSecondary,
+                ForeColor = ThemeHelper.ChartSecText,
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleRight,
-                BackColor = Color.White,   // also solid, not transparent
+                BackColor = ThemeHelper.PeriodDropBg,   // also solid, not transparent
                 Cursor = Cursors.Hand,
                 AutoEllipsis = true
             };
@@ -385,11 +389,11 @@ namespace Inventory_Management_System
                 StartPosition = FormStartPosition.Manual,
                 ShowInTaskbar = false,
                 Size = new Size(120, options.Length * 28 + 8),
-                BackColor = Color.White
+                BackColor = ThemeHelper.PopupBg
             };
             popup.Paint += (s, e) =>
             {
-                using var pen = new Pen(Color.FromArgb(220, 220, 220), 1);
+                using var pen = new Pen(ThemeHelper.PopupBorder, 1);
                 e.Graphics.DrawRectangle(pen, 0, 0, popup.Width - 1, popup.Height - 1);
             };
 
@@ -408,10 +412,10 @@ namespace Inventory_Management_System
                     ForeColor = opt == _barPeriod ? ThemeHelper.Accent : ThemeHelper.TextPrimary,
                     TextAlign = ContentAlignment.MiddleLeft,
                     Cursor = Cursors.Hand,
-                    BackColor = Color.White
+                    BackColor = ThemeHelper.PopupBg
                 };
-                row.MouseEnter += (s, e) => row.BackColor = Color.FromArgb(243, 244, 246);
-                row.MouseLeave += (s, e) => row.BackColor = Color.White;
+                row.MouseEnter += (s, e) => row.BackColor = ThemeHelper.PopupHoverBg;
+                row.MouseLeave += (s, e) => row.BackColor = ThemeHelper.PopupBg;
                 row.Click += (s, e) =>
                 {
                     _barPeriod = opt;
@@ -451,6 +455,104 @@ namespace Inventory_Management_System
                 x += cardW + gap;
             }
         }
+        // ── Theme Toggle Button ───────────────────────────────────────────
+        private void BuildThemeToggle()
+        {
+            var old = panelTop.Controls.OfType<Panel>().FirstOrDefault(p => p.Name == "pnlThemeToggle");
+            old?.Dispose();
+
+            const int w = 60, h = 28;
+            _toggleThumbProgress = ThemeHelper.IsDarkMode ? 1f : 0f;
+
+            _pnlThemeToggle = new Panel
+            {
+                Name = "pnlThemeToggle",
+                Size = new Size(w, h),
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+
+            using (var regionPath = RoundedRect(new Rectangle(0, 0, w - 1, h - 1), h / 2))
+                _pnlThemeToggle.Region = new Region(regionPath);
+
+            _pnlThemeToggle.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+
+                using var trackPath = RoundedRect(new Rectangle(0, 0, w - 1, h - 1), h / 2);
+                Color trackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(45, 48, 55) : Color.FromArgb(214, 224, 200);
+                using var trackBrush = new SolidBrush(trackColor);
+                g.FillPath(trackBrush, trackPath);
+                using var trackPen = new Pen(Color.FromArgb(40, 0, 0, 0), 1f);
+                g.DrawPath(trackPen, trackPath);
+
+                using var iconFont = new Font("Segoe UI Emoji", 10f);
+                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                using var sunFg = new SolidBrush(ThemeHelper.IsDarkMode ? Color.FromArgb(120, 120, 120) : Color.FromArgb(235, 165, 20));
+                using var moonFg = new SolidBrush(ThemeHelper.IsDarkMode ? Color.FromArgb(205, 215, 255) : Color.FromArgb(150, 150, 150));
+                g.DrawString("☀", iconFont, sunFg, new RectangleF(0, 0, h, h), sf);
+                g.DrawString("🌙", iconFont, moonFg, new RectangleF(w - h, 0, h, h), sf);
+
+                int thumbD = h - 6;
+                int thumbX = (int)(3 + (w - thumbD - 6) * _toggleThumbProgress);
+                using var thumbShadow = new SolidBrush(Color.FromArgb(60, 0, 0, 0));
+                g.FillEllipse(thumbShadow, thumbX - 1, 4, thumbD, thumbD);
+                using var thumbBrush = new SolidBrush(Color.White);
+                g.FillEllipse(thumbBrush, thumbX, 3, thumbD, thumbD);
+            };
+
+            _pnlThemeToggle.Click += (s, e) => ToggleThemeAnimated();
+
+            panelTop.Controls.Add(_pnlThemeToggle);
+            _pnlThemeToggle.BringToFront();
+            PositionThemeToggle();
+        }
+
+        private void ToggleThemeAnimated()
+        {
+            _toggleAnimTimer?.Stop();
+            _toggleAnimTimer?.Dispose();
+
+            ThemeHelper.ToggleTheme();
+            bool toDark = ThemeHelper.IsDarkMode;
+
+            _toggleAnimTimer = new System.Windows.Forms.Timer { Interval = 12 };
+            _toggleAnimTimer.Tick += (s, e) =>
+            {
+                const float step = 0.18f;
+                _toggleThumbProgress = toDark
+                    ? Math.Min(1f, _toggleThumbProgress + step)
+                    : Math.Max(0f, _toggleThumbProgress - step);
+                _pnlThemeToggle?.Invalidate();
+
+                if ((toDark && _toggleThumbProgress >= 1f) || (!toDark && _toggleThumbProgress <= 0f))
+                {
+                    _toggleAnimTimer?.Stop();
+                    _toggleAnimTimer?.Dispose();
+                    _toggleAnimTimer = null;
+                }
+            };
+            _toggleAnimTimer.Start();
+
+            SuspendLayout();
+            ApplyTheme();
+            if (panelStats.Visible) LoadStats();
+            panelTop.Invalidate(true);
+            ResumeLayout(true);
+        }
+
+        private void PositionThemeToggle()
+        {
+            if (_pnlThemeToggle == null) return;
+            int bellLeftEdge = panelTop.Width - BellRightOffset;
+            int toggleW = _pnlThemeToggle.Width;
+            int toggleX = bellLeftEdge - 10 - toggleW;
+            _pnlThemeToggle.Location = new Point(toggleX, (panelTop.Height - _pnlThemeToggle.Height) / 2);
+            _pnlThemeToggle.Invalidate();
+        }
+
         private void BuildTopSearchBar()
         {
             var existing = panelTop.Controls.OfType<Panel>().FirstOrDefault(p => p.Name == "pnlSearchBox");
@@ -482,13 +584,14 @@ namespace Inventory_Management_System
 
                 using var path = RoundedRect(new Rectangle(0, 0, _pnlSearchBox.Width - 1, _pnlSearchBox.Height - 1), boxHeight / 2);
 
-                using var fillBrush = new SolidBrush(Color.White);
+                using var fillBrush = new SolidBrush(ThemeHelper.SearchBoxBg);
                 g.FillPath(fillBrush, path);
                 using var borderPen = new Pen(Color.FromArgb(40, 0, 0, 0), 1f);
                 g.DrawPath(borderPen, path);
 
                 // magnifying glass icon
-                using var iconPen = new Pen(Color.FromArgb(140, 140, 140), 1.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+                Color iconColor = ThemeHelper.IsDarkMode ? Color.FromArgb(160, 170, 185) : Color.FromArgb(140, 140, 140);
+                using var iconPen = new Pen(iconColor, 1.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
                 int glassCx = 20, glassCy = boxHeight / 2 - 2;
                 int glassR = 6;
                 g.DrawEllipse(iconPen, glassCx - glassR, glassCy - glassR, glassR * 2, glassR * 2);
@@ -502,8 +605,8 @@ namespace Inventory_Management_System
                 Name = "txtSearch",
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Segoe UI", 9f),
-                ForeColor = Color.FromArgb(55, 65, 81),
-                BackColor = Color.White,
+                ForeColor = ThemeHelper.SearchFgColor,
+                BackColor = ThemeHelper.SearchBoxBg,
                 Location = new Point(36, (boxHeight - 18) / 2),
                 Size = new Size(boxWidth - 36 - 52, 18),
                 PlaceholderText = "Search anything..."
@@ -514,7 +617,7 @@ namespace Inventory_Management_System
             {
                 Text = "Ctrl K",
                 Font = new Font("Segoe UI", 7f),
-                ForeColor = Color.FromArgb(170, 170, 170),
+                ForeColor = ThemeHelper.IsDarkMode ? Color.FromArgb(130, 140, 155) : Color.FromArgb(170, 170, 170),
                 AutoSize = false,
                 Size = new Size(44, boxHeight),
                 Location = new Point(boxWidth - 48, 0),
@@ -751,11 +854,17 @@ namespace Inventory_Management_System
         private void PositionTopSearchBar()
         {
             if (_pnlSearchBox == null) return;
-            const int gapFromBell = 20;
-            int bellLeftEdge = panelTop.Width - BellRightOffset;   // was "- 60"
+            // Bell left-edge is (panelTop.Width - BellRightOffset).
+            // Theme toggle sits 10px left of the bell.
+            // Search bar sits 20px left of the toggle.
+            int toggleW = _pnlThemeToggle?.Width ?? 60;
+            int bellLeftEdge = panelTop.Width - BellRightOffset;
+            int toggleLeft   = bellLeftEdge - 10 - toggleW;
+            const int gapFromToggle = 20;
             _pnlSearchBox.Location = new Point(
-                bellLeftEdge - gapFromBell - _pnlSearchBox.Width,
+                toggleLeft - gapFromToggle - _pnlSearchBox.Width,
                 (panelTop.Height - _pnlSearchBox.Height) / 2);
+            PositionThemeToggle();
         }
         private void BuildSidebarToggle()
         {
@@ -1649,7 +1758,7 @@ namespace Inventory_Management_System
             _panelCharts = new DoubleBufferedPanel
             {
                 Name = "panelCharts",
-                BackColor = Color.FromArgb(240, 244, 240),
+                BackColor = ThemeHelper.DashboardBg,
                 Dock = DockStyle.Fill,
                 Padding = new Padding(14, 12, 14, 12),
                 AutoScroll = false
@@ -1667,15 +1776,15 @@ namespace Inventory_Management_System
             {
                 Text = "›",
                 Font = new Font("Segoe UI", 15f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(33, 33, 33),
+                ForeColor = ThemeHelper.ChartBodyText,
                 AutoSize = true,
                 Cursor = Cursors.Hand,
                 BackColor = Color.Transparent,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
             lnkViewAllEquipment.Click += btnEquipment_Click;
-            lnkViewAllEquipment.MouseEnter += (s, e) => lnkViewAllEquipment.ForeColor = Color.FromArgb(80, 80, 80);
-            lnkViewAllEquipment.MouseLeave += (s, e) => lnkViewAllEquipment.ForeColor = Color.FromArgb(33, 33, 33);
+            lnkViewAllEquipment.MouseEnter += (s, e) => lnkViewAllEquipment.ForeColor = ThemeHelper.ChartTitleText;
+            lnkViewAllEquipment.MouseLeave += (s, e) => lnkViewAllEquipment.ForeColor = ThemeHelper.ChartBodyText;
             _panelDonut.Controls.Add(lnkViewAllEquipment);
             lnkViewAllEquipment.Location = new Point(_panelDonut.Width - lnkViewAllEquipment.PreferredWidth - 16, 10);
             lnkViewAllEquipment.BringToFront();
@@ -1793,7 +1902,7 @@ namespace Inventory_Management_System
                 Size = new Size(card.Width, Math.Max(0, card.Height - 45)),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
                 AutoScroll = true,
-                BackColor = Color.White,
+                BackColor = ThemeHelper.ChartHostBg,
                 Tag = "activitiesHost"
             };
             card.Controls.Add(listHost);
@@ -1802,15 +1911,15 @@ namespace Inventory_Management_System
             {
                 Text = "›",
                 Font = new Font("Segoe UI", 15f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(33, 33, 33),
+                ForeColor = ThemeHelper.ChartBodyText,
                 AutoSize = true,
                 Cursor = Cursors.Hand,
                 BackColor = Color.Transparent,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
             lnkViewAll.Click += btnLogs_Click;
-            lnkViewAll.MouseEnter += (s, e) => lnkViewAll.ForeColor = Color.FromArgb(80, 80, 80);
-            lnkViewAll.MouseLeave += (s, e) => lnkViewAll.ForeColor = Color.FromArgb(33, 33, 33);
+            lnkViewAll.MouseEnter += (s, e) => lnkViewAll.ForeColor = ThemeHelper.ChartTitleText;
+            lnkViewAll.MouseLeave += (s, e) => lnkViewAll.ForeColor = ThemeHelper.ChartBodyText;
             lnkViewAll.Location = new Point(card.Width - lnkViewAll.PreferredWidth - 16, 8);
             card.Controls.Add(lnkViewAll);
             lnkViewAll.BringToFront();
@@ -1895,7 +2004,7 @@ namespace Inventory_Management_System
                 Size = new Size(28, 28),
                 Location = new Point(0, 4),
                 TextAlign = ContentAlignment.MiddleCenter,
-                BackColor = Color.FromArgb(243, 244, 246)
+                BackColor = ThemeHelper.ActivityIconBg
             };
             row.Controls.Add(lblIcon);
 
@@ -1903,7 +2012,7 @@ namespace Inventory_Management_System
             {
                 Text = message,
                 Font = new Font("Segoe UI", 8.5f),
-                ForeColor = ThemeHelper.TextPrimary,
+                ForeColor = ThemeHelper.ChartBodyText,
                 AutoSize = false,
                 Size = new Size(width - 38, 32),
                 Location = new Point(36, 0),
@@ -1915,7 +2024,7 @@ namespace Inventory_Management_System
             {
                 Text = timeLine,
                 Font = new Font("Segoe UI", 7.5f),
-                ForeColor = Color.FromArgb(156, 163, 175),
+                ForeColor = ThemeHelper.ChartSecText,
                 AutoSize = true,
                 Location = new Point(36, 30)
             };
@@ -1939,7 +2048,7 @@ namespace Inventory_Management_System
         // ════════════════════════════════════════════════════════════════
         private static Panel MakeChartCard(string title)
         {
-            var card = new DoubleBufferedPanel { BackColor = Color.White };
+            var card = new DoubleBufferedPanel { BackColor = ThemeHelper.ChartCardBg };
 
             card.Paint += (s, e) =>
             {
@@ -1947,14 +2056,18 @@ namespace Inventory_Management_System
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
+                // Card body background (respects dark mode)
+                using var bodyBrush = new SolidBrush(ThemeHelper.ChartCardBg);
+                g.FillRectangle(bodyBrush, 0, 0, card.Width, card.Height);
+
                 using var path = RoundedRect(new Rectangle(0, 0, card.Width - 1, card.Height - 1), 14);
                 card.Region = new Region(path);
 
-                using var hBrush = new SolidBrush(Color.FromArgb(248, 250, 248));
+                using var hBrush = new SolidBrush(ThemeHelper.ChartCardHdrBg);
                 g.FillRectangle(hBrush, 0, 0, card.Width, 44);
 
                 using var tFont = new Font("Segoe UI", 10f, FontStyle.Bold, GraphicsUnit.Point);
-                using var tFg = new SolidBrush(Color.FromArgb(27, 46, 26));
+                using var tFg = new SolidBrush(ThemeHelper.ChartTitleText);
 
                 string titleText = card.Tag?.ToString() ?? "";
                 const int reservedRight = 130;
@@ -1962,7 +2075,7 @@ namespace Inventory_Management_System
                 using var titleSf = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
                 g.DrawString(titleText, tFont, tFg, titleRect, titleSf);
 
-                using var div = new Pen(Color.FromArgb(229, 231, 235), 1f);
+                using var div = new Pen(ThemeHelper.ChartDivider, 1f);
                 g.DrawLine(div, 0, 44, card.Width, 44);
             };
 
@@ -2014,13 +2127,13 @@ namespace Inventory_Management_System
                 start += animSweep;
             }
 
-            using var hole = new SolidBrush(Color.White);
+            using var hole = new SolidBrush(ThemeHelper.DonutHoleBg);
             g.FillEllipse(hole, innerR);
 
             using var nf = new Font("Segoe UI", 16f, FontStyle.Bold, GraphicsUnit.Point);
             using var sf = new Font("Segoe UI", 7.5f, FontStyle.Regular, GraphicsUnit.Point);
-            using var fg = new SolidBrush(Color.FromArgb(17, 24, 39));
-            using var fg2 = new SolidBrush(Color.FromArgb(107, 114, 128));
+            using var fg = new SolidBrush(ThemeHelper.DonutNumText);
+            using var fg2 = new SolidBrush(ThemeHelper.DonutSubText);
             var ns = g.MeasureString(total.ToString(), nf);
             g.DrawString(total.ToString(), nf, fg, new PointF(cx - ns.Width / 2f, cy - ns.Height / 2f - 5));
             var ss = g.MeasureString("Total", sf);
@@ -2036,7 +2149,7 @@ namespace Inventory_Management_System
             {
                 using var db2 = new SolidBrush(seg.Color);
                 g.FillEllipse(db2, lx, ly + rowH / 2 - 5, 10, 10);
-                using var lc = new SolidBrush(Color.FromArgb(55, 65, 81));
+                using var lc = new SolidBrush(ThemeHelper.ChartBodyText);
                 g.DrawString(seg.Label, lf, lc, lx + 16, ly + rowH / 2 - 14);
                 using var vc = new SolidBrush(seg.Color);
                 g.DrawString(seg.Count.ToString(), lfB, vc, lx + 16, ly + rowH / 2 + 1);
@@ -2077,8 +2190,8 @@ namespace Inventory_Management_System
 
             using var labelFont = new Font("Segoe UI", 8f, FontStyle.Regular, GraphicsUnit.Point);
             using var valFont = new Font("Segoe UI", 8.5f, FontStyle.Bold, GraphicsUnit.Point);
-            using var labelFg = new SolidBrush(Color.FromArgb(55, 65, 81));
-            using var bgBar = new SolidBrush(Color.FromArgb(240, 244, 240));
+            using var labelFg = new SolidBrush(ThemeHelper.ChartBodyText);
+            using var bgBar = new SolidBrush(ThemeHelper.ChartTrackBg);
 
             // Reserve space: header (44, drawn by card) + top padding for value
             // labels above bars + bottom padding for (possibly 2-line) category
@@ -2228,8 +2341,8 @@ namespace Inventory_Management_System
 
             using var labelFont = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point);
             using var valFont = new Font("Segoe UI", 8.5f, FontStyle.Bold, GraphicsUnit.Point);
-            using var labelFg = new SolidBrush(Color.FromArgb(55, 65, 81));
-            using var bgBar = new SolidBrush(Color.FromArgb(240, 244, 240));
+            using var labelFg = new SolidBrush(ThemeHelper.ChartBodyText);
+            using var bgBar = new SolidBrush(ThemeHelper.ChartTrackBg);
 
             float rowH = (float)bounds.Height / cats.Count;
             float barH = Math.Clamp(rowH * 0.50f, 14f, 32f);
