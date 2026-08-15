@@ -19,7 +19,7 @@ namespace Inventory_Management_System.Forms
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
-            BackColor = Color.White;
+            BackColor = ThemeHelper.CardBg;
             ClientSize = new Size(w, 100);
 
             var header = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = ThemeHelper.Header };
@@ -34,7 +34,7 @@ namespace Inventory_Management_System.Forms
             header.Controls.Add(lblTitle);
             Controls.Add(header);
 
-            var body = new Panel { Location = new Point(0, header.Height), Width = w, AutoScroll = false, BackColor = Color.White };
+            var body = new Panel { Location = new Point(0, header.Height), Width = w, AutoScroll = false, BackColor = ThemeHelper.CardBg };
             Controls.Add(body);
 
             int y = 18;
@@ -80,7 +80,7 @@ namespace Inventory_Management_System.Forms
                 .Where(v => !string.IsNullOrWhiteSpace(v) && v != "—"));
             Row("🧾", "Name, Make, Model", string.IsNullOrWhiteSpace(details) ? "—" : details);
 
-            var divider = new Panel { Location = new Point(20, y), Size = new Size(w - 40, 1), BackColor = Color.FromArgb(220, 225, 230) };
+            var divider = new Panel { Location = new Point(20, y), Size = new Size(w - 40, 1), BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(220, 225, 230) };
             body.Controls.Add(divider);
             y += 16;
 
@@ -133,8 +133,12 @@ namespace Inventory_Management_System.Forms
                 y += panel.Height + 14;
             }
 
-            Section("Before", oldValue, Color.FromArgb(255, 245, 245), Color.FromArgb(153, 27, 27));
-            Section("After", newValue, Color.FromArgb(240, 253, 244), Color.FromArgb(22, 101, 52));
+            Section("Before", oldValue,
+        ThemeHelper.IsDarkMode ? Color.FromArgb(50, 30, 30) : Color.FromArgb(255, 245, 245),
+        ThemeHelper.IsDarkMode ? Color.FromArgb(255, 140, 140) : Color.FromArgb(153, 27, 27));
+            Section("After", newValue,
+                ThemeHelper.IsDarkMode ? Color.FromArgb(25, 40, 30) : Color.FromArgb(240, 253, 244),
+                ThemeHelper.IsDarkMode ? Color.FromArgb(140, 220, 160) : Color.FromArgb(22, 101, 52));
 
             var btnClose = new Button
             {

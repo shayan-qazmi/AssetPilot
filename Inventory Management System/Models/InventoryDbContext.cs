@@ -47,13 +47,8 @@ public partial class InventoryDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        // If options were already supplied (e.g. by DbConnectionSettingsService.TestConnection
-        // building its own throwaway context), don't override them.
         if (optionsBuilder.IsConfigured) return;
 
-        // One-time migration: seeds the settings file from what used to be
-        // hardcoded here, so existing installs keep working after this update
-        // with zero manual steps.
         Services.DbConnectionSettingsService.SeedIfMissing(
             server: "192.168.18.240",
             port: 3306,

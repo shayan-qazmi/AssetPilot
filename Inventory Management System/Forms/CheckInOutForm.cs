@@ -88,10 +88,10 @@ namespace Inventory_Management_System.Forms
             };
 
             // Left panel (details card) styling
-            panelLeft.BackColor = Color.White;
+            panelLeft.BackColor = ThemeHelper.CardBg;
             panelLeft.Paint += (s, e) =>
             {
-                using var pen = new Pen(Color.FromArgb(229, 231, 235), 1f);
+                using var pen = new Pen(ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(229, 231, 235), 1f);
                 e.Graphics.DrawRectangle(pen, 0, 0, panelLeft.Width - 1, panelLeft.Height - 1);
             };
 
@@ -139,8 +139,8 @@ namespace Inventory_Management_System.Forms
 
             // ── Tab content becomes a floating rounded "card" that slides ──
             panelTabContent.BackColor = Color.FromArgb(241, 243, 241);
-            panelCheckOut.BackColor = Color.White;
-            panelCheckIn.BackColor = Color.White;
+            panelCheckOut.BackColor = ThemeHelper.CardBg;
+            panelCheckIn.BackColor = ThemeHelper.CardBg;
             panelCheckOut.Paint += CardBorderPaint;
             panelCheckIn.Paint += CardBorderPaint;
             panelTabContent.Resize += (s, e) => SyncTabPanelSizes();

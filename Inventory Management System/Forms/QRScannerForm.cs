@@ -44,11 +44,11 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleDataGridView(dgvHistory);
 
             // Card panel
-            panelCard.BackColor = Color.White;
+            panelCard.BackColor = ThemeHelper.CardBg;
             panelCard.Paint += (s, e) =>
             {
                 if (e.Graphics is not Graphics g) return;
-                using var pen = new System.Drawing.Pen(Color.FromArgb(229, 231, 235), 1f);
+                using var pen = new System.Drawing.Pen(ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(229, 231, 235), 1f);
                 g.DrawRectangle(pen, 0, 0, panelCard.Width - 1, panelCard.Height - 1);
             };
 

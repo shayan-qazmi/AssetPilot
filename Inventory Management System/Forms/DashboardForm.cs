@@ -105,7 +105,7 @@ namespace Inventory_Management_System
         private float _donutAnimProgress = 1f;
         private const int AnimTickIntervalMs = 15;
         private const int CenterCardIndex = 3; // "Under Repair"
-        private const int BellRightOffset = 180; // widened to make room for theme-toggle button
+        private const int BellRightOffset = 118; // bell sits left of the profile widget, both hugging the right edge
         private Panel? _pnlThemeToggle;
         private float _toggleThumbProgress = 0f;
         private System.Windows.Forms.Timer? _toggleAnimTimer;
@@ -333,7 +333,9 @@ namespace Inventory_Management_System
             btnLogout.Padding = new Padding(0);
 
             panelDesktop.BackColor = ThemeHelper.DashboardBg;
-            panelStats.BackColor   = ThemeHelper.DashboardBg;
+            panelStats.BackColor = ThemeHelper.DashboardBg;
+            panelContent.BackColor = ThemeHelper.DashboardBg;
+            panelContent.BackColor = ThemeHelper.DashboardBg;
 
             // Who's logged in — avatar + full name + @username, clickable
             // through to Settings > Users.
@@ -1295,7 +1297,8 @@ namespace Inventory_Management_System
         private void PositionTopProfileWidget()
         {
             if (_pnlUserProfile == null) return;
-            _pnlUserProfile.Location = new Point(panelTop.Width - _pnlUserProfile.Width - 14, 0);
+            const int rightMargin = 14;
+            _pnlUserProfile.Location = new Point(panelTop.Width - _pnlUserProfile.Width - rightMargin, 0);
             _pnlUserProfile.Height = panelTop.Height;
             foreach (Control c in _pnlUserProfile.Controls)
                 c.Top = (_pnlUserProfile.Height - c.Height) / 2;
@@ -1324,7 +1327,7 @@ namespace Inventory_Management_System
                 StartPosition = FormStartPosition.Manual,
                 ShowInTaskbar = false,
                 Size = new Size(168, 76),   // was 200x88
-                BackColor = Color.White
+                BackColor = ThemeHelper.CardBg
             };
 
             popup.Paint += (s, e) =>
@@ -1333,7 +1336,7 @@ namespace Inventory_Management_System
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 using var path = RoundedRect(new Rectangle(0, 0, popup.Width - 1, popup.Height - 1), 10);
                 popup.Region = new Region(path);
-                using var pen = new Pen(Color.FromArgb(225, 225, 225), 1);
+                using var pen = new Pen(ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(225, 225, 225), 1);
                 g.DrawPath(pen, path);
             };
 
@@ -1350,18 +1353,18 @@ namespace Inventory_Management_System
                     FlatStyle = FlatStyle.Flat,
                     TextAlign = ContentAlignment.MiddleLeft,
                     Padding = new Padding(12, 0, 0, 0),
-                    BackColor = Color.White,
+                    BackColor = ThemeHelper.CardBg,
                     ForeColor = ThemeHelper.TextPrimary,
                     Font = new Font("Segoe UI", 8.75f),
                     Cursor = Cursors.Hand
                 };
                 b.FlatAppearance.BorderSize = 0;
-                b.FlatAppearance.MouseOverBackColor = Color.FromArgb(245, 246, 245);
+                b.FlatAppearance.MouseOverBackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(50, 54, 62) : Color.FromArgb(245, 246, 245);
                 b.Click += (s, e) => { popup.Close(); onClick(); };
                 return b;
             }
 
-            var divider = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = Color.FromArgb(235, 235, 235) };
+            var divider = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(235, 235, 235) };
 
             var btnProfileSettings = MakeItem("⚙  Profile settings", () =>
             {

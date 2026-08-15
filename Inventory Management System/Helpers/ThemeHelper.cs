@@ -94,7 +94,7 @@ namespace Inventory_Management_System.Helpers
         /// <summary>Activities list host panel background.</summary>
         public static Color ChartHostBg   => IsDarkMode ? Color.FromArgb(28, 30, 36)  : Color.White;
         /// <summary>Top header bar background.</summary>
-        public static Color TopBarBg      => IsDarkMode ? Color.FromArgb(22, 25, 30)  : Color.FromArgb(0x99, 0xC2, 0x21);
+        public static Color TopBarBg => IsDarkMode ? Color.FromArgb(45, 48, 55) : Color.FromArgb(0x99, 0xC2, 0x21);
         /// <summary>Activity-row icon pill background.</summary>
         public static Color ActivityIconBg=> IsDarkMode ? Color.FromArgb(36, 39, 46)  : Color.FromArgb(243, 244, 246);
         /// <summary>Donut chart centre hole fill.</summary>

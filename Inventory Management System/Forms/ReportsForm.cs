@@ -147,7 +147,7 @@ namespace Inventory_Management_System.Forms
             var menu = new ContextMenuStrip
             {
                 Font = ThemeHelper.FontDefault,
-                BackColor = Color.White,
+                BackColor = ThemeHelper.CardBg,
                 ForeColor = ThemeHelper.TextPrimary
             };
 

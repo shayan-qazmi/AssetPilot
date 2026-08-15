@@ -42,15 +42,16 @@ namespace Inventory_Management_System.Forms
         // NOTE: SettingsSidebarText is left exactly as-is (already fixed) —
         // everything else (backgrounds, shadows, dividers, page bg) is new.
         // ─────────────────────────────────────────────────────────────
-        private static readonly Color SettingsSidebarColor = Color.White;
-        private static readonly Color SettingsSidebarHover = Color.FromArgb(244, 246, 248);
-        private static readonly Color SettingsSidebarActive = ThemeHelper.Accent;
-        private static readonly Color SettingsSidebarText = Color.FromArgb(55, 65, 81); // UNCHANGED — do not edit
 
-        private static readonly Color SidebarDivider = Color.FromArgb(228, 231, 237);
-        private static readonly Color PageBackground = Color.FromArgb(246, 247, 249);
         private static readonly Color CardShadowColor = Color.FromArgb(22, 0, 0, 0);
-        private static readonly Color SubtitleColor = Color.FromArgb(120, 125, 135);
+
+        private static Color SettingsSidebarColor => ThemeHelper.CardBg;
+        private static Color SettingsSidebarHover => ThemeHelper.IsDarkMode ? Color.FromArgb(50, 54, 62) : Color.FromArgb(244, 246, 248);
+        private static Color SettingsSidebarText => ThemeHelper.TextPrimary;
+        private static Color SettingsSidebarActive => ThemeHelper.Accent;
+        private static Color SidebarDivider => ThemeHelper.ChartDivider;
+        private static Color PageBackground => ThemeHelper.DashboardBg;
+        private static Color SubtitleColor => ThemeHelper.TextSecondary;
 
         // ── User grid + buttons ────────────────────────────────────────
         private DataGridView dgvUsers = null!;
@@ -410,7 +411,7 @@ namespace Inventory_Management_System.Forms
             {
                 Location = new Point(40, nextY),
                 Size = new Size(560, 250),
-                BackColor = Color.White,
+                BackColor = ThemeHelper.CardBg,
                 Padding = new Padding(0)
             };
             ApplyCardStyle(outer, card);
@@ -489,7 +490,7 @@ namespace Inventory_Management_System.Forms
             {
                 Location = new Point(40, 364 + headerDelta),
                 Size = new Size(560, 208),
-                BackColor = Color.White
+                BackColor = ThemeHelper.CardBg
             };
             ApplyCardStyle(outer, sysCard);
             outer.Controls.Add(sysCard);
@@ -554,7 +555,7 @@ namespace Inventory_Management_System.Forms
             {
                 Location = new Point(40, 588 + headerDelta),
                 Size = new Size(560, 156),
-                BackColor = Color.FromArgb(255, 248, 248)
+                BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(45, 30, 30) : Color.FromArgb(255, 248, 248)
             };
             ApplyCardStyle(outer, dangerCard, borderColor: Color.FromArgb(252, 165, 165));
             outer.Controls.Add(dangerCard);
@@ -791,7 +792,7 @@ namespace Inventory_Management_System.Forms
                 MaximizeBox = false,
                 MinimizeBox = false,
                 StartPosition = FormStartPosition.CenterParent,
-                BackColor = Color.White
+                BackColor = ThemeHelper.CardBg
             };
 
             int y = 20;
@@ -1032,7 +1033,7 @@ namespace Inventory_Management_System.Forms
                 MaximizeBox = false,
                 MinimizeBox = false,
                 StartPosition = FormStartPosition.CenterParent,
-                BackColor = Color.White
+                BackColor = ThemeHelper.CardBg
             };
 
             var lblMsg = new Label
@@ -1161,8 +1162,8 @@ namespace Inventory_Management_System.Forms
             dgvUsers.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
             dgvUsers.DefaultCellStyle.SelectionBackColor = ThemeHelper.Accent;
             dgvUsers.DefaultCellStyle.SelectionForeColor = Color.White;
-            dgvUsers.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(250, 250, 250);
-            dgvUsers.GridColor = SidebarDivider;
+            dgvUsers.AlternatingRowsDefaultCellStyle.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(20, 22, 27) : Color.FromArgb(250, 250, 250);
+            dgvUsers.GridColor = ThemeHelper.IsDarkMode ? Color.FromArgb(45, 48, 55) : SidebarDivider;
             dgvUsers.RowHeadersVisible = false;
 
             dgvUsers.Columns.Add("ID", "ID");
@@ -1206,7 +1207,7 @@ namespace Inventory_Management_System.Forms
                     row.Cells["Status"].Style.ForeColor = active ? ThemeHelper.Success : ThemeHelper.Danger;
                     row.Cells["Status"].Style.Font = ThemeHelper.FontBold;
                     if (!active)
-                        row.DefaultCellStyle.ForeColor = Color.FromArgb(180, 180, 180);
+                        row.DefaultCellStyle.ForeColor = ThemeHelper.IsDarkMode ? Color.FromArgb(120, 128, 140) : Color.FromArgb(180, 180, 180);
                 }
 
                 dgvUsers.ClearSelection();     // ← add these two lines
@@ -1370,12 +1371,12 @@ namespace Inventory_Management_System.Forms
         private Panel BuildPasswordPanel()
         {
             // ── Light-theme palette (white card, dark text) ──
-            Color cardBg = Color.White;
-            Color inputBg = Color.White;
-            Color inputBorder = Color.FromArgb(209, 213, 219);
-            Color textWhite = Color.FromArgb(17, 24, 39);    // now dark text, name kept for minimal diff
-            Color textMuted = Color.FromArgb(107, 114, 128);
-            Color placeholder = Color.FromArgb(156, 163, 175);
+            Color cardBg = ThemeHelper.CardBg;
+            Color inputBg = ThemeHelper.IsDarkMode ? Color.FromArgb(45, 48, 55) : Color.White;
+            Color inputBorder = ThemeHelper.InputBorder;
+            Color textWhite = ThemeHelper.TextPrimary;
+            Color textMuted = ThemeHelper.TextSecondary;
+            Color placeholder = ThemeHelper.IsDarkMode ? Color.FromArgb(110, 118, 130) : Color.FromArgb(156, 163, 175); 
             Color accentGreen = Color.FromArgb(0x52, 0xA2, 0x3F);
 
             var outer = new Panel
@@ -1654,7 +1655,7 @@ namespace Inventory_Management_System.Forms
             {
                 Location = new Point(590, 0),
                 Size = new Size(350, 240),
-                BackColor = Color.FromArgb(240, 253, 244)
+                BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(25, 40, 30) : Color.FromArgb(240, 253, 244)
             };
             ApplyCardStyle(container, tipsCard, borderColor: Color.FromArgb(187, 247, 208));
             container.Controls.Add(tipsCard);
@@ -1817,7 +1818,7 @@ namespace Inventory_Management_System.Forms
             {
                 Location = new Point(40, nextY),
                 Size = new Size(560, 500), // temporary — recalculated below once content is laid out
-                BackColor = Color.White
+                BackColor = ThemeHelper.CardBg
             };
             outer.Controls.Add(card); // add first, style applied after final height is known
 
@@ -1921,7 +1922,7 @@ namespace Inventory_Management_System.Forms
             {
                 Location = new Point(40, nextY),
                 Size = new Size(560, 450),
-                BackColor = Color.White
+                BackColor = ThemeHelper.CardBg
             };
             ApplyCardStyle(outer, card);
             outer.Controls.Add(card);
@@ -2053,7 +2054,7 @@ namespace Inventory_Management_System.Forms
 
             bool selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
 
-            using var bg = new SolidBrush(selected ? ThemeHelper.Accent : Color.White);
+            using var bg = new SolidBrush(selected ? ThemeHelper.Accent : ThemeHelper.CardBg);
             e.Graphics.FillRectangle(bg, e.Bounds);
 
             string text = lstCategories.Items[e.Index]?.ToString() ?? "";
@@ -2090,7 +2091,7 @@ namespace Inventory_Management_System.Forms
             {
                 Location = new Point(40, nextY),
                 Size = new Size(560, 500), // temporary — recalculated below once content is laid out
-                BackColor = Color.White
+                BackColor = ThemeHelper.CardBg
             };
             outer.Controls.Add(card);
 
@@ -2184,7 +2185,7 @@ namespace Inventory_Management_System.Forms
             {
                 Location = new Point(620, nextY),
                 Size = new Size(340, 200),
-                BackColor = Color.White
+                BackColor = ThemeHelper.CardBg
             };
             ApplyCardStyle(outer, statusCard);
             outer.Controls.Add(statusCard);
@@ -2572,7 +2573,7 @@ namespace Inventory_Management_System.Forms
             {
                 Location = new Point(x, y),
                 Size = new Size(width, 40),
-                BackColor = Color.White
+                BackColor = ThemeHelper.CardBg
             };
             parent.Controls.Add(inputPanel);
 
@@ -2597,7 +2598,7 @@ namespace Inventory_Management_System.Forms
             {
                 Font = ThemeHelper.FontDefault,
                 ForeColor = ThemeHelper.TextPrimary,
-                BackColor = Color.White,
+                BackColor = ThemeHelper.CardBg,
                 BorderStyle = BorderStyle.None,
                 Location = new Point(14, 11),
                 Size = new Size(inputPanel.Width - 28, 20),
@@ -2628,7 +2629,7 @@ namespace Inventory_Management_System.Forms
 
         private static void StyleGrayBtn(Button btn)
         {
-            btn.BackColor = Color.FromArgb(243, 244, 246);
+            btn.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(50, 54, 62) : Color.FromArgb(243, 244, 246);
             btn.ForeColor = ThemeHelper.TextPrimary;
             btn.FlatStyle = FlatStyle.Flat;
             btn.Font = new Font("Segoe UI", 9f);
@@ -2636,7 +2637,7 @@ namespace Inventory_Management_System.Forms
             btn.UseVisualStyleBackColor = false;
             btn.FlatAppearance.BorderSize = 1;
             btn.FlatAppearance.BorderColor = ThemeHelper.InputBorder;
-            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(229, 231, 235);
+            btn.FlatAppearance.MouseOverBackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(65, 68, 76) : Color.FromArgb(229, 231, 235);
         }
 
         private static void StyleRedBtn(Button btn)
@@ -2653,7 +2654,7 @@ namespace Inventory_Management_System.Forms
 
         private static void StyleDangerOutlineBtn(Button btn)
         {
-            btn.BackColor = Color.White;
+            btn.BackColor = ThemeHelper.CardBg;
             btn.ForeColor = ThemeHelper.Danger;
             btn.FlatStyle = FlatStyle.Flat;
             btn.Font = new Font("Segoe UI Semibold", 9f);

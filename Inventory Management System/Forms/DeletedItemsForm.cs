@@ -19,6 +19,16 @@ namespace Inventory_Management_System.Forms
         private ComboBox cmbSelectMode = null!;
         private Label lblRowCount = null!;
 
+
+        private int _currentPage = 1;
+        private int _pageSize = 25;
+        private int _totalPages = 1;
+        private Label lblPageIndicator = null!;
+        private Button btnPrevPage = null!;
+        private Button btnNextPage = null!;
+        private ComboBox cmbPageSize = null!;
+        private Panel panelBottom = null!;
+
         public DeletedItemsForm()
         {
             BuildUI();
@@ -130,7 +140,27 @@ namespace Inventory_Management_System.Forms
                 Padding = new Padding(12, 0, 0, 0)
             };
 
+            panelBottom = new Panel { Dock = DockStyle.Bottom, Height = 44 };
+            cmbPageSize = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Size = new Size(70, 28), Location = new Point(12, 8) };
+            cmbPageSize.Items.AddRange(new object[] { "25", "50", "100", "250", "500", "1000" });
+            cmbPageSize.SelectedItem = "25";
+            cmbPageSize.SelectedIndexChanged += (s, e) =>
+            {
+                if (int.TryParse(cmbPageSize.SelectedItem?.ToString(), out int size))
+                { _pageSize = size; _currentPage = 1; LoadDeletedItems(); }
+            };
+            btnPrevPage = new Button { Text = "◀ Prev", Size = new Size(80, 28), Location = new Point(90, 8) };
+            btnPrevPage.Click += (s, e) => { if (_currentPage > 1) { _currentPage--; LoadDeletedItems(); } };
+            lblPageIndicator = new Label { AutoSize = true, Location = new Point(178, 14), Text = "Page 1 of 1" };
+            btnNextPage = new Button { Text = "Next ▶", Size = new Size(80, 28), Location = new Point(280, 8) };
+            btnNextPage.Click += (s, e) => { if (_currentPage < _totalPages) { _currentPage++; LoadDeletedItems(); } };
+            panelBottom.Controls.Add(cmbPageSize);
+            panelBottom.Controls.Add(btnPrevPage);
+            panelBottom.Controls.Add(lblPageIndicator);
+            panelBottom.Controls.Add(btnNextPage);
+
             Controls.Add(dgv);
+            Controls.Add(panelBottom);
             Controls.Add(lblRowCount);
             Controls.Add(panelTop);
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
@@ -146,6 +176,10 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleSecondaryButton(btnRefresh);
             ThemeHelper.StyleComboBox(cmbSelectMode);
             ThemeHelper.StyleDataGridView(dgv);
+            ThemeHelper.StyleComboBox(cmbPageSize);
+            ThemeHelper.StyleSecondaryButton(btnPrevPage);
+            ThemeHelper.StyleSecondaryButton(btnNextPage);
+            panelBottom.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
             lblRowCount.Font = ThemeHelper.FontSmall;
         }
@@ -161,7 +195,12 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            foreach (var eq in result.Data ?? new())
+            var all = result.Data ?? new();
+            _totalPages = Math.Max(1, (int)Math.Ceiling(all.Count / (double)_pageSize));
+            if (_currentPage > _totalPages) _currentPage = _totalPages;
+            var pageItems = all.Skip((_currentPage - 1) * _pageSize).Take(_pageSize).ToList();
+
+            foreach (var eq in pageItems)
             {
                 dgv.Rows.Add(
                     eq.Id, eq.EquipmentCode, eq.QrCode, eq.ProcurementType?.TypeName ?? "—",
@@ -175,7 +214,10 @@ namespace Inventory_Management_System.Forms
                 dgv.SelectAll();
             }
 
-            lblRowCount.Text = $"Showing {dgv.Rows.Count} deleted item(s)";
+            lblRowCount.Text = $"Showing {pageItems.Count} of {all.Count} deleted item(s)";
+            lblPageIndicator.Text = $"Page {_currentPage} of {_totalPages}";
+            btnPrevPage.Enabled = _currentPage > 1;
+            btnNextPage.Enabled = _currentPage < _totalPages;
         }
 
         private System.Collections.Generic.List<int> GetSelectedIds()

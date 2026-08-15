@@ -156,7 +156,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
             ThemeHelper.StyleSecondaryButton(btnNextPage);
             ThemeHelper.StyleDataGridView(dgvTransfer);
-            panelBottom.BackColor = Color.FromArgb(249, 250, 251);
+            panelBottom.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
             lblRowCount.Font = ThemeHelper.FontSmall;
         }
