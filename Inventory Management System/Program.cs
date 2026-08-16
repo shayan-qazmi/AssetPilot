@@ -14,10 +14,13 @@ namespace Inventory_Management_System
         {
             ApplicationConfiguration.Initialize();
 
+            // Restore user's saved light/dark theme preference before any form is shown.
+            Helpers.ThemeHelper.LoadTheme();
+
             // Make sure a settings file exists (first run after this update
             // migrates the old hardcoded production connection automatically).
             DbConnectionSettingsService.SeedIfMissing(
-                "192.168.18.240", 3306, "inventory_management", "ims_user", "DBPassword123!", "11.8.6-mariadb");
+               "192.168.18.240", 3306, "inventory_management", "ims_user", "DBPassword123!", "11.8.6-mariadb");
 
             // If the saved connection can't be reached (new machine, wrong
             // IP, DB server down, etc.), show the bootstrap dialog first —
