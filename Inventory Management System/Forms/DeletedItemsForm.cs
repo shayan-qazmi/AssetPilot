@@ -141,7 +141,11 @@ namespace Inventory_Management_System.Forms
             };
 
             panelBottom = new Panel { Dock = DockStyle.Bottom, Height = 44 };
-            cmbPageSize = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Size = new Size(70, 28), Location = new Point(12, 8) };
+
+            btnNextPage = new Button { Text = "Next ▶", Size = new Size(80, 28), Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            lblPageIndicator = new Label { AutoSize = true, TextAlign = ContentAlignment.MiddleCenter, Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            btnPrevPage = new Button { Text = "◀ Prev", Size = new Size(80, 28), Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            cmbPageSize = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Size = new Size(70, 28), Anchor = AnchorStyles.Top | AnchorStyles.Right };
             cmbPageSize.Items.AddRange(new object[] { "25", "50", "100", "250", "500", "1000" });
             cmbPageSize.SelectedItem = "25";
             cmbPageSize.SelectedIndexChanged += (s, e) =>
@@ -149,11 +153,20 @@ namespace Inventory_Management_System.Forms
                 if (int.TryParse(cmbPageSize.SelectedItem?.ToString(), out int size))
                 { _pageSize = size; _currentPage = 1; LoadDeletedItems(); }
             };
-            btnPrevPage = new Button { Text = "◀ Prev", Size = new Size(80, 28), Location = new Point(90, 8) };
             btnPrevPage.Click += (s, e) => { if (_currentPage > 1) { _currentPage--; LoadDeletedItems(); } };
-            lblPageIndicator = new Label { AutoSize = true, Location = new Point(178, 14), Text = "Page 1 of 1" };
-            btnNextPage = new Button { Text = "Next ▶", Size = new Size(80, 28), Location = new Point(280, 8) };
             btnNextPage.Click += (s, e) => { if (_currentPage < _totalPages) { _currentPage++; LoadDeletedItems(); } };
+
+            void RepositionPagination()
+            {
+                int rightMargin = 12, gap = 8;
+                int x = panelBottom.Width - rightMargin;
+                x -= btnNextPage.Width; btnNextPage.Location = new Point(x, 8); x -= gap;
+                x -= lblPageIndicator.PreferredWidth; lblPageIndicator.Location = new Point(x, 14); x -= gap;
+                x -= btnPrevPage.Width; btnPrevPage.Location = new Point(x, 8); x -= gap;
+                x -= cmbPageSize.Width; cmbPageSize.Location = new Point(x, 8);
+            }
+            panelBottom.Resize += (s, e) => RepositionPagination();
+
             panelBottom.Controls.Add(cmbPageSize);
             panelBottom.Controls.Add(btnPrevPage);
             panelBottom.Controls.Add(lblPageIndicator);
@@ -163,7 +176,8 @@ namespace Inventory_Management_System.Forms
             Controls.Add(panelBottom);
             Controls.Add(lblRowCount);
             Controls.Add(panelTop);
-            flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
+
+            RepositionPagination();
         }
 
         private void ApplyTheme()

@@ -43,8 +43,8 @@ namespace Inventory_Management_System.Helpers
                 Visible          = false,
                 BorderStyle      = BorderStyle.FixedSingle,
                 Font             = ThemeHelper.FontDefault,
-                BackColor        = Color.White,
-                ForeColor        = ThemeHelper.TextPrimary,
+                BackColor = ThemeHelper.CardBg,
+                ForeColor = ThemeHelper.TextPrimary,
                 DrawMode         = DrawMode.OwnerDrawFixed,
                 ItemHeight       = ItemHeight,
                 IntegralHeight   = false,
@@ -182,8 +182,8 @@ namespace Inventory_Management_System.Helpers
 
             // Background
             Color bgColor = selected
-                ? Color.FromArgb(232, 245, 233)   // light green tint when highlighted
-                : Color.White;
+     ? (ThemeHelper.IsDarkMode ? Color.FromArgb(40, 60, 42) : Color.FromArgb(232, 245, 233))
+     : ThemeHelper.CardBg;
             using var bgBrush = new SolidBrush(bgColor);
             e.Graphics.FillRectangle(bgBrush, e.Bounds);
 
@@ -273,11 +273,8 @@ namespace Inventory_Management_System.Helpers
 
             int dropH = Math.Min(itemCount, MaxSuggestions) * ItemHeight + 2;
 
-            _listBox.SetBounds(
-                formRelative.X,
-                formRelative.Y,
-                _textBox.Width,
-                dropH);
+            _listBox.SetBounds(formRelative.X, formRelative.Y, Math.Max(_textBox.Width, 260), dropH);
+            _hostForm.Controls.SetChildIndex(_listBox, 0); // index 0 = always topmost, regardless of what else painted since
         }
 
         private void CommitSelection(int index)

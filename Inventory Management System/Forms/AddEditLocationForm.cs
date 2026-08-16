@@ -21,8 +21,8 @@ namespace Inventory_Management_System.Forms
         private Button btnSave = null!;
         private Button btnCancel = null!;
 
-private static readonly Color Accent = ThemeHelper.Header; // was purple — now matches app-wide green theme
-private static readonly Color CardBorder = Color.FromArgb(224, 224, 224); // matches AllocationForm's dialog border
+        private Color Accent => _isEditMode ? Color.FromArgb(245, 158, 11) : ThemeHelper.Header;
+        private static Color CardBorder => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(224, 224, 224); // matches AllocationForm's dialog border
         private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
 
         public AddEditLocationForm(Location? location = null)
@@ -86,7 +86,7 @@ AutoSize = false,
 
             // ── Footer ──────────────────────────────────────────────
             const int footerHeight = 72;
-            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251) };
             pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
 
             btnCancel = new Button { Text = "Cancel", Size = new Size(120, 42) };

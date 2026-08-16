@@ -33,13 +33,13 @@ namespace Inventory_Management_System.Forms
         private int ValueW;
 
         // ── Colors ─────────────────────────────────────────────────────────
-        private static readonly Color BgPage = Color.FromArgb(245, 247, 250);
-        private static readonly Color CardBg = Color.White;
-        private static readonly Color CardBorderColor = Color.FromArgb(220, 225, 230);
+        private static Color BgPage => ThemeHelper.DashboardBg;
+        private static Color CardBg => ThemeHelper.CardBg;
+        private static Color CardBorderColor => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(220, 225, 230);
         private static readonly Color SectionTitle = Color.FromArgb(46, 125, 50);
-        private static readonly Color RowEven = Color.White;
-        private static readonly Color RowOdd = Color.FromArgb(248, 250, 248);
-        private static readonly Color SeparatorColor = Color.FromArgb(234, 237, 241);
+        private static Color RowEven => ThemeHelper.CardBg;
+        private static Color RowOdd => ThemeHelper.IsDarkMode ? Color.FromArgb(36, 39, 46) : Color.FromArgb(248, 250, 248);
+        private static Color SeparatorColor => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(234, 237, 241);
 
 
         private List<MaintenanceRecord> _maintenanceRecords = new();

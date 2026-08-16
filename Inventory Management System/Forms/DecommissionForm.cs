@@ -18,10 +18,19 @@ namespace Inventory_Management_System.Forms
         private readonly EquipmentService _equipmentService = new();
         private readonly AuditService     _audit            = new();
         private List<Equipment>           _allItems         = new();
+        private int _currentPage = 1;
+        private int _pageSize = 25;
+        private int _totalPages = 1;
+        private Label lblPageIndicator = null!;
+        private Button btnPrevPage = null!;
+        private Button btnNextPage = null!;
+        private ComboBox cmbPageSize = null!;
+
 
         public DecommissionForm()
         {
             InitializeComponent();
+            BuildPaginationControls();
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
             LoadDecommissioned();
@@ -31,7 +40,64 @@ namespace Inventory_Management_System.Forms
                 dgvDecommission.ClearSelection();
                 dgvDecommission.CurrentCell = null;
             };
+            dgvDecommission.CellDoubleClick += DgvDecommission_CellDoubleClick;
         }
+
+        private void DgvDecommission_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            var row = dgvDecommission.Rows[e.RowIndex];
+
+            using var popup = new DecommissionDetailPopup(
+                row.Cells["EquipmentCode"].Value?.ToString() ?? "—",
+                row.Cells["EquipmentName"].Value?.ToString() ?? "—",
+                row.Cells["Make"].Value?.ToString() ?? "—",
+                row.Cells["Model"].Value?.ToString() ?? "—",
+                row.Cells["SerialNumber"].Value?.ToString() ?? "—",
+                row.Cells["Reason"].Value?.ToString() ?? "—",
+                row.Cells["DecommDate"].Value?.ToString() ?? "—");
+            popup.ShowDialog(this);
+        }
+
+
+        private void BuildPaginationControls()
+        {
+            cmbPageSize = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Size = new Size(70, 22) };
+            cmbPageSize.Items.AddRange(new object[] { "25", "50", "100", "250", "500", "1000" });
+            cmbPageSize.SelectedItem = "25";
+            cmbPageSize.SelectedIndexChanged += (s, e) =>
+            {
+                if (int.TryParse(cmbPageSize.SelectedItem?.ToString(), out int size))
+                { _pageSize = size; _currentPage = 1; RefreshGrid(txtSearch.Text.Trim()); }
+            };
+
+            btnPrevPage = new Button { Text = "◀ Prev", Size = new Size(80, 22) };
+            btnPrevPage.Click += (s, e) => { if (_currentPage > 1) { _currentPage--; RefreshGrid(txtSearch.Text.Trim()); } };
+
+            lblPageIndicator = new Label { AutoSize = true, TextAlign = ContentAlignment.MiddleCenter };
+
+            btnNextPage = new Button { Text = "Next ▶", Size = new Size(80, 22) };
+            btnNextPage.Click += (s, e) => { if (_currentPage < _totalPages) { _currentPage++; RefreshGrid(txtSearch.Text.Trim()); } };
+
+            panelBottom.Controls.Add(cmbPageSize);
+            panelBottom.Controls.Add(btnPrevPage);
+            panelBottom.Controls.Add(lblPageIndicator);
+            panelBottom.Controls.Add(btnNextPage);
+
+            void RepositionPagination()
+            {
+                int rightMargin = 12, gap = 8, ctrlY = 3;
+                int x = panelBottom.Width - rightMargin;
+                x -= btnNextPage.Width; btnNextPage.Location = new Point(x, ctrlY); x -= gap;
+                x -= lblPageIndicator.PreferredWidth; lblPageIndicator.Location = new Point(x, ctrlY + 3); x -= gap;
+                x -= btnPrevPage.Width; btnPrevPage.Location = new Point(x, ctrlY); x -= gap;
+                x -= cmbPageSize.Width; cmbPageSize.Location = new Point(x, ctrlY);
+            }
+            panelBottom.Resize += (s, e) => RepositionPagination();
+            RepositionPagination();
+        }
+
+
 
         private void ApplyTheme()
         {
@@ -40,6 +106,9 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleDangerButton(btnDecommission);
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnExport);
+            ThemeHelper.StyleComboBox(cmbPageSize);
+            ThemeHelper.StyleSecondaryButton(btnPrevPage);
+            ThemeHelper.StyleSecondaryButton(btnNextPage);
             ApplyRoundedSearchStyle(txtSearch);
             ThemeHelper.StyleDataGridView(dgvDecommission);
             panelBottom.BackColor = Color.FromArgb(249, 250, 251);
@@ -151,7 +220,7 @@ namespace Inventory_Management_System.Forms
         {
             dgvDecommission.Rows.Clear();
 
-            var items = string.IsNullOrWhiteSpace(filter)
+            var matched = string.IsNullOrWhiteSpace(filter)
                 ? _allItems
                 : _allItems.Where(e =>
                     FuzzySearchHelper.IsFuzzyMatch(e.EquipmentCode, filter) ||
@@ -175,10 +244,17 @@ namespace Inventory_Management_System.Forms
                 ))
                 .ToList();
 
-            foreach (var item in items)
+            _totalPages = Math.Max(1, (int)Math.Ceiling(matched.Count / (double)_pageSize));
+            if (_currentPage > _totalPages) _currentPage = _totalPages;
+
+            var pageItems = matched
+                .Skip((_currentPage - 1) * _pageSize)
+                .Take(_pageSize)
+                .ToList();
+
+            foreach (var item in pageItems)
             {
-                // Get last log entry for this equipment to show reason/date
-                string reason   = "—";
+                string reason = "—";
                 string decommOn = "—";
                 try
                 {
@@ -190,31 +266,27 @@ namespace Inventory_Management_System.Forms
                         .FirstOrDefault();
                     if (log != null)
                     {
-                        reason   = log.NewValue ?? "—";
+                        reason = log.NewValue ?? "—";
                         decommOn = log.CreatedAt?.ToString("yyyy-MM-dd") ?? "—";
                     }
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex, "DecommissionForm.LoadData (Log lookup)");
+                    Logger.LogError(ex, "DecommissionForm.RefreshGrid (Log lookup)");
                 }
 
                 int rowIdx = dgvDecommission.Rows.Add(
-                    item.EquipmentCode,
-                    item.Name,
-                    item.Make ?? "—",
-                    item.Model ?? "—",
-                    item.SerialNumber,
-                    reason,
-                    decommOn
-                );
+                    item.EquipmentCode, item.Name, item.Make ?? "—", item.Model ?? "—",
+                    item.SerialNumber, reason, decommOn);
 
-                // Red tint on entire row
                 foreach (DataGridViewCell cell in dgvDecommission.Rows[rowIdx].Cells)
                     cell.Style.ForeColor = Color.FromArgb(183, 28, 28);
             }
 
-            lblRowCount.Text = $"Showing {dgvDecommission.Rows.Count} decommissioned items";
+            lblRowCount.Text = $"Showing {pageItems.Count} of {matched.Count} decommissioned items";
+            lblPageIndicator.Text = $"Page {_currentPage} of {_totalPages}";
+            btnPrevPage.Enabled = _currentPage > 1;
+            btnNextPage.Enabled = _currentPage < _totalPages;
         }
 
         private void btnDecommission_Click(object sender, EventArgs e)
@@ -356,7 +428,7 @@ namespace Inventory_Management_System.Forms
         public string Reason { get; private set; }
 
         private static readonly Color DangerAccent = Color.FromArgb(211, 47, 47);
-        private static readonly Color CardBorder   = Color.FromArgb(224, 224, 224);
+        private static Color CardBorder => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(224, 224, 224);
         private static readonly Color MutedText    = Color.FromArgb(110, 110, 120);
 
         public DecommissionDialog(List<Equipment> equipment)
@@ -425,7 +497,7 @@ namespace Inventory_Management_System.Forms
 
             // ── Footer Panel ──
             const int footerHeight = 72;
-            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251) };
             pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
 
             btnCancel = new Button { Text = "Cancel", Size = new Size(140, 42) };

@@ -1,5 +1,6 @@
 // Services/AuditService.cs
 using Inventory_Management_System.Models;
+using Inventory_Management_System.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -57,9 +58,9 @@ namespace Inventory_Management_System.Services
                 db.EquipmentLogs.Add(log);
                 db.SaveChanges();
             }
-            catch
+            catch (Exception ex)
             {
-                // Never let audit failure crash the main operation
+                Logger.LogError(ex, "AuditService.Log");
             }
         }
 

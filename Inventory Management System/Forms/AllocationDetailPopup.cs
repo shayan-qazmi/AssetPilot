@@ -38,9 +38,9 @@ namespace Inventory_Management_System.Forms
         private const int PaddingOuter = 20;
         private const int IconSize = 140;
 
-        private static readonly Color BgPage = Color.FromArgb(245, 247, 250);
-        private static readonly Color CardBg = Color.White;
-        private static readonly Color CardBorderColor = Color.FromArgb(220, 225, 230);
+        private static Color BgPage => ThemeHelper.DashboardBg;
+        private static Color CardBg => ThemeHelper.CardBg;
+        private static Color CardBorderColor => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(220, 225, 230);
         private static readonly Color MutedText = Color.FromArgb(156, 163, 175);
 
         public AllocationDetailPopup(AllocationDetailInfo info)

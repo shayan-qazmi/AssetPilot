@@ -18,6 +18,8 @@ namespace Inventory_Management_System.Forms
         private EquipmentService _equipmentService;
         private MaintenanceService _maintenanceService;
         private bool _isEditMode;
+        private readonly AuditService _audit = new();
+
 
         // Tracks the status the equipment had when this form opened, so we can
         // detect transitions into/out of "under_repair" via cmbStatus.
@@ -73,7 +75,7 @@ namespace Inventory_Management_System.Forms
         // ── Colors (same as EquipmentDetailPopup) ─────────────────────────
         private static readonly Color BgPage = Color.FromArgb(245, 247, 250);
         private static readonly Color CardBg = Color.White;
-        private static readonly Color CardBorder = Color.FromArgb(220, 225, 230);
+        private static Color CardBorder => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(224, 224, 224);
         private static readonly Color SectionClr = Color.FromArgb(46, 125, 50);
         private static readonly Color RowEven = Color.White;
         private static readonly Color RowOdd = Color.FromArgb(248, 250, 248);
@@ -113,7 +115,8 @@ namespace Inventory_Management_System.Forms
             int contentWidth = formWidth - margin * 2;
 
             // ── Header Banner ─────────────────────────────────────────────
-            var pnlHeader = new Panel { Location = new Point(0, 0), Width = formWidth, BackColor = ThemeHelper.Header };
+            Color modeAccent = _isEditMode ? Color.FromArgb(245, 158, 11) : ThemeHelper.Header;
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = modeAccent };
             Controls.Add(pnlHeader);
 
             var lblTitle = new Label
@@ -230,7 +233,7 @@ namespace Inventory_Management_System.Forms
 
             // ── Footer Panel & Action buttons ─────────────────────────────
             const int footerHeight = 68;
-            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251) };
             pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
 
             btnCancel = new Button { Text = "Cancel", Size = new Size(130, 40) };
@@ -1045,6 +1048,8 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
+            string oldStatusForAudit = _equipment.CurrentStatus;
+
             // Equipment Code and QR Code are no longer entered manually —
             // EquipmentService auto-generates them on Add when left blank,
             // and they are simply left untouched on Update.
@@ -1109,6 +1114,12 @@ namespace Inventory_Management_System.Forms
 
             if (result.Success)
             {
+                if (_isEditMode && oldStatusForAudit != "decommissioned" && _equipment.CurrentStatus == "decommissioned")
+                {
+                    _audit.Log(_equipment.Id, AuditService.ActionDecommissionApproved,
+                        $"Status: {FormatStatus(oldStatusForAudit)}", "Status: Decommissioned");
+                }
+
                 // Prevent FormClosing's cleanup handler from deleting the file
                 // we just committed to the database.
                 _stagedPicturePath = null;

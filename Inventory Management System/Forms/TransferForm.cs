@@ -449,7 +449,7 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
         private List<TransferEquipmentOption> _allocationItems = new();
 
         private static readonly Color TransferAccent = Color.FromArgb(123, 31, 162); // unchanged
-        private static readonly Color CardBorder = Color.FromArgb(224, 224, 224);
+        private static Color CardBorder => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(224, 224, 224);
         private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
 
         public TransferDialog(List<Allocation> allocations, List<Employee> employees, List<Location> locations,
@@ -558,7 +558,7 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
 
             // ── Footer — buttons centered, Transfer button color unchanged ──
             const int footerHeight = 72;
-            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251) };
             pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
 
             btnCancel = new Button { Text = "Cancel", Size = new Size(140, 42) };

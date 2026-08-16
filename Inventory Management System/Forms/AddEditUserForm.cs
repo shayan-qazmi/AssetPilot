@@ -46,7 +46,7 @@ namespace Inventory_Management_System.Forms
             FormClosed += (s, e) => _avatarImage?.Dispose();
         }
 
-        private static readonly Color CardBorder = Color.FromArgb(224, 224, 224);
+        private static Color CardBorder => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(224, 224, 224);
         private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
 
         private void InitializeUI()
@@ -65,7 +65,8 @@ namespace Inventory_Management_System.Forms
             int contentWidth = formWidth - margin * 2;
 
             // ── Header Banner ──
-            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = ThemeHelper.Header };
+            Color modeAccent = _isEditMode ? Color.FromArgb(245, 158, 11) : ThemeHelper.Header;
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = modeAccent };
             Controls.Add(pnlHeader);
 
             var lblTitle = new Label
@@ -100,7 +101,7 @@ namespace Inventory_Management_System.Forms
 
             // ── Footer Panel ──
             const int footerHeight = 72;
-            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = Color.FromArgb(249, 250, 251) };
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251) };
             pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
 
             btnCancel = new Button { Text = "Cancel", Size = new Size(120, 40) };
@@ -132,7 +133,7 @@ namespace Inventory_Management_System.Forms
 
             void SectionHeader(string titleText)
             {
-                body.Controls.Add(new Panel { BackColor = ThemeHelper.Header, Size = new Size(4, 22), Location = new Point(margin, y) });
+                body.Controls.Add(new Panel { BackColor = modeAccent, Size = new Size(4, 22), Location = new Point(margin, y) });
                 body.Controls.Add(new Label
                 {
                     Text = titleText,
