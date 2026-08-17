@@ -74,15 +74,16 @@ namespace Inventory_Management_System.Forms
         private const int MultiRowH = 88;
         private const int SectionGap = 14;
 
-        // ── Colors (same as EquipmentDetailPopup) ─────────────────────────
-        private static readonly Color BgPage = Color.FromArgb(245, 247, 250);
-        private static readonly Color CardBg = Color.White;
-        private static Color CardBorder => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(224, 224, 224);
-        private static readonly Color SectionClr = Color.FromArgb(46, 125, 50);
-        private static readonly Color RowEven = Color.White;
-        private static readonly Color RowOdd = Color.FromArgb(248, 250, 248);
-        private static readonly Color SeparatorClr = Color.FromArgb(234, 237, 241);
-        private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
+        // ── Colors — theme-aware (light / dark) ─────────────────────────
+        private static Color BgPage     => ThemeHelper.IsDarkMode ? Color.FromArgb(18, 20, 24)   : Color.FromArgb(245, 247, 250);
+        private static Color CardBg     => ThemeHelper.IsDarkMode ? Color.FromArgb(36, 39, 46)   : Color.White;
+        private static Color CardBorder => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65)   : Color.FromArgb(224, 224, 224);
+        private static Color SectionClr => ThemeHelper.IsDarkMode ? Color.FromArgb(100, 190, 110) : Color.FromArgb(46, 125, 50);
+        private static Color RowEven    => ThemeHelper.IsDarkMode ? Color.FromArgb(36, 39, 46)   : Color.White;
+        private static Color RowOdd     => ThemeHelper.IsDarkMode ? Color.FromArgb(30, 33, 39)   : Color.FromArgb(248, 250, 248);
+        private static Color SeparatorClr => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(234, 237, 241);
+        private static Color MutedText  => ThemeHelper.IsDarkMode ? Color.FromArgb(140, 148, 160) : Color.FromArgb(110, 110, 120);
+        private static Color InputBorderClr => ThemeHelper.IsDarkMode ? Color.FromArgb(70, 74, 82) : Color.FromArgb(190, 195, 202);
 
         public AddEditEquipmentForm(Equipment? equipment = null)
         {
@@ -111,6 +112,7 @@ namespace Inventory_Management_System.Forms
             MaximizeBox = false;
             MinimizeBox = false;
             BackColor = BgPage;
+            ForeColor = ThemeHelper.TextPrimary;
 
             const int formWidth = DialogW;
             const int margin = OuterPad + 8;
@@ -812,7 +814,13 @@ namespace Inventory_Management_System.Forms
             pnl.Controls.Add(lbl);
             pnl.Paint += (_, e) =>
             {
-                using var pen = new Pen(Color.FromArgb(180, 215, 180), 1);
+                // Keep accent bar and label in sync with the current theme
+                accent.BackColor = SectionClr;
+                lbl.ForeColor    = SectionClr;
+                Color divColor = ThemeHelper.IsDarkMode
+                    ? Color.FromArgb(55, 58, 65)
+                    : Color.FromArgb(180, 215, 180);
+                using var pen = new Pen(divColor, 1);
                 e.Graphics.DrawLine(pen, 0, 33, ColW, 33);
             };
             card.Controls.Add(pnl);
@@ -858,6 +866,7 @@ namespace Inventory_Management_System.Forms
                 Width = InputW,
                 Format = DateTimePickerFormat.Short,
             };
+            StyleDatePicker(dtp);
             pnl.Controls.Add(dtp);
             return dtp;
         }
@@ -942,6 +951,7 @@ namespace Inventory_Management_System.Forms
                 Format = DateTimePickerFormat.Short,
                 Enabled = false,
             };
+            StyleDatePicker(dtpWarrantyExpiry);
             pnl.Controls.Add(dtpWarrantyExpiry);
 
             chkWarrantyExpiry.CheckedChanged += (_, __) =>
@@ -958,13 +968,19 @@ namespace Inventory_Management_System.Forms
                 Size = new Size(ColW, h),
                 BackColor = isAlt ? RowOdd : RowEven,
             };
+            // Snapshot the alternating flag before the lambda so we can safely
+            // capture it (ref parameters cannot be captured in lambdas/closures).
+            bool capturedAlt = isAlt;
             pnl.Paint += (_, e) =>
             {
+                // Re-sync background colour whenever the theme changes
+                pnl.BackColor = capturedAlt ? RowOdd : RowEven;
+
                 using var pen = new Pen(SeparatorClr, 1);
                 e.Graphics.DrawLine(pen, 10, pnl.Height - 1, pnl.Width - 10, pnl.Height - 1);
 
                 // Draw crisp, visible box outline around input controls
-                using var borderPen = new Pen(Color.FromArgb(190, 195, 202), 1);
+                using var borderPen = new Pen(InputBorderClr, 1);
                 foreach (Control c in pnl.Controls)
                 {
                     if (c is TextBox || c is ComboBox || c is DateTimePicker)
@@ -998,8 +1014,30 @@ namespace Inventory_Management_System.Forms
 
             card.Controls.Add(pnl);
             y += h;
+
             isAlt = !isAlt;
             return pnl;
+        }
+
+        /// Applies dark-mode-aware colours to a DateTimePicker.
+        private static void StyleDatePicker(DateTimePicker dtp)
+        {
+            // DateTimePicker does not respect BackColor in dark mode by default;
+            // switching CalendarForeColor/CalendarMonthBackground and ForeColor
+            // is the closest WinForms allows without full owner-draw.
+            if (ThemeHelper.IsDarkMode)
+            {
+                dtp.CalendarForeColor        = ThemeHelper.TextPrimary;
+                dtp.CalendarTitleBackColor   = Color.FromArgb(45, 48, 55);
+                dtp.CalendarTitleForeColor   = ThemeHelper.TextPrimary;
+                dtp.CalendarMonthBackground  = Color.FromArgb(36, 39, 46);
+                dtp.CalendarTrailingForeColor = ThemeHelper.TextSecondary;
+                dtp.ForeColor = ThemeHelper.TextPrimary;
+            }
+            else
+            {
+                dtp.ForeColor = ThemeHelper.TextPrimary;
+            }
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -1226,6 +1264,9 @@ namespace Inventory_Management_System.Forms
             if (sender is not Panel pnl) return;
             var g = e.Graphics;
             var rect = new Rectangle(0, 0, pnl.Width - 1, pnl.Height - 1);
+
+            // Keep card background synced with the current theme
+            pnl.BackColor = CardBg;
 
             using var shadowBrush = new SolidBrush(Color.FromArgb(18, 0, 0, 0));
             g.FillRectangle(shadowBrush, new Rectangle(2, 2, pnl.Width - 1, pnl.Height - 1));
