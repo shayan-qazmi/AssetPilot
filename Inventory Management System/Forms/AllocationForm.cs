@@ -136,23 +136,9 @@ namespace Inventory_Management_System.Forms
             RoundInput(null, EventArgs.Empty);
         }
 
-        private void RecalcToolbarHeight()
-        {
-            if (_updatingToolbarHeight) return;
+      
 
-            int needed = flowToolbar.GetPreferredSize(new Size(panelTop.ClientSize.Width, 0)).Height;
-            if (panelTop.Height != needed)
-            {
-                _updatingToolbarHeight = true;
-                panelTop.Height = needed;
-                _updatingToolbarHeight = false;
-            }
-        }
-
-        private void FlowToolbar_Layout(object? sender, LayoutEventArgs e)
-        {
-            RecalcToolbarHeight();
-        }
+     
 
         private class AllocationRow
         {
@@ -198,12 +184,13 @@ namespace Inventory_Management_System.Forms
         public AllocationForm()
         {
             InitializeComponent();
-            flowToolbar.Layout += FlowToolbar_Layout;
+            flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
 
             ApplyTheme();
-            SetupEquipmentFilterDropdown();
+            SetupEquipmentFilterDropdown();  // kept — still builds cmbEquipmentFilter as a DATA SOURCE only, not added to toolbar (see below)
             SetupSelectModeDropdown();
-            SetupCategoryFilterDropdown();
+            SetupCategoryFilterDropdown();   // kept — same, data source only
+            SetupCombinedFiltersButton();
             SetupEditReturnButton();
             SetupPageSizeOptions();   // ← moved here
             LoadAllocations();
@@ -220,7 +207,7 @@ namespace Inventory_Management_System.Forms
             {
                 dgvAllocation.ClearSelection();
                 dgvAllocation.CurrentCell = null;
-                RecalcToolbarHeight();   // ← final correction once ClientSize.Width is accurate
+             
             };
         }
 
@@ -285,9 +272,7 @@ namespace Inventory_Management_System.Forms
                 RefreshGrid(txtSearch.Text.Trim());
             };
 
-            var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
-            flow.Controls.Add(cmbEquipmentFilter);
-            flow.Controls.SetChildIndex(cmbEquipmentFilter, flow.Controls.IndexOf(btnExport) + 1);
+            // Not added to toolbar directly — consumed by the combined Filters button instead.
         }
 
         // ── Category filter dropdown — sits between Select and Equipment: All ──
@@ -334,9 +319,58 @@ namespace Inventory_Management_System.Forms
                 RefreshGrid(txtSearch.Text.Trim());
             };
 
+            // Not added to toolbar directly — consumed by the combined Filters button instead.
+        }
+
+        private void SetupCombinedFiltersButton()
+        {
+            var btnFilters = new Button
+            {
+                Name = "btnFilters",
+                Text = "🔽 Filters",
+                Size = new Size(110, 32),
+                Margin = new Padding(4, 4, 0, 0),
+                Cursor = Cursors.Hand,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = ThemeHelper.Accent,
+                ForeColor = Color.White,
+                Font = ThemeHelper.FontBold
+            };
+            btnFilters.FlatAppearance.BorderSize = 0;
+            btnFilters.Click += (s, e) => ShowAllocFiltersMenu(btnFilters);
+
             var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
-            flow.Controls.Add(cmbAllocCategoryFilter);
-            flow.Controls.SetChildIndex(cmbAllocCategoryFilter, flow.Controls.IndexOf(cmbEquipmentFilter));
+            flow.Controls.Add(btnFilters);
+            flow.Controls.SetChildIndex(btnFilters, flow.Controls.IndexOf(btnExport) + 1);
+        }
+
+        private void ShowAllocFiltersMenu(Button anchor)
+        {
+            var menu = new ContextMenuStrip { Font = ThemeHelper.FontDefault };
+
+            var statusSub = new ToolStripMenuItem("Status");
+            foreach (var (label, value) in new[] { ("All", "All"), ("Available", "Available"), ("Allocated", "Allocated"), ("Pending", "Pending") })
+            {
+                var item = new ToolStripMenuItem(label) { Checked = _activeStatusFilter == value };
+                item.Click += (s, e) => { _activeStatusFilter = value; _currentPage = 1; RefreshGrid(txtSearch.Text.Trim()); };
+                statusSub.DropDownItems.Add(item);
+            }
+            menu.Items.Add(statusSub);
+
+            var categorySub = new ToolStripMenuItem("Category");
+            var allCat = new ToolStripMenuItem("All Categories") { Checked = string.IsNullOrEmpty(_activeCategoryFilter) };
+            allCat.Click += (s, e) => { _activeCategoryFilter = ""; _currentPage = 1; RefreshGrid(txtSearch.Text.Trim()); };
+            categorySub.DropDownItems.Add(allCat);
+            categorySub.DropDownItems.Add(new ToolStripSeparator());
+            foreach (var cat in cmbAllocCategoryFilter?.Items.OfType<string>().Where(c => c != "All Categories") ?? Enumerable.Empty<string>())
+            {
+                var item = new ToolStripMenuItem(cat) { Checked = _activeCategoryFilter == cat };
+                item.Click += (s, e) => { _activeCategoryFilter = cat; _currentPage = 1; RefreshGrid(txtSearch.Text.Trim()); };
+                categorySub.DropDownItems.Add(item);
+            }
+            menu.Items.Add(categorySub);
+
+            menu.Show(anchor, new Point(0, anchor.Height));
         }
 
         private void LoadAllocCategoryFilterItems()
@@ -380,88 +414,19 @@ namespace Inventory_Management_System.Forms
             cmbSelectMode = new ComboBox
             {
                 Name = "cmbSelectMode",
-                DropDownStyle = ComboBoxStyle.DropDown,
-                Text = "Select",
-                Size = new Size(95, 32),
-                Margin = new Padding(4, 4, 0, 0),
-                Cursor = Cursors.Hand,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.Accent,
-                ForeColor = Color.White,
-                Font = ThemeHelper.FontBold,
-                DrawMode = DrawMode.OwnerDrawFixed
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Size = new Size(110, 32),
+                Margin = new Padding(4, 4, 0, 0)
             };
-
-            // Prevent the user from typing into the header area
-            cmbSelectMode.KeyPress += (s, e) => e.Handled = true;
-
-            cmbSelectMode.Items.Add("Select ✔");
-            cmbSelectMode.Items.Add("Select All");
-            cmbSelectMode.Items.Add("Deselect All");
-
-            // Owner-draw items: green themed to match other Select dropdowns
-            cmbSelectMode.DrawItem += (s, e) =>
-            {
-                if (e.Index < 0) return;
-                bool isHighlighted = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-                using (var bg = new SolidBrush(isHighlighted ? ThemeHelper.Header : ThemeHelper.Accent))
-                    e.Graphics.FillRectangle(bg, e.Bounds);
-                string text = cmbSelectMode.Items[e.Index]?.ToString() ?? "";
-                using (var fg = new SolidBrush(Color.White))
-                {
-                    var sf = new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Near };
-                    e.Graphics.DrawString(text, cmbSelectMode.Font, fg, e.Bounds, sf);
-                }
-                e.DrawFocusRectangle();
-            };
-
-            cmbSelectMode.SelectedIndexChanged += (s, e) =>
-            {
-                var chosen = cmbSelectMode.SelectedItem?.ToString() ?? "";
-                if (chosen == "Select ✔")
-                {
-                    if (dgvAllocation.Columns.Contains("ColSelect"))
-                    {
-                        dgvAllocation.Columns["ColSelect"].Visible = true;
-                        dgvAllocation.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
-                    }
-                    dgvAllocation.ClearSelection();
-                }
-                else if (chosen == "Select All")
-                {
-                    if (dgvAllocation.Columns.Contains("ColSelect") && dgvAllocation.Columns["ColSelect"].Visible)
-                    {
-                        foreach (DataGridViewRow r in dgvAllocation.Rows)
-                            r.Cells["ColSelect"].Value = true;
-                    }
-                    else
-                    {
-                        dgvAllocation.SelectAll();
-                    }
-                }
-                else if (chosen == "Deselect All")
-                {
-                    if (dgvAllocation.Columns.Contains("ColSelect") && dgvAllocation.Columns["ColSelect"].Visible)
-                    {
-                        foreach (DataGridViewRow r in dgvAllocation.Rows)
-                            r.Cells["ColSelect"].Value = false;
-                    }
-                    dgvAllocation.ClearSelection();
-                    dgvAllocation.CurrentCell = null;
-                }
-
-                // Reset the dropdown header text so it reads "Select" again
-                cmbSelectMode.SelectedIndex = -1;
-                cmbSelectMode.Text = "Select";
-                UpdateActionButtonsForSelection();
-            };
+            cmbSelectMode.Items.AddRange(new object[] { "Select", "Select ✔", "Select All", "Deselect All" });
+            cmbSelectMode.SelectedIndex = 0;
+            cmbSelectMode.SelectedIndexChanged += CmbSelectMode_SelectedIndexChanged;
+            ThemeHelper.StyleComboBox(cmbSelectMode);
 
             var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
             flow.Controls.Add(cmbSelectMode);
-            // Insert right after the btnExport button
             flow.Controls.SetChildIndex(cmbSelectMode, flow.Controls.IndexOf(btnExport) + 1);
 
-            // Dynamically append Checkbox Column for manual selection (visibly hidden by default)
             if (!dgvAllocation.Columns.Contains("ColSelect"))
             {
                 var chkCol = new DataGridViewCheckBoxColumn
@@ -476,17 +441,10 @@ namespace Inventory_Management_System.Forms
                 dgvAllocation.Columns.Add(chkCol);
                 dgvAllocation.Columns["ColSelect"].DisplayIndex = 0;
 
-                // Configure grid to allow editing the Checkbox column while others are read-only
                 dgvAllocation.ReadOnly = false;
                 foreach (DataGridViewColumn col in dgvAllocation.Columns)
-                {
-                    if (col.Name == "ColSelect")
-                        col.ReadOnly = false;
-                    else
-                        col.ReadOnly = true;
-                }
+                    col.ReadOnly = col.Name != "ColSelect";
 
-                // Immediately commit edits when clicking the checkbox cell so value updates instantly
                 dgvAllocation.CurrentCellDirtyStateChanged += (s, ev) =>
                 {
                     if (dgvAllocation.CurrentCell is DataGridViewCheckBoxCell)
@@ -499,6 +457,43 @@ namespace Inventory_Management_System.Forms
                         UpdateActionButtonsForSelection();
                 };
             }
+        }
+
+        private void CmbSelectMode_SelectedIndexChanged(object? sender, EventArgs e)
+        {
+            string selectedMode = cmbSelectMode.SelectedItem?.ToString() ?? "";
+
+            if (selectedMode == "Select ✔")
+            {
+                dgvAllocation.ClearSelection();
+                if (dgvAllocation.Columns.Contains("ColSelect"))
+                    dgvAllocation.Columns["ColSelect"].Visible = true;
+            }
+            else if (selectedMode == "Select All")
+            {
+                if (dgvAllocation.Columns.Contains("ColSelect"))
+                    dgvAllocation.Columns["ColSelect"].Visible = false;
+                dgvAllocation.SelectAll();
+            }
+            else if (selectedMode == "Deselect All")
+            {
+                if (dgvAllocation.Columns.Contains("ColSelect") && dgvAllocation.Columns["ColSelect"].Visible)
+                {
+                    foreach (DataGridViewRow r in dgvAllocation.Rows)
+                        r.Cells["ColSelect"].Value = false;
+                }
+                dgvAllocation.ClearSelection();
+                dgvAllocation.CurrentCell = null;
+            }
+            else
+            {
+                if (dgvAllocation.Columns.Contains("ColSelect"))
+                    dgvAllocation.Columns["ColSelect"].Visible = false;
+                dgvAllocation.ClearSelection();
+            }
+
+            UpdateActionButtonsForSelection();
+        
         }
 
         // Equipment with no active Allocation and no active Check-Out —
@@ -564,12 +559,20 @@ namespace Inventory_Management_System.Forms
         // already excludes anything with an active allocation/checkout.
         private List<AllocationRow> GetAllCombinedRows()
         {
+            var activeCodes = new HashSet<string>(
+                _allSourceRows.Where(r => r.AllocationRef != null &&
+                    (r.AllocationRef.Status == "approved" || r.AllocationRef.Status == "pending"))
+                    .Select(r => r.EquipmentCode), StringComparer.OrdinalIgnoreCase);
+
+            var availableRows = GetAvailableEquipmentRows()
+                .Where(r => !activeCodes.Contains(r.EquipmentCode))
+                .ToList();
+
             return _allSourceRows
-                .Concat(GetAvailableEquipmentRows())
+                .Concat(availableRows)
                 .OrderByDescending(r => r.SortDate)
                 .ToList();
         }
-
         // Formats a Location as "LocationName - Room ..." — mirrors RoomOptionDisplay
         // used in AddAllocationForm's Room dropdown, but returns just the name when
         // there's no room info instead of a placeholder.

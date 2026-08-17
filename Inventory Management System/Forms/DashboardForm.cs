@@ -133,6 +133,10 @@ namespace Inventory_Management_System
 
         private string _barPeriod = "All Time";
         private Dictionary<string, int>? _periodOverrideCounts; // null = show live/all-time counts
+        private Dictionary<string, float[]> _trendCache = new();
+        private Dictionary<string, string?> _deltaCache = new();
+
+
         private class CardAnimState
         {
             public Control Card { get; set; } = null!;
@@ -540,7 +544,7 @@ namespace Inventory_Management_System
 
             SuspendLayout();
             ApplyTheme();
-            if (panelStats.Visible) LoadStats();
+            if (panelStats.Visible) LoadStats(instant: true);
             panelTop.Invalidate(true);
             ResumeLayout(true);
         }
@@ -1422,7 +1426,11 @@ namespace Inventory_Management_System
                             l.CreatedAt.HasValue && l.CreatedAt.Value >= day && l.CreatedAt.Value < nextDay),
 
                         "decommissioned" => db.EquipmentLogs.Count(l =>
-                            l.ActionType == "decommission_approved" &&
+     l.ActionType == "decommission_approved" &&
+     l.CreatedAt.HasValue && l.CreatedAt.Value >= day && l.CreatedAt.Value < nextDay),
+
+                        "overdue" => db.EquipmentLogs.Count(l =>
+                            l.ActionType == "allocation_overdue" &&
                             l.CreatedAt.HasValue && l.CreatedAt.Value >= day && l.CreatedAt.Value < nextDay),
 
                         _ => 0
@@ -1436,6 +1444,18 @@ namespace Inventory_Management_System
                 return new float[] { 0, 0, 0, 0, 0, 0, 0 };
             }
         }
+
+        private float[] GetCachedTrend(string metric)
+        {
+            if (!_trendCache.TryGetValue(metric, out var v)) { v = GetLast7DayCounts(metric); _trendCache[metric] = v; }
+            return v;
+        }
+        private string? GetCachedDelta(string metric)
+        {
+            if (!_deltaCache.TryGetValue(metric, out var v)) { v = GetWeeklyDeltaText(metric); _deltaCache[metric] = v; }
+            return v;
+        }
+            
 
         // Compares this-week total vs previous-week total for a metric, formatted
         // as delta text under the card number (e.g. "+3 this week").
@@ -1455,6 +1475,7 @@ namespace Inventory_Management_System
                     "in_store" => db.EquipmentLogs.Count(l => l.ActionType == "allocation_returned" && l.CreatedAt.HasValue && l.CreatedAt.Value >= start && l.CreatedAt.Value < end),
                     "under_repair" => db.EquipmentLogs.Count(l => l.ActionType == "maintenance_opened" && l.CreatedAt.HasValue && l.CreatedAt.Value >= start && l.CreatedAt.Value < end),
                     "decommissioned" => db.EquipmentLogs.Count(l => l.ActionType == "decommission_approved" && l.CreatedAt.HasValue && l.CreatedAt.Value >= start && l.CreatedAt.Value < end),
+                    "overdue" => db.EquipmentLogs.Count(l => l.ActionType == "allocation_overdue" && l.CreatedAt.HasValue && l.CreatedAt.Value >= start && l.CreatedAt.Value < end),
                     _ => 0
                 };
 
@@ -1468,20 +1489,68 @@ namespace Inventory_Management_System
             }
             catch { return null; }
         }
+
+        // Writes one EquipmentLogs entry the first time an allocation is
+        // detected as overdue, so a 7-day trend can be built later. Checks
+        // "already logged" first so it never double-logs the same item.
+        private void MarkNewlyOverdueAllocations()
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var today = DateOnly.FromDateTime(DateTime.Today);
+
+                var overdueAllocations = db.Allocations
+                    .Where(a => !a.Equipment.IsDeleted &&
+                                a.Equipment.CurrentStatus == "allocated" &&
+                                a.Status == "approved" &&
+                                a.ExpectedReturnDate.HasValue &&
+                                a.ExpectedReturnDate.Value < today &&
+                                a.ActualReturnDate == null)
+                    .ToList();
+
+                foreach (var alloc in overdueAllocations)
+                {
+                    bool alreadyLogged = db.EquipmentLogs.Any(l =>
+                        l.EquipmentId == alloc.EquipmentId &&
+                        l.ActionType == "allocation_overdue" &&
+                        l.CreatedAt.HasValue &&
+                        l.CreatedAt.Value.Date >= DateTime.Today.AddDays(-1)); // don't relog if it happened in the last day
+
+                    if (!alreadyLogged)
+                    {
+                        db.EquipmentLogs.Add(new EquipmentLog
+                        {
+                            EquipmentId = alloc.EquipmentId,
+                            ActionType = "allocation_overdue",
+                            CreatedAt = DateTime.Now,
+                            ChangedByUserId = AuthService.CurrentUserId
+                        });
+                    }
+                }
+
+                db.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "DashboardForm.MarkNewlyOverdueAllocations");
+            }
+        }
         // ════════════════════════════════════════════════════════════════
         //  STATS + CHARTS
         // ════════════════════════════════════════════════════════════════
-        private void LoadStats()
+        private void LoadStats(bool instant = false)
         {
+            MarkNewlyOverdueAllocations();
             try
             {
                 _animTimer?.Stop();
                 _animTimer?.Dispose();
                 _animTimer = null;
                 _cardAnims = new List<CardAnimState>();
-                _donutAnimProgress = 0f;
-                _barAnimProgress = 0f;
-                _activitiesAnimProgress = 0f;
+                _donutAnimProgress = instant ? 1f : 0f;
+                _barAnimProgress = instant ? 1f : 0f;
+                _activitiesAnimProgress = instant ? 1f : 0f;
 
                 using var db = new InventoryDbContext();
 
@@ -1523,12 +1592,12 @@ namespace Inventory_Management_System
 
                 var cardDefs = new[]
                 {
-    (title:"Total Equipment",    value:totalEquipment.ToString(),    color:Color.FromArgb(94, 53, 177), icon:"🖥", trendValues:GetLast7DayCounts("equipment"),      deltaText:GetWeeklyDeltaText("equipment")),
-    (title:"Allocated",          value:_cntAllocated.ToString(),     color:Color.FromArgb(245, 124, 0),   icon:"📋", trendValues:GetLast7DayCounts("allocated"),      deltaText:GetWeeklyDeltaText("allocated")),
-    (title:"In Stock",           value:_cntInStore.ToString(),       color:Color.FromArgb(56,  142, 60),  icon:"✅", trendValues:GetLast7DayCounts("in_store"),       deltaText:GetWeeklyDeltaText("in_store")),
-    (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(33,  150, 243), icon:"🔧", trendValues:GetLast7DayCounts("under_repair"),   deltaText:GetWeeklyDeltaText("under_repair")),
-    (title:"Currently Overdue",  value:_cntOverdue.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️", trendValues:(float[]?)null, deltaText:(string?)null),
-    (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68,  68),  icon:"🚫", trendValues:GetLast7DayCounts("decommissioned"), deltaText:GetWeeklyDeltaText("decommissioned")),
+    (title:"Total Equipment",    value:totalEquipment.ToString(),    color:Color.FromArgb(94, 53, 177), icon:"🖥", trendValues:GetCachedTrend("equipment"),      deltaText:GetCachedDelta("equipment")),
+    (title:"Allocated",          value:_cntAllocated.ToString(),     color:Color.FromArgb(245, 124, 0),   icon:"📋", trendValues:GetCachedTrend("allocated"),      deltaText:GetCachedDelta("allocated")),
+    (title:"In Stock",           value:_cntInStore.ToString(),       color:Color.FromArgb(56,  142, 60),  icon:"✅", trendValues:GetCachedTrend("in_store"),       deltaText:GetCachedDelta("in_store")),
+    (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(33,  150, 243), icon:"🔧", trendValues:GetCachedTrend("under_repair"),   deltaText:GetCachedDelta("under_repair")),
+(title:"Currently Overdue",  value:_cntOverdue.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️", trendValues:GetCachedTrend("overdue"), deltaText:GetCachedDelta("overdue")),
+    (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68,  68),  icon:"🚫", trendValues:GetCachedTrend("decommissioned"), deltaText:GetCachedDelta("decommissioned")),
     (title:"Total Employees",    value:_cntEmployees.ToString(),     color:Color.FromArgb(123, 31,  162), icon:"👤", trendValues:(float[]?)null, deltaText:(string?)null),
 };
                 int padL  = 12;
@@ -1541,7 +1610,7 @@ namespace Inventory_Management_System
                 int x      = padL;
                 int cardIndex = 0;
 
-                const float staggerStepMs = 60f;
+                float staggerStepMs = instant ? 0f : 60f;
 
                 foreach (var def in cardDefs)
                 {
@@ -2137,8 +2206,9 @@ namespace Inventory_Management_System
             using var sf = new Font("Segoe UI", 7.5f, FontStyle.Regular, GraphicsUnit.Point);
             using var fg = new SolidBrush(ThemeHelper.DonutNumText);
             using var fg2 = new SolidBrush(ThemeHelper.DonutSubText);
-            var ns = g.MeasureString(total.ToString(), nf);
-            g.DrawString(total.ToString(), nf, fg, new PointF(cx - ns.Width / 2f, cy - ns.Height / 2f - 5));
+            int animTotal = (int)(total * _donutAnimProgress);
+            var ns = g.MeasureString(animTotal.ToString(), nf);
+            g.DrawString(animTotal.ToString(), nf, fg, new PointF(cx - ns.Width / 2f, cy - ns.Height / 2f - 5));
             var ss = g.MeasureString("Total", sf);
             g.DrawString("Total", sf, fg2, new PointF(cx - ss.Width / 2f, cy + ns.Height / 2f - 6));
 
@@ -2155,7 +2225,8 @@ namespace Inventory_Management_System
                 using var lc = new SolidBrush(ThemeHelper.ChartBodyText);
                 g.DrawString(seg.Label, lf, lc, lx + 16, ly + rowH / 2 - 14);
                 using var vc = new SolidBrush(seg.Color);
-                g.DrawString(seg.Count.ToString(), lfB, vc, lx + 16, ly + rowH / 2 + 1);
+                int animCount = (int)(seg.Count * _donutAnimProgress);
+                g.DrawString(animCount.ToString(), lfB, vc, lx + 16, ly + rowH / 2 + 1);
                 ly += rowH;
             }
         }

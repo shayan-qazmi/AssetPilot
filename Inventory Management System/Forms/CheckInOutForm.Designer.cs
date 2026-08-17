@@ -67,6 +67,12 @@ namespace Inventory_Management_System.Forms
             txtIssuedTo = new System.Windows.Forms.TextBox();
             lblDepartment = new System.Windows.Forms.Label();
             txtDepartment = new System.Windows.Forms.TextBox();
+            lblLocationOut = new System.Windows.Forms.Label();
+            cmbLocationOut = new System.Windows.Forms.ComboBox();
+            lblLocationHint = new System.Windows.Forms.Label();
+            lblRoomOut = new System.Windows.Forms.Label();
+            cmbRoomOut = new System.Windows.Forms.ComboBox();
+            lblRoomHint = new System.Windows.Forms.Label();
             lblOperatorOut = new System.Windows.Forms.Label();
             txtOperatorOut = new System.Windows.Forms.TextBox();
             lblExpectedReturn = new System.Windows.Forms.Label();
@@ -284,7 +290,40 @@ namespace Inventory_Management_System.Forms
             }
 
             AddCheckoutField(lblIssuedTo, "Issued To:", txtIssuedTo, personIcon: true);
-            AddCheckoutField(lblDepartment, "Department:", txtDepartment);
+
+            void AddCheckoutDropdownField(System.Windows.Forms.Label lbl, string txt, System.Windows.Forms.ComboBox cmb, System.Windows.Forms.Label hint, string hintText)
+            {
+                lbl.Text = txt;
+                lbl.Location = new System.Drawing.Point(16, outY + outLGap);
+                lbl.Size = new System.Drawing.Size(labelWidth, outH);
+                panelCheckOut.Controls.Add(lbl);
+                cmb.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+                cmb.DrawMode = System.Windows.Forms.DrawMode.OwnerDrawFixed;
+                cmb.DrawItem += (s, e) =>
+                {
+                    if (e.Index < 0) return;
+                    bool selected = (e.State & System.Windows.Forms.DrawItemState.Selected) == System.Windows.Forms.DrawItemState.Selected;
+                    using var bg = new System.Drawing.SolidBrush(selected ? System.Drawing.Color.FromArgb(224, 231, 255) : System.Drawing.Color.White);
+                    e.Graphics.FillRectangle(bg, e.Bounds);
+                    string text = cmb.Items.Count > e.Index ? cmb.GetItemText(cmb.Items[e.Index]) : "";
+                    using var fg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(17, 24, 39));
+                    var sf = new System.Drawing.StringFormat { LineAlignment = System.Drawing.StringAlignment.Center };
+                    e.Graphics.DrawString(text, cmb.Font, fg, e.Bounds, sf);
+                    e.DrawFocusRectangle();
+                };
+                panelCheckOut.Controls.Add(CreateInputHost(cmb, new System.Drawing.Point(160, outY), new System.Drawing.Size(controlWidth, outH))); 
+                outY += 30;
+                hint.Text = hintText;
+                hint.Font = new System.Drawing.Font("Segoe UI", 7.8f, System.Drawing.FontStyle.Italic);
+                hint.AutoSize = true;
+                hint.Location = new System.Drawing.Point(160, outY);
+                panelCheckOut.Controls.Add(hint);
+                outY += 22;
+            }
+
+            AddCheckoutDropdownField(lblLocationOut, "Location:  *", cmbLocationOut, lblLocationHint, "Required — the site or building");
+            AddCheckoutDropdownField(lblRoomOut, "Room:", cmbRoomOut, lblRoomHint, "Optional — narrows to a specific room");    
+
             AddCheckoutField(lblOperatorOut, "Operator Name:", txtOperatorOut, personIcon: true);
             txtOperatorOut.ReadOnly = true;
 
@@ -516,6 +555,12 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.TextBox txtIssuedTo;
         private System.Windows.Forms.Label lblDepartment;
         private System.Windows.Forms.TextBox txtDepartment;
+        private System.Windows.Forms.Label lblLocationOut;
+        private System.Windows.Forms.ComboBox cmbLocationOut;
+        private System.Windows.Forms.Label lblLocationHint;
+        private System.Windows.Forms.Label lblRoomOut;
+        private System.Windows.Forms.ComboBox cmbRoomOut;
+        private System.Windows.Forms.Label lblRoomHint;
         private System.Windows.Forms.Label lblOperatorOut;
         private System.Windows.Forms.TextBox txtOperatorOut;
         private System.Windows.Forms.Label lblExpectedReturn;

@@ -17,7 +17,7 @@ namespace Inventory_Management_System.Forms
         public DecommissionDetailPopup(string equipmentCode, string equipmentName, string make,
             string model, string serialNumber, string reason, string decommDate)
         {
-            const int w = 440;
+            const int w = 480;
             Text = "Decommission Details";
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -26,16 +26,21 @@ namespace Inventory_Management_System.Forms
             BackColor = BgPage;
             ClientSize = new Size(w, 100);
 
-            var header = new Panel { Dock = DockStyle.Top, Height = 60, BackColor = ThemeHelper.Danger };
+            var header = new Panel { Dock = DockStyle.Top, BackColor = ThemeHelper.Danger };
+            var titleFont = new Font("Segoe UI", 12.5f, FontStyle.Bold);
+            string titleText = $"🗑  Decommission Details — {equipmentCode}";
+            var titleSize = TextRenderer.MeasureText(titleText, titleFont, new Size(w - 40, int.MaxValue), TextFormatFlags.WordBreak);
             var lblTitle = new Label
             {
-                Text = $"🗑  Decommission Details — {equipmentCode}",
-                Font = new Font("Segoe UI", 13f, FontStyle.Bold),
+                Text = titleText,
+                Font = titleFont,
                 ForeColor = Color.White,
-                AutoSize = true,
+                AutoSize = false,
+                Size = new Size(w - 40, titleSize.Height),
                 Location = new Point(20, 18)
             };
             header.Controls.Add(lblTitle);
+            header.Height = lblTitle.Bottom + 18;
             Controls.Add(header);
 
             var body = new Panel { Location = new Point(0, header.Height), Width = w, BackColor = CardBg };

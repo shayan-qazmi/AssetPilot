@@ -23,6 +23,7 @@ namespace Inventory_Management_System.Forms
         private Button btnExport = null!;
 
         private DataGridView dgv = null!;
+        private Panel panelBottom = null!;
         private ComboBox cmbPageSize = null!;
         private Label lblRowCount = null!;
         private Label lblPageIndicator = null!;
@@ -38,13 +39,18 @@ namespace Inventory_Management_System.Forms
         public CheckInOutHistoryPanel()
         {
             Dock = DockStyle.Fill;
-            BackColor = Color.White;
+            BackColor = ThemeHelper.DashboardBg;
             BuildUI();
+        }
+        private class HistoryEntry
+        {
+            public Transaction Tx = null!;
+            public bool IsCheckIn;
         }
 
         private void BuildUI()
         {
-            panelTop = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = Color.White };
+            panelTop = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = ThemeHelper.CardBg };
             ThemeHelper.StyleToolbarPanel(panelTop);
 
             btnBack = new Button { Text = "◀  Back", Size = new Size(96, 38) };
@@ -79,9 +85,8 @@ namespace Inventory_Management_System.Forms
                 btnBack.Location = new Point(panelTop.ClientSize.Width - btnBack.Width - 20, centerY - btnBack.Height / 2);
 
                 int searchLeft = lblTitle.Right + 32;
-                int searchRight = btnBack.Left - 20;
+                searchWrapper.Width = 380;
                 searchWrapper.Location = new Point(searchLeft, centerY - searchWrapper.Height / 2);
-                searchWrapper.Width = Math.Max(180, searchRight - searchLeft);
             }
             panelTop.Resize += (s, e) => LayoutTop();
             LayoutTop();
@@ -114,8 +119,8 @@ namespace Inventory_Management_System.Forms
             Controls.Add(dgv);
             dgv.BringToFront();
 
-            var panelBottom = new Panel { Dock = DockStyle.Bottom, Height = 44, BackColor = Color.FromArgb(249, 250, 251) };
 
+            panelBottom = new Panel { Dock = DockStyle.Bottom, Height = 44, BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251) };
             lblRowCount = new Label { Location = new Point(16, 12), AutoSize = true, Font = ThemeHelper.FontSmall, ForeColor = ThemeHelper.TextSecondary };
             panelBottom.Controls.Add(lblRowCount);
 
@@ -148,22 +153,24 @@ namespace Inventory_Management_System.Forms
             panelBottom.Controls.Add(lblPageIndicator);
             panelBottom.Controls.Add(btnNextPage);
 
-            void LayoutBottomRight()
-            {
-                int right = panelBottom.Width - 16;
-                btnNextPage.Location = new Point(right - btnNextPage.Width, 8);
-                right -= btnNextPage.Width + 10;
-                lblPageIndicator.Location = new Point(right - lblPageIndicator.Width, 14);
-                right -= lblPageIndicator.Width + 10;
-                btnPrevPage.Location = new Point(right - btnPrevPage.Width, 8);
-                right -= btnPrevPage.Width + 10;
-                cmbPageSize.Location = new Point(right - cmbPageSize.Width, 8);
-            }
             panelBottom.Resize += (s, e) => LayoutBottomRight();
             LayoutBottomRight();
 
             Controls.Add(panelBottom);
         }
+
+        private void LayoutBottomRight()
+        {
+            int right = panelBottom.Width - 16;
+            btnNextPage.Location = new Point(right - btnNextPage.Width, 8);
+            right -= btnNextPage.Width + 10;
+            lblPageIndicator.Location = new Point(right - lblPageIndicator.Width, 14);
+            right -= lblPageIndicator.Width + 10;
+            btnPrevPage.Location = new Point(right - btnPrevPage.Width, 8);
+            right -= btnPrevPage.Width + 10;
+            cmbPageSize.Location = new Point(right - cmbPageSize.Width, 8);
+        }
+
 
         public void RefreshData() => LoadData();
 
@@ -212,40 +219,63 @@ namespace Inventory_Management_System.Forms
                         FuzzySearchHelper.IsFuzzyMatch(t.Status, filter))
                         .OrderByDescending(t => new[]
                         {
-                            FuzzySearchHelper.FuzzyScore(t.Equipment?.Name, filter),
-                            FuzzySearchHelper.FuzzyScore(t.IssuedTo, filter),
-                            FuzzySearchHelper.FuzzyScore(t.Department, filter),
-                            FuzzySearchHelper.FuzzyScore(t.OperatorName, filter)
+                    FuzzySearchHelper.FuzzyScore(t.Equipment?.Name, filter),
+                    FuzzySearchHelper.FuzzyScore(t.IssuedTo, filter),
+                    FuzzySearchHelper.FuzzyScore(t.Department, filter),
+                    FuzzySearchHelper.FuzzyScore(t.OperatorName, filter)
                         }.Max())
                         .ToList();
             }
 
-            _totalMatching = matched.Count;
+            // Expand each transaction into up to two display entries: the original
+            // check-out, and (if it's been returned) a synthetic check-in entry.
+            var entries = new List<HistoryEntry>();
+            foreach (var t in matched)
+            {
+                entries.Add(new HistoryEntry { Tx = t, IsCheckIn = false });
+                if (t.ActualReturn.HasValue)
+                    entries.Add(new HistoryEntry { Tx = t, IsCheckIn = true });
+            }
+            entries = entries
+                .OrderByDescending(en => en.IsCheckIn
+                    ? (en.Tx.ReturnProcessedAt ?? en.Tx.ActualReturn!.Value.ToDateTime(TimeOnly.MinValue))
+                    : en.Tx.TransactionDate)
+                .ToList();
+
+            _totalMatching = entries.Count;
             _totalPages = Math.Max(1, (int)Math.Ceiling(_totalMatching / (double)_pageSize));
             if (_currentPage > _totalPages) _currentPage = _totalPages;
 
-            var page = matched.Skip((_currentPage - 1) * _pageSize).Take(_pageSize).ToList();
+            var page = entries.Skip((_currentPage - 1) * _pageSize).Take(_pageSize).ToList();
 
-            foreach (var tx in page)
+            foreach (var en in page)
             {
+                var t = en.Tx;
+                string typeLabel = en.IsCheckIn ? "Check-In" : (t.TransactionType ?? "—");
+                string dateStr = en.IsCheckIn
+                    ? t.ActualReturn!.Value.ToDateTime(TimeOnly.MinValue).ToString("yyyy-MM-dd")
+                    : t.TransactionDate.ToString("yyyy-MM-dd HH:mm");
+                string timestampStr = en.IsCheckIn ? PktTimeHelper.Format(t.ReturnProcessedAt) : "—";
+                string statusStr = en.IsCheckIn ? "Completed" : (t.Status ?? "—");
+
                 int idx = dgv.Rows.Add(
-                    tx.Equipment?.EquipmentCode ?? "—",
-                    tx.Equipment?.Name ?? "—",
-                    tx.TransactionType ?? "—",
-                    tx.IssuedTo ?? "—",
-                    tx.Department ?? "—",
-                    tx.OperatorName ?? "—",
-                    tx.ExpectedReturn?.ToString("yyyy-MM-dd") ?? "—",
-                    tx.Status ?? "—",
-                    tx.ConditionBefore ?? "—",
-                    tx.ConditionAfter ?? "—",
-                    tx.TransactionDate.ToString("yyyy-MM-dd HH:mm"),
-                    PktTimeHelper.Format(tx.ReturnProcessedAt)
+                    t.Equipment?.EquipmentCode ?? "—",
+                    t.Equipment?.Name ?? "—",
+                    typeLabel,
+                    t.IssuedTo ?? "—",
+                    t.Department ?? "—",
+                    t.OperatorName ?? "—",
+                    t.ExpectedReturn?.ToString("yyyy-MM-dd") ?? "—",
+                    statusStr,
+                    t.ConditionBefore ?? "—",
+                    t.ConditionAfter ?? "—",
+                    dateStr,
+                    timestampStr
                 );
 
                 var typeCell = dgv.Rows[idx].Cells["Type"];
                 typeCell.Style.Font = ThemeHelper.FontBold;
-                typeCell.Style.ForeColor = tx.TransactionType switch
+                typeCell.Style.ForeColor = typeLabel switch
                 {
                     "Check-Out" => Color.FromArgb(25, 118, 210),
                     "Check-In" => ThemeHelper.Success,
@@ -254,7 +284,7 @@ namespace Inventory_Management_System.Forms
 
                 var statusCell = dgv.Rows[idx].Cells["Status"];
                 statusCell.Style.Font = ThemeHelper.FontBold;
-                statusCell.Style.ForeColor = tx.Status switch
+                statusCell.Style.ForeColor = statusStr switch
                 {
                     "Pending" => ThemeHelper.Warning,
                     "Completed" => ThemeHelper.Success,
@@ -267,7 +297,8 @@ namespace Inventory_Management_System.Forms
             lblPageIndicator.Text = $"Page {_currentPage} of {Math.Max(1, _totalPages)}";
             btnPrevPage.Enabled = _currentPage > 1;
             btnNextPage.Enabled = _currentPage < _totalPages;
-        }
+            LayoutBottomRight(); // re-flow now that lblPageIndicator's width has changed
+        }   
 
         private void BtnExport_Click(object? sender, EventArgs e)
         {

@@ -39,6 +39,7 @@ namespace Inventory_Management_System.Forms
             {
                 dgvDecommission.ClearSelection();
                 dgvDecommission.CurrentCell = null;
+                BeginInvoke(new Action(RepositionPagination));
             };
             dgvDecommission.CellDoubleClick += DgvDecommission_CellDoubleClick;
         }
@@ -84,17 +85,18 @@ namespace Inventory_Management_System.Forms
             panelBottom.Controls.Add(lblPageIndicator);
             panelBottom.Controls.Add(btnNextPage);
 
-            void RepositionPagination()
-            {
-                int rightMargin = 12, gap = 8, ctrlY = 3;
-                int x = panelBottom.Width - rightMargin;
-                x -= btnNextPage.Width; btnNextPage.Location = new Point(x, ctrlY); x -= gap;
-                x -= lblPageIndicator.PreferredWidth; lblPageIndicator.Location = new Point(x, ctrlY + 3); x -= gap;
-                x -= btnPrevPage.Width; btnPrevPage.Location = new Point(x, ctrlY); x -= gap;
-                x -= cmbPageSize.Width; cmbPageSize.Location = new Point(x, ctrlY);
-            }
             panelBottom.Resize += (s, e) => RepositionPagination();
             RepositionPagination();
+        }
+
+        private void RepositionPagination()
+        {
+            int rightMargin = 12, gap = 8, ctrlY = 3;
+            int x = panelBottom.Width - rightMargin;
+            x -= btnNextPage.Width; btnNextPage.Location = new Point(x, ctrlY); x -= gap;
+            x -= lblPageIndicator.PreferredWidth; lblPageIndicator.Location = new Point(x, ctrlY + 3); x -= gap;
+            x -= btnPrevPage.Width; btnPrevPage.Location = new Point(x, ctrlY); x -= gap;
+            x -= cmbPageSize.Width; cmbPageSize.Location = new Point(x, ctrlY);
         }
 
 

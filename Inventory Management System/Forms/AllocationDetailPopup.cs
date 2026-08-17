@@ -231,7 +231,7 @@ namespace Inventory_Management_System.Forms
             {
                 Location = new Point(detailX, lblSectionHeading.Bottom + 8),
                 Size = new Size(detailW, 0),
-                BackColor = Color.FromArgb(249, 250, 251)
+                BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(36, 39, 46) : Color.FromArgb(249, 250, 251)
             };
             card.Controls.Add(detailBlock);
 
@@ -313,7 +313,7 @@ namespace Inventory_Management_System.Forms
                     {
                         Location = new Point(14, rowY - 10),
                         Size = new Size(detailW - 28, 1),
-                        BackColor = Color.FromArgb(229, 231, 235)
+                        BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(229, 231, 235)
                     };
                     detailBlock.Controls.Add(divider);
                 }

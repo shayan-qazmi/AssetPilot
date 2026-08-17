@@ -330,6 +330,10 @@ namespace Inventory_Management_System.Forms
                         actionCell.Style.BackColor = Color.FromArgb(255, 249, 196);
                         actionCell.Style.ForeColor = Color.FromArgb(130, 100, 0);
                         break;
+                    case "decommission_undone":
+                        actionCell.Style.BackColor = Color.FromArgb(200, 230, 201);
+                        actionCell.Style.ForeColor = Color.FromArgb(27, 94, 32);
+                        break;
                     case "allocation_rejected":
                     case "decommission_requested":
                     case "decommission_approved":
@@ -372,6 +376,7 @@ namespace Inventory_Management_System.Forms
             "allocation_returned" => "Returned to Store",
             "decommission_requested" => "Decommission Requested",
             "decommission_approved" => "Decommission Approved",
+            "decommission_undone" => "Decommission Undone",
             "decommission_rejected" => "Decommission Rejected",
             "transferred" => "Transferred",
             "maintenance_opened" => "Maintenance Opened",

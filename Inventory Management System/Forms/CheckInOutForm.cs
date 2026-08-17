@@ -25,6 +25,20 @@ namespace Inventory_Management_System.Forms
         private bool _isCheckOutTab = true;
         private EquipmentSuggestHelper? _suggest;
 
+   
+        private class LocOption
+        {
+            public string? Name { get; set; }
+            public string DisplayName { get; set; } = "";
+        }
+
+        private class RoomOpt
+        {
+            public int Id { get; set; }
+            public string Display { get; set; } = "";
+        }
+        private List<Location> _locations = new();
+
         private const int CardMargin = 10;
         private const int CardRadius = 14;
 
@@ -42,6 +56,7 @@ namespace Inventory_Management_System.Forms
                 txtQRCode.Focus();
                 SetupScanTimer();
                 SetupSuggestions();
+                PopulateLocationDropdowns();
                 SyncTabPanelSizes();
             };
         }
@@ -72,6 +87,8 @@ namespace Inventory_Management_System.Forms
 
             panelTop.Resize += (s, e) => PositionHistoryButton();
             ThemeHelper.StyleDataGridView(dgvRecentTransactions);
+            panelBottom.BackColor = ThemeHelper.DashboardBg;
+            pnlEmptyState.BackColor = ThemeHelper.CardBg;
 
             // ── QR icon badge, left of the search box ──────────────────────
             pnlQrIcon.Paint += (s, e) =>
@@ -146,8 +163,16 @@ namespace Inventory_Management_System.Forms
             panelTabContent.Resize += (s, e) => SyncTabPanelSizes();
 
             // Form action labels
-            foreach (var lbl in new[] { lblIssuedTo, lblDepartment, lblOperatorOut, lblExpectedReturn, lblConditionBefore, lblRemarksOut })
+            foreach (var lbl in new[] { lblIssuedTo, lblDepartment, lblLocationOut, lblRoomOut, lblOperatorOut, lblExpectedReturn, lblConditionBefore, lblRemarksOut })
                 ThemeHelper.StyleLabel(lbl, bold: true);
+            ThemeHelper.StyleComboBox(cmbLocationOut);
+            ThemeHelper.StyleComboBox(cmbRoomOut);
+            ThemeHelper.StyleLabel(lblLocationHint);
+            ThemeHelper.StyleLabel(lblRoomHint);
+            lblLocationHint.ForeColor = ThemeHelper.TextSecondary;
+            lblRoomHint.ForeColor = ThemeHelper.TextSecondary;
+            lblLocationHint.Font = new Font("Segoe UI", 7.8f, FontStyle.Italic);
+            lblRoomHint.Font = new Font("Segoe UI", 7.8f, FontStyle.Italic);
             foreach (var lbl in new[] { lblCurrentlyIssuedTo, lblOperatorIn, lblConditionAfter, lblRemarksIn })
                 ThemeHelper.StyleLabel(lbl, bold: true);
 
@@ -168,7 +193,7 @@ namespace Inventory_Management_System.Forms
             lblNoResult.ForeColor = ThemeHelper.TextSecondary;
             lblNoResult.Font = ThemeHelper.FontDefault;
 
-            lblEmptyIcon.ForeColor = Color.FromArgb(180, 190, 180);
+            lblEmptyIcon.ForeColor = ThemeHelper.IsDarkMode ? Color.FromArgb(90, 100, 90) : Color.FromArgb(180, 190, 180);
             lblEmptyTitle.ForeColor = ThemeHelper.TextPrimary;
             lblEmptySubtitle.ForeColor = ThemeHelper.TextSecondary;
 
@@ -180,6 +205,67 @@ namespace Inventory_Management_System.Forms
             pnlEmptyState.Paint += PnlEmptyState_Paint;
 
             SwitchTab(true);
+        }
+
+        private void PopulateLocationDropdowns()
+        {
+            try { _locations = new LocationService().GetAll().Data ?? new List<Location>(); }
+            catch { _locations = new List<Location>(); }
+
+            var locationOptions = _locations
+       .Select(l => l.LocationName)
+       .Where(n => !string.IsNullOrWhiteSpace(n))
+       .Distinct(StringComparer.OrdinalIgnoreCase)
+       .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+       .Select(n => new LocOption { Name = n, DisplayName = n! })
+       .ToList();
+            cmbLocationOut.DataSource = locationOptions;
+            cmbLocationOut.DisplayMember = "DisplayName";
+            cmbLocationOut.ValueMember = "Name";
+
+            cmbRoomOut.DisplayMember = "Display";
+            cmbRoomOut.ValueMember = "Id";
+
+            cmbLocationOut.SelectedIndexChanged += (s, e) => RefreshRoomDropdown();
+            cmbRoomOut.SelectedIndexChanged += (s, e) => UpdateDepartmentFromLocation();
+
+            if (cmbLocationOut.Items.Count > 0) cmbLocationOut.SelectedIndex = 0;
+        }
+
+        private void RefreshRoomDropdown()
+        {
+            string? selectedName = cmbLocationOut.SelectedValue as string;
+            if (string.IsNullOrEmpty(selectedName))
+            {
+                cmbRoomOut.DataSource = null;
+                cmbRoomOut.Enabled = false;
+                UpdateDepartmentFromLocation();
+                return;
+            }
+            var rooms = _locations.Where(l => l.LocationName == selectedName)
+                .Select(l => new RoomOpt { Id = l.Id, Display = RoomOptDisplay(l) }).ToList();
+            cmbRoomOut.Enabled = rooms.Count > 0;
+            cmbRoomOut.DataSource = rooms;
+            if (cmbRoomOut.Items.Count > 0) cmbRoomOut.SelectedIndex = 0;
+            UpdateDepartmentFromLocation();
+        }
+
+        private static string RoomOptDisplay(Location l)
+        {
+            bool hasNum = !string.IsNullOrWhiteSpace(l.RoomNumber);
+            bool hasName = !string.IsNullOrWhiteSpace(l.RoomName);
+            if (!hasNum && !hasName) return "— Unspecified room —";
+            string room = hasNum ? $"Room {l.RoomNumber}" : "";
+            if (hasName) room = string.IsNullOrEmpty(room) ? l.RoomName! : $"{room} ({l.RoomName})";
+            return room;
+        }
+
+        private void UpdateDepartmentFromLocation()
+        {
+            string? locName = cmbLocationOut.SelectedValue as string;
+            if (string.IsNullOrEmpty(locName)) { txtDepartment.Text = ""; return; }
+            string room = cmbRoomOut.Enabled && cmbRoomOut.SelectedItem is RoomOpt ro ? ro.Display : "";
+            txtDepartment.Text = (string.IsNullOrEmpty(room) || room.StartsWith("—")) ? locName : $"{locName} - {room}";
         }
 
         private CheckInOutHistoryPanel? _historyPanel;
@@ -342,7 +428,7 @@ namespace Inventory_Management_System.Forms
                 txtOperatorIn.Text = AuthService.CurrentFullName;
 
                 txtIssuedTo.Clear();
-                txtDepartment.Clear();
+                if (cmbLocationOut.Items.Count > 0) cmbLocationOut.SelectedIndex = 0; // resets Location/Room, which cascades to clear txtDepartment
                 txtRemarksOut.Clear();
                 txtRemarksIn.Clear();
                 dtpExpectedReturn.Value = DateTime.Today.AddDays(7);
@@ -617,6 +703,11 @@ namespace Inventory_Management_System.Forms
             if (string.IsNullOrWhiteSpace(txtIssuedTo.Text))
             {
                 ToastHelper.Show(this, "Please enter the name of the person this item is being issued to.", ToastType.Warning);
+                return;
+            }
+            if (string.IsNullOrEmpty(cmbLocationOut.SelectedValue as string))
+            {
+                ToastHelper.Show(this, "Please select a location for this check-out.", ToastType.Warning);
                 return;
             }
 

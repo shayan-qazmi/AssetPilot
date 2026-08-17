@@ -49,7 +49,7 @@ namespace Inventory_Management_System.Forms
             LoadEquipment();
             SetupSearchSuggestions();
 
-            flowToolbar.Layout += FlowToolbar_Layout;
+            flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
 
             // Same fix as AllocationForm/TransferForm — Form.Shown fires once,
             // after WinForms' automatic first-row selection, so clearing here
@@ -66,18 +66,7 @@ namespace Inventory_Management_System.Forms
 
         private bool _updatingToolbarHeight = false;
 
-        private void FlowToolbar_Layout(object? sender, LayoutEventArgs e)
-        {
-            if (_updatingToolbarHeight) return;
 
-            int needed = flowToolbar.GetPreferredSize(new Size(panelTop.ClientSize.Width, 0)).Height;
-            if (panelTop.Height != needed)
-            {
-                _updatingToolbarHeight = true;
-                panelTop.Height = needed;
-                _updatingToolbarHeight = false;
-            }
-        }
 
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -199,104 +188,45 @@ namespace Inventory_Management_System.Forms
         {
             // Hide the original btnSelectAll button to replace it with ComboBox
             btnSelectAll.Visible = false;
-
-            // Setup ComboBox at btnSelectAll's scaled location and size
             cmbSelectMode = new ComboBox
             {
                 Name = "cmbSelectMode",
-                DropDownStyle = ComboBoxStyle.DropDown,
-                Text = "Select",
-                Size = btnSelectAll.Size,
-                Margin = new Padding(4, 4, 0, 0),
-                Cursor = Cursors.Hand,
-                FlatStyle = FlatStyle.Flat
-            };
-
-            // Prevent typing in the DropDown
-            cmbSelectMode.KeyPress += (s, e) => e.Handled = true;
-
-            cmbSelectMode.Items.Add("Select ✔");
-            cmbSelectMode.Items.Add("Select All");
-            cmbSelectMode.Items.Add("Deselect All");
-
-            // Style dropdown to match the green header/accent buttons
-            cmbSelectMode.BackColor = ThemeHelper.Accent;
-            cmbSelectMode.ForeColor = Color.White;
-            cmbSelectMode.Font = ThemeHelper.FontBold;
-
-            // Owner Draw to style the drop-down items cleanly with modern colors
-            cmbSelectMode.DrawMode = DrawMode.OwnerDrawFixed;
-            cmbSelectMode.DrawItem += (s, e) =>
-            {
-                if (e.Index < 0) return;
-                bool isSelected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-
-                using (var brush = new SolidBrush(isSelected ? ThemeHelper.Header : ThemeHelper.Accent))
-                {
-                    e.Graphics.FillRectangle(brush, e.Bounds);
-                }
-
-                string text = cmbSelectMode.Items[e.Index]?.ToString() ?? "";
-                using (var brush = new SolidBrush(Color.White))
-                {
-                    var sf = new StringFormat
-                    {
-                        LineAlignment = StringAlignment.Center,
-                        Alignment = StringAlignment.Near
-                    };
-                    e.Graphics.DrawString(text, cmbSelectMode.Font, brush, e.Bounds, sf);
-                }
-                e.DrawFocusRectangle();
-            };
-
-            cmbSelectMode.SelectedIndexChanged += cmbSelectMode_SelectedIndexChanged;
-            // Insert cmbSelectMode into flowToolbar right after btnSelectAll (new position)
-            var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
-            flow.Controls.Add(cmbSelectMode);
-            flow.Controls.SetChildIndex(cmbSelectMode, flow.Controls.IndexOf(btnSelectAll) + 1);
-
-            // ── Category filter dropdown (between Select and QR Sheet) ──────
-            cmbCategory = new ComboBox
-            {
-                Name = "cmbCategory",
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Size = new Size(115, 32),
+                Size = new Size(110, 32),
+                Margin = new Padding(4, 4, 0, 0)
+            };
+            cmbSelectMode.Items.AddRange(new object[] { "Select", "Select ✔", "Select All", "Deselect All" });
+            cmbSelectMode.SelectedIndex = 0;
+            cmbSelectMode.SelectedIndexChanged += cmbSelectMode_SelectedIndexChanged;
+            ThemeHelper.StyleComboBox(cmbSelectMode);
+
+            var flowForSelect = panelTop.Controls.OfType<FlowLayoutPanel>().First();
+            int selectAllIdx = flowForSelect.Controls.IndexOf(btnSelectAll);
+            flowForSelect.Controls.Add(cmbSelectMode);
+            flowForSelect.Controls.SetChildIndex(cmbSelectMode, selectAllIdx);
+
+            // Not added to the toolbar — kept only as a data source for the
+            // Filters button's category submenu (see PopulateCategorySubmenu).
+            cmbCategory = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
+
+            var btnFilters = new Button
+            {
+                Name = "btnFilters",
+                Text = "🔽 Filters",
+                Size = new Size(110, 32),
                 Margin = new Padding(4, 4, 0, 0),
                 Cursor = Cursors.Hand,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = ThemeHelper.Accent,
                 ForeColor = Color.White,
-                Font = ThemeHelper.FontBold,
-                DrawMode = DrawMode.OwnerDrawFixed,
+                Font = ThemeHelper.FontBold
             };
+            btnFilters.FlatAppearance.BorderSize = 0;
+            btnFilters.Click += (s, e) => ShowFiltersMenu(btnFilters);
 
-            // Owner-draw to match the Select dropdown style
-            cmbCategory.DrawItem += (s, e) =>
-            {
-                if (e.Index < 0) return;
-                bool isHover = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-                using (var brush = new SolidBrush(isHover ? ThemeHelper.Header : ThemeHelper.Accent))
-                    e.Graphics.FillRectangle(brush, e.Bounds);
-                string text = cmbCategory.Items[e.Index]?.ToString() ?? "";
-                using (var brush = new SolidBrush(Color.White))
-                {
-                    var sf = new StringFormat { LineAlignment = StringAlignment.Center, Alignment = StringAlignment.Near };
-                    e.Graphics.DrawString(text, cmbCategory.Font, brush, e.Bounds, sf);
-                }
-                e.DrawFocusRectangle();
-            };
-
-            cmbCategory.SelectedIndexChanged += (s, e) =>
-            {
-                var selected = cmbCategory.SelectedItem?.ToString() ?? "";
-                _activeCategory = selected == "All Categories" ? "" : selected;
-                _currentPage = 1;                          // reset to page 1 — old page number may not exist in the filtered set
-                LoadEquipment(txtSearch.Text.Trim());       // re-fetch from DB with the new filter, not just re-slice what's already loaded
-            };
-
-            // Insert cmbCategory right after cmbSelectMode in the flow
-            flow.Controls.Add(cmbCategory);
-            flow.Controls.SetChildIndex(cmbCategory, flow.Controls.IndexOf(cmbSelectMode) + 1);
+            var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
+            flow.Controls.Add(btnFilters);
+            flow.Controls.SetChildIndex(btnFilters, flow.Controls.IndexOf(btnGenerateQRSheet) + 1);
 
             // Re-apply QR button styling after SetupToolbarLayout (ensures correct order)
             StyleQrButton(btnShowQR,         "◼️ Show QR");
@@ -335,6 +265,32 @@ namespace Inventory_Management_System.Forms
             }
         }
 
+        private void ShowFiltersMenu(Button anchor)
+        {
+            var menu = new ContextMenuStrip { Font = ThemeHelper.FontDefault };
+            var categorySub = new ToolStripMenuItem("Category");
+            menu.Items.Add(categorySub);
+            PopulateCategorySubmenu(categorySub);
+            menu.Show(anchor, new Point(0, anchor.Height));
+        }
+
+        private void PopulateCategorySubmenu(ToolStripMenuItem parent)
+        {
+            parent.DropDownItems.Clear();
+
+            var allItem = new ToolStripMenuItem("All Categories") { Checked = string.IsNullOrEmpty(_activeCategory) };
+            allItem.Click += (s, e) => { _activeCategory = ""; _currentPage = 1; LoadEquipment(txtSearch.Text.Trim()); };
+            parent.DropDownItems.Add(allItem);
+            parent.DropDownItems.Add(new ToolStripSeparator());
+
+            foreach (var cat in cmbCategory?.Items.OfType<string>().Where(c => c != "All Categories") ?? Enumerable.Empty<string>())
+            {
+                var item = new ToolStripMenuItem(cat) { Checked = _activeCategory == cat };
+                item.Click += (s, e) => { _activeCategory = cat; _currentPage = 1; LoadEquipment(txtSearch.Text.Trim()); };
+                parent.DropDownItems.Add(item);
+            }
+
+        }
         // ── Theme ──────────────────────────────────────────────────────────
 
         private void ApplyTheme()
@@ -356,6 +312,7 @@ namespace Inventory_Management_System.Forms
             StyleQrButton(btnGenerateQRSheet,  "📄 QR Sheet");
 
             ThemeHelper.StyleButton(btnSelectAll);
+            if (cmbSelectMode != null) ThemeHelper.StyleComboBox(cmbSelectMode);
             ApplyRoundedSearchStyle(txtSearch);
                 ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
@@ -717,14 +674,26 @@ namespace Inventory_Management_System.Forms
             popup.ShowDialog();
         }
 
+        private void RefreshAfterDataChange(string? reselectCode = null)
+        {
+            bool cacheInUse = !string.IsNullOrWhiteSpace(txtSearch.Text) || _statusFilter != null || _customFilter != null;
+            if (cacheInUse)
+                RefreshEquipmentCache();
+
+            if (!string.IsNullOrWhiteSpace(reselectCode))
+                _pendingSelectCode = reselectCode;
+
+            LoadEquipment(txtSearch.Text.Trim());
+            LoadCategoryFilter();
+        }
+
         private void btnAdd_Click(object sender, EventArgs e)
         {
             using var form = new AddEditEquipmentForm();
             if (form.ShowDialog() == DialogResult.OK)
             {
                 ToastHelper.Show(this, "Equipment added successfully.", ToastType.Success);
-                LoadEquipment();
-                LoadCategoryFilter();
+                RefreshAfterDataChange();
             }
         }
 
@@ -740,8 +709,7 @@ namespace Inventory_Management_System.Forms
             if (form.ShowDialog() == DialogResult.OK)
             {
                 ToastHelper.Show(this, "Equipment updated successfully.", ToastType.Success);
-                LoadEquipment();
-                LoadCategoryFilter();
+                RefreshAfterDataChange(eq.EquipmentCode);
             }
         }
 
@@ -783,7 +751,7 @@ namespace Inventory_Management_System.Forms
 
 
             var result = _equipmentService.DeleteRange(selectedList.Select(eq => eq.Id));
-            LoadEquipment();
+            RefreshAfterDataChange();
 
             if (result.Success)
             {
@@ -1275,7 +1243,7 @@ namespace Inventory_Management_System.Forms
                     ToastType.Warning);
             }
 
-            LoadEquipment();
+            RefreshAfterDataChange();
         }
 
         private void txtSearch_TextChanged(object sender, EventArgs e)

@@ -495,14 +495,15 @@ namespace Inventory_Management_System.Helpers
 
             bool hasTrend = trendValues != null && trendValues.Length >= 2;
 
+            bool isNumeric = int.TryParse(value, out int targetNum);
             var lblValue = new Label
             {
                 Name = "lblValue",
-                Text = value,
+                Text = isNumeric ? "0" : value,
                 Font = new Font("Segoe UI", 22f, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = valueFg,
                 AutoSize = false,
-                Size = new Size(190, hasTrend ? 40 : 80),
+                Size = new Size(190, 40),
                 Location = new Point(12, 12),
                 TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Color.Transparent
@@ -634,7 +635,27 @@ namespace Inventory_Management_System.Helpers
                 lblTitle.Location = new Point(12, card.Height - 28 - stripH);
                 lblTitle.Width = card.Width - 24;
             };
-
+            if (isNumeric)
+            {
+                int steps = 20;
+                int step = 0;
+                var countTimer = new System.Windows.Forms.Timer { Interval = 20 };
+                countTimer.Tick += (s, e) =>
+                {
+                    step++;
+                    float t = Math.Min(1f, step / (float)steps);
+                    float eased = 1f - MathF.Pow(1f - t, 3f);
+                    lblValue.Text = (int)(targetNum * eased) + (t >= 1f ? "" : "");
+                    if (t >= 1f)
+                    {
+                        lblValue.Text = targetNum.ToString();
+                        countTimer.Stop();
+                        countTimer.Dispose();
+                    }
+                };
+                card.HandleCreated += (s, e) => countTimer.Start();
+                card.Disposed += (s, e) => { countTimer.Stop(); countTimer.Dispose(); };
+            }
             return card;
         }
     }

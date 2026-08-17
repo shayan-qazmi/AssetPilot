@@ -25,6 +25,8 @@ namespace Inventory_Management_System.Forms
         // detect transitions into/out of "under_repair" via cmbStatus.
         private string? _originalStatus;
         private bool _suppressStatusEvent = false;
+        private string? _decommissionReason;
+
 
         // ── Picture state ──────────────────────────────────────────────
         // The relative path (e.g. "Images/Equipment/xxxx.png") of a picture
@@ -420,6 +422,8 @@ namespace Inventory_Management_System.Forms
 
             bool wasUnderRepair = _originalStatus.Equals("under_repair", StringComparison.OrdinalIgnoreCase);
             bool isNowUnderRepair = newStatus.Equals("under_repair", StringComparison.OrdinalIgnoreCase);
+            bool wasDecommissioned = _originalStatus.Equals("decommissioned", StringComparison.OrdinalIgnoreCase);
+            bool isNowDecommissioned = newStatus.Equals("decommissioned", StringComparison.OrdinalIgnoreCase);
 
             if (!wasUnderRepair && isNowUnderRepair)
             {
@@ -428,6 +432,14 @@ namespace Inventory_Management_System.Forms
             else if (wasUnderRepair && !isNowUnderRepair)
             {
                 ShowResolveMaintenanceDialog();
+            }
+            else if (!wasDecommissioned && isNowDecommissioned)
+            {
+                ShowDecommissionReasonDialog();
+            }
+            else if (wasDecommissioned && !isNowDecommissioned)
+            {
+                LogDecommissionUndone(newStatus);
             }
         }
 
@@ -574,6 +586,88 @@ namespace Inventory_Management_System.Forms
             {
                 RevertStatusTo(_originalStatus!);
             }
+        }
+
+        private void ShowDecommissionReasonDialog()
+        {
+            using var dlg = new Form
+            {
+                Text = "Decommission Reason",
+                Size = new Size(420, 220),
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = CardBg,
+            };
+
+            var lblReason = new Label
+            {
+                Text = "Reason *:",
+                Location = new Point(20, 16),
+                AutoSize = true,
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary
+            };
+            var cmbReason = new ComboBox { Location = new Point(20, 38), Size = new Size(360, 24), DropDownStyle = ComboBoxStyle.DropDownList };
+            cmbReason.Items.AddRange(new[] { "Damaged", "Obsolete", "Beyond Repair", "End of Life", "Lost", "Other" });
+            cmbReason.SelectedIndex = 0;
+            ThemeHelper.StyleComboBox(cmbReason);
+
+            var lblNotes = new Label
+            {
+                Text = "Notes:",
+                Location = new Point(20, 72),
+                AutoSize = true,
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary
+            };
+            var txtNotesField = new TextBox { Location = new Point(20, 94), Size = new Size(360, 24) };
+            ThemeHelper.StyleTextBox(txtNotesField);
+
+            var btnOk = new Button { Text = "OK", Location = new Point(200, 140), Size = new Size(85, 32) };
+            ThemeHelper.StyleDangerButton(btnOk);
+            var btnCancelDlg = new Button { Text = "Cancel", Location = new Point(295, 140), Size = new Size(85, 32) };
+            ThemeHelper.StyleSecondaryButton(btnCancelDlg);
+
+            bool confirmed = false;
+            btnOk.Click += (s, e) =>
+            {
+                _decommissionReason = $"{cmbReason.SelectedItem}" + (string.IsNullOrWhiteSpace(txtNotesField.Text) ? "" : $" — {txtNotesField.Text.Trim()}");
+                confirmed = true;
+                dlg.DialogResult = DialogResult.OK;
+                dlg.Close();
+            };
+            btnCancelDlg.Click += (s, e) => { dlg.DialogResult = DialogResult.Cancel; dlg.Close(); };
+
+            dlg.Controls.Add(lblReason);
+            dlg.Controls.Add(cmbReason);
+            dlg.Controls.Add(lblNotes);
+            dlg.Controls.Add(txtNotesField);
+            dlg.Controls.Add(btnOk);
+            dlg.Controls.Add(btnCancelDlg);
+            dlg.AcceptButton = btnOk;
+            dlg.CancelButton = btnCancelDlg;
+
+            dlg.ShowDialog(this);
+
+            if (confirmed)
+            {
+                _audit.Log(_equipment.Id, AuditService.ActionDecommissionApproved,
+                    $"Status: {FormatStatus(_originalStatus!)}", $"Status: Decommissioned | Reason: {_decommissionReason}");
+                _originalStatus = "decommissioned";
+            }
+            else
+            {
+                RevertStatusTo(_originalStatus!);
+            }
+        }
+
+        private void LogDecommissionUndone(string newStatus)
+        {
+            _audit.Log(_equipment.Id, AuditService.ActionDecommissionUndone,
+                "Status: Decommissioned", $"Status: {FormatStatus(newStatus)}");
+            _originalStatus = newStatus;
         }
 
         private void ShowResolveMaintenanceDialog()
@@ -1048,7 +1142,6 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            string oldStatusForAudit = _equipment.CurrentStatus;
 
             // Equipment Code and QR Code are no longer entered manually —
             // EquipmentService auto-generates them on Add when left blank,
@@ -1114,11 +1207,7 @@ namespace Inventory_Management_System.Forms
 
             if (result.Success)
             {
-                if (_isEditMode && oldStatusForAudit != "decommissioned" && _equipment.CurrentStatus == "decommissioned")
-                {
-                    _audit.Log(_equipment.Id, AuditService.ActionDecommissionApproved,
-                        $"Status: {FormatStatus(oldStatusForAudit)}", "Status: Decommissioned");
-                }
+        
 
                 // Prevent FormClosing's cleanup handler from deleting the file
                 // we just committed to the database.
