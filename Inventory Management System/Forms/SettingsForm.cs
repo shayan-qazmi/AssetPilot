@@ -980,46 +980,114 @@ namespace Inventory_Management_System.Forms
         private void BtnResetAppData_Click(object? sender, EventArgs e)
         {
             if (!ShowTypedConfirm(
-                "This will permanently delete ALL equipment and allocation records.\n" +
+                "This will permanently delete ALL operational data:\n" +
+                "Equipment, Allocations, Returns, Transfers, Employees,\n" +
+                "Locations, Logs, Check-In/Out history, Decommissioned &\n" +
+                "Deleted items, and Maintenance records.\n\n" +
                 "Users, roles, categories, and settings will NOT be affected.\n\n" +
                 "Type RESET below to confirm.", "RESET"))
                 return;
 
             var errors = new List<string>();
-            int deletedAllocations = 0, deletedEquipment = 0;
+            var counts = new Dictionary<string, int>();
 
             try
             {
                 using var db = new InventoryDbContext();
+
+                // ── 1. Equipment Logs (FK → Equipment, User) ──────────────────
                 try
                 {
-                    var allocations = db.Allocations.ToList();
-                    db.Allocations.RemoveRange(allocations);
+                    var rows = db.EquipmentLogs.ToList();
+                    db.EquipmentLogs.RemoveRange(rows);
                     db.SaveChanges();
-                    deletedAllocations = allocations.Count;
+                    counts["Logs"] = rows.Count;
+                }
+                catch (Exception ex) { errors.Add("Equipment Logs: " + ex.Message); }
+
+                // ── 2. Equipment Location Histories (FK → Equipment, Location) ──
+                try
+                {
+                    var rows = db.EquipmentLocationHistories.ToList();
+                    db.EquipmentLocationHistories.RemoveRange(rows);
+                    db.SaveChanges();
+                    counts["Location Histories"] = rows.Count;
+                }
+                catch (Exception ex) { errors.Add("Location Histories: " + ex.Message); }
+
+                // ── 3. Maintenance Records (FK → Equipment) ───────────────────
+                try
+                {
+                    var rows = db.MaintenanceRecords.ToList();
+                    db.MaintenanceRecords.RemoveRange(rows);
+                    db.SaveChanges();
+                    counts["Maintenance Records"] = rows.Count;
+                }
+                catch (Exception ex) { errors.Add("Maintenance Records: " + ex.Message); }
+
+                // ── 4. Transactions / Check-In-Out history (FK → Equipment) ──
+                try
+                {
+                    var rows = db.Transactions.ToList();
+                    db.Transactions.RemoveRange(rows);
+                    db.SaveChanges();
+                    counts["Transactions (Check-In/Out)"] = rows.Count;
+                }
+                catch (Exception ex) { errors.Add("Transactions: " + ex.Message); }
+
+                // ── 5. Allocations (FK → Equipment, Employee, Location) ───────
+                try
+                {
+                    var rows = db.Allocations.ToList();
+                    db.Allocations.RemoveRange(rows);
+                    db.SaveChanges();
+                    counts["Allocations"] = rows.Count;
                 }
                 catch (Exception ex) { errors.Add("Allocations: " + ex.Message); }
 
+                // ── 6. Equipment ──────────────────────────────────────────────
                 try
                 {
-                    var equipment = db.Equipment.ToList();
-                    db.Equipment.RemoveRange(equipment);
+                    var rows = db.Equipment.ToList();
+                    db.Equipment.RemoveRange(rows);
                     db.SaveChanges();
-                    deletedEquipment = equipment.Count;
+                    counts["Equipment"] = rows.Count;
                 }
                 catch (Exception ex) { errors.Add("Equipment: " + ex.Message); }
+
+                // ── 7. Employees (FK → Location via DefaultLocationId) ────────
+                try
+                {
+                    var rows = db.Employees.ToList();
+                    db.Employees.RemoveRange(rows);
+                    db.SaveChanges();
+                    counts["Employees"] = rows.Count;
+                }
+                catch (Exception ex) { errors.Add("Employees: " + ex.Message); }
+
+                // ── 8. Locations ──────────────────────────────────────────────
+                try
+                {
+                    var rows = db.Locations.ToList();
+                    db.Locations.RemoveRange(rows);
+                    db.SaveChanges();
+                    counts["Locations"] = rows.Count;
+                }
+                catch (Exception ex) { errors.Add("Locations: " + ex.Message); }
             }
             catch (Exception ex)
             {
                 errors.Add("Database connection: " + ex.Message);
             }
 
-            string summary = $"Deleted {deletedEquipment} equipment records and {deletedAllocations} allocation records.";
+            // Build summary
+            var summary = "Reset complete. Records deleted:\n" +
+                string.Join("\n", counts.Select(kv => $"  • {kv.Key}: {kv.Value}"));
+
             if (errors.Count > 0)
                 summary += "\n\nSome tables could not be cleared:\n" + string.Join("\n", errors);
 
             ToastHelper.Show(this, summary, errors.Count > 0 ? ToastType.Warning : ToastType.Success);
-
         }
 
         /// Small modal requiring the user to type an exact confirmation word before proceeding.
