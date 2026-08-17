@@ -46,14 +46,20 @@ namespace Inventory_Management_System.Forms
             ApplyTheme();
             SetupToolbarLayout();
             LoadCategoryFilter();
+
+            // Force panelTop to match the fully-populated toolbar (it may now
+            // wrap to a 2nd row). Without this, panelTop keeps its designer-time
+            // height, the 2nd row (search box) renders outside it, and the grid
+            // draws over it.
+            flowToolbar.AutoSize = true;
+            flowToolbar.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            panelTop.Height = flowToolbar.Height;
+
             LoadEquipment();
             SetupSearchSuggestions();
 
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
 
-            // Same fix as AllocationForm/TransferForm — Form.Shown fires once,
-            // after WinForms' automatic first-row selection, so clearing here
-            // reliably wins instead of racing it.
             this.Shown += (s, e) =>
             {
                 if (!_hasPendingSelection)

@@ -3,7 +3,7 @@
 > **Ground-truth document** — every claim is traced from source code:
 > UI form event handler → service method → EF Core / DbContext → database table + column.
 > No assumption-based descriptions. Source file + method cited per section.
-> Last updated: 2026-08-10
+> Last updated: 2026-08-17
 
 **Tech Stack:** WinForms · C# · .NET 8 · Entity Framework Core · MariaDB
 **Database:** `inventory_management` @ `192.168.18.240`
@@ -32,6 +32,7 @@
 18. [Cross-Module Effects Summary](#18-cross-module-effects-summary)
 19. [Known Issues & Observations](#19-known-issues--observations)
 20. [New Features & Recent Changes (2026-08-10)](#20-new-features--recent-changes-2026-08-10)
+21. [New Features & Recent Changes (2026-08-17)](#21-new-features--recent-changes-2026-08-17)
 
 ---
 
@@ -88,7 +89,7 @@ Roles are stored in the `roles` table and linked via `user_roles`. Session ident
 
 ### Construction
 
-1. `ApplyTheme()` — styles sidebar, top bar (yellow `#99C221`), card panels.
+1. `ApplyTheme()` — styles sidebar, top bar, card panels, and builds the dark mode toggle switch.
 2. `ApplyRolePermissions()` — hides `btnDecommission`, `btnSettings`, `btnDeletedItems` if role is not Admin.
 3. `LoadStats()` — queries DB for summary card values and chart data.
 4. `Shown` event re-calls `LoadStats()`.
@@ -119,8 +120,36 @@ Cards entrance with a bounce animation (`CardAnimState`, driven by `_animTimer` 
 
 Each sidebar button calls `OpenChildForm(new XxxForm())` which docks the form inside `panelContent`. The title bar label is animated character-by-character via `AnimateTitleTo()`.
 
+### 3.1 Dark Mode Toggle Switch
 
-### 3.1 Notification Bell
+**Source:** `DashboardForm.BuildThemeToggle()`, `ThemeHelper.ToggleTheme()`, `ThemeHelper.LoadTheme()`
+
+A pill-shaped animated toggle switch is embedded in the **top bar**, to the left of the notification bell. It renders as a 60×28 GDI+ custom panel:
+
+- **Light side (left):** ☀️ sun icon in amber.
+- **Dark side (right):** 🌙 moon icon in slate-blue.
+- **Animated thumb:** A white circle slides smoothly across the pill track using `_toggleThumbProgress` (0.0 = light, 1.0 = dark) animated at 12 ms ticks with a step of `0.18` per tick.
+- **Track colour:** Light mode → muted green (`#D6E0C8`); Dark mode → near-black (`#2D3037`).
+
+**Toggle behaviour (`ToggleThemeAnimated`):**
+1. Calls `ThemeHelper.ToggleTheme()` — flips `IsDarkMode`, serializes `{"IsDarkMode": true/false}` to `{AppDir}/theme.json`.
+2. Starts the thumb slide animation timer.
+3. Calls `SuspendLayout()` → `ApplyTheme()` → `LoadStats(instant: true)` → `ResumeLayout()` to re-paint the entire form in the new palette immediately.
+
+**Theme persistence:** `ThemeHelper.LoadTheme()` is called at app startup (`Program.cs`) to restore the last chosen theme from `theme.json`.
+
+**Dark palette key colours:**
+
+| Element | Dark Value |
+|---------|------------|
+| Dashboard background | `RGB(18,20,24)` |
+| Card background | `RGB(36,39,46)` |
+| Sidebar | `RGB(14,16,19)` |
+| Top bar | `RGB(45,48,55)` |
+| Text primary | `RGB(220,224,232)` |
+| Text secondary | `RGB(140,148,160)` |
+
+### 3.2 Notification Bell
 
 **Source:** top bar, all screens.
 
@@ -215,11 +244,15 @@ Opened by double-clicking any row in the Equipment grid. Displays a two-column c
 **Left column — Equipment Information:**
 `Equipment Code` · `QR Code` · `Name` · `Make` · `Model` · `Serial Number` · `Category` · `Status` (colour-coded badge) · `Condition` · `Purchase Date` · `Purchase Price` · `Procurement Type` · `Vendor Name` · `Warranty Expiry` · `Description` · `Notes` · `Picture` ("View Picture" button)
 
-**Right column — Current Allocation:**
-`Current Location` · `Currently Assigned To` (employee name) · `Allocation Date` · `Expected Return Date`
+**Left column action buttons row (bottom of left column):**
+- **📜 View Logs** — closes the popup and navigates the Dashboard to the Logs screen pre-filtered to the equipment's code via `dashboard.NavigateToLogs(equipmentCode)`.
+- **🗑 Clear History** — permanently deletes all `MaintenanceRecord` rows for this equipment. Disabled (greyed) if no records exist. On confirm: `db.MaintenanceRecords.RemoveRange(...)` + `db.SaveChanges()`, then writes `AuditService.Log(equipmentId, "Maintenance History Cleared", "{N} record(s)", "0 records")` → `equipment_logs`. The popup card is rebuilt in-place after clearing via `RefreshCardContent()`.
 
-**Right column — Maintenance History:**
-Calls `MaintenanceService.GetByEquipmentId(_equipment.Id)`. If no records: displays "No maintenance history recorded." Otherwise, lists each record with: `Record #N` (reported date) · `Status` (colour-coded: `open`=red, `in_progress`=amber, `resolved`=green) · `Issue` · `Serviced By` · `Cost` · `Resolved` (date)
+**Right column — Current Allocation:**
+`Current Location` · `Currently Assigned To` (employee name — clickable link that navigates to EmployeesForm pre-filtered to that employee's code) · `Allocation Date` · `Expected Return Date`
+
+**Right column — Maintenance History (scrollable panel):**
+Calls `MaintenanceService.GetByEquipmentId(_equipment.Id)` on popup construction. If no records: displays "No maintenance history recorded." Otherwise, lists each record in a scrollable `AutoScroll` panel with height capped to the left column's extent. Each record shows: `Record #N` (reported date) · `Status` (colour-coded badge: `open`=red/orange, `in_progress`=amber, `resolved`=green) · `Issue` · `Serviced By` · `Cost` (₨ formatted) · `Resolved` (date).
 
 The dialog auto-sizes and scrolls if content exceeds the screen working area. A vertical separator divides the two columns.
 
@@ -333,7 +366,11 @@ No search or pagination. Add/Edit/Delete each write to `equipment_logs` via `_au
 
 **Double-click row → `AllocationDetailPopup`:**
 Opens `AllocationDetailPopup` with a card showing the equipment photo (or gear icon placeholder) + status badge on the left, and labeled detail rows on the right:
-`QR Code / Equipment Code` · `Equipment Name` · `Serial / Make / Model` · `Employee` · `Location` · `Date Allocated` · `Expected Return` · `Source` (`Allocation` or `Check-In/Out`) · `Allocated By` · `"View Picture"` button (opens the equipment picture in the default viewer).
+`QR Code / Equipment Code` · `Equipment Name` · `Serial / Make / Model` · `Employee` · `Location` · `Date Allocated` · `Expected Return` · `Source` (`Allocation` or `Check-In/Out`) · `Allocated By`.
+
+Two action buttons appear below the picture/status area on the left:
+- **🖼 View Picture** — opens the equipment picture in a `Form` with `PictureBox` (Zoom mode). Disabled / greyed if no picture is available.
+- **📜 View Logs** — closes the popup and navigates the Dashboard to the Logs screen pre-filtered to this equipment's code via `dashboard.NavigateToLogs(_info.EquipmentCode)`.
 
 ### 7.3 Create Allocation
 
@@ -538,6 +575,7 @@ A static helper that compares two equipment snapshots field-by-field and returns
 | `ActionLocationDeleted` | `location_deleted` |
 | `ActionMaintenanceOpened` | `maintenance_opened` |
 | `ActionMaintenanceResolved` | `maintenance_resolved` |
+| *(free-form string)* | `Maintenance History Cleared` |
 
 ### 12.3 Who Writes Audit Logs
 
@@ -575,11 +613,17 @@ A static helper that compares two equipment snapshots field-by-field and returns
 
 **Export:** CSV of current page. Action column colour-coded: green / blue / yellow / red / purple / orange per action type.
 
+**Sortable columns:** Clicking any column header toggles ascending/descending sort. Sort state is preserved across page turns and search filter changes. Server-side sorting (via `IQueryable` switch expression) for un-filtered loads; in-memory sort for filtered loads.
+
 **Double-click row → `LogDetailPopup`:**
-Opens a `LogDetailPopup` modal showing formatted detail:
-- `Action` · `Changed By` · `When` · `Equipment` (code)
-- **Before** panel: `OldValue` split on `" | "`, each field shown as a bullet in a light-red box.
-- **After** panel: `NewValue` split on `" | "`, each field shown as a bullet in a light-green box.
+Opens a `LogDetailPopup` modal (`Forms/LogDetailPopup.cs`) showing formatted detail:
+- Green header strip with **📋 Log Details** title.
+- `Action` · `Changed By` · `When` (PKT formatted) · `Equipment Code | QR Code` · `Name, Make, Model`.
+- Horizontal divider.
+- **Before** panel: `OldValue` split on `" | "`, each field shown as a bullet in a light-red (`#FFF5F5`) box (dark mode: `#321E1E`).
+- **After** panel: `NewValue` split on `" | "`, each field shown as a bullet in a light-green (`#F0FDF4`) box (dark mode: `#19281E`).
+- All panels auto-size with text wrapping — no fixed height clipping.
+- Close button styled with primary accent green.
 
 ---
 
@@ -615,7 +659,7 @@ db.Equipment
 
 ## 14. Check In / Out
 
-**Source:** `Forms/CheckInOutForm.cs`, `Services/TransactionService.cs`
+**Source:** `Forms/CheckInOutForm.cs`, `Forms/CheckInOutHistoryPanel.cs`, `Services/TransactionService.cs`
 
 ### 14.1 Purpose
 
@@ -635,6 +679,7 @@ Active transaction loaded: `Transactions WHERE EquipmentId = id AND (Status = "P
 1. `CurrentStatus` must be `"in_store"`.
 2. No `Allocation` with `Status == "pending"` or `"approved"` may exist.
 3. `txtIssuedTo` must not be empty.
+4. A location must be selected in `cmbLocationOut`.
 
 **Service:**
 1. Checks no existing `Transaction` with `Status == "Pending"` or `"Overdue"`.
@@ -643,11 +688,9 @@ Active transaction loaded: `Transactions WHERE EquipmentId = id AND (Status = "P
 4. `Equipment.CurrentStatus = "allocated"`.
 5. `SaveChanges`.
 
-**Fields written to `transactions`:** `EquipmentId`, `IssuedTo`, `Department`, `OperatorName` (pre-filled from `AuthService.CurrentFullName`), `ExpectedReturn`, `ConditionBefore`, `Remarks`.
+**Fields written to `transactions`:** `EquipmentId`, `IssuedTo`, `Department` (auto-filled from location + room selection), `OperatorName` (pre-filled from `AuthService.CurrentFullName`), `ExpectedReturn`, `ConditionBefore`, `Remarks`.
 
 `_audit.Log(equipmentId, "checked_out", "in_store", "Issued to: {IssuedTo}")` → `equipment_logs`.
-
-**No audit log.**
 
 ### 14.4 Check-In — `TransactionService.CheckIn(transactionId, conditionAfter, remarks)`
 
@@ -665,9 +708,37 @@ Active transaction loaded: `Transactions WHERE EquipmentId = id AND (Status = "P
 
 Sets `Transaction.Status = "Overdue"` where `Status == "Pending"` and `ExpectedReturn < today`. Called externally (startup path not traced in this audit).
 
-### 14.6 History Grid
+### 14.6 Per-Equipment History Grid (Scan View)
 
-Last 10 `Transaction` records for the equipment. Display-only.
+Last 10 `Transaction` records for the scanned equipment. Displayed below the Check-In/Check-Out tab card. Display-only.
+
+### 14.7 Check-In/Out History Screen — `CheckInOutHistoryPanel`
+
+**Source:** `Forms/CheckInOutHistoryPanel.cs`
+
+Accessed via the **🕘 History** button in the Check In/Out form toolbar. Clicking it hides the scan bar and main content and overlays the full-screen history panel. The **◀ Back** button inside the history panel returns to the scan view.
+
+**Data load (`LoadData`):**
+```
+db.Transactions
+  .Include(t => t.Equipment)
+  .OrderByDescending(t => t.TransactionDate)
+  .ToList()
+```
+All transactions are loaded into memory; then each is expanded into up to two display entries:
+- **Check-Out entry:** the original transaction row.
+- **Check-In entry (synthetic):** generated only when `t.ActualReturn.HasValue` — represents the return event as a separate row with `Type = "Check-In"` and `Status = "Completed"`.
+
+Entries are re-sorted descending by their effective timestamp (return timestamp for check-in rows, `TransactionDate` for check-out rows).
+
+**Grid columns:**
+`Equipment Code` · `Equipment Name` · `Type` (`Check-Out` in blue / `Check-In` in green) · `Issued To` · `Department` · `Operator` · `Expected Return` · `Status` (colour-coded: Pending=amber, Completed=green, Overdue=red) · `Condition Before` · `Condition After` · `Date` · `Timestamp`
+
+**Search:** Real-time filter with 300 ms TextChanged hook. Code/QR exact substring match first; falls back to fuzzy match on Equipment Name, Issued To, Department, Operator, Status. Results re-ranked by fuzzy score.
+
+**Pagination:** ComboBox page-size selector (25 / 50 / 100 / 250 / 500 / 1000). Prev/Next page buttons with `Page N of M` indicator and `"Showing X of Y records"` label.
+
+**Export (📤):** Saves current page to CSV via `SaveFileDialog` → `File.WriteAllText`. Filename pattern: `CheckInOutHistory_{yyyyMMdd_HHmm}.csv`.
 
 ---
 
@@ -1023,3 +1094,138 @@ A new sixth Settings tab — **System Configuration** — is available exclusive
 ### 20.9 Dashboard — Recent Activities Panel
 
 The Dashboard `Recent Activities` panel (visible in the screenshot) lists the latest allocation/return/transfer events with timestamps (e.g. `"7h ago"`), equipment name, and action description. This is an in-dashboard live feed sourced from `equipment_logs ORDER BY CreatedAt DESC`.
+
+---
+
+## 21. New Features & Recent Changes (2026-08-17)
+
+This section documents all significant features and improvements added as of the **2026-08-17** update.
+
+### 21.1 Dark Mode Toggle Switch
+
+**Source:** `DashboardForm.BuildThemeToggle()` · `ThemeHelper.ToggleTheme()` · `ThemeHelper.LoadTheme()`
+
+An animated pill-shaped **☀️ / 🌙 toggle switch** is now embedded in the top bar of the Dashboard, immediately left of the notification bell.
+
+| Aspect | Detail |
+|--------|--------|
+| **Widget** | 60×28 GDI+ custom `Panel` named `"pnlThemeToggle"` |
+| **Thumb animation** | `_toggleThumbProgress` float (0–1) driven by a 12 ms `Timer` at step 0.18 per tick |
+| **Track colour** | Light: `#D6E0C8` · Dark: `#2D3037` |
+| **Click action** | `ToggleThemeAnimated()` — flips `ThemeHelper.IsDarkMode`, persists to `{AppDir}/theme.json`, repaints entire dashboard |
+| **Persistence** | `ThemeHelper.LoadTheme()` reads `theme.json` at `Program.Main()` startup |
+| **Scope** | Re-renders on theme change: sidebar, top bar, stat cards, charts, all child forms opened after the toggle |
+
+See §3.1 for full colour palette and implementation details.
+
+### 21.2 Check-In/Out History Screen
+
+**Source:** `Forms/CheckInOutHistoryPanel.cs`
+
+A new full-screen history view inside the Check In/Out form, accessed via the **🕘 History** toolbar button. Hides the scan UI entirely and overlays a paginated transaction history.
+
+**Key behaviours:**
+- Each `Transaction` row is expanded into up to 2 display entries: the Check-Out entry + a synthetic Check-In entry (if `ActualReturn.HasValue`).
+- Entries sorted by effective timestamp (return time for check-in rows, `TransactionDate` for check-out rows) descending.
+- Real-time fuzzy search across Equipment Code, QR Code, Equipment Name, Issued To, Department, Operator, Status.
+- Pagination: page sizes 25 / 50 / 100 / 250 / 500 / 1000. `Prev` / `Next` buttons with `Page N of M` and `Showing X of Y records` display.
+- **📤 Export** button saves current page to CSV (`CheckInOutHistory_{yyyyMMdd_HHmm}.csv`).
+- **◀ Back** button returns to the scan view.
+
+See §14.7 for complete column list and data-load details.
+
+### 21.3 Maintenance History in Equipment Detail Popup
+
+**Source:** `Forms/EquipmentDetailPopup.cs` · `Services/MaintenanceService.cs`
+
+The `EquipmentDetailPopup` right column now includes a **scrollable Maintenance History panel** loaded via `MaintenanceService.GetByEquipmentId(_equipment.Id)` at popup construction time.
+
+- The panel uses `AutoScroll = true` with its height capped to the remaining space beneath the Current Allocation section.
+- If no records exist, displays `"No maintenance history recorded."`
+- For each record: `Record #N` (date) · `Status` badge (color-coded) · `Issue` · `Serviced By` · `Cost` (₨) · `Resolved` date.
+- Status badge colours: `open`=`#DC5528` · `in_progress`=`#D97706` · `resolved`=`#228B22`.
+
+### 21.4 Clear Maintenance History Button
+
+**Source:** `EquipmentDetailPopup.AddLogsAndClearButtons()` · `BtnClearMaintenance_Click()`
+
+A **🗑 Clear History** button appears in the bottom row of the left column, next to the **📜 View Logs** button.
+
+| State | Appearance |
+|-------|------------|
+| Has records | Red-tinted (`#FEE2E2` bg, `#B91C1C` text, `#FCA5A5` border). Clickable. |
+| No records | Greyed out (`#F3F4F6` bg, `#9CA3AF` text). Disabled. |
+
+**On confirm (`MessageBox.YesNo`):**
+1. `db.MaintenanceRecords.Where(m => m.EquipmentId == id).ToList()` → `RemoveRange` → `SaveChanges`.
+2. `AuditService.Log(id, "Maintenance History Cleared", "{N} record(s)", "0 records")` → `equipment_logs`.
+3. In-memory `_maintenanceRecords.Clear()`.
+4. `RefreshCardContent()` — rebuilds card content in-place, updating button state and maintenance panel without reopening the popup.
+
+**Note:** The `"Maintenance History Cleared"` action type is a free-form string (not an `AuditService` constant). `LogsForm.FormatAction()` has a case for it and displays `"Maintenance History Cleared"` with no colour badge.
+
+### 21.5 View Logs Button in Detail Popups
+
+A **📜 View Logs** button now appears inside two detail popups, providing one-click navigation to the filtered Logs screen:
+
+| Popup | Button location | Behaviour |
+|-------|----------------|----------|
+| `EquipmentDetailPopup` | Bottom of left column, next to Clear History | Closes popup → `DashboardForm.NavigateToLogs(equipmentCode)` |
+| `AllocationDetailPopup` | Left side, below View Picture | Closes popup → `DashboardForm.NavigateToLogs(_info.EquipmentCode)` |
+
+Both buttons use the blue-tinted style (`#EEF2FF` bg, `ThemeHelper.Header` text, `#C7D2FE` border) matching the View Picture button aesthetic.
+
+`NavigateToLogs(string equipmentCode)` opens `LogsForm(equipmentCode)` — a constructor overload that pre-populates `txtSearch` with the equipment code so the grid immediately filters to that equipment's log entries.
+
+### 21.6 Log Detail Popup Improvements
+
+**Source:** `Forms/LogDetailPopup.cs`
+
+The `LogDetailPopup` (double-click on any Logs grid row) received the following improvements:
+
+- **Auto-sizing text rows:** Each row measures text height using `TextRenderer.MeasureText` with `TextFormatFlags.WordBreak` — no fixed-height clipping. Long values (e.g. complex diff strings) wrap correctly.
+- **Structured equipment identity row:** Equipment Code, QR Code, Name, Make, and Model are shown separately (`"Equipment Code | QR Code"` row + `"Name, Make, Model"` row).
+- **Dark-mode aware Before/After panels:** Section backgrounds adapt to `ThemeHelper.IsDarkMode`:
+  - Light → Before: `#FFF5F5` / After: `#F0FDF4`
+  - Dark → Before: `#321E1E` / After: `#19281E`
+- **Model field** is resolved from the underlying `_allLogs` collection by log ID (not a grid column), avoiding layout shifts.
+
+### 21.7 Allocation Detail Popup — View Picture + View Logs Buttons
+
+**Source:** `Forms/AllocationDetailPopup.cs`
+
+Two buttons are now stacked in the left icon panel of `AllocationDetailPopup`, below the equipment code and status badge:
+
+1. **🖼 View Picture** — always present. Active (blue tint) if `AvatarHelper.TryLoadEquipmentImage(_info.PicturePath)` resolves a non-null image; greyed + disabled otherwise. Opens the resolved `Image` in a standalone black `Form` with `PictureBoxSizeMode.Zoom`.
+2. **📜 View Logs** — always active. Closes the popup and calls `DashboardForm.NavigateToLogs(_info.EquipmentCode)` to open the Logs screen filtered to the equipment.
+
+### 21.8 Check-Out Form — Location + Room Dropdowns
+
+**Source:** `CheckInOutForm.PopulateLocationDropdowns()` · `RefreshRoomDropdown()` · `UpdateDepartmentFromLocation()`
+
+The Check-Out tab now features linked **Location** and **Room** dropdowns:
+
+- `cmbLocationOut` is populated from `LocationService.GetAll()` — distinct `LocationName` values, alphabetical.
+- `cmbRoomOut` cascades off `cmbLocationOut`: selecting a location populates rooms from matching `Location` rows. Disabled if the selected location has no rooms.
+- `txtDepartment` is **auto-filled** based on the selected Location + Room combination: `"{LocationName} - {Room {RoomNumber} (RoomName)}"`.
+- A validation now requires a Location to be selected before a Check-Out can be confirmed.
+
+### 21.9 Logs Form — Sortable Columns & Maintenance Action Types
+
+**Source:** `Forms/LogsForm.cs`
+
+- **Column sort:** Clicking any `DataGridView` column header sets `_sortColumn` and toggles `_sortAscending`. The active sort is applied via a `Func<IQueryable<EquipmentLog>, IOrderedQueryable<EquipmentLog>>` switch. **Page resets to 1 on sort change.**
+- **New action type colours:**
+  - `maintenance_opened` → `#FFE082` bg / `#825A00` text
+  - `maintenance_resolved` → `#C5E1A5` bg / `#33691E` text
+- **`FormatAction` additions:**
+  - `"maintenance_opened"` → `"Maintenance Opened"`
+  - `"maintenance_resolved"` → `"Maintenance Resolved"`
+  - `"Maintenance History Cleared"` → `"Maintenance History Cleared"` (pass-through)
+
+### 21.10 Cross-Module Effects — New Actions
+
+| Action | Module | Tables Written | Audit Log? |
+|--------|--------|----------------|------------|
+| Clear Maintenance History | Equipment Detail Popup | `maintenance_records` (range delete) | ✅ `Maintenance History Cleared` |
+| View Logs (from detail popup) | Equipment / Allocation Detail | *(navigation only, no write)* | ❌ |

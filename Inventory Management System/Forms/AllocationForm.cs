@@ -187,12 +187,19 @@ namespace Inventory_Management_System.Forms
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
 
             ApplyTheme();
-            SetupEquipmentFilterDropdown();  // kept — still builds cmbEquipmentFilter as a DATA SOURCE only, not added to toolbar (see below)
+            SetupEquipmentFilterDropdown();
             SetupSelectModeDropdown();
-            SetupCategoryFilterDropdown();   // kept — same, data source only
+            SetupCategoryFilterDropdown();
             SetupCombinedFiltersButton();
             SetupEditReturnButton();
-            SetupPageSizeOptions();   // ← moved here
+            SetupPageSizeOptions();
+
+            // Same fix as EquipmentForm — sync panelTop's height explicitly once
+            // all toolbar controls exist, instead of relying only on SizeChanged.
+            flowToolbar.AutoSize = true;
+            flowToolbar.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            panelTop.Height = flowToolbar.Height;
+
             LoadAllocations();
             SetupSuggestions();
 
@@ -207,7 +214,6 @@ namespace Inventory_Management_System.Forms
             {
                 dgvAllocation.ClearSelection();
                 dgvAllocation.CurrentCell = null;
-             
             };
         }
 

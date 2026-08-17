@@ -12,27 +12,23 @@ namespace Inventory_Management_System.Helpers
     /// dropdown to a TextBox for any entity type T. As the user types, the closest
     /// matches (scored by scoreFn) appear in a floating ListBox below the TextBox.
     /// </summary>
-    /// 
-
- 
-
-
     public sealed class EntitySuggestHelper<T> : IDisposable where T : class
     {
         private const int MaxSuggestions = 100;
         private const int MaxVisibleItems = 8;
         private const int MinQueryLength = 1;
-        private const int ItemHeight     = 40;
+        private const int ItemHeight = 40;
 
-        private readonly TextBox               _textBox;
-        private readonly Form                  _hostForm;
-        private readonly Action<T>             _onSelected;
-        private readonly Func<T, string, int>  _scoreFn;
-        private readonly Func<T, string>       _line1;
-        private readonly Func<T, string>       _line2;
-        private readonly ListBox               _listBox;
-        private List<T>                        _allItems = new();
-        private bool                           _suppressTextChanged;
+        private readonly TextBox _textBox;
+        private readonly Form _hostForm;
+        private readonly Action<T> _onSelected;
+        private readonly Func<T, string, int> _scoreFn;
+        private readonly Func<T, string> _line1;
+        private readonly Func<T, string> _line2;
+        private readonly ListBox _listBox;
+        private readonly PopupForm _popup;
+        private List<T> _allItems = new();
+        private bool _suppressTextChanged;
 
         public EntitySuggestHelper(
             TextBox textBox,
@@ -42,39 +38,50 @@ namespace Inventory_Management_System.Helpers
             Func<T, string> line1Selector,
             Func<T, string> line2Selector)
         {
-            _textBox    = textBox;
-            _hostForm   = hostForm;
+            _textBox = textBox;
+            _hostForm = hostForm;
             _onSelected = onSelected;
-            _scoreFn    = scoreFn;
-            _line1      = line1Selector;
-            _line2      = line2Selector;
+            _scoreFn = scoreFn;
+            _line1 = line1Selector;
+            _line2 = line2Selector;
 
-            _listBox = new SuggestionListBox    
+            _listBox = new SuggestionListBox
             {
-                Visible        = false,
-                BorderStyle    = BorderStyle.FixedSingle,
-                Font           = ThemeHelper.FontDefault,
+                Dock = DockStyle.Fill,
+                BorderStyle = BorderStyle.FixedSingle,
+                Font = ThemeHelper.FontDefault,
                 BackColor = ThemeHelper.CardBg,
                 ForeColor = ThemeHelper.TextPrimary,
-                DrawMode       = DrawMode.OwnerDrawFixed,
-                ItemHeight     = ItemHeight,
+                DrawMode = DrawMode.OwnerDrawFixed,
+                ItemHeight = ItemHeight,
                 IntegralHeight = false,
-                TabStop        = false,
+                TabStop = false,
             };
             _listBox.ItemHeight = ItemHeight;
 
-            _listBox.DrawItem   += ListBox_DrawItem;
+            _listBox.DrawItem += ListBox_DrawItem;
             _listBox.MouseClick += ListBox_MouseClick;
-            _listBox.KeyDown    += ListBox_KeyDown;
+            _listBox.KeyDown += ListBox_KeyDown;
 
-            _hostForm.Controls.Add(_listBox);
-            _listBox.BringToFront();
+            // Popup host: a separate, non-activating floating window — not a
+            // child of _hostForm.Controls. See EquipmentSuggestHelper for why:
+            // that collection also holds Dock-based panels, and reparenting/
+            // reordering a child into it on every keystroke forces a full
+            // dock re-layout of the host form, which is what corrupted the
+            // toolbar row. An owned top-level window floats above _hostForm
+            // by normal Z-order and never touches its layout.
+            _popup = new PopupForm();
+            _popup.Controls.Add(_listBox);
 
             _textBox.TextChanged += TextBox_TextChanged;
-            _textBox.KeyDown     += TextBox_KeyDown;
-            _textBox.LostFocus   += TextBox_LostFocus;
+            _textBox.KeyDown += TextBox_KeyDown;
+            _textBox.LostFocus += TextBox_LostFocus;
 
+            // Hide when the host form is clicked, moved, resized, or loses focus
             _hostForm.MouseClick += Form_MouseClick;
+            _hostForm.Move += Form_MoveOrResize;
+            _hostForm.Resize += Form_MoveOrResize;
+            _hostForm.Deactivate += Form_MoveOrResize;
         }
 
         /// <summary>Call this whenever the underlying data list is (re)loaded.</summary>
@@ -88,7 +95,7 @@ namespace Inventory_Management_System.Helpers
 
         private void TextBox_KeyDown(object? sender, KeyEventArgs e)
         {
-            if (!_listBox.Visible) return;
+            if (!_popup.Visible) return;
             switch (e.KeyCode)
             {
                 case Keys.Down:
@@ -115,6 +122,33 @@ namespace Inventory_Management_System.Helpers
                     return true;
 
                 return base.IsInputKey(keyData);
+            }
+        }
+
+        // A borderless, non-activating floating window used to host the
+        // suggestion ListBox. WS_EX_NOACTIVATE + ShowWithoutActivation means
+        // showing it never steals focus from the search TextBox.
+        private sealed class PopupForm : Form
+        {
+            public PopupForm()
+            {
+                FormBorderStyle = FormBorderStyle.None;
+                ShowInTaskbar = false;
+                StartPosition = FormStartPosition.Manual;
+            }
+
+            protected override bool ShowWithoutActivation => true;
+
+            protected override CreateParams CreateParams
+            {
+                get
+                {
+                    const int WS_EX_NOACTIVATE = 0x08000000;
+                    const int WS_EX_TOOLWINDOW = 0x00000080;
+                    var cp = base.CreateParams;
+                    cp.ExStyle |= WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
+                    return cp;
+                }
             }
         }
 
@@ -151,6 +185,8 @@ namespace Inventory_Management_System.Helpers
 
         private void Form_MouseClick(object? sender, MouseEventArgs e) => HideDropdown();
 
+        private void Form_MoveOrResize(object? sender, EventArgs e) => HideDropdown();
+
         private void ListBox_DrawItem(object? sender, DrawItemEventArgs e)
         {
             if (e.Index < 0 || e.Index >= _listBox.Items.Count) return;
@@ -174,7 +210,7 @@ namespace Inventory_Management_System.Helpers
             using var line1Brush = new SolidBrush(ThemeHelper.Accent);
             using var line2Brush = new SolidBrush(ThemeHelper.TextSecondary);
 
-            e.Graphics.DrawString(_line1(item) ?? "—", ThemeHelper.FontBold,  line1Brush, textX, e.Bounds.Y + 3);
+            e.Graphics.DrawString(_line1(item) ?? "—", ThemeHelper.FontBold, line1Brush, textX, e.Bounds.Y + 3);
             e.Graphics.DrawString(_line2(item) ?? "—", ThemeHelper.FontSmall, line2Brush, textX, e.Bounds.Y + 20);
 
             using var sepPen = new Pen(ThemeHelper.CardBorder, 1f);
@@ -210,26 +246,27 @@ namespace Inventory_Management_System.Helpers
             _listBox.EndUpdate();
 
             PositionDropdown(scored.Count);
-            _listBox.Visible = true;
-            _listBox.BringToFront();
+            if (!_popup.Visible)
+                _popup.Show(_hostForm);
         }
 
         private void PositionDropdown(int itemCount)
         {
-            Point tbBottomLeft  = _textBox.Parent!.PointToScreen(new Point(_textBox.Left, _textBox.Bottom));
-            Point formRelative  = _hostForm.PointToClient(tbBottomLeft);
-            int   dropH         = Math.Min(itemCount, MaxVisibleItems) * ItemHeight + 2;
+            // Screen coordinates — the popup is a top-level window, so it's
+            // positioned in screen space, not translated into _hostForm's
+            // client coordinates.
+            Point screenPos = _textBox.Parent!.PointToScreen(
+                new Point(_textBox.Left, _textBox.Bottom));
 
-            int maxAllowedHeight = _hostForm.ClientSize.Height - formRelative.Y - 10;
-            if (maxAllowedHeight < ItemHeight) maxAllowedHeight = ItemHeight;
-            
-            if (dropH > maxAllowedHeight)
-            {
-                dropH = maxAllowedHeight;
-            }
+            int dropH = Math.Min(itemCount, MaxVisibleItems) * ItemHeight + 2;
+            int width = Math.Max(_textBox.Width, 260);
 
-            _listBox.SetBounds(formRelative.X, formRelative.Y, Math.Max(_textBox.Width, 260), dropH);
-            _hostForm.Controls.SetChildIndex(_listBox, 0); // index 0 = always topmost, regardless of what else painted since
+            // Keep it on-screen if the textbox is near the bottom edge.
+            var workArea = Screen.FromControl(_textBox).WorkingArea;
+            if (screenPos.Y + dropH > workArea.Bottom)
+                dropH = Math.Max(ItemHeight, workArea.Bottom - screenPos.Y);
+
+            _popup.Bounds = new Rectangle(screenPos.X, screenPos.Y, width, dropH);
         }
 
         private void CommitSelection(int index)
@@ -254,19 +291,22 @@ namespace Inventory_Management_System.Helpers
             _onSelected(selected);
         }
 
-        private void HideDropdown() => _listBox.Visible = false;
+        private void HideDropdown()
+        {
+            if (_popup.Visible) _popup.Hide();
+        }
 
         public void Dispose()
         {
             _textBox.TextChanged -= TextBox_TextChanged;
-            _textBox.KeyDown     -= TextBox_KeyDown;
-            _textBox.LostFocus   -= TextBox_LostFocus;
+            _textBox.KeyDown -= TextBox_KeyDown;
+            _textBox.LostFocus -= TextBox_LostFocus;
             _hostForm.MouseClick -= Form_MouseClick;
+            _hostForm.Move -= Form_MoveOrResize;
+            _hostForm.Resize -= Form_MoveOrResize;
+            _hostForm.Deactivate -= Form_MoveOrResize;
 
-            if (_hostForm.Controls.Contains(_listBox))
-                _hostForm.Controls.Remove(_listBox);
-
-            _listBox.Dispose();
+            _popup.Dispose(); // also disposes _listBox, which it owns
         }
     }
 }
