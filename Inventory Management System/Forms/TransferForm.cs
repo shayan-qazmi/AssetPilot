@@ -672,7 +672,7 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
                 AutoSize = false,
                 Size = new Size(colWidth, 52),
                 Location = new Point(leftX, yLeft),
-                BackColor = Color.FromArgb(245, 247, 250)
+                BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(36, 39, 46) : Color.FromArgb(245, 247, 250)
             };
             body.Controls.Add(lblCurrentDetails);
             yLeft += lblCurrentDetails.Height + 10;

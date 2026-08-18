@@ -2031,6 +2031,12 @@ namespace Inventory_Management_System.Forms
 
         private CheckBox chkHasDate = null!;
         private DateTimePicker dtp = null!;
+        private Button btnSave = null!;
+        private Button btnCancel = null!;
+
+        private static Color EditAccent => Color.FromArgb(245, 158, 11);
+        private static Color CardBorder => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(224, 224, 224);
+        private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
 
         public EditExpectedReturnDialog(DateOnly? currentDate)
         {
@@ -2039,68 +2045,119 @@ namespace Inventory_Management_System.Forms
 
         private void BuildUI(DateOnly? currentDate)
         {
-            Text = "Edit Expected Return Date";
-            Size = new Size(360, 260);
-            StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
+            StartPosition = FormStartPosition.CenterParent;
+            Font = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
+
+            const int formWidth = 380;
+            const int margin = 24;
+            int contentWidth = formWidth - margin * 2;
+
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = EditAccent };
+            Controls.Add(pnlHeader);
+
+            var lblTitle = new Label
+            {
+                Text = "📅  Edit Expected Return Date",
+                Font = new Font("Segoe UI", 13.5f, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(margin, 16)
+            };
+            pnlHeader.Controls.Add(lblTitle);
+
+            var subtitleFont = new Font("Segoe UI", 9f, FontStyle.Regular);
+            string subtitleText = "Update or clear the expected return date for this allocation";
+            var subtitleSize = TextRenderer.MeasureText(
+                subtitleText, subtitleFont, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+            var lblSubtitle = new Label
+            {
+                Text = subtitleText,
+                Font = subtitleFont,
+                ForeColor = Color.FromArgb(255, 245, 230),
+                AutoSize = false,
+                Size = new Size(contentWidth, subtitleSize.Height + 4),
+                Location = new Point(margin, lblTitle.Bottom + 6)
+            };
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Height = lblSubtitle.Bottom + 16;
+
+            var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10) };
+            Controls.Add(body);
 
             int y = 20;
 
             chkHasDate = new CheckBox
             {
                 Text = "Set expected return date",
-                Location = new Point(20, y),
+                Location = new Point(margin, y),
                 AutoSize = true,
                 Font = ThemeHelper.FontDefault,
                 ForeColor = ThemeHelper.TextPrimary,
                 Checked = currentDate.HasValue
             };
             chkHasDate.CheckedChanged += (s, e) => dtp.Enabled = chkHasDate.Checked;
-            Controls.Add(chkHasDate);
+            body.Controls.Add(chkHasDate);
             y += 30;
 
             dtp = new DateTimePicker
             {
-                Location = new Point(20, y),
-                Width = 300,
+                Location = new Point(margin, y),
+                Width = contentWidth,
                 Format = DateTimePickerFormat.Short,
                 Enabled = currentDate.HasValue,
                 Value = currentDate.HasValue
                     ? currentDate.Value.ToDateTime(TimeOnly.MinValue)
                     : DateTime.Today
             };
-            Controls.Add(dtp);
-            y += 50;
+            body.Controls.Add(dtp);
+            y += 46;
 
             var lblHint = new Label
             {
                 Text = "A past date marks this allocation overdue.\nA future (or no) date clears the overdue status.",
-                Location = new Point(20, y),
-                Size = new Size(300, 40),
+                Location = new Point(margin, y),
+                Size = new Size(contentWidth, 40),
                 Font = ThemeHelper.FontSmall,
-                ForeColor = ThemeHelper.TextSecondary
+                ForeColor = MutedText
             };
-            Controls.Add(lblHint);
-            y += 54;
+            body.Controls.Add(lblHint);
+            y += 50;
 
-            var btnSave = new Button { Text = "Save", Location = new Point(20, y), Size = new Size(140, 36) };
-            ThemeHelper.StyleButton(btnSave);
+            body.Size = new Size(formWidth, y);
+
+            const int footerHeight = 64;
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251) };
+            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
+
+            btnCancel = new Button { Text = "Cancel", Size = new Size(130, 38) };
+            ThemeHelper.StyleSecondaryButton(btnCancel);
+            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
+
+            btnSave = new Button { Text = "✓  Save", Size = new Size(130, 38) };
+            ThemeHelper.StyleButton(btnSave, EditAccent);
             btnSave.Click += (s, e) =>
             {
                 SelectedDate = chkHasDate.Checked ? DateOnly.FromDateTime(dtp.Value) : (DateOnly?)null;
                 DialogResult = DialogResult.OK;
             };
-            Controls.Add(btnSave);
 
-            var btnCancel = new Button { Text = "Cancel", Location = new Point(170, y), Size = new Size(140, 36) };
-            ThemeHelper.StyleSecondaryButton(btnCancel);
-            btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
-            Controls.Add(btnCancel);
+            int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
+            int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
+            btnSave.Location = new Point(buttonsStartX, 13);
+            btnCancel.Location = new Point(buttonsStartX + btnSave.Width + 12, 13);
 
-            ClientSize = new Size(340, y + 60);
+            pnlFooter.Controls.Add(btnCancel);
+            pnlFooter.Controls.Add(btnSave);
+            Controls.Add(pnlFooter);
+
+            int totalHeight = pnlHeader.Height + body.Height + footerHeight;
+            ClientSize = new Size(formWidth, totalHeight);
+            pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
+
             AcceptButton = btnSave;
             CancelButton = btnCancel;
         }

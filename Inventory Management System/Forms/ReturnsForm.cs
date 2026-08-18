@@ -767,8 +767,12 @@ namespace Inventory_Management_System.Forms
             const int margin = 28;
             int contentWidth = formWidth - margin * 2;
 
+            // Edit uses the same amber accent as every other edit dialog;
+            // Process (add) keeps the green accent.
+            Color modeAccent = _isEdit ? Color.FromArgb(245, 158, 11) : ThemeHelper.Header;
+
             // ── Header ──
-            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = ThemeHelper.Header };
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = modeAccent };
             Controls.Add(pnlHeader);
 
             var lblTitle = new Label
@@ -813,13 +817,16 @@ namespace Inventory_Management_System.Forms
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
 
             btnSave = new Button { Text = _isEdit ? "✓  Save" : "✓  Process Return", Size = new Size(_isEdit ? 150 : 210, 42) };
-            ThemeHelper.StyleButton(btnSave);
+            if (_isEdit)
+                ThemeHelper.StyleButton(btnSave, modeAccent);
+            else
+                ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
 
             int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
             int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
-            btnCancel.Location = new Point(buttonsStartX, 15);
-            btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
+            btnSave.Location = new Point(buttonsStartX, 15);
+            btnCancel.Location = new Point(buttonsStartX + btnSave.Width + 12, 15);
 
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnSave);
@@ -829,7 +836,7 @@ namespace Inventory_Management_System.Forms
 
             void SectionHeader(string title)
             {
-                body.Controls.Add(new Panel { BackColor = ThemeHelper.Header, Size = new Size(4, 22), Location = new Point(margin, y) });
+                body.Controls.Add(new Panel { BackColor = modeAccent, Size = new Size(4, 22), Location = new Point(margin, y) });
                 body.Controls.Add(new Label
                 {
                     Text = title,
@@ -911,7 +918,7 @@ namespace Inventory_Management_System.Forms
                 ForeColor = ThemeHelper.TextPrimary,
                 AutoSize = false,
                 Size = new Size(contentWidth, 36),
-                BackColor = Color.FromArgb(245, 247, 250)
+                BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(36, 39, 46) : Color.FromArgb(245, 247, 250)
             };
             PlaceControl(lblAllocDetails, height: 36);
 

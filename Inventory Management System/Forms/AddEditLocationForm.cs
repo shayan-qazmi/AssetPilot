@@ -94,11 +94,14 @@ AutoSize = false,
             btnCancel.Click += (s, e) => this.DialogResult = DialogResult.Cancel;
 
             btnSave = new Button { Text = "✓  Save", Size = new Size(150, 42) };
-ThemeHelper.StyleButton(btnSave);
+            if (_isEditMode)
+                ThemeHelper.StyleButton(btnSave, Accent);
+            else
+                ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
 
-            btnSave.Location = new Point(formWidth - btnSave.Width - margin, 15);
-            btnCancel.Location = new Point(btnSave.Left - btnCancel.Width - 12, 15);
+            btnCancel.Location = new Point(formWidth - btnCancel.Width - margin, 15);
+            btnSave.Location = new Point(btnCancel.Left - btnSave.Width - 12, 15);
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnSave);
             this.Controls.Add(pnlFooter);

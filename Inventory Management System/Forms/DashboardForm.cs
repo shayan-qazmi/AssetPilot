@@ -1,6 +1,7 @@
 // Forms/DashboardForm.cs
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
@@ -105,6 +106,49 @@ namespace Inventory_Management_System
         private float _donutAnimProgress = 1f;
         private const int AnimTickIntervalMs = 15;
         private const int CenterCardIndex = 3; // "Under Repair"
+
+        // Elapsed-time-based chart animation — replaces the old feedback-loop
+        // increment (which re-eased an already-eased value each tick, making
+        // the actual duration unpredictable). Tune these two constants to
+        // make the pie/bars faster or slower — duration in milliseconds.
+        // Stopwatch-based timing — immune to WinForms Timer tick drift under
+        // CPU load. Only starts once card entrance is fully done (see
+        // AnimTimer_Tick), so chart duration is always accurate regardless
+        // of how long the card animation took.
+        private readonly Stopwatch _chartAnimClock = new();
+        private bool _chartAnimClockStarted = false;
+        private const float DonutAnimDurationMs = 2800f; // slower + smoother pie sweep
+        private const float BarAnimDurationMs = 1500f;
+
+        // ── Hover state (donut / bar / category charts) ─────────────────
+        private PointF _donutCenter;
+        private float _donutOuterRadius, _donutInnerRadius;
+        private List<(string Label, int Count, Color Color, float RelStart, float RelSweep)> _donutHitSlices = new();
+        private int _donutHoverIndex = -1;
+        private Point _donutMousePos;
+
+        private List<(RectangleF Bounds, string Label, int Count, float Pct, Color Color)> _barHitCols = new();
+        private int _barHoverIndex = -1;
+        private Point _barMousePos;
+
+        private List<(RectangleF Bounds, string Category, int Count, float Pct, Color Color)> _catHitRows = new();
+        private int _catHoverIndex = -1;
+        private Point _catMousePos;
+
+        // ── Cached chart fonts — created once, reused across every repaint
+        // instead of allocating (and GDI-handle-backed) fonts every single
+        // Paint call. These fire at ~66fps during a 2.8s animation, so this
+        // matters. ──
+        private static readonly Font ChartLabelFont = new("Segoe UI", 8f, FontStyle.Regular, GraphicsUnit.Point);
+        private static readonly Font ChartValueFont = new("Segoe UI", 8.5f, FontStyle.Bold, GraphicsUnit.Point);
+        private static readonly Font ChartCatLabelFont = new("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point);
+        private static readonly Font ChartTitleFont = new("Segoe UI", 10f, FontStyle.Bold, GraphicsUnit.Point);
+        private static readonly Font DonutNumberFont = new("Segoe UI", 16f, FontStyle.Bold, GraphicsUnit.Point);
+        private static readonly Font DonutSubFont = new("Segoe UI", 7.5f, FontStyle.Regular, GraphicsUnit.Point);
+        private static readonly Font DonutLegendFont = new("Segoe UI", 8.25f, FontStyle.Regular, GraphicsUnit.Point);
+        private static readonly Font DonutLegendBoldFont = new("Segoe UI", 8.25f, FontStyle.Bold, GraphicsUnit.Point);
+        private static readonly Font TooltipTitleFont = new("Segoe UI", 8.5f, FontStyle.Bold);
+        private static readonly Font TooltipSubFont = new("Segoe UI", 8f);
         private const int BellRightOffset = 118; // bell sits left of the profile widget, both hugging the right edge
         private Panel? _pnlThemeToggle;
         private float _toggleThumbProgress = 0f;
@@ -1551,6 +1595,8 @@ namespace Inventory_Management_System
                 _donutAnimProgress = instant ? 1f : 0f;
                 _barAnimProgress = instant ? 1f : 0f;
                 _activitiesAnimProgress = instant ? 1f : 0f;
+                _chartAnimClock.Reset();
+                _chartAnimClockStarted = false;
 
                 using var db = new InventoryDbContext();
 
@@ -1724,6 +1770,8 @@ namespace Inventory_Management_System
         {
             bool allDone = true;
 
+            // ── Phase 1: card entrance (slide/bounce) ───────────────────────
+            bool cardsDone = true;
             if (_cardAnims != null)
             {
                 foreach (var anim in _cardAnims)
@@ -1732,6 +1780,7 @@ namespace Inventory_Management_System
                     {
                         anim.DelayMs -= AnimTickIntervalMs;
                         allDone = false;
+                        cardsDone = false;
                         continue;
                     }
 
@@ -1739,7 +1788,7 @@ namespace Inventory_Management_System
                     {
                         anim.Progress += 0.08f;
                         if (anim.Progress >= 1f) anim.Progress = 1f;
-                        else allDone = false;
+                        else { allDone = false; cardsDone = false; }
 
                         float t = anim.Progress;
 
@@ -1769,42 +1818,66 @@ namespace Inventory_Management_System
                     }
                 }
             }
-            if (_donutAnimProgress < 1f)
+
+            // ── Phase 2: charts (donut sweep + bar fill + category bars) —
+            // deliberately held back until every card has finished sliding
+            // in, so the pie/legend numbers visibly wait their turn instead
+            // of racing the card entrance. Uses real elapsed-time / duration
+            // instead of a fixed per-tick increment, so speed is predictable
+            // and doesn't compound like the old re-eased-every-tick version did. ──
+            if (cardsDone)
             {
-                float raw = Math.Min(1f, _donutAnimProgress + 0.0015f);
-                _donutAnimProgress = raw >= 1f ? 1f : 1f - MathF.Pow(1f - raw, 3f);
-                if (_donutAnimProgress > 0.999f) _donutAnimProgress = 1f;
-                _panelDonut?.Invalidate();
+                if (!_chartAnimClockStarted)
+                {
+                    _chartAnimClock.Restart();
+                    _chartAnimClockStarted = true;
+                }
+                long elapsedMs = _chartAnimClock.ElapsedMilliseconds;
+
+                if (_donutAnimProgress < 1f)
+                {
+                    float t = Math.Clamp(elapsedMs / DonutAnimDurationMs, 0f, 1f);
+                    _donutAnimProgress = EaseOutCubic(t);
+                    if (_donutAnimProgress > 0.999f) _donutAnimProgress = 1f;
+                    _panelDonut?.Invalidate();
+                    allDone = false;
+                }
+
+                if (_barAnimProgress < 1f)
+                {
+                    float t = Math.Clamp(elapsedMs / BarAnimDurationMs, 0f, 1f);
+                    _barAnimProgress = EaseOutCubic(t);
+                    if (_barAnimProgress > 0.999f) _barAnimProgress = 1f;
+                    _panelBar?.Invalidate();
+                    _panelLine?.Invalidate();
+                    allDone = false;
+                }
+            }
+            else if (_donutAnimProgress < 1f || _barAnimProgress < 1f)
+            {
+                // Charts are queued but haven't started yet — keep the
+                // overall timer alive without advancing them.
                 allDone = false;
             }
 
-            if (_barAnimProgress < 1f)
-            {
-                float raw = Math.Min(1f, _barAnimProgress + 0.0015f);
-                _barAnimProgress = raw >= 1f ? 1f : 1f - MathF.Pow(1f - raw, 3f);
-                if (_barAnimProgress > 0.999f) _barAnimProgress = 1f;
-                _panelBar?.Invalidate();
-                _panelLine?.Invalidate();
-                allDone = false;
-            }
-
+            // ── Phase 3: activities panel slide-in — independent of the
+            // charts, so it can happen alongside them rather than queuing. ──
             if (_activitiesAnimProgress < 1f && _panelActivities != null)
             {
                 _activitiesAnimProgress = Math.Min(1f, _activitiesAnimProgress + 0.05f);
-                float ease = 1f - MathF.Pow(1f - _activitiesAnimProgress, 3f);
+                float ease = EaseOutCubic(_activitiesAnimProgress);
                 int startX = _activitiesTargetBounds.X + 250; // starts 250px to the right, slides left into place
                 int curX = (int)(startX + (_activitiesTargetBounds.X - startX) * ease);
                 _panelActivities.SetBounds(curX, _activitiesTargetBounds.Y, _activitiesTargetBounds.Width, _activitiesTargetBounds.Height);
                 allDone = false;
             }
 
-
             if (allDone)
             {
                 _animTimer?.Stop();
                 _animTimer?.Dispose();
                 _animTimer = null;
-                
+
                 if (_cardAnims != null)
                 {
                     foreach (var anim in _cardAnims)
@@ -1814,6 +1887,8 @@ namespace Inventory_Management_System
                 }
             }
         }
+
+        private static float EaseOutCubic(float t) => 1f - MathF.Pow(1f - t, 3f);
 
         // ════════════════════════════════════════════════════════════════
         //  CHART AREA
@@ -1843,6 +1918,18 @@ namespace Inventory_Management_System
 
             _panelDonut = MakeChartCard("Equipment Status");
             _panelDonut.Paint += PaintDonutChart;
+            _panelDonut.MouseMove += (s, e) =>
+            {
+                _donutMousePos = e.Location;
+                int idx = HitTestDonut(e.Location);
+                bool changed = idx != _donutHoverIndex;
+                _donutHoverIndex = idx;
+                if (changed || idx >= 0) _panelDonut.Invalidate();
+            };
+            _panelDonut.MouseLeave += (s, e) =>
+            {
+                if (_donutHoverIndex != -1) { _donutHoverIndex = -1; _panelDonut.Invalidate(); }
+            };
 
             var lnkViewAllEquipment = new Label
             {
@@ -1863,6 +1950,18 @@ namespace Inventory_Management_System
 
             _panelBar = MakeChartCard("Asset Status Breakdown");
             _panelBar.Paint += PaintBarChart;
+            _panelBar.MouseMove += (s, e) =>
+            {
+                _barMousePos = e.Location;
+                int idx = _barHitCols.FindIndex(c => c.Bounds.Contains(e.Location));
+                bool changed = idx != _barHoverIndex;
+                _barHoverIndex = idx;
+                if (changed || idx >= 0) _panelBar.Invalidate();
+            };
+            _panelBar.MouseLeave += (s, e) =>
+            {
+                if (_barHoverIndex != -1) { _barHoverIndex = -1; _panelBar.Invalidate(); }
+            };
             BuildBarPeriodSelector(_panelBar);
 
             _panelActivities = MakeChartCard("Recent Activities");
@@ -1876,6 +1975,18 @@ namespace Inventory_Management_System
 
             _panelLine = MakeChartCard("Equipment by Category");
             _panelLine.Paint += PaintCategoryBreakdownChart;
+            _panelLine.MouseMove += (s, e) =>
+            {
+                _catMousePos = e.Location;
+                int idx = _catHitRows.FindIndex(r => r.Bounds.Contains(e.Location));
+                bool changed = idx != _catHoverIndex;
+                _catHoverIndex = idx;
+                if (changed || idx >= 0) _panelLine.Invalidate();
+            };
+            _panelLine.MouseLeave += (s, e) =>
+            {
+                if (_catHoverIndex != -1) { _catHoverIndex = -1; _panelLine.Invalidate(); }
+            };
 
             _panelBotRow.Controls.Add(_panelLine);
 
@@ -2138,14 +2249,13 @@ namespace Inventory_Management_System
                 using var hBrush = new SolidBrush(ThemeHelper.ChartCardHdrBg);
                 g.FillRectangle(hBrush, 0, 0, card.Width, 44);
 
-                using var tFont = new Font("Segoe UI", 10f, FontStyle.Bold, GraphicsUnit.Point);
                 using var tFg = new SolidBrush(ThemeHelper.ChartTitleText);
 
                 string titleText = card.Tag?.ToString() ?? "";
                 const int reservedRight = 130;
                 var titleRect = new RectangleF(16, 12, Math.Max(20, card.Width - 16 - reservedRight), 22);
                 using var titleSf = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
-                g.DrawString(titleText, tFont, tFg, titleRect, titleSf);
+                g.DrawString(titleText, ChartTitleFont, tFg, titleRect, titleSf);
 
                 using var div = new Pen(ThemeHelper.ChartDivider, 1f);
                 g.DrawLine(div, 0, 44, card.Width, 44);
@@ -2189,45 +2299,62 @@ namespace Inventory_Management_System
             var innerR = new RectangleF(cx - inner / 2f, cy - inner / 2f, inner, inner);
 
             float start = -90f;
+            float relCursor = 0f;
+            _donutHitSlices.Clear();
             foreach (var seg in segs)
             {
                 float sweep = (float)seg.Count / total * 360f;
                 float animSweep = sweep * _donutAnimProgress;
-                if (animSweep < 0.1f) continue;
-                using var br = new SolidBrush(seg.Color);
-                g.FillPie(br, outerR.X, outerR.Y, outerR.Width, outerR.Height, start, animSweep);
+                if (animSweep >= 0.1f)
+                {
+                    using var br = new SolidBrush(seg.Color);
+                    g.FillPie(br, outerR.X, outerR.Y, outerR.Width, outerR.Height, start, animSweep);
+                }
+
+                _donutHitSlices.Add((seg.Label, seg.Count, seg.Color, relCursor, sweep));
                 start += animSweep;
+                relCursor += sweep;
             }
+
+            _donutCenter = new PointF(cx, cy);
+            _donutOuterRadius = size / 2f;
+            _donutInnerRadius = inner / 2f;
 
             using var hole = new SolidBrush(ThemeHelper.DonutHoleBg);
             g.FillEllipse(hole, innerR);
 
-            using var nf = new Font("Segoe UI", 16f, FontStyle.Bold, GraphicsUnit.Point);
-            using var sf = new Font("Segoe UI", 7.5f, FontStyle.Regular, GraphicsUnit.Point);
             using var fg = new SolidBrush(ThemeHelper.DonutNumText);
             using var fg2 = new SolidBrush(ThemeHelper.DonutSubText);
             int animTotal = (int)(total * _donutAnimProgress);
-            var ns = g.MeasureString(animTotal.ToString(), nf);
-            g.DrawString(animTotal.ToString(), nf, fg, new PointF(cx - ns.Width / 2f, cy - ns.Height / 2f - 5));
-            var ss = g.MeasureString("Total", sf);
-            g.DrawString("Total", sf, fg2, new PointF(cx - ss.Width / 2f, cy + ns.Height / 2f - 6));
+            var ns = g.MeasureString(animTotal.ToString(), DonutNumberFont);
+            g.DrawString(animTotal.ToString(), DonutNumberFont, fg, new PointF(cx - ns.Width / 2f, cy - ns.Height / 2f - 5));
+            var ss = g.MeasureString("Total", DonutSubFont);
+            g.DrawString("Total", DonutSubFont, fg2, new PointF(cx - ss.Width / 2f, cy + ns.Height / 2f - 6));
 
             // ── Legend — vertical stack on the right ──
             int lx = (int)(outerR.Right + 24);
             int ly = top + 4;
             int rowH = Math.Max(20, (p.Height - top - 8) / segs.Length);
-            using var lf = new Font("Segoe UI", 8.25f, FontStyle.Regular, GraphicsUnit.Point);
-            using var lfB = new Font("Segoe UI", 8.25f, FontStyle.Bold, GraphicsUnit.Point);
             foreach (var seg in segs)
             {
                 using var db2 = new SolidBrush(seg.Color);
                 g.FillEllipse(db2, lx, ly + rowH / 2 - 5, 10, 10);
                 using var lc = new SolidBrush(ThemeHelper.ChartBodyText);
-                g.DrawString(seg.Label, lf, lc, lx + 16, ly + rowH / 2 - 14);
+                g.DrawString(seg.Label, DonutLegendFont, lc, lx + 16, ly + rowH / 2 - 14);
                 using var vc = new SolidBrush(seg.Color);
                 int animCount = (int)(seg.Count * _donutAnimProgress);
-                g.DrawString(animCount.ToString(), lfB, vc, lx + 16, ly + rowH / 2 + 1);
+                g.DrawString(animCount.ToString(), DonutLegendBoldFont, vc, lx + 16, ly + rowH / 2 + 1);
                 ly += rowH;
+            }
+
+            if (_donutHoverIndex >= 0 && _donutHoverIndex < _donutHitSlices.Count)
+            {
+                var hs = _donutHitSlices[_donutHoverIndex];
+                using var hoverPen = new Pen(Color.White, 2.5f);
+                g.DrawPie(hoverPen, outerR.X - 2, outerR.Y - 2, outerR.Width + 4, outerR.Height + 4, -90f + hs.RelStart, hs.RelSweep);
+
+                float hoverPct = hs.Count / (float)total * 100f;
+                DrawHoverTooltip(g, p, _donutMousePos, hs.Label, $"{hs.Count} items ({hoverPct:0.#}%)", hs.Color);
             }
         }
 
@@ -2262,10 +2389,11 @@ namespace Inventory_Management_System
             int maxVal = Math.Max(1, bars.Max(b => b.Count));
             int barCount = bars.Length;
 
-            using var labelFont = new Font("Segoe UI", 8f, FontStyle.Regular, GraphicsUnit.Point);
-            using var valFont = new Font("Segoe UI", 8.5f, FontStyle.Bold, GraphicsUnit.Point);
+            var labelFont = ChartLabelFont;
+            var valFont = ChartValueFont;
             using var labelFg = new SolidBrush(ThemeHelper.ChartBodyText);
             using var bgBar = new SolidBrush(ThemeHelper.ChartTrackBg);
+            _barHitCols.Clear();
 
             // Reserve space: header (44, drawn by card) + top padding for value
             // labels above bars + bottom padding for (possibly 2-line) category
@@ -2321,14 +2449,21 @@ namespace Inventory_Management_System
                 var b = bars[i];
                 float colCenterX = chartX + colWidth * i + colWidth / 2f;
                 float barX = colCenterX - barWidth / 2f;
+                float pct = (float)b.Count / total * 100f;
+
+                _barHitCols.Add((new RectangleF(chartX + colWidth * i, top, colWidth, p.Height - top), b.Label, b.Count, pct, b.Color));
 
                 // Background track (full height column)
                 using var trackPath = RoundedRectF(new RectangleF(barX, chartTopY, barWidth, chartH), 5f);
                 g.FillPath(bgBar, trackPath);
 
-                // Filled bar, growing upward from the bottom — animated from 0 to full height
+                // Filled bar, growing upward from the bottom — staggered per
+                // column, same convention as the category chart below it, so
+                // both feel like one animation language.
+                float colDelay = i * 0.12f;
+                float colProgress = Math.Clamp((_barAnimProgress - colDelay) / (1f - colDelay), 0f, 1f);
                 float targetFillH = maxVal == 0 ? 0 : Math.Max(b.Count > 0 ? barWidth * 0.4f : 0, (float)b.Count / maxVal * chartH);
-                float fillH = targetFillH * _barAnimProgress;
+                float fillH = targetFillH * colProgress;
 
                 if (fillH > 0)
                 {
@@ -2340,7 +2475,6 @@ namespace Inventory_Management_System
                     g.FillPath(grad, fillPath);
 
                     // Value + pct, centered above the bar
-                    float pct = (float)b.Count / total * 100f;
                     string valStr = $"{b.Count} ({pct:0}%)";
                     var vSz = g.MeasureString(valStr, valFont);
                     using var vFg = new SolidBrush(b.Color);
@@ -2358,6 +2492,16 @@ namespace Inventory_Management_System
 
                 // Category label below the column, wrapped if needed
                 DrawWrappedLabel(b.Label, colCenterX, chartTopY + chartH + 6, colWidth - 6);
+            }
+
+            if (_barHoverIndex >= 0 && _barHoverIndex < _barHitCols.Count)
+            {
+                var hc = _barHitCols[_barHoverIndex];
+                using var hoverBrush = new SolidBrush(Color.FromArgb(30, hc.Color));
+                using var hoverPath = RoundedRectF(hc.Bounds, 5f);
+                g.FillPath(hoverBrush, hoverPath);
+
+                DrawHoverTooltip(g, p, _barMousePos, hc.Label, $"{hc.Count} items ({hc.Pct:0.#}%)", hc.Color);
             }
         }
 
@@ -2399,8 +2543,19 @@ namespace Inventory_Management_System
             var leftBounds = new Rectangle(padOuter, top, colWidth, p.Height - top - 20);
             var rightBounds = new Rectangle(padOuter + colWidth + colGap, top, colWidth, p.Height - top - 20);
 
+            _catHitRows.Clear();
             PaintCategoryColumn(g, leftCats, leftBounds, palette, colorOffset: 0);
             PaintCategoryColumn(g, rightCats, rightBounds, palette, colorOffset: half);
+
+            if (_catHoverIndex >= 0 && _catHoverIndex < _catHitRows.Count)
+            {
+                var hr = _catHitRows[_catHoverIndex];
+                using var hoverBrush = new SolidBrush(Color.FromArgb(30, hr.Color));
+                using var hoverPath = RoundedRectF(hr.Bounds, 5f);
+                g.FillPath(hoverBrush, hoverPath);
+
+                DrawHoverTooltip(g, p, _catMousePos, hr.Category, $"{hr.Count} items ({hr.Pct:0.#}%)", hr.Color);
+            }
         }
 
         private void PaintCategoryColumn(Graphics g, List<(string Category, int Count)> cats, Rectangle bounds, Color[] palette, int colorOffset)
@@ -2413,8 +2568,8 @@ namespace Inventory_Management_System
             int total = Math.Max(1, _categoryBreakdown.Sum(c => c.Count)); // % is relative to the whole dataset, not just this column
             int maxVal = Math.Max(1, _categoryBreakdown.Max(c => c.Count));
 
-            using var labelFont = new Font("Segoe UI", 9f, FontStyle.Regular, GraphicsUnit.Point);
-            using var valFont = new Font("Segoe UI", 8.5f, FontStyle.Bold, GraphicsUnit.Point);
+            var labelFont = ChartCatLabelFont;
+            var valFont = ChartValueFont;
             using var labelFg = new SolidBrush(ThemeHelper.ChartBodyText);
             using var bgBar = new SolidBrush(ThemeHelper.ChartTrackBg);
 
@@ -2425,6 +2580,8 @@ namespace Inventory_Management_System
             {
                 var cat = cats[i];
                 Color color = palette[(i + colorOffset) % palette.Length];
+                float rowPct = (float)cat.Count / total * 100f;
+                _catHitRows.Add((new RectangleF(bounds.X, bounds.Y + i * rowH, bounds.Width, rowH), cat.Category, cat.Count, rowPct, color));
 
                 int rowIndexGlobal = colorOffset + i;
                 float rowDelay = rowIndexGlobal * 0.08f;
@@ -2519,12 +2676,63 @@ namespace Inventory_Management_System
         {
             var path = new GraphicsPath();
             float d = radius * 2f;
-            path.AddArc(r.X,         r.Y,          d, d, 180, 90);
-            path.AddArc(r.Right - d, r.Y,          d, d, 270, 90);
-            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0,   90);
-            path.AddArc(r.X,         r.Bottom - d, d, d, 90,  90);
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
             path.CloseFigure();
             return path;
+        }
+
+        private static void DrawHoverTooltip(Graphics g, Panel host, Point mousePos, string title, string subtitle, Color accent)
+        {
+            var titleSz = g.MeasureString(title, TooltipTitleFont);
+            var subSz = g.MeasureString(subtitle, TooltipSubFont);
+            float boxW = Math.Max(titleSz.Width, subSz.Width) + 20;
+            float boxH = titleSz.Height + subSz.Height + 16;
+
+            float x = mousePos.X + 14;
+            float y = mousePos.Y - boxH - 10;
+            if (x + boxW > host.Width) x = mousePos.X - boxW - 14;
+            if (y < 0) y = mousePos.Y + 14;
+
+            var rect = new RectangleF(x, y, boxW, boxH);
+            using var shadowPath = RoundedRectF(new RectangleF(rect.X + 2, rect.Y + 2, rect.Width, rect.Height), 6f);
+            using var shadowBrush = new SolidBrush(Color.FromArgb(40, 0, 0, 0));
+            g.FillPath(shadowBrush, shadowPath);
+
+            using var path = RoundedRectF(rect, 6f);
+            using var bg = new SolidBrush(ThemeHelper.IsDarkMode ? Color.FromArgb(45, 48, 55) : Color.White);
+            g.FillPath(bg, path);
+            using var border = new Pen(accent, 1.4f);
+            g.DrawPath(border, path);
+
+            using var accentBrush = new SolidBrush(accent);
+            g.FillRectangle(accentBrush, rect.X, rect.Y + 4, 3, rect.Height - 8);
+
+            using var titleBrush = new SolidBrush(ThemeHelper.ChartTitleText);
+            using var subBrush = new SolidBrush(ThemeHelper.ChartSecText);
+            g.DrawString(title, TooltipTitleFont, titleBrush, rect.X + 10, rect.Y + 6);
+            g.DrawString(subtitle, TooltipSubFont, subBrush, rect.X + 10, rect.Y + 6 + titleSz.Height + 2);
+        }
+
+        private int HitTestDonut(Point mouse)
+        {
+            if (_donutHitSlices.Count == 0) return -1;
+            float dx = mouse.X - _donutCenter.X;
+            float dy = mouse.Y - _donutCenter.Y;
+            float dist = MathF.Sqrt(dx * dx + dy * dy);
+            if (dist < _donutInnerRadius || dist > _donutOuterRadius) return -1;
+
+            float raw = MathF.Atan2(dy, dx) * 180f / MathF.PI;    // 0°=east, clockwise
+            float relToTop = ((raw + 90f) % 360f + 360f) % 360f;  // 0°=top, matches FillPie's -90° start
+
+            for (int i = 0; i < _donutHitSlices.Count; i++)
+            {
+                var s = _donutHitSlices[i];
+                if (relToTop >= s.RelStart && relToTop < s.RelStart + s.RelSweep) return i;
+            }
+            return -1;
         }
 
         private static void AttachCardClick(Control card, EventHandler handler)

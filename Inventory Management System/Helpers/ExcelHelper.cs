@@ -651,6 +651,10 @@ namespace Inventory_Management_System.Helpers
                         items.Add(eq);
                     }
                 }
+                else
+                {
+                    errors.Add("Could not find header row containing 'Equipment Code', 'Name', or 'Equipment Name'.");
+                }
             }
             catch (Exception ex)
             {

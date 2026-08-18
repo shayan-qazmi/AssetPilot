@@ -508,6 +508,19 @@ namespace Inventory_Management_System.Forms
             _suggest?.LoadEquipment(_fullEquipmentCache);
         }
 
+        // Import-specific refresh: also clears any active filter/page state so
+        // newly imported rows are never hidden behind a stale filter or page.
+        private void RefreshAfterImport()
+        {
+            RefreshEquipmentCache();
+            _currentPage = 1;
+            _activeCategory = "";
+            _statusFilter = null;
+            _customFilter = null;
+            LoadEquipment();
+            LoadCategoryFilter();
+        }
+
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             _suggest?.Dispose();
@@ -1249,7 +1262,7 @@ namespace Inventory_Management_System.Forms
                     ToastType.Warning);
             }
 
-            RefreshAfterDataChange();
+            RefreshAfterImport();
         }
 
         private void txtSearch_TextChanged(object sender, EventArgs e)

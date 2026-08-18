@@ -283,8 +283,6 @@ namespace Inventory_Management_System.Services
 
                 if (string.IsNullOrWhiteSpace(equipment.CurrentStatus))
                     equipment.CurrentStatus = "in_store";
-
-                db.Equipment.Add(equipment);
                 if (equipment.CreatedByUserId <= 0)
                     equipment.CreatedByUserId = _currentUserId;
 

@@ -25,12 +25,14 @@ namespace Inventory_Management_System.Forms
         private Button btnPrevPage = null!;
         private Button btnNextPage = null!;
         private ComboBox cmbPageSize = null!;
+        private Button btnEditDecomm = null!;
 
 
         public DecommissionForm()
         {
             InitializeComponent();
             BuildPaginationControls();
+            BuildEditButton();
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
             LoadDecommissioned();
@@ -63,7 +65,7 @@ namespace Inventory_Management_System.Forms
 
         private void BuildPaginationControls()
         {
-            cmbPageSize = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Size = new Size(70, 22) };
+            cmbPageSize = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Size = new Size(75, 26) };
             cmbPageSize.Items.AddRange(new object[] { "25", "50", "100", "250", "500", "1000" });
             cmbPageSize.SelectedItem = "25";
             cmbPageSize.SelectedIndexChanged += (s, e) =>
@@ -72,21 +74,110 @@ namespace Inventory_Management_System.Forms
                 { _pageSize = size; _currentPage = 1; RefreshGrid(txtSearch.Text.Trim()); }
             };
 
-            btnPrevPage = new Button { Text = "◀ Prev", Size = new Size(80, 22) };
+            btnPrevPage = new Button { Text = "◀ Prev", Size = new Size(90, 26), Font = ThemeHelper.FontSmall };
             btnPrevPage.Click += (s, e) => { if (_currentPage > 1) { _currentPage--; RefreshGrid(txtSearch.Text.Trim()); } };
 
             lblPageIndicator = new Label { AutoSize = true, TextAlign = ContentAlignment.MiddleCenter };
 
-            btnNextPage = new Button { Text = "Next ▶", Size = new Size(80, 22) };
+            btnNextPage = new Button { Text = "Next ▶", Size = new Size(90, 26), Font = ThemeHelper.FontSmall };
             btnNextPage.Click += (s, e) => { if (_currentPage < _totalPages) { _currentPage++; RefreshGrid(txtSearch.Text.Trim()); } };
+
+            lblPageIndicator.ForeColor = ThemeHelper.TextSecondary;
+            lblPageIndicator.Font = ThemeHelper.FontSmall;
 
             panelBottom.Controls.Add(cmbPageSize);
             panelBottom.Controls.Add(btnPrevPage);
             panelBottom.Controls.Add(lblPageIndicator);
             panelBottom.Controls.Add(btnNextPage);
 
+            // Guarantee these sit above anything else already in panelBottom
+            // (e.g. lblRowCount) — this was the main reason they could be
+            // invisible even though they were correctly positioned.
+            cmbPageSize.BringToFront();
+            btnPrevPage.BringToFront();
+            lblPageIndicator.BringToFront();
+            btnNextPage.BringToFront();
+
             panelBottom.Resize += (s, e) => RepositionPagination();
             RepositionPagination();
+        }
+
+        // ── Edit button — restore a decommissioned item to In Store, or delete it permanently ──
+        private void BuildEditButton()
+        {
+            btnEditDecomm = new Button { Text = "✏ Edit", Size = btnRefresh.Size };
+            ThemeHelper.StyleButton(btnEditDecomm, Color.FromArgb(245, 158, 11));
+            btnEditDecomm.Click += BtnEditDecomm_Click;
+
+            flowToolbar.Controls.Add(btnEditDecomm);
+            flowToolbar.Controls.SetChildIndex(btnEditDecomm, flowToolbar.Controls.IndexOf(btnRefresh) + 1);
+        }
+
+        private void BtnEditDecomm_Click(object? sender, EventArgs e)
+        {
+            if (dgvDecommission.SelectedRows.Count == 0)
+            {
+                ToastHelper.Show(this, "Please select an item to edit.", ToastType.Info);
+                return;
+            }
+
+            string code = dgvDecommission.SelectedRows[0].Cells["EquipmentCode"].Value?.ToString() ?? "";
+            var eq = _allItems.FirstOrDefault(x => x.EquipmentCode == code);
+            if (eq == null)
+            {
+                ToastHelper.Show(this, "Could not find the selected equipment.", ToastType.Error);
+                return;
+            }
+
+            using var dlg = new DecommissionEditDialog(eq.EquipmentCode, eq.Name);
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            if (dlg.SelectedAction == DecommissionEditAction.Restore)
+            {
+                try
+                {
+                    using var db = new InventoryDbContext();
+                    var entity = db.Equipment.FirstOrDefault(x => x.Id == eq.Id);
+                    if (entity == null) { ToastHelper.Show(this, "Equipment not found.", ToastType.Error); return; }
+
+                    entity.CurrentStatus = "in_store";
+                    db.SaveChanges();
+
+                    _audit.Log(entity.Id, AuditService.ActionDecommissionUndone,
+                        "Status: Decommissioned", "Status: In Store");
+
+                    ToastHelper.Show(this, $"'{entity.Name}' restored to In Store.", ToastType.Success);
+                    LoadDecommissioned();
+                }
+                catch (Exception ex)
+                {
+                    ToastHelper.Show(this, "Restore failed: " + ex.Message, ToastType.Error);
+                }
+            }
+            else if (dlg.SelectedAction == DecommissionEditAction.Delete)
+            {
+                if (MessageBox.Show(
+                    $"Permanently delete '{eq.Name}' ({eq.EquipmentCode})? This cannot be undone.",
+                    "Confirm Permanent Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                    return;
+
+                try
+                {
+                    using var db = new InventoryDbContext();
+                    var entity = db.Equipment.FirstOrDefault(x => x.Id == eq.Id);
+                    if (entity == null) { ToastHelper.Show(this, "Equipment not found.", ToastType.Error); return; }
+
+                    db.Equipment.Remove(entity);
+                    db.SaveChanges();
+
+                    ToastHelper.Show(this, $"'{eq.Name}' permanently deleted.", ToastType.Success);
+                    LoadDecommissioned();
+                }
+                catch (Exception ex)
+                {
+                    ToastHelper.Show(this, "Delete failed: " + ex.Message, ToastType.Error);
+                }
+            }
         }
 
         private void RepositionPagination()
@@ -107,15 +198,42 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleToolbarPanel(panelTop);
             ThemeHelper.StyleDangerButton(btnDecommission);
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
+            ThemeHelper.StyleButton(btnEditDecomm, Color.FromArgb(245, 158, 11));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
             ThemeHelper.StyleSecondaryButton(btnNextPage);
             ApplyRoundedSearchStyle(txtSearch);
             ThemeHelper.StyleDataGridView(dgvDecommission);
-            panelBottom.BackColor = Color.FromArgb(249, 250, 251);
+            panelBottom.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
-            lblRowCount.Font      = ThemeHelper.FontSmall;
+            lblRowCount.Font = ThemeHelper.FontSmall;
+
+            // Explicit dark-mode override — StyleSecondaryButton/StyleComboBox
+            // default to a light control face; force these three to match
+            // the dark panelBottom instead of standing out as light boxes.
+            if (ThemeHelper.IsDarkMode)
+            {
+                Color darkFace = Color.FromArgb(36, 39, 46);
+                Color darkBorder = Color.FromArgb(70, 74, 82);
+
+                cmbPageSize.BackColor = darkFace;
+                cmbPageSize.ForeColor = ThemeHelper.TextPrimary;
+                cmbPageSize.FlatStyle = FlatStyle.Flat;
+
+                foreach (var btn in new[] { btnPrevPage, btnNextPage })
+                {
+                    btn.BackColor = darkFace;
+                    btn.ForeColor = ThemeHelper.TextPrimary;
+                    btn.FlatStyle = FlatStyle.Flat;
+                    btn.FlatAppearance.BorderColor = darkBorder;
+                    btn.FlatAppearance.BorderSize = 1;
+                    btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(50, 54, 62);
+                }
+            }
+
+            lblPageIndicator.ForeColor = ThemeHelper.TextSecondary;
+            lblPageIndicator.Font = ThemeHelper.FontSmall;
         }
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -303,8 +421,9 @@ namespace Inventory_Management_System.Forms
 
             if (available.Count == 0)
             {
-                MessageBox.Show("No equipment available to decommission.\nAll equipment has already been decommissioned.",
-                    "None Available", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this,
+                    "No equipment available to decommission. All equipment has already been decommissioned.",
+                    ToastType.Info);
                 return;
             }
 
@@ -711,6 +830,121 @@ namespace Inventory_Management_System.Forms
             EquipmentId  = (int)cmbEquipment.SelectedValue;
             Reason       = $"{cmbReason.SelectedItem}" + (string.IsNullOrWhiteSpace(txtNotes.Text) ? "" : $" — {txtNotes.Text.Trim()}");
             DialogResult = DialogResult.OK;
+        }
+    }
+    public enum DecommissionEditAction { None, Restore, Delete }
+
+    // ── Restore a decommissioned item to In Store, or delete it permanently ──
+    public class DecommissionEditDialog : Form
+    {
+        public DecommissionEditAction SelectedAction { get; private set; } = DecommissionEditAction.None;
+
+        private static readonly Color EditAccent = Color.FromArgb(245, 158, 11);
+        private static Color CardBorder => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(224, 224, 224);
+
+        public DecommissionEditDialog(string equipmentCode, string equipmentName)
+        {
+            BuildUI(equipmentCode, equipmentName);
+        }
+
+        private void BuildUI(string equipmentCode, string equipmentName)
+        {
+            Text = "Edit Decommissioned Item";
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            StartPosition = FormStartPosition.CenterParent;
+            Font = new Font("Segoe UI", 9F);
+            ThemeHelper.ApplyFormBackground(this);
+
+            const int formWidth = 420;
+            const int margin = 24;
+            int contentWidth = formWidth - margin * 2;
+
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = EditAccent };
+            Controls.Add(pnlHeader);
+
+            var lblTitle = new Label
+            {
+                Text = "✏  Edit Decommissioned Item",
+                Font = new Font("Segoe UI", 13.5f, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(margin, 16)
+            };
+            pnlHeader.Controls.Add(lblTitle);
+
+            var subtitleFont = new Font("Segoe UI", 9f, FontStyle.Regular);
+            string subtitleText = $"{equipmentCode} — {equipmentName}";
+            var subtitleSize = TextRenderer.MeasureText(
+                subtitleText, subtitleFont, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+            var lblSubtitle = new Label
+            {
+                Text = subtitleText,
+                Font = subtitleFont,
+                ForeColor = Color.FromArgb(255, 245, 230),
+                AutoSize = false,
+                Size = new Size(contentWidth, subtitleSize.Height + 4),
+                Location = new Point(margin, lblTitle.Bottom + 6)
+            };
+            pnlHeader.Controls.Add(lblSubtitle);
+            pnlHeader.Height = lblSubtitle.Bottom + 16;
+
+            var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10) };
+            Controls.Add(body);
+
+            int y = 20;
+
+            body.Controls.Add(new Label
+            {
+                Text = "Choose an action for this item:",
+                Location = new Point(margin, y),
+                AutoSize = true,
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextPrimary
+            });
+            y += 32;
+
+            var btnRestore = new Button
+            {
+                Text = "↩  Restore to In Store",
+                Location = new Point(margin, y),
+                Size = new Size(contentWidth, 42)
+            };
+            ThemeHelper.StyleButton(btnRestore, Color.FromArgb(0x52, 0xA2, 0x3F));
+            btnRestore.Click += (s, e) => { SelectedAction = DecommissionEditAction.Restore; DialogResult = DialogResult.OK; };
+            body.Controls.Add(btnRestore);
+            y += 52;
+
+            var btnDelete = new Button
+            {
+                Text = "🗑  Delete Permanently",
+                Location = new Point(margin, y),
+                Size = new Size(contentWidth, 42)
+            };
+            ThemeHelper.StyleDangerButton(btnDelete);
+            btnDelete.Click += (s, e) => { SelectedAction = DecommissionEditAction.Delete; DialogResult = DialogResult.OK; };
+            body.Controls.Add(btnDelete);
+            y += 60;
+
+            body.Size = new Size(formWidth, y);
+
+            const int footerHeight = 60;
+            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251) };
+            pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
+
+            var btnCancel = new Button { Text = "Cancel", Size = new Size(130, 38) };
+            ThemeHelper.StyleSecondaryButton(btnCancel);
+            btnCancel.Click += (s, e) => { SelectedAction = DecommissionEditAction.None; DialogResult = DialogResult.Cancel; };
+            btnCancel.Location = new Point((formWidth - btnCancel.Width) / 2, 11);
+            pnlFooter.Controls.Add(btnCancel);
+            Controls.Add(pnlFooter);
+
+            int totalHeight = pnlHeader.Height + body.Height + footerHeight;
+            ClientSize = new Size(formWidth, totalHeight);
+            pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
+
+            CancelButton = btnCancel;
         }
     }
 }

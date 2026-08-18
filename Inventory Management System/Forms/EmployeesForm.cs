@@ -303,7 +303,11 @@ namespace Inventory_Management_System.Forms
 
         private void btnEdit_Click(object sender, EventArgs e)
         {
-            if (dgvEmployees.SelectedRows.Count == 0) return;
+            if (dgvEmployees.SelectedRows.Count == 0)
+            {
+                ToastHelper.Show(this, "Please select an employee to edit.", ToastType.Info);
+                return;
+            }
             var code = dgvEmployees.SelectedRows[0].Cells[0].Value?.ToString();
             if (string.IsNullOrEmpty(code)) return;
 
@@ -325,7 +329,11 @@ namespace Inventory_Management_System.Forms
 
         private void btnDelete_Click(object sender, EventArgs e)
         {
-            if (dgvEmployees.SelectedRows.Count == 0) return;
+            if (dgvEmployees.SelectedRows.Count == 0)
+            {
+                ToastHelper.Show(this, "Please select an employee to delete.", ToastType.Info);
+                return;
+            }
             var code = dgvEmployees.SelectedRows[0].Cells[0].Value?.ToString();
             if (string.IsNullOrEmpty(code)) return;
 
@@ -422,6 +430,7 @@ namespace Inventory_Management_System.Forms
             txtSearch.Text = string.Empty;
             _currentPage = 1;
             LoadEmployees();
+            ToastHelper.Show(this, "Employees refreshed.", ToastType.Info);
         }
 
         private void txtSearch_TextChanged(object sender, EventArgs e)

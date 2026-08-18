@@ -245,13 +245,16 @@ namespace Inventory_Management_System.Forms
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
 
             btnSave = new Button { Text = "Save", Size = new Size(140, 40) };
-            ThemeHelper.StyleButton(btnSave);
+            if (_isEditMode)
+                ThemeHelper.StyleButton(btnSave, modeAccent);
+            else
+                ThemeHelper.StyleButton(btnSave);
             btnSave.Click += BtnSave_Click;
 
             int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
             int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
-            btnCancel.Location = new Point(buttonsStartX, 14);
-            btnSave.Location   = new Point(buttonsStartX + btnCancel.Width + 12, 14);
+            btnSave.Location = new Point(buttonsStartX, 14);
+            btnCancel.Location = new Point(buttonsStartX + btnSave.Width + 12, 14);
 
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnSave);

@@ -68,12 +68,17 @@ namespace Inventory_Management_System.Forms
             if (form.ShowDialog() == DialogResult.OK)
             {
                 LoadLocations();
+                ToastHelper.Show(this, "Location added successfully.", ToastType.Success);
             }
         }
 
         private void btnEdit_Click(object sender, EventArgs e)
         {
-            if (dgvLocations.SelectedRows.Count == 0) return;
+            if (dgvLocations.SelectedRows.Count == 0)
+            {
+                ToastHelper.Show(this, "Please select a location to edit.", ToastType.Info);
+                return;
+            }
             var id = Convert.ToInt32(dgvLocations.SelectedRows[0].Cells[0].Value);
             var result = _locationService.GetById(id);
             if (result.Success && result.Data != null)
@@ -82,17 +87,22 @@ namespace Inventory_Management_System.Forms
                 if (form.ShowDialog() == DialogResult.OK)
                 {
                     LoadLocations();
+                    ToastHelper.Show(this, "Location updated successfully.", ToastType.Success);
                 }
             }
             else
             {
-ToastHelper.Show(this, result.ErrorMessage ?? "Location not found.", ToastType.Error);
+                ToastHelper.Show(this, result.ErrorMessage ?? "Location not found.", ToastType.Error);
             }
         }
 
         private void btnDelete_Click(object sender, EventArgs e)
         {
-            if (dgvLocations.SelectedRows.Count == 0) return;
+            if (dgvLocations.SelectedRows.Count == 0)
+            {
+                ToastHelper.Show(this, "Please select a location to delete.", ToastType.Info);
+                return;
+            }
             var id = Convert.ToInt32(dgvLocations.SelectedRows[0].Cells[0].Value);
             if (MessageBox.Show("Are you sure you want to delete this location?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
             {
@@ -100,10 +110,11 @@ ToastHelper.Show(this, result.ErrorMessage ?? "Location not found.", ToastType.E
                 if (result.Success)
                 {
                     LoadLocations();
+                    ToastHelper.Show(this, "Location deleted successfully.", ToastType.Success);
                 }
                 else
                 {
-                   ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
+                    ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
                 }
             }
         }
@@ -151,8 +162,12 @@ ToastHelper.Show(this, result.ErrorMessage ?? "Location not found.", ToastType.E
             }
         }
 
-        private void btnRefresh_Click(object sender, EventArgs e) => LoadLocations();
-       private void btnExport_Click(object sender, EventArgs e)
+        private void btnRefresh_Click(object sender, EventArgs e)
+        {
+            LoadLocations();
+            ToastHelper.Show(this, "Locations refreshed.", ToastType.Info);
+        }
+        private void btnExport_Click(object sender, EventArgs e)
 {
     try
     {

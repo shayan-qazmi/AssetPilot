@@ -1291,7 +1291,11 @@ namespace Inventory_Management_System.Forms
         private void BtnAddUser_Click(object? sender, EventArgs e)
         {
             using var form = new AddEditUserForm();
-            if (form.ShowDialog() == DialogResult.OK) LoadUsers();
+            if (form.ShowDialog() == DialogResult.OK)
+            {
+                LoadUsers();
+                ToastHelper.Show(this, "User added successfully.", ToastType.Success);
+            }
         }
 
         private void DgvUsers_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
@@ -1330,7 +1334,11 @@ namespace Inventory_Management_System.Forms
             var user = _users.FirstOrDefault(u => u.Id == id);
             if (user == null) return;
             using var form = new AddEditUserForm(user);
-            if (form.ShowDialog() == DialogResult.OK) LoadUsers();
+            if (form.ShowDialog() == DialogResult.OK)
+            {
+                LoadUsers();
+                ToastHelper.Show(this, "User updated successfully.", ToastType.Success);
+            }
         }
 
         private void BtnToggleUser_Click(object? sender, EventArgs e)
@@ -1364,6 +1372,9 @@ namespace Inventory_Management_System.Forms
                 entity.IsActive = !(user.IsActive == true);
                 db.SaveChanges();
                 LoadUsers();
+                ToastHelper.Show(this,
+                    $"'{user.Username}' {(entity.IsActive == true ? "activated" : "deactivated")} successfully.",
+                    ToastType.Success);
             }
             catch (Exception ex)
             {
@@ -1376,8 +1387,7 @@ namespace Inventory_Management_System.Forms
         {
             if (dgvUsers.SelectedRows.Count == 0)
             {
-                MessageBox.Show("Please select a user to delete.", "No Selection",
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ToastHelper.Show(this, "Please select a user to delete.", ToastType.Info);
                 return;
             }
 
