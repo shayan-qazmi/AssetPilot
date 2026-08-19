@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Reflection;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
@@ -88,6 +89,21 @@ namespace Inventory_Management_System
         private Form? _profilePopup;
         private Label? _lblBarPeriod;
         private Form? _barPeriodPopup;
+
+        private Panel? _panelEmployees = null;
+        private Panel? _panelLocation = null;
+        private Panel? _panelTrend = null;
+
+        private List<(string Name, int Count)> _topEmployees = new();
+        private List<(string Location, string RoomLabel, int InStock, int Allocated, int Repair)> _locationBreakdown = new();
+
+        private List<(RectangleF Bounds, string Name, int Count)> _empHitRows = new();
+        private int _empHoverIndex = -1;
+        private Point _empMousePos;
+
+        private List<(RectangleF Bounds, string Location, string RoomLabel, int InStock, int Allocated, int Repair)> _locHitCols = new();
+        private int _locHoverIndex = -1;
+        private Point _locMousePos;
         private Button[] AdminOnlyButtons => new[] { btnDecommission, btnSettings, btnDeletedItems };
         // ── Top bar (yellow, matched to logo) ───────────────────────────────
         private static readonly Color TopBarYellow = Color.FromArgb(0x99, 0xC2, 0x21);        // ── Title typing animation ───────────────────────────────────────
@@ -105,6 +121,7 @@ namespace Inventory_Management_System
         private const int AccentBarHeight = 30;
         private float _donutAnimProgress = 1f;
         private const int AnimTickIntervalMs = 15;
+        private const float CardAnimStepPerTick = 0.030f; // ~600ms entrance — a bit snappier, still paced to match the charts
         private const int CenterCardIndex = 3; // "Under Repair"
 
         // Elapsed-time-based chart animation — replaces the old feedback-loop
@@ -117,8 +134,15 @@ namespace Inventory_Management_System
         // of how long the card animation took.
         private readonly Stopwatch _chartAnimClock = new();
         private bool _chartAnimClockStarted = false;
-        private const float DonutAnimDurationMs = 2800f; // slower + smoother pie sweep
-        private const float BarAnimDurationMs = 1500f;
+        // Chart/activities animation duration — deliberately independent of the card
+        // entrance speed (CardAnimStepPerTick). They still START at the same instant
+        // (both begin in LoadStats), but this controls how long they take to settle.
+        // Increase this value to slow them down further; it no longer needs to match
+        // how fast the cards finish.
+        private const float TopSectionAnimDurationMs = 1800f;
+        private const float DonutAnimDurationMs = TopSectionAnimDurationMs;
+        private const float BarAnimDurationMs = TopSectionAnimDurationMs;
+        private const float ActivitiesAnimDurationMs = TopSectionAnimDurationMs;
 
         // ── Hover state (donut / bar / category charts) ─────────────────
         private PointF _donutCenter;
@@ -152,11 +176,13 @@ namespace Inventory_Management_System
         private const int BellRightOffset = 118; // bell sits left of the profile widget, both hugging the right edge
         private Panel? _pnlThemeToggle;
         private float _toggleThumbProgress = 0f;
+        private bool _toggleIconWasDark = false;
         private System.Windows.Forms.Timer? _toggleAnimTimer;
         private float _barAnimProgress = 1f;
         private float _activitiesAnimProgress = 1f;
         private Rectangle _activitiesTargetBounds;
-        
+        private bool _activitiesIntroPlayed = false;
+
 
 
         private enum CardAnimKind { Slide, Bounce }
@@ -175,6 +201,7 @@ namespace Inventory_Management_System
         private System.Windows.Forms.Timer? _searchDebounceTimer;
 
 
+        private ToolTip? _employeeTooltip;
         private string _barPeriod = "All Time";
         private Dictionary<string, int>? _periodOverrideCounts; // null = show live/all-time counts
         private Dictionary<string, float[]> _trendCache = new();
@@ -511,46 +538,86 @@ namespace Inventory_Management_System
             var old = panelTop.Controls.OfType<Panel>().FirstOrDefault(p => p.Name == "pnlThemeToggle");
             old?.Dispose();
 
-            const int w = 60, h = 28;
-            _toggleThumbProgress = ThemeHelper.IsDarkMode ? 1f : 0f;
+            const int d = 32;
 
             _pnlThemeToggle = new Panel
             {
                 Name = "pnlThemeToggle",
-                Size = new Size(w, h),
+                Size = new Size(d, d),
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
 
-            using (var regionPath = RoundedRect(new Rectangle(0, 0, w - 1, h - 1), h / 2))
+            using (var regionPath = new GraphicsPath())
+            {
+                regionPath.AddEllipse(0, 0, d - 1, d - 1);
                 _pnlThemeToggle.Region = new Region(regionPath);
+            }
 
             _pnlThemeToggle.Paint += (s, e) =>
             {
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                using var trackPath = RoundedRect(new Rectangle(0, 0, w - 1, h - 1), h / 2);
-                Color trackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(45, 48, 55) : Color.FromArgb(214, 224, 200);
-                using var trackBrush = new SolidBrush(trackColor);
-                g.FillPath(trackBrush, trackPath);
-                using var trackPen = new Pen(Color.FromArgb(40, 0, 0, 0), 1f);
-                g.DrawPath(trackPen, trackPath);
+                var rect = new Rectangle(0, 0, d - 1, d - 1);
 
-                using var iconFont = new Font("Segoe UI Emoji", 10f);
+                Color topC, botC;
+                if (ThemeHelper.IsDarkMode)
+                {
+                    topC = Color.FromArgb(235, 60, 64, 74);
+                    botC = Color.FromArgb(235, 40, 43, 51);
+                }
+                else
+                {
+                    topC = Color.FromArgb(235, 255, 255, 255);
+                    botC = Color.FromArgb(235, 214, 224, 200);
+                }
+                using (var fillGrad = new LinearGradientBrush(rect, topC, botC, LinearGradientMode.Vertical))
+                    g.FillEllipse(fillGrad, rect);
+
+                // Glassy top-arc gloss, clipped to the circle.
+                using var glossClip = new GraphicsPath();
+                glossClip.AddEllipse(1, 1, d - 3, d - 3);
+                var oldClip = g.Clip;
+                g.SetClip(glossClip);
+                using (var glossBrush = new LinearGradientBrush(
+                           new Rectangle(0, 0, d, d / 2 + 2),
+                           Color.FromArgb(ThemeHelper.IsDarkMode ? 35 : 110, 255, 255, 255),
+                           Color.FromArgb(0, 255, 255, 255), LinearGradientMode.Vertical))
+                    g.FillRectangle(glossBrush, 0, 0, d, d / 2 + 2);
+                g.Clip = oldClip;
+
+                using var borderPen = new Pen(Color.FromArgb(ThemeHelper.IsDarkMode ? 70 : 40, 0, 0, 0), 1f);
+                g.DrawEllipse(borderPen, rect);
+
+                // Mirror-flip: shows the pre-toggle icon in the first half of the
+                // animation, the post-toggle icon in the second half, scaled through
+                // zero width in between — a glass "flip" rather than a hard swap.
+                float t = Math.Clamp(_toggleThumbProgress, 0f, 1f);
+                bool showOldIcon = t < 0.5f;
+                bool iconIsDark = showOldIcon ? _toggleIconWasDark : ThemeHelper.IsDarkMode;
+                string icon = iconIsDark ? "🌙" : "☀";
+                using var iconFont = new Font("Segoe UI Emoji", 13f);
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                using var sunFg = new SolidBrush(ThemeHelper.IsDarkMode ? Color.FromArgb(120, 120, 120) : Color.FromArgb(235, 165, 20));
-                using var moonFg = new SolidBrush(ThemeHelper.IsDarkMode ? Color.FromArgb(205, 215, 255) : Color.FromArgb(150, 150, 150));
-                g.DrawString("☀", iconFont, sunFg, new RectangleF(0, 0, h, h), sf);
-                g.DrawString("🌙", iconFont, moonFg, new RectangleF(w - h, 0, h, h), sf);
+                using var iconFg = new SolidBrush(iconIsDark ? Color.FromArgb(205, 215, 255) : Color.FromArgb(235, 165, 20));
 
-                int thumbD = h - 6;
-                int thumbX = (int)(3 + (w - thumbD - 6) * _toggleThumbProgress);
-                using var thumbShadow = new SolidBrush(Color.FromArgb(60, 0, 0, 0));
-                g.FillEllipse(thumbShadow, thumbX - 1, 4, thumbD, thumbD);
-                using var thumbBrush = new SolidBrush(Color.White);
-                g.FillEllipse(thumbBrush, thumbX, 3, thumbD, thumbD);
+                float flipScale = MathF.Cos(t * MathF.PI); // 1 → 0 → -1, mirrors the glyph through its own centerline
+                var iconState = g.Save();
+                g.TranslateTransform(d / 2f, d / 2f);
+                g.ScaleTransform(Math.Max(0.08f, MathF.Abs(flipScale)), 1f);
+                g.TranslateTransform(-d / 2f, -d / 2f);
+                g.DrawString(icon, iconFont, iconFg, rect, sf);
+                g.Restore(iconState);
+
+                // Fading click-pulse ring — purely cosmetic, doesn't gate the switch.
+                if (_toggleThumbProgress < 1f)
+                {
+                    int pad = (int)(7 * _toggleThumbProgress);
+                    int alpha = (int)(150 * (1f - _toggleThumbProgress));
+                    using var pulsePen = new Pen(Color.FromArgb(alpha, ThemeHelper.Accent), 2f);
+                    g.DrawEllipse(pulsePen, pad, pad, Math.Max(1, d - 1 - pad * 2), Math.Max(1, d - 1 - pad * 2));
+                }
             };
 
             _pnlThemeToggle.Click += (s, e) => ToggleThemeAnimated();
@@ -565,20 +632,21 @@ namespace Inventory_Management_System
             _toggleAnimTimer?.Stop();
             _toggleAnimTimer?.Dispose();
 
+            _toggleIconWasDark = ThemeHelper.IsDarkMode; // capture pre-toggle state so the flip shows old→new
             ThemeHelper.ToggleTheme();
-            bool toDark = ThemeHelper.IsDarkMode;
 
+            // _toggleThumbProgress is repurposed here as a fade-out pulse-ring
+            // progress (0 = just clicked, 1 = fully faded) for the glassy toggle —
+            // it no longer drives a sliding thumb.
+            _toggleThumbProgress = 0f;
             _toggleAnimTimer = new System.Windows.Forms.Timer { Interval = 12 };
             _toggleAnimTimer.Tick += (s, e) =>
             {
-                const float step = 0.18f;
-                _toggleThumbProgress = toDark
-                    ? Math.Min(1f, _toggleThumbProgress + step)
-                    : Math.Max(0f, _toggleThumbProgress - step);
+                _toggleThumbProgress += 0.15f;
                 _pnlThemeToggle?.Invalidate();
-
-                if ((toDark && _toggleThumbProgress >= 1f) || (!toDark && _toggleThumbProgress <= 0f))
+                if (_toggleThumbProgress >= 1f)
                 {
+                    _toggleThumbProgress = 1f;
                     _toggleAnimTimer?.Stop();
                     _toggleAnimTimer?.Dispose();
                     _toggleAnimTimer = null;
@@ -588,7 +656,38 @@ namespace Inventory_Management_System
 
             SuspendLayout();
             ApplyTheme();
-            if (panelStats.Visible) LoadStats(instant: true);
+
+            // Replay the full dashboard entrance animation on theme switch,
+            // same as clicking the Dashboard nav button — not an instant snap.
+            if (panelStats.Visible) LoadStats(instant: false);
+
+            // Re-theme whatever child form is currently open. Every form in this
+            // codebase follows the same "private void ApplyTheme()" convention,
+            // so this refreshes it in place instead of requiring a re-navigate.
+            if (activeForm != null)
+            {
+                var applyThemeMethod = activeForm.GetType().GetMethod(
+                    "ApplyTheme", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy);
+                applyThemeMethod?.Invoke(activeForm, null);
+
+                // Some screens color grid rows/status cells at load time rather than
+                // in ApplyTheme() itself — re-run their refresh method too, if they have one,
+                // so row-level colors (not just chrome) pick up the new theme immediately.
+                foreach (var refreshName in new[] { "RefreshGrid", "LoadData", "Refresh" })
+                {
+                    var refreshMethod = activeForm.GetType().GetMethod(
+                        refreshName, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+                    if (refreshMethod != null && refreshMethod.GetParameters().All(p => p.IsOptional))
+                    {
+                        try { refreshMethod.Invoke(activeForm, refreshMethod.GetParameters().Select(p => p.DefaultValue).ToArray()); }
+                        catch { /* best-effort — some Refresh() overloads aren't safe to call here */ }
+                        break;
+                    }
+                }
+
+                activeForm.Invalidate(true);
+            }
+
             panelTop.Invalidate(true);
             ResumeLayout(true);
         }
@@ -610,6 +709,7 @@ namespace Inventory_Management_System
 
             const int boxHeight = 36;
             const int boxWidth = 280;
+            const int searchRadius = 6; // rounded rectangle, subtle corners — not a pill
 
             _pnlSearchBox = new Panel
             {
@@ -621,7 +721,7 @@ namespace Inventory_Management_System
 
             void ApplySearchBoxRegion()
             {
-                using var path = RoundedRect(new Rectangle(0, 0, _pnlSearchBox.Width - 1, _pnlSearchBox.Height - 1), boxHeight / 2);
+                using var path = RoundedRect(new Rectangle(0, 0, _pnlSearchBox.Width - 1, _pnlSearchBox.Height - 1), searchRadius);
                 _pnlSearchBox.Region = new Region(path);
             }
             ApplySearchBoxRegion();
@@ -632,7 +732,7 @@ namespace Inventory_Management_System
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                using var path = RoundedRect(new Rectangle(0, 0, _pnlSearchBox.Width - 1, _pnlSearchBox.Height - 1), boxHeight / 2);
+                using var path = RoundedRect(new Rectangle(0, 0, _pnlSearchBox.Width - 1, _pnlSearchBox.Height - 1), searchRadius);
 
                 using var fillBrush = new SolidBrush(ThemeHelper.SearchBoxBg);
                 g.FillPath(fillBrush, path);
@@ -1494,6 +1594,42 @@ namespace Inventory_Management_System
             if (!_trendCache.TryGetValue(metric, out var v)) { v = GetLast7DayCounts(metric); _trendCache[metric] = v; }
             return v;
         }
+
+        private float[] GetLast12MonthCounts(string metric)
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var counts = new float[12];
+                var today = DateTime.Today;
+
+                for (int i = 0; i < 12; i++)
+                {
+                    var monthStart = new DateTime(today.Year, today.Month, 1).AddMonths(-11 + i);
+                    var monthEnd = monthStart.AddMonths(1);
+
+                    counts[i] = metric switch
+                    {
+                        "allocated" => db.EquipmentLogs.Count(l =>
+                            l.ActionType == "allocation_approved" &&
+                            l.CreatedAt.HasValue && l.CreatedAt.Value >= monthStart && l.CreatedAt.Value < monthEnd),
+                        "in_store" => db.EquipmentLogs.Count(l =>
+                            l.ActionType == "allocation_returned" &&
+                            l.CreatedAt.HasValue && l.CreatedAt.Value >= monthStart && l.CreatedAt.Value < monthEnd),
+                        _ => 0
+                    };
+                }
+                return counts;
+            }
+            catch { return new float[12]; }
+        }
+
+        private float[] GetCachedMonthlyTrend(string metric)
+        {
+            string key = metric + "_monthly";
+            if (!_trendCache.TryGetValue(key, out var v)) { v = GetLast12MonthCounts(metric); _trendCache[key] = v; }
+            return v;
+        }
         private string? GetCachedDelta(string metric)
         {
             if (!_deltaCache.TryGetValue(metric, out var v)) { v = GetWeeklyDeltaText(metric); _deltaCache[metric] = v; }
@@ -1594,9 +1730,10 @@ namespace Inventory_Management_System
                 _cardAnims = new List<CardAnimState>();
                 _donutAnimProgress = instant ? 1f : 0f;
                 _barAnimProgress = instant ? 1f : 0f;
-                _activitiesAnimProgress = instant ? 1f : 0f;
-                _chartAnimClock.Reset();
-                _chartAnimClockStarted = false;
+                _activitiesAnimProgress = (instant || _activitiesIntroPlayed) ? 1f : 0f;
+                if (!instant) _activitiesIntroPlayed = true;
+                _chartAnimClock.Restart();
+                _chartAnimClockStarted = true; // start immediately alongside the cards, not after they finish
 
                 using var db = new InventoryDbContext();
 
@@ -1632,6 +1769,9 @@ namespace Inventory_Management_System
                     .Select(g => (Category: g.Category!, Count: g.Count))
                     .ToList();
 
+                LoadTopEmployees(db);
+                LoadLocationBreakdown(db);
+
                 // ── Stat cards — all 6 in one row ──────────────────────────
                 panelStats.Controls.Clear();
                 _statCards.Clear();
@@ -1656,16 +1796,37 @@ namespace Inventory_Management_System
                 int x      = padL;
                 int cardIndex = 0;
 
-                float staggerStepMs = instant ? 0f : 60f;
+                float staggerStepMs = instant ? 0f : 70f;
+                // How long the slide/bounce itself takes once it starts, derived from the
+                // same step size AnimTimer_Tick uses — kept in sync automatically if that ever changes.
+                int cardEntranceMs = (int)Math.Ceiling(1f / CardAnimStepPerTick) * AnimTickIntervalMs;
 
                 foreach (var def in cardDefs)
                 {
-                    var card = ThemeHelper.CreateStatCard(def.title, def.value, def.color, def.icon, def.trendValues, def.deltaText);
                     Rectangle targetBounds = new Rectangle(x, 8, cardW, cardH);
+
+                    // Compute this card's delay BEFORE building it, so the number
+                    // count-up can be told to wait until (delay + entrance) has elapsed —
+                    // i.e. until this specific card has actually landed, not a fixed guess.
+                    float delay;
+                    if (cardIndex == CenterCardIndex) delay = 0f;
+                    else if (cardIndex < CenterCardIndex)
+                    {
+                        int distanceFromCenter = CenterCardIndex - cardIndex; // 1,2,3
+                        delay = (distanceFromCenter - 1) * staggerStepMs;
+                    }
+                    else
+                    {
+                        int distanceFromCenter = cardIndex - CenterCardIndex; // 1,2,3
+                        delay = (distanceFromCenter - 1) * staggerStepMs;
+                    }
+                    int numberStartDelayMs = instant ? 0 : (int)delay + cardEntranceMs;
+
+                    var card = ThemeHelper.CreateStatCard(def.title, def.value, def.color, def.icon, def.trendValues, def.deltaText, numberStartDelayMs);
 
                     CardAnimState animState;
 
-                  if (cardIndex == CenterCardIndex)
+                    if (cardIndex == CenterCardIndex)
                     {
                         // Center card: bounce-in via vertical position only — size stays
                         // fixed at target size the entire time, matching every other card.
@@ -1679,21 +1840,18 @@ namespace Inventory_Management_System
 
                         animState = new CardAnimState
                         {
-                            Card         = card,
-                            StartBounds  = startBounds,
+                            Card = card,
+                            StartBounds = startBounds,
                             TargetBounds = targetBounds,
-                            Progress     = 0f,
-                            DelayMs      = 0f,
-                            Kind         = CardAnimKind.Bounce
+                            Progress = 0f,
+                            DelayMs = 0f,
+                            Kind = CardAnimKind.Bounce
                         };
                     }
                     else if (cardIndex < CenterCardIndex)
                     {
                         // Left group (0,1,2): slide in from off-screen left, converging
                         // toward the center — closest to center starts first.
-                        int distanceFromCenter = CenterCardIndex - cardIndex; // 1,2,3
-                        float delay = (distanceFromCenter - 1) * staggerStepMs;
-
                         Rectangle startBounds = new Rectangle(
                             -targetBounds.Width, targetBounds.Y, targetBounds.Width, targetBounds.Height);
 
@@ -1701,21 +1859,18 @@ namespace Inventory_Management_System
 
                         animState = new CardAnimState
                         {
-                            Card         = card,
-                            StartBounds  = startBounds,
+                            Card = card,
+                            StartBounds = startBounds,
                             TargetBounds = targetBounds,
-                            Progress     = 0f,
-                            DelayMs      = delay,
-                            Kind         = CardAnimKind.Slide
+                            Progress = 0f,
+                            DelayMs = delay,
+                            Kind = CardAnimKind.Slide
                         };
                     }
                     else
                     {
                         // Right group (4,5,6): slide in from off-screen right, converging
                         // toward the center — closest to center starts first.
-                        int distanceFromCenter = cardIndex - CenterCardIndex; // 1,2,3
-                        float delay = (distanceFromCenter - 1) * staggerStepMs;
-
                         Rectangle startBounds = new Rectangle(
                             panelStats.Width, targetBounds.Y, targetBounds.Width, targetBounds.Height);
 
@@ -1723,12 +1878,12 @@ namespace Inventory_Management_System
 
                         animState = new CardAnimState
                         {
-                            Card         = card,
-                            StartBounds  = startBounds,
+                            Card = card,
+                            StartBounds = startBounds,
                             TargetBounds = targetBounds,
-                            Progress     = 0f,
-                            DelayMs      = delay,
-                            Kind         = CardAnimKind.Slide
+                            Progress = 0f,
+                            DelayMs = delay,
+                            Kind = CardAnimKind.Slide
                         };
                     }
 
@@ -1766,6 +1921,63 @@ namespace Inventory_Management_System
             catch { /* DB unavailable */ }
         }
 
+        // Top employees by number of currently allocated items.
+        // Adjust the property names below (Allocation.EmployeeId / Employee.FullName /
+        // Status == "approved") to match your actual Allocations/Employees schema if different.
+        private void LoadTopEmployees(InventoryDbContext db)
+        {
+            try
+            {
+                var counts = db.Allocations
+                    .Where(a => a.Status == "approved" && a.ActualReturnDate == null && a.EmployeeId != null)
+                    .GroupBy(a => a.EmployeeId)
+                    .Select(g => new { EmployeeId = g.Key!.Value, Count = g.Count() })
+                    .ToList()
+                    .ToDictionary(x => x.EmployeeId, x => x.Count);
+
+                _topEmployees = db.Employees
+                    .Where(e => e.IsActive)
+                    .OrderBy(e => e.EmployeeCode)
+                    .ToList()
+                    .Select(e => (Name: e.FullName, Count: counts.TryGetValue(e.Id, out var c) ? c : 0))
+                    .ToList();
+            }
+            catch { _topEmployees = new(); }
+        }
+
+        // Equipment allocation broken down by location.
+        // Location tracking runs through EquipmentLocationHistory — EndDate == null
+        // marks the currently-active assignment for that piece of equipment.
+        private void LoadLocationBreakdown(InventoryDbContext db)
+        {
+            try
+            {
+                _locationBreakdown = db.Allocations
+                    .Where(a => a.Status == "approved" && a.ActualReturnDate == null &&
+                                a.LocationId != null && a.EmployeeId == null &&
+                                !a.Equipment.IsDeleted)
+                    .GroupBy(a => a.LocationId)
+                    .Select(g => new { LocationId = g.Key!.Value, Count = g.Count() })
+                    .ToList()
+                    .Select(g =>
+                    {
+                        var loc = db.Locations.FirstOrDefault(l => l.Id == g.LocationId);
+                        string fullName = loc == null
+                            ? "Unknown"
+                            : string.IsNullOrWhiteSpace(loc.RoomName)
+                                ? (loc.LocationName ?? "Unknown")
+                                : $"{loc.LocationName} — {loc.RoomName}";
+                        string roomLabel = loc == null
+                            ? "Unknown"
+                            : string.IsNullOrWhiteSpace(loc.RoomName) ? (loc.LocationName ?? "Unknown") : loc.RoomName;
+                        return (Location: fullName, RoomLabel: roomLabel, InStock: 0, Allocated: g.Count, Repair: 0);
+                    })
+                    .OrderByDescending(x => x.Allocated)
+                    .ToList();
+            }
+            catch { _locationBreakdown = new(); }
+        }
+
         private void AnimTimer_Tick(object? sender, EventArgs e)
         {
             bool allDone = true;
@@ -1786,7 +1998,7 @@ namespace Inventory_Management_System
 
                     if (anim.Progress < 1f)
                     {
-                        anim.Progress += 0.08f;
+                        anim.Progress += CardAnimStepPerTick;
                         if (anim.Progress >= 1f) anim.Progress = 1f;
                         else { allDone = false; cardsDone = false; }
 
@@ -1819,57 +2031,44 @@ namespace Inventory_Management_System
                 }
             }
 
-            // ── Phase 2: charts (donut sweep + bar fill + category bars) —
-            // deliberately held back until every card has finished sliding
-            // in, so the pie/legend numbers visibly wait their turn instead
-            // of racing the card entrance. Uses real elapsed-time / duration
-            // instead of a fixed per-tick increment, so speed is predictable
-            // and doesn't compound like the old re-eased-every-tick version did. ──
-            if (cardsDone)
-            {
-                if (!_chartAnimClockStarted)
-                {
-                    _chartAnimClock.Restart();
-                    _chartAnimClockStarted = true;
-                }
-                long elapsedMs = _chartAnimClock.ElapsedMilliseconds;
+            // Charts now run concurrently with the card entrance (started in LoadStats),
+            // not queued behind it — durations below are tuned to land at the same time
+            // the cards finish, so everything settles together.
+            long elapsedMs = _chartAnimClock.ElapsedMilliseconds;
 
-                if (_donutAnimProgress < 1f)
-                {
-                    float t = Math.Clamp(elapsedMs / DonutAnimDurationMs, 0f, 1f);
-                    _donutAnimProgress = EaseOutCubic(t);
-                    if (_donutAnimProgress > 0.999f) _donutAnimProgress = 1f;
-                    _panelDonut?.Invalidate();
-                    allDone = false;
-                }
-
-                if (_barAnimProgress < 1f)
-                {
-                    float t = Math.Clamp(elapsedMs / BarAnimDurationMs, 0f, 1f);
-                    _barAnimProgress = EaseOutCubic(t);
-                    if (_barAnimProgress > 0.999f) _barAnimProgress = 1f;
-                    _panelBar?.Invalidate();
-                    _panelLine?.Invalidate();
-                    allDone = false;
-                }
-            }
-            else if (_donutAnimProgress < 1f || _barAnimProgress < 1f)
+            if (_donutAnimProgress < 1f)
             {
-                // Charts are queued but haven't started yet — keep the
-                // overall timer alive without advancing them.
+                float t = Math.Clamp(elapsedMs / DonutAnimDurationMs, 0f, 1f);
+                _donutAnimProgress = EaseOutCubic(t);
+                if (_donutAnimProgress > 0.999f) _donutAnimProgress = 1f;
+                _panelDonut?.Invalidate();
                 allDone = false;
             }
 
-            // ── Phase 3: activities panel slide-in — independent of the
-            // charts, so it can happen alongside them rather than queuing. ──
+            if (_barAnimProgress < 1f)
+            {
+                float t = Math.Clamp(elapsedMs / BarAnimDurationMs, 0f, 1f);
+                _barAnimProgress = EaseOutCubic(t);
+                if (_barAnimProgress > 0.999f) _barAnimProgress = 1f;
+                _panelBar?.Invalidate();
+                _panelLine?.Invalidate();
+                _panelTrend?.Invalidate();
+                _panelLocation?.Invalidate();
+                allDone = false;
+            }
+
+            // ── Phase 3: activities panel slide-in — runs on the same elapsed
+            // clock and duration as the donut/bar charts above, so all three
+            // start together and finish together instead of racing at different speeds. ──
             if (_activitiesAnimProgress < 1f && _panelActivities != null)
             {
-                _activitiesAnimProgress = Math.Min(1f, _activitiesAnimProgress + 0.05f);
-                float ease = EaseOutCubic(_activitiesAnimProgress);
+                float aT = Math.Clamp(elapsedMs / ActivitiesAnimDurationMs, 0f, 1f);
+                _activitiesAnimProgress = aT;
+                float ease = EaseOutCubic(aT);
                 int startX = _activitiesTargetBounds.X + 250; // starts 250px to the right, slides left into place
                 int curX = (int)(startX + (_activitiesTargetBounds.X - startX) * ease);
                 _panelActivities.SetBounds(curX, _activitiesTargetBounds.Y, _activitiesTargetBounds.Width, _activitiesTargetBounds.Height);
-                allDone = false;
+                if (aT < 1f) allDone = false;
             }
 
             if (allDone)
@@ -1914,7 +2113,19 @@ namespace Inventory_Management_System
             panelContent.Controls.Clear();
             panelContent.Controls.Add(_panelCharts);
 
-            _panelTopRow = new Panel { BackColor = Color.Transparent, Dock = DockStyle.None };
+            // Row 1
+            _panelBar = MakeChartCard("Asset Status Breakdown");
+            _panelBar.Paint += PaintBarChart;
+            _panelBar.MouseMove += (s, e) =>
+            {
+                _barMousePos = e.Location;
+                int idx = _barHitCols.FindIndex(c => c.Bounds.Contains(e.Location));
+                bool changed = idx != _barHoverIndex;
+                _barHoverIndex = idx;
+                if (changed || idx >= 0) _panelBar.Invalidate();
+            };
+            _panelBar.MouseLeave += (s, e) => { if (_barHoverIndex != -1) { _barHoverIndex = -1; _panelBar.Invalidate(); } };
+            BuildBarPeriodSelector(_panelBar);
 
             _panelDonut = MakeChartCard("Equipment Status");
             _panelDonut.Paint += PaintDonutChart;
@@ -1926,15 +2137,12 @@ namespace Inventory_Management_System
                 _donutHoverIndex = idx;
                 if (changed || idx >= 0) _panelDonut.Invalidate();
             };
-            _panelDonut.MouseLeave += (s, e) =>
-            {
-                if (_donutHoverIndex != -1) { _donutHoverIndex = -1; _panelDonut.Invalidate(); }
-            };
+            _panelDonut.MouseLeave += (s, e) => { if (_donutHoverIndex != -1) { _donutHoverIndex = -1; _panelDonut.Invalidate(); } };
 
             var lnkViewAllEquipment = new Label
             {
                 Text = "›",
-                Font = new Font("Segoe UI", 15f, FontStyle.Regular),
+                Font = new Font("Segoe UI", 15f),
                 ForeColor = ThemeHelper.ChartBodyText,
                 AutoSize = true,
                 Cursor = Cursors.Hand,
@@ -1945,34 +2153,18 @@ namespace Inventory_Management_System
             lnkViewAllEquipment.MouseEnter += (s, e) => lnkViewAllEquipment.ForeColor = ThemeHelper.ChartTitleText;
             lnkViewAllEquipment.MouseLeave += (s, e) => lnkViewAllEquipment.ForeColor = ThemeHelper.ChartBodyText;
             _panelDonut.Controls.Add(lnkViewAllEquipment);
+            _panelDonut.Resize += (s, e) => lnkViewAllEquipment.Location = new Point(_panelDonut.Width - lnkViewAllEquipment.PreferredWidth - 16, 10);
             lnkViewAllEquipment.Location = new Point(_panelDonut.Width - lnkViewAllEquipment.PreferredWidth - 16, 10);
             lnkViewAllEquipment.BringToFront();
 
-            _panelBar = MakeChartCard("Asset Status Breakdown");
-            _panelBar.Paint += PaintBarChart;
-            _panelBar.MouseMove += (s, e) =>
-            {
-                _barMousePos = e.Location;
-                int idx = _barHitCols.FindIndex(c => c.Bounds.Contains(e.Location));
-                bool changed = idx != _barHoverIndex;
-                _barHoverIndex = idx;
-                if (changed || idx >= 0) _panelBar.Invalidate();
-            };
-            _panelBar.MouseLeave += (s, e) =>
-            {
-                if (_barHoverIndex != -1) { _barHoverIndex = -1; _panelBar.Invalidate(); }
-            };
-            BuildBarPeriodSelector(_panelBar);
+            // Employees card — spans both rows
+            _panelEmployees = MakeChartCard("Top Employees by Holdings");
+            BuildEmployeesList(_panelEmployees);
 
             _panelActivities = MakeChartCard("Recent Activities");
             BuildActivitiesList(_panelActivities);
 
-            _panelTopRow.Controls.Add(_panelDonut);
-            _panelTopRow.Controls.Add(_panelBar);
-            _panelTopRow.Controls.Add(_panelActivities);
-
-            _panelBotRow = new Panel { BackColor = Color.Transparent, Dock = DockStyle.None };
-
+            // Row 2
             _panelLine = MakeChartCard("Equipment by Category");
             _panelLine.Paint += PaintCategoryBreakdownChart;
             _panelLine.MouseMove += (s, e) =>
@@ -1983,18 +2175,34 @@ namespace Inventory_Management_System
                 _catHoverIndex = idx;
                 if (changed || idx >= 0) _panelLine.Invalidate();
             };
-            _panelLine.MouseLeave += (s, e) =>
+            _panelLine.MouseLeave += (s, e) => { if (_catHoverIndex != -1) { _catHoverIndex = -1; _panelLine.Invalidate(); } };
+
+            _panelLocation = MakeChartCard("Equipment Allocation by Location");
+            _panelLocation.Paint += PaintLocationChart;
+            _panelLocation.MouseMove += (s, e) =>
             {
-                if (_catHoverIndex != -1) { _catHoverIndex = -1; _panelLine.Invalidate(); }
+                _locMousePos = e.Location;
+                int idx = _locHitCols.FindIndex(c => c.Bounds.Contains(e.Location));
+                bool changed = idx != _locHoverIndex;
+                _locHoverIndex = idx;
+                if (changed || idx >= 0) _panelLocation.Invalidate();
             };
+            _panelLocation.MouseLeave += (s, e) => { if (_locHoverIndex != -1) { _locHoverIndex = -1; _panelLocation.Invalidate(); } };
 
-            _panelBotRow.Controls.Add(_panelLine);
+            _panelTrend = MakeChartCard("Asset Allocation and Usage Trend");
+            _panelTrend.Paint += PaintTrendChart;
 
-            _panelCharts.Controls.Add(_panelBotRow);
-            _panelCharts.Controls.Add(_panelTopRow);
+            _panelCharts.Controls.Add(_panelBar);
+            _panelCharts.Controls.Add(_panelDonut);
+            _panelCharts.Controls.Add(_panelEmployees);
+            _panelCharts.Controls.Add(_panelActivities);
+            _panelCharts.Controls.Add(_panelLine);
+            _panelCharts.Controls.Add(_panelLocation);
+            _panelCharts.Controls.Add(_panelTrend);
 
             LayoutCharts();
         }
+
 
         private void RecomputeBarChartForPeriod()
         {
@@ -2039,42 +2247,37 @@ namespace Inventory_Management_System
         {
             if (_panelCharts == null) return;
 
-            int pad  = 14;
-            int gap  = 14;
-            int w    = _panelCharts.ClientSize.Width  - pad * 2;
-            int h    = _panelCharts.ClientSize.Height - pad * 2;
+            int pad = 14, gap = 12;
+            int w = _panelCharts.ClientSize.Width - pad * 2;
+            int h = _panelCharts.ClientSize.Height - pad * 2;
+            if (w <= 0 || h <= 0) return;
 
-            // Top row: 32% donut | 38% bar | 30% activities
-            int topH = (int)(h * 0.56);
-            int donutW = (int)(w * 0.32) - gap;
-            int actW = (int)(w * 0.30) - gap;
-            int barW = w - donutW - actW - gap * 2;
+            int colW = (w - gap * 3) / 4;
+            int rowH = (h - gap) / 2;
 
-            if (_panelTopRow != null)
-            {
-                _panelTopRow.SetBounds(pad, pad, w, topH);
+            int x0 = pad, x1 = x0 + colW + gap, x2 = x1 + colW + gap, x3 = x2 + colW + gap;
+            int y0 = pad, y1 = y0 + rowH + gap;
 
-                _panelDonut?.SetBounds(0, 0, donutW, topH);
-                _panelBar?.SetBounds(donutW + gap, 0, barW, topH);
-                _activitiesTargetBounds = new Rectangle(donutW + barW + gap * 2, 0, actW, topH);
-                if (_activitiesAnimProgress >= 1f)
-                    _panelActivities?.SetBounds(_activitiesTargetBounds.X, _activitiesTargetBounds.Y, _activitiesTargetBounds.Width, _activitiesTargetBounds.Height);
-            }
+            // Row 1 — Asset Status Breakdown now sits where the trend chart used to.
+            _panelTrend?.SetBounds(x0, y0, colW, rowH);
+            _panelDonut?.SetBounds(x1, y0, colW, rowH);
+            _activitiesTargetBounds = new Rectangle(x3, y0, colW, rowH);
+            if (_panelActivities != null) _panelActivities.Bounds = _activitiesTargetBounds;
 
-            // Bottom row: full-width line chart
-            int botY = pad + topH + gap;
-            int botH = h - topH - gap;
-            if (botH < 160) botH = 160;
+            // Employees spans both rows, column 3
+            _panelEmployees?.SetBounds(x2, y0, colW, rowH * 2 + gap);
 
-            if (_panelBotRow != null)
-            {
-                _panelBotRow.SetBounds(pad, botY, w, botH);
-                _panelLine?.SetBounds(0, 0, w, botH);
-            }
+            // Row 2 — trend chart now sits where the bar chart used to.
+            _panelLine?.SetBounds(x0, y1, colW, rowH);
+            _panelLocation?.SetBounds(x1, y1, colW, rowH);
+            _panelBar?.SetBounds(x3, y1, colW, rowH);
 
+            _panelTrend?.Invalidate();
             _panelDonut?.Invalidate();
-            _panelBar?.Invalidate();
+            _panelEmployees?.Invalidate();
             _panelLine?.Invalidate();
+            _panelLocation?.Invalidate();
+            _panelBar?.Invalidate();
         }
 
         private void BuildActivitiesList(Panel card)
@@ -2108,6 +2311,229 @@ namespace Inventory_Management_System
             lnkViewAll.BringToFront();
 
             LoadRecentActivities(listHost);
+        }
+        private void BuildEmployeesList(Panel card)
+        {
+            var listHost = new Panel
+            {
+                Location = new Point(0, 45),
+                Size = new Size(card.Width, Math.Max(0, card.Height - 45)),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Bottom,
+                AutoScroll = true,
+                BackColor = ThemeHelper.ChartHostBg,
+                Tag = "employeesHost"
+            };
+            card.Controls.Add(listHost);
+            LoadEmployeesRows(listHost);
+        }
+
+        private void LoadEmployeesRows(Panel listHost)
+        {
+            listHost.Controls.Clear();
+            _employeeTooltip ??= new ToolTip { AutoPopDelay = 4000, InitialDelay = 200, ReshowDelay = 100, ShowAlways = true };
+
+            if (_topEmployees.Count == 0)
+            {
+                listHost.Controls.Add(new Label
+                {
+                    Text = "No employee data available.",
+                    ForeColor = ThemeHelper.ChartSecText,
+                    Font = ThemeHelper.FontSmall,
+                    AutoSize = true,
+                    Location = new Point(14, 14)
+                });
+                return;
+            }
+
+            int maxVal = Math.Max(1, _topEmployees.Max(x => x.Count));
+            bool showBars = _topEmployees.Any(x => x.Count > 0);
+
+            int y = 4;
+            for (int i = 0; i < _topEmployees.Count; i++)
+            {
+                var emp = _topEmployees[i];
+                var row = BuildEmployeeRow(i + 1, emp.Name, emp.Count, maxVal, showBars, listHost.Width - 20, _employeeTooltip);
+                row.Location = new Point(10, y);
+                row.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+                listHost.Controls.Add(row);
+                y += row.Height + 4;
+            }
+        }
+
+        private static Panel BuildEmployeeRow(int rank, string name, int count, int maxVal, bool showBar, int width, ToolTip tooltip)
+        {
+            var row = new Panel { Size = new Size(width, 34), BackColor = Color.Transparent };
+
+            string tooltipText = count > 0
+                ? $"{name} — {count} item{(count == 1 ? "" : "s")} currently allocated"
+                : $"{name} — no equipment currently allocated";
+
+            row.Controls.Add(new Label
+            {
+                Text = rank.ToString(),
+                Font = ChartLabelFont,
+                ForeColor = ThemeHelper.ChartSecText,
+                Size = new Size(26, 34),
+                Location = new Point(0, 0),
+                TextAlign = ContentAlignment.MiddleCenter,
+                AutoEllipsis = false
+            });
+
+            const int avatarD = 24;
+            string initial = name.Length > 0 ? name.Trim().Substring(0, 1).ToUpper() : "?";
+            Color avatarColor = count > 0 ? Color.FromArgb(127, 119, 221) : ThemeHelper.ChartTrackBg;
+            Color avatarFg = count > 0 ? Color.White : ThemeHelper.ChartSecText;
+
+            var avatarPanel = new Panel
+            {
+                Size = new Size(avatarD, avatarD),
+                Location = new Point(28, 5),
+                BackColor = Color.Transparent
+            };
+            avatarPanel.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                using var b = new SolidBrush(avatarColor);
+                g.FillEllipse(b, 0, 0, avatarD - 1, avatarD - 1);
+                using var fg = new SolidBrush(avatarFg);
+                using var f = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                g.DrawString(initial, f, fg, new RectangleF(0, 0, avatarD, avatarD), sf);
+            };
+            row.Controls.Add(avatarPanel);
+
+            int nameX = avatarPanel.Right + 8;
+            var lblName = new Label
+            {
+                Text = name,
+                Font = ChartCatLabelFont,
+                ForeColor = ThemeHelper.ChartBodyText,
+                Size = new Size(showBar ? width - nameX - 106 : width - nameX - 10, 34),
+                Location = new Point(nameX, 0),
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoEllipsis = true
+            };
+            row.Controls.Add(lblName);
+
+            row.MouseEnter += (s, e) => row.BackColor = ThemeHelper.ChartTrackBg;
+            row.MouseLeave += (s, e) => row.BackColor = Color.Transparent;
+
+            if (showBar)
+            {
+                var barTrack = new Panel
+                {
+                    Size = new Size(70, 8),
+                    Location = new Point(row.Width - 106, 13),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                    BackColor = Color.Transparent
+                };
+                barTrack.Paint += (s, e) =>
+                {
+                    var g = e.Graphics;
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    using var trackPath = RoundedRectF(new RectangleF(0, 0, barTrack.Width, barTrack.Height), 4f);
+                    using var trackBrush = new SolidBrush(ThemeHelper.ChartTrackBg);
+                    g.FillPath(trackBrush, trackPath);
+
+                    float fillW = (float)count / maxVal * barTrack.Width;
+                    if (fillW > 1)
+                    {
+                        using var fillPath = RoundedRectF(new RectangleF(0, 0, fillW, barTrack.Height), 4f);
+                        using var fillBrush = new SolidBrush(Color.FromArgb(127, 119, 221));
+                        g.FillPath(fillBrush, fillPath);
+                    }
+                };
+                row.Controls.Add(barTrack);
+
+                var lblCount = new Label
+                {
+                    Text = count.ToString(),
+                    Font = ChartLabelFont,
+                    ForeColor = count > 0 ? ThemeHelper.ChartSecText : ThemeHelper.ChartTrackBg,
+                    Size = new Size(30, 34),
+                    Location = new Point(row.Width - 30, 0),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                    TextAlign = ContentAlignment.MiddleRight
+                };
+                row.Controls.Add(lblCount);
+
+                tooltip.SetToolTip(barTrack, tooltipText);
+                tooltip.SetToolTip(lblCount, tooltipText);
+            }
+
+            tooltip.SetToolTip(row, tooltipText);
+            tooltip.SetToolTip(avatarPanel, tooltipText);
+            tooltip.SetToolTip(lblName, tooltipText);
+
+            return row;
+        }
+
+        private static Panel BuildEmployeeRow(int rank, string name, int count, int maxVal, bool showBar, int width)
+        {
+            var row = new Panel { Size = new Size(width, 30), BackColor = Color.Transparent };
+
+            row.Controls.Add(new Label
+            {
+                Text = rank.ToString(),
+                Font = ChartLabelFont,
+                ForeColor = ThemeHelper.ChartSecText,
+                Size = new Size(20, 30),
+                Location = new Point(0, 0),
+                TextAlign = ContentAlignment.MiddleLeft
+            });
+
+            row.Controls.Add(new Label
+            {
+                Text = name,
+                Font = ChartCatLabelFont,
+                ForeColor = ThemeHelper.ChartBodyText,
+                Size = new Size(showBar ? width - 20 - 126 : width - 30, 30),
+                Location = new Point(24, 0),
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoEllipsis = true
+            });
+
+            if (showBar)
+            {
+                var barTrack = new Panel
+                {
+                    Size = new Size(90, 8),
+                    Location = new Point(row.Width - 126, 11),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                    BackColor = Color.Transparent
+                };
+                barTrack.Paint += (s, e) =>
+                {
+                    var g = e.Graphics;
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    using var trackPath = RoundedRectF(new RectangleF(0, 0, barTrack.Width, barTrack.Height), 4f);
+                    using var trackBrush = new SolidBrush(ThemeHelper.ChartTrackBg);
+                    g.FillPath(trackBrush, trackPath);
+
+                    float fillW = (float)count / maxVal * barTrack.Width;
+                    if (fillW > 1)
+                    {
+                        using var fillPath = RoundedRectF(new RectangleF(0, 0, fillW, barTrack.Height), 4f);
+                        using var fillBrush = new SolidBrush(Color.FromArgb(127, 119, 221));
+                        g.FillPath(fillBrush, fillPath);
+                    }
+                };
+                row.Controls.Add(barTrack);
+
+                row.Controls.Add(new Label
+                {
+                    Text = count.ToString(),
+                    Font = ChartLabelFont,
+                    ForeColor = ThemeHelper.ChartSecText,
+                    Size = new Size(30, 30),
+                    Location = new Point(row.Width - 30, 0),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                    TextAlign = ContentAlignment.MiddleRight
+                });
+            }
+
+            return row;
         }
 
         private void LoadRecentActivities(Panel listHost)
@@ -2558,6 +2984,286 @@ namespace Inventory_Management_System
             }
         }
 
+        // ════════════════════════════════════════════════════════════════
+        //  TOP EMPLOYEES BY HOLDINGS — horizontal ranked bars
+        // ════════════════════════════════════════════════════════════════
+        private void PaintEmployeesChart(object? sender, PaintEventArgs e)
+        {
+            if (sender is not Panel p) return;
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+            if (_topEmployees.Count == 0)
+            {
+                using var emptyFont = new Font("Segoe UI", 9.5f);
+                using var emptyFg = new SolidBrush(ThemeHelper.ChartSecText);
+                var msg = "No allocation data available";
+                var msgSz = g.MeasureString(msg, emptyFont);
+                g.DrawString(msg, emptyFont, emptyFg, (p.Width - msgSz.Width) / 2f, (p.Height - msgSz.Height) / 2f);
+                return;
+            }
+
+            int top = 54, padOuter = 16, rankW = 20, nameW = 30;
+            int maxVal = Math.Max(1, _topEmployees.Max(x => x.Count));
+            int barAreaX = padOuter + rankW + nameW;
+            int barAreaW = Math.Max(20, p.Width - barAreaX - 46);
+
+            float rowH = (float)(p.Height - top - 10) / _topEmployees.Count;
+            float barH = Math.Clamp(rowH * 0.45f, 8f, 14f);
+
+            using var labelFg = new SolidBrush(ThemeHelper.ChartBodyText);
+            using var rankFg = new SolidBrush(ThemeHelper.ChartSecText);
+            using var trackBrush = new SolidBrush(ThemeHelper.ChartTrackBg);
+            Color barColor = Color.FromArgb(127, 119, 221); // purple, matches the mockup
+
+            _empHitRows.Clear();
+
+            for (int i = 0; i < _topEmployees.Count; i++)
+            {
+                var emp = _topEmployees[i];
+                float rowDelay = i * 0.08f;
+                float rowProgress = Math.Clamp((_barAnimProgress - rowDelay) / (1f - rowDelay), 0f, 1f);
+
+                float by = top + i * rowH + (rowH - barH) / 2f;
+                _empHitRows.Add((new RectangleF(padOuter, top + i * rowH, p.Width - padOuter * 2, rowH), emp.Name, emp.Count));
+
+                g.DrawString((i + 1).ToString(), ChartLabelFont, rankFg, padOuter, by - 3);
+
+                string shortName = emp.Name.Length > 0 ? emp.Name.Substring(0, 1) + "." : "?";
+                g.DrawString(shortName, ChartLabelFont, labelFg, padOuter + rankW, by - 3);
+
+                using var trackPath = RoundedRectF(new RectangleF(barAreaX, by, barAreaW, barH), 4f);
+                g.FillPath(trackBrush, trackPath);
+
+                float fillW = (float)emp.Count / maxVal * barAreaW * rowProgress;
+                if (fillW > 1)
+                {
+                    using var fillPath = RoundedRectF(new RectangleF(barAreaX, by, fillW, barH), 4f);
+                    using var fillBrush = new SolidBrush(barColor);
+                    g.FillPath(fillBrush, fillPath);
+                }
+
+                using var valFg = new SolidBrush(ThemeHelper.ChartSecText);
+                g.DrawString(emp.Count.ToString(), ChartLabelFont, valFg, barAreaX + barAreaW + 6, by - 3);
+            }
+
+            if (_empHoverIndex >= 0 && _empHoverIndex < _empHitRows.Count)
+            {
+                var hr = _empHitRows[_empHoverIndex];
+                DrawHoverTooltip(g, p, _empMousePos, hr.Name, $"{hr.Count} items allocated", barColor);
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  EQUIPMENT ALLOCATION BY LOCATION — stacked vertical bars
+        // ════════════════════════════════════════════════════════════════
+        private void PaintLocationChart(object? sender, PaintEventArgs e)
+        {
+            if (sender is not Panel p) return;
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+            if (_locationBreakdown.Count == 0)
+            {
+                using var emptyFont = new Font("Segoe UI", 9.5f);
+                using var emptyFg = new SolidBrush(ThemeHelper.ChartSecText);
+                var msg = "No location data available";
+                var msgSz = g.MeasureString(msg, emptyFont);
+                g.DrawString(msg, emptyFont, emptyFg, (p.Width - msgSz.Width) / 2f, (p.Height - msgSz.Height) / 2f);
+                return;
+            }
+
+            var locPalette = new[]
+            {
+        Color.FromArgb(94, 53, 177), Color.FromArgb(217, 119, 6),
+        Color.FromArgb(21, 128, 61), Color.FromArgb(29, 78, 216),
+        Color.FromArgb(190, 24, 93), Color.FromArgb(2, 132, 199),
+    };
+
+            int top = 54, bottomLabels = 70, padOuter = 20;
+            int chartH = Math.Max(20, p.Height - top - bottomLabels);
+            int maxTotal = Math.Max(1, _locationBreakdown.Max(l => l.InStock + l.Allocated + l.Repair));
+            int count = _locationBreakdown.Count;
+            float colWidth = (p.Width - padOuter * 2f) / count;
+            float barWidth = Math.Min(40f, colWidth * 0.55f);
+
+            _locHitCols.Clear();
+
+            for (int i = 0; i < count; i++)
+            {
+                var loc = _locationBreakdown[i];
+                // Delay is scaled to the actual column count and capped at 50% of the
+                // progress budget, so it never exceeds 1 regardless of how many rooms
+                // there are — every bar animates, just staggered proportionally.
+                float colDelay = count <= 1 ? 0f : (i / (float)(count - 1)) * 0.5f;
+                float colProgress = Math.Clamp((_barAnimProgress - colDelay) / (1f - colDelay), 0f, 1f);
+                float colCenterX = padOuter + colWidth * i + colWidth / 2f;
+                float barX = colCenterX - barWidth / 2f;
+                int total = loc.InStock + loc.Allocated + loc.Repair;
+                float barH = (float)total / maxTotal * chartH * colProgress;
+                float baseY = top + chartH;
+
+                _locHitCols.Add((new RectangleF(barX, top, barWidth, chartH), loc.Location, loc.RoomLabel, loc.InStock, loc.Allocated, loc.Repair));
+
+                Color barColor = locPalette[i % locPalette.Length];
+                if (barH > 0)
+                {
+                    using var grad = new LinearGradientBrush(
+                        new PointF(barX, baseY), new PointF(barX, baseY - barH),
+                        ControlPaint.Light(barColor, 0.3f), barColor);
+                    using var fillPath = RoundedRectF(new RectangleF(barX, baseY - barH, barWidth, barH), 5f);
+                    g.FillPath(grad, fillPath);
+                }
+
+                using var valFg = new SolidBrush(barColor);
+                string valStr = total.ToString();
+                var vSz = g.MeasureString(valStr, ChartValueFont);
+                g.DrawString(valStr, ChartValueFont, valFg, colCenterX - vSz.Width / 2f, baseY - barH - vSz.Height - 4);
+
+                using var roomFont = new Font("Segoe UI", 6.5f, FontStyle.Regular, GraphicsUnit.Point);
+                using var labelFg = new SolidBrush(ThemeHelper.ChartBodyText);
+                var labelState = g.Save();
+                g.TranslateTransform(colCenterX, baseY + 8);
+                g.RotateTransform(90f); // was -90 — that direction climbed upward into the bar; +90 runs downward, clear of it
+                using var sf = new StringFormat
+                {
+                    Alignment = StringAlignment.Near,
+                    LineAlignment = StringAlignment.Center,
+                    Trimming = StringTrimming.EllipsisCharacter,
+                    FormatFlags = StringFormatFlags.NoWrap
+                };
+                var labelRect = new RectangleF(0, -colWidth / 2f, bottomLabels - 12, colWidth - 4);
+                g.DrawString(loc.RoomLabel, roomFont, labelFg, labelRect, sf);
+                g.Restore(labelState);
+            }
+
+            if (_locHoverIndex >= 0 && _locHoverIndex < _locHitCols.Count)
+            {
+                var hc = _locHitCols[_locHoverIndex];
+                Color hColor = locPalette[_locHoverIndex % locPalette.Length];
+                DrawHoverTooltip(g, p, _locMousePos, hc.Location,
+                    $"{hc.Allocated} equipment allocated", hColor);
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  ASSET ALLOCATION AND USAGE TREND — dual line chart
+        // ════════════════════════════════════════════════════════════════
+        private void PaintTrendChart(object? sender, PaintEventArgs e)
+        {
+            if (sender is not Panel p) return;
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            float[] allocatedTrend = GetCachedMonthlyTrend("allocated");
+            float[] inStockTrend = GetCachedMonthlyTrend("in_store");
+
+            string[] monthAbbr = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+            int todayMonth = DateTime.Today.Month;
+            var labels = new string[12];
+            for (int i = 0; i < 12; i++)
+                labels[i] = monthAbbr[((todayMonth - 1 - 11 + i) % 12 + 12) % 12];
+
+            int top = 58, padOuter = 24, bottom = 26;
+            int chartW = p.Width - padOuter * 2;
+            int chartH = p.Height - top - bottom;
+            if (chartW <= 0 || chartH <= 0) return;
+
+            // Faint horizontal watermark gridlines — drawn first so the band/lines sit on top.
+            const int gridLines = 4;
+            using (var gridPen = new Pen(Color.FromArgb(ThemeHelper.IsDarkMode ? 22 : 18,
+                       ThemeHelper.ChartSecText.R, ThemeHelper.ChartSecText.G, ThemeHelper.ChartSecText.B), 1f))
+            {
+                for (int gi = 0; gi <= gridLines; gi++)
+                {
+                    float gy = top + chartH * gi / (float)gridLines;
+                    g.DrawLine(gridPen, padOuter, gy, padOuter + chartW, gy);
+                }
+            }
+
+            float allMax = Math.Max(1f, Math.Max(allocatedTrend.Max(), inStockTrend.Max()));
+
+            PointF[] MapPoints(float[] vals)
+            {
+                var pts = new PointF[vals.Length];
+                for (int i = 0; i < vals.Length; i++)
+                {
+                    float nx = padOuter + chartW * i / (float)(vals.Length - 1);
+                    float ny = top + chartH - (vals[i] / allMax * chartH);
+                    pts[i] = new PointF(nx, ny);
+                }
+                return pts;
+            }
+
+            var allocPts = MapPoints(allocatedTrend);
+            var stockPts = MapPoints(inStockTrend);
+
+            int visible = Math.Max(2, (int)(allocPts.Length * _barAnimProgress) + 1);
+            visible = Math.Min(visible, allocPts.Length);
+
+            Color allocColor = Color.FromArgb(83, 74, 183);
+            Color stockColor = Color.FromArgb(15, 110, 86);
+            Color bandFill = Color.FromArgb(60, 175, 169, 236);
+
+            if (visible >= 2)
+            {
+                var top12 = allocPts[..visible];
+                var bot12 = stockPts[..visible];
+
+                var bandPts = new List<PointF>();
+                bandPts.AddRange(top12);
+                for (int i = bot12.Length - 1; i >= 0; i--) bandPts.Add(bot12[i]);
+
+                using var band = new GraphicsPath();
+                band.AddPolygon(bandPts.ToArray());
+                using var bandBrush = new SolidBrush(bandFill);
+                g.FillPath(bandBrush, band);
+
+                using var stockPen = new Pen(stockColor, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+                g.DrawLines(stockPen, bot12);
+                using var allocPen = new Pen(allocColor, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+                g.DrawLines(allocPen, top12);
+
+                void DrawMarkers(PointF[] pts, Color color)
+                {
+                    using var mb = new SolidBrush(color);
+                    foreach (var pt in pts)
+                    {
+                        var diamond = new[]
+                        {
+                    new PointF(pt.X, pt.Y - 4), new PointF(pt.X + 4, pt.Y),
+                    new PointF(pt.X, pt.Y + 4), new PointF(pt.X - 4, pt.Y)
+                };
+                        g.FillPolygon(mb, diamond);
+                    }
+                }
+                DrawMarkers(top12, allocColor);
+                DrawMarkers(bot12, stockColor);
+            }
+
+            using var axisFg = new SolidBrush(ThemeHelper.ChartSecText);
+            using var axisSf = new StringFormat { Alignment = StringAlignment.Center };
+            int step = labels.Length > 8 ? 2 : 1;
+            for (int i = 0; i < labels.Length; i += step)
+            {
+                float lx = padOuter + chartW * i / (float)(labels.Length - 1);
+                g.DrawString(labels[i], ChartLabelFont, axisFg, lx, top + chartH + 6, axisSf);
+            }
+
+            int lx2 = padOuter;
+            void DrawLegendItem(string label, Color color, ref int x)
+            {
+                using var b = new SolidBrush(color);
+                g.FillRectangle(b, x, top - 20, 8, 8);
+                g.DrawString(label, ChartLabelFont, axisFg, x + 12, top - 24);
+                x += (int)g.MeasureString(label, ChartLabelFont).Width + 26;
+            }
+            DrawLegendItem("Allocated Assets", allocColor, ref lx2);
+            DrawLegendItem("In Stock Assets", stockColor, ref lx2);
+        }
+
         private void PaintCategoryColumn(Graphics g, List<(string Category, int Count)> cats, Rectangle bounds, Color[] palette, int colorOffset)
         {
             if (cats.Count == 0) return;
@@ -2574,7 +3280,7 @@ namespace Inventory_Management_System
             using var bgBar = new SolidBrush(ThemeHelper.ChartTrackBg);
 
             float rowH = (float)bounds.Height / cats.Count;
-            float barH = Math.Clamp(rowH * 0.50f, 14f, 32f);
+            float barH = Math.Clamp(rowH * 0.68f, 20f, 44f);
 
             for (int i = 0; i < cats.Count; i++)
             {
@@ -2603,13 +3309,16 @@ namespace Inventory_Management_System
                 }
 
                 var lSz = g.MeasureString(cat.Category, labelFont);
-                g.DrawString(cat.Category, labelFont, labelFg, chartX - lSz.Width - 10, by + barH / 2f - lSz.Height / 2f);
+                float lblX = Math.Max(bounds.X, chartX - lSz.Width - 10);
+                g.DrawString(cat.Category, labelFont, labelFg, lblX, by + barH / 2f - lSz.Height / 2f);
 
                 float pct = (float)cat.Count / total * 100f;
                 string valStr = $"{cat.Count}  ({pct:0}%)";
                 var vSz = g.MeasureString(valStr, valFont);
                 using var vFg = new SolidBrush(color);
-                g.DrawString(valStr, valFont, vFg, chartX + fillW + 8, by + barH / 2f - vSz.Height / 2f);
+                float valX = chartX + fillW + 8;
+                if (valX + vSz.Width > bounds.Right - 4) valX = Math.Max(chartX, bounds.Right - vSz.Width - 4);
+                g.DrawString(valStr, valFont, vFg, valX, by + barH / 2f - vSz.Height / 2f);
             }
         }
 
@@ -2695,6 +3404,12 @@ namespace Inventory_Management_System
             float y = mousePos.Y - boxH - 10;
             if (x + boxW > host.Width) x = mousePos.X - boxW - 14;
             if (y < 0) y = mousePos.Y + 14;
+
+            // Final clamp — guarantees the box never bleeds past any edge of its host panel.
+            if (x < 4) x = 4;
+            if (x + boxW > host.Width - 4) x = Math.Max(4, host.Width - boxW - 4);
+            if (y < 4) y = 4;
+            if (y + boxH > host.Height - 4) y = Math.Max(4, host.Height - boxH - 4);
 
             var rect = new RectangleF(x, y, boxW, boxH);
             using var shadowPath = RoundedRectF(new RectangleF(rect.X + 2, rect.Y + 2, rect.Width, rect.Height), 6f);

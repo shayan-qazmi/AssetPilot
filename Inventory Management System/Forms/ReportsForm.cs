@@ -18,7 +18,7 @@ using Size = System.Drawing.Size;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class ReportsForm : Form
+    public partial class ReportsForm : Form, IThemableForm
 
     {
         private readonly EquipmentService _equipmentService = new();
@@ -52,7 +52,7 @@ namespace Inventory_Management_System.Forms
             catch { /* fall back to default already set */ }
         }
 
-        private void ApplyTheme()
+        public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleLabel(lblReportType, bold: true, color: ThemeHelper.Accent);

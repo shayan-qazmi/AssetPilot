@@ -13,7 +13,7 @@ using System.Drawing.Drawing2D;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class DecommissionForm : Form
+    public partial class DecommissionForm : Form, IThemableForm
     {
         private readonly EquipmentService _equipmentService = new();
         private readonly AuditService     _audit            = new();
@@ -25,14 +25,14 @@ namespace Inventory_Management_System.Forms
         private Button btnPrevPage = null!;
         private Button btnNextPage = null!;
         private ComboBox cmbPageSize = null!;
-        private Button btnEditDecomm = null!;
+        private Button btnRestoreDecomm = null!;
 
 
         public DecommissionForm()
         {
             InitializeComponent();
             BuildPaginationControls();
-            BuildEditButton();
+            BuildRestoreButton();
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
             LoadDecommissioned();
@@ -102,22 +102,23 @@ namespace Inventory_Management_System.Forms
             RepositionPagination();
         }
 
-        // ── Edit button — restore a decommissioned item to In Store, or delete it permanently ──
-        private void BuildEditButton()
+        // ── Restore button — sends a decommissioned item straight back to In Store,
+        // after a plain Yes/No confirmation. Replaces the old Edit-dialog flow. ──
+        private void BuildRestoreButton()
         {
-            btnEditDecomm = new Button { Text = "✏ Edit", Size = btnRefresh.Size };
-            ThemeHelper.StyleButton(btnEditDecomm, Color.FromArgb(245, 158, 11));
-            btnEditDecomm.Click += BtnEditDecomm_Click;
+            btnRestoreDecomm = new Button { Text = "↩ Restore", Size = btnRefresh.Size };
+            ThemeHelper.StyleButton(btnRestoreDecomm, Color.FromArgb(0x52, 0xA2, 0x3F));
+            btnRestoreDecomm.Click += BtnRestoreDecomm_Click;
 
-            flowToolbar.Controls.Add(btnEditDecomm);
-            flowToolbar.Controls.SetChildIndex(btnEditDecomm, flowToolbar.Controls.IndexOf(btnRefresh) + 1);
+            flowToolbar.Controls.Add(btnRestoreDecomm);
+            flowToolbar.Controls.SetChildIndex(btnRestoreDecomm, flowToolbar.Controls.IndexOf(btnRefresh));
         }
 
-        private void BtnEditDecomm_Click(object? sender, EventArgs e)
+        private void BtnRestoreDecomm_Click(object? sender, EventArgs e)
         {
             if (dgvDecommission.SelectedRows.Count == 0)
             {
-                ToastHelper.Show(this, "Please select an item to edit.", ToastType.Info);
+                ToastHelper.Show(this, "Please select an item to restore.", ToastType.Info);
                 return;
             }
 
@@ -129,54 +130,29 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            using var dlg = new DecommissionEditDialog(eq.EquipmentCode, eq.Name);
-            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            if (MessageBox.Show(
+                $"Are you sure you want to set '{eq.Name}' ({eq.EquipmentCode}) back to In Store?",
+                "Confirm Restore", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
 
-            if (dlg.SelectedAction == DecommissionEditAction.Restore)
+            try
             {
-                try
-                {
-                    using var db = new InventoryDbContext();
-                    var entity = db.Equipment.FirstOrDefault(x => x.Id == eq.Id);
-                    if (entity == null) { ToastHelper.Show(this, "Equipment not found.", ToastType.Error); return; }
+                using var db = new InventoryDbContext();
+                var entity = db.Equipment.FirstOrDefault(x => x.Id == eq.Id);
+                if (entity == null) { ToastHelper.Show(this, "Equipment not found.", ToastType.Error); return; }
 
-                    entity.CurrentStatus = "in_store";
-                    db.SaveChanges();
+                entity.CurrentStatus = "in_store";
+                db.SaveChanges();
 
-                    _audit.Log(entity.Id, AuditService.ActionDecommissionUndone,
-                        "Status: Decommissioned", "Status: In Store");
+                _audit.Log(entity.Id, AuditService.ActionDecommissionUndone,
+                    "Status: Decommissioned", "Status: In Store");
 
-                    ToastHelper.Show(this, $"'{entity.Name}' restored to In Store.", ToastType.Success);
-                    LoadDecommissioned();
-                }
-                catch (Exception ex)
-                {
-                    ToastHelper.Show(this, "Restore failed: " + ex.Message, ToastType.Error);
-                }
+                ToastHelper.Show(this, $"'{entity.Name}' restored to In Store.", ToastType.Success);
+                LoadDecommissioned();
             }
-            else if (dlg.SelectedAction == DecommissionEditAction.Delete)
+            catch (Exception ex)
             {
-                if (MessageBox.Show(
-                    $"Permanently delete '{eq.Name}' ({eq.EquipmentCode})? This cannot be undone.",
-                    "Confirm Permanent Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
-                    return;
-
-                try
-                {
-                    using var db = new InventoryDbContext();
-                    var entity = db.Equipment.FirstOrDefault(x => x.Id == eq.Id);
-                    if (entity == null) { ToastHelper.Show(this, "Equipment not found.", ToastType.Error); return; }
-
-                    db.Equipment.Remove(entity);
-                    db.SaveChanges();
-
-                    ToastHelper.Show(this, $"'{eq.Name}' permanently deleted.", ToastType.Success);
-                    LoadDecommissioned();
-                }
-                catch (Exception ex)
-                {
-                    ToastHelper.Show(this, "Delete failed: " + ex.Message, ToastType.Error);
-                }
+                ToastHelper.Show(this, "Restore failed: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -192,13 +168,13 @@ namespace Inventory_Management_System.Forms
 
 
 
-        private void ApplyTheme()
+        public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);
             ThemeHelper.StyleDangerButton(btnDecommission);
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
-            ThemeHelper.StyleButton(btnEditDecomm, Color.FromArgb(245, 158, 11));
+            ThemeHelper.StyleButton(btnRestoreDecomm, Color.FromArgb(0x52, 0xA2, 0x3F));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);

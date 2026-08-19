@@ -13,7 +13,7 @@ using System.Windows.Forms;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class QRScannerForm : Form
+    public partial class QRScannerForm : Form, IThemableForm
     {
         private readonly EquipmentService _equipmentService = new();
         private System.Windows.Forms.Timer _scanTimer = null!;
@@ -35,7 +35,7 @@ namespace Inventory_Management_System.Forms
             };
         }
 
-        private void ApplyTheme()
+        public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);

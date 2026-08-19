@@ -7,7 +7,7 @@ using Inventory_Management_System.Services;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class LocationsForm : Form
+    public partial class LocationsForm : Form, IThemableForm
     {
         private readonly LocationService _locationService;
 
@@ -26,7 +26,7 @@ namespace Inventory_Management_System.Forms
             };
         }
 
-        private void ApplyTheme()
+        public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);

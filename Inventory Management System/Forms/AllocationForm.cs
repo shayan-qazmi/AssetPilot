@@ -13,7 +13,7 @@ using System.Drawing.Drawing2D;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class AllocationForm : Form
+    public partial class AllocationForm : Form, IThemableForm
     {
         private readonly AllocationService _allocationService = new();
         private readonly EquipmentService _equipmentService = new();
@@ -607,7 +607,7 @@ namespace Inventory_Management_System.Forms
             return hasFull ? fullName! : $"@{username}";
         }
 
-        private void ApplyTheme()
+        public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);
@@ -1640,8 +1640,8 @@ namespace Inventory_Management_System.Forms
 
             int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
             int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
-            btnCancel.Location = new Point(buttonsStartX, 15);
-            btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
+            btnSave.Location = new Point(buttonsStartX, 15);
+            btnCancel.Location = new Point(buttonsStartX + btnSave.Width + 12, 15);
 
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnSave);
@@ -2147,8 +2147,8 @@ namespace Inventory_Management_System.Forms
 
             int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
             int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
-            btnSave.Location = new Point(buttonsStartX, 13);
-            btnCancel.Location = new Point(buttonsStartX + btnSave.Width + 12, 13);
+            btnSave.Location = new Point(buttonsStartX, 15);
+            btnCancel.Location = new Point(buttonsStartX + btnSave.Width + 12, 15);
 
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnSave);

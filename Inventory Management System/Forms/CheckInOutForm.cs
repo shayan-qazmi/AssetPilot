@@ -12,7 +12,7 @@ using Inventory_Management_System.Helpers;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class CheckInOutForm : Form
+    public partial class CheckInOutForm : Form, IThemableForm
     {
         private readonly TransactionService _transactionService = new();
         private readonly EquipmentService _equipmentService = new();
@@ -61,7 +61,7 @@ namespace Inventory_Management_System.Forms
             };
         }
 
-        private void ApplyTheme()
+        public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);

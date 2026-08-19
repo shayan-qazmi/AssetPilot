@@ -13,7 +13,7 @@ using System.Windows.Forms;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class ReturnsForm : Form
+    public partial class ReturnsForm : Form, IThemableForm
     {
         private readonly AllocationService _allocationService = new();
         private readonly AuditService _audit = new();
@@ -109,7 +109,7 @@ namespace Inventory_Management_System.Forms
             cmbPageSize.SelectedItem = cmbPageSize.Items.Contains(current) ? current : "25";
         }
 
-        private void ApplyTheme()
+        public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);

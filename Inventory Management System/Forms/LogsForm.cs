@@ -13,7 +13,7 @@ using System.Drawing.Drawing2D;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class LogsForm : Form
+    public partial class LogsForm : Form, IThemableForm
     {
         private List<EquipmentLog> _allLogs = new();
 
@@ -143,7 +143,7 @@ namespace Inventory_Management_System.Forms
         }
 
 
-        private void ApplyTheme()
+        public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);

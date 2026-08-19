@@ -13,7 +13,7 @@ using System.Drawing.Drawing2D;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class TransferForm : Form
+    public partial class TransferForm : Form, IThemableForm
     {
         private readonly AllocationService _allocationService = new();
         private readonly EquipmentService _equipmentService = new();
@@ -144,7 +144,7 @@ namespace Inventory_Management_System.Forms
             return room;
         }
 
-        private void ApplyTheme()
+        public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);
@@ -571,8 +571,8 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
 
             int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
             int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
-            btnCancel.Location = new Point(buttonsStartX, 15);
-            btnSave.Location = new Point(buttonsStartX + btnCancel.Width + 12, 15);
+            btnSave.Location = new Point(buttonsStartX, 15);
+            btnCancel.Location = new Point(buttonsStartX + btnSave.Width + 12, 15);
 
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnSave);

@@ -8,7 +8,7 @@ using System.Windows.Forms;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class DeletedItemsForm : Form
+    public partial class DeletedItemsForm : Form, IThemableForm
     {
         private readonly EquipmentService _equipmentService = new();
         private DataGridView dgv = null!;
@@ -180,7 +180,7 @@ namespace Inventory_Management_System.Forms
             RepositionPagination();
         }
 
-        private void ApplyTheme()
+        public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);

@@ -15,7 +15,7 @@ using System.Drawing.Drawing2D;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class EquipmentForm : Form
+    public partial class EquipmentForm : Form, IThemableForm
     {
         private readonly EquipmentService _equipmentService = new();
         private List<Equipment> _allEquipment = new();
@@ -299,7 +299,7 @@ namespace Inventory_Management_System.Forms
         }
         // ── Theme ──────────────────────────────────────────────────────────
 
-        private void ApplyTheme()
+        public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);

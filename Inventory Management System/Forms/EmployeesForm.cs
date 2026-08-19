@@ -11,7 +11,7 @@ using System.Drawing.Drawing2D;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class EmployeesForm : Form
+    public partial class EmployeesForm : Form, IThemableForm
     {
         private readonly EmployeeService _employeeService;
 
@@ -50,11 +50,11 @@ namespace Inventory_Management_System.Forms
         }
 
 
-      
 
 
 
-        private void ApplyTheme()
+
+        public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);

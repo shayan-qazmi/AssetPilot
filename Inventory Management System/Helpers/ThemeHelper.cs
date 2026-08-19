@@ -163,8 +163,8 @@ namespace Inventory_Management_System.Helpers
         // ── Sidebar button ─────────────────────────────────────────────────
         public static void StyleSidebarButton(Button btn, bool active = false)
         {
-            btn.Tag       = active;
-            btn.BackColor = active ? Color.FromArgb(45, 90, 45) : Sidebar;
+            btn.Tag = active;
+            btn.BackColor = active ? Color.FromArgb(45, 90, 45) : GetSidebarGradientColorAt(btn);
             btn.ForeColor = active ? Color.White : SidebarText;
             btn.FlatStyle = FlatStyle.Flat;
             btn.FlatAppearance.BorderSize         = 0;
@@ -207,6 +207,24 @@ namespace Inventory_Management_System.Helpers
             {
                 btn.Region = null;
             }
+        }
+
+        /// <summary>Sidebar buttons sit on panelMenu's vertical gradient. Sample the gradient
+        /// at this button's own vertical position so an idle button's flat BackColor blends
+        /// seamlessly into the background — otherwise every inactive button reads as its own
+        /// highlighted box (flat top-of-gradient color) against the darker gradient behind it.</summary>
+        private static Color GetSidebarGradientColorAt(Control btn)
+        {
+            var parent = btn.Parent;
+            if (parent == null || parent.Height <= 0) return Sidebar;
+
+            float t = Math.Clamp((btn.Top + btn.Height / 2f) / parent.Height, 0f, 1f);
+            Color top = Sidebar;
+            Color bottom = ControlPaint.Dark(Sidebar, 0.12f);
+            return Color.FromArgb(
+                (int)(top.R + (bottom.R - top.R) * t),
+                (int)(top.G + (bottom.G - top.G) * t),
+                (int)(top.B + (bottom.B - top.B) * t));
         }
 
         private static void SidebarBtn_Resize(object? sender, EventArgs e)
@@ -288,7 +306,7 @@ namespace Inventory_Management_System.Helpers
                 bool isActive = btn.Tag is bool a && a;
                 if (!isActive)
                 {
-                    FadeButtonColor(btn, btn.BackColor, Sidebar, onComplete: () =>
+                    FadeButtonColor(btn, btn.BackColor, GetSidebarGradientColorAt(btn), onComplete: () =>
                     {
                         btn.Parent?.Invalidate(btn.Bounds, true);
                         btn.Region = null;
@@ -472,7 +490,7 @@ namespace Inventory_Management_System.Helpers
         // provided, an animated sparkline draws in under the value and a delta
         // badge appears. Pass null (or omit) to get the original card unchanged.
         public static Panel CreateStatCard(string title, string value, Color cardColor, string icon = "📦",
-       float[]? trendValues = null, string? deltaText = null)
+     float[]? trendValues = null, string? deltaText = null, int startDelayMs = 0)
         {
             bool dark = IsDarkMode;
             Color cardBg = dark ? Color.FromArgb(30, 33, 39) : cardColor;
@@ -637,6 +655,8 @@ namespace Inventory_Management_System.Helpers
             };
             if (isNumeric)
             {
+                lblValue.Text = "0"; // holds at 0 until the card's own slide/bounce entrance has landed
+
                 int steps = 20;
                 int step = 0;
                 var countTimer = new System.Windows.Forms.Timer { Interval = 20 };
@@ -653,8 +673,31 @@ namespace Inventory_Management_System.Helpers
                         countTimer.Dispose();
                     }
                 };
-                card.HandleCreated += (s, e) => countTimer.Start();
-                card.Disposed += (s, e) => { countTimer.Stop(); countTimer.Dispose(); };
+
+                System.Windows.Forms.Timer? startDelayTimer = null;
+                card.HandleCreated += (s, e) =>
+                {
+                    if (startDelayMs > 0)
+                    {
+                        startDelayTimer = new System.Windows.Forms.Timer { Interval = startDelayMs };
+                        startDelayTimer.Tick += (s2, e2) =>
+                        {
+                            startDelayTimer!.Stop();
+                            startDelayTimer.Dispose();
+                            countTimer.Start();
+                        };
+                        startDelayTimer.Start();
+                    }
+                    else
+                    {
+                        countTimer.Start();
+                    }
+                };
+                card.Disposed += (s, e) =>
+                {
+                    startDelayTimer?.Stop(); startDelayTimer?.Dispose();
+                    countTimer.Stop(); countTimer.Dispose();
+                };
             }
             return card;
         }
