@@ -205,6 +205,7 @@ namespace Inventory_Management_System.Forms
             pnlEmptyState.Paint += PnlEmptyState_Paint;
 
             SwitchTab(true);
+            _historyPanel?.ApplyTheme();
         }
 
         private void PopulateLocationDropdowns()

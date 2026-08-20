@@ -172,6 +172,22 @@ namespace Inventory_Management_System.Forms
         }
 
 
+        public void ApplyTheme()
+        {
+            ThemeHelper.StyleToolbarPanel(panelTop);
+            ThemeHelper.StyleSecondaryButton(btnBack);
+            ThemeHelper.StyleSecondaryButton(btnExport);
+            ThemeHelper.StyleDataGridView(dgv);
+            panelBottom.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251);
+            lblRowCount.ForeColor = ThemeHelper.TextSecondary;
+            lblPageIndicator.ForeColor = ThemeHelper.TextSecondary;
+            ThemeHelper.StyleComboBox(cmbPageSize);
+            ThemeHelper.StyleSecondaryButton(btnPrevPage);
+            ThemeHelper.StyleSecondaryButton(btnNextPage);
+            lblTitle.ForeColor = ThemeHelper.TextPrimary;
+            Invalidate(true);
+        }
+
         public void RefreshData() => LoadData();
 
         private void LoadData()

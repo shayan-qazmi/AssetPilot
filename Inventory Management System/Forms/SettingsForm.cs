@@ -16,7 +16,7 @@ using System.Windows.Forms;
 
 namespace Inventory_Management_System.Forms
 {
-    public partial class SettingsForm : Form
+    public partial class SettingsForm : Form, IThemableForm
     {
         private AppSetting? _current;
         private List<User> _users = new();
@@ -117,6 +117,19 @@ namespace Inventory_Management_System.Forms
             Load += (s, e) => AnimateSidebarIn();
         }
 
+        // Rebuilds the whole form fresh — simplest reliable fix since every
+        // control here is created in code (BuildUI) with colors baked in at
+        // creation time, rather than read live from ThemeHelper on each paint.
+        public void ApplyTheme()
+        {
+            Controls.Clear();
+            BuildUI();
+            LoadSettings();
+            LoadUsers();
+            LoadCategories();
+            _sidebar.Width = SidebarTargetWidth; // skip the slide-in animation on a re-theme
+        }
+            
         // ══════════════════════════════════════════════════════════════
         //  BUILD UI
         // ══════════════════════════════════════════════════════════════
