@@ -25,6 +25,16 @@ namespace Inventory_Management_System.Forms
                 dgvLocations.CurrentCell = null;
             };
         }
+        // Hover handlers in ThemeHelper bake an explicit row.DefaultCellStyle.BackColor
+        // onto whichever rows were hovered, using IsDarkMode at that instant. On a
+        // theme toggle those baked colors go stale and don't follow the new theme —
+        // clearing them lets rows fall back to the grid's (freshly updated) default
+        // and alternating-row styles instead.
+        private static void ResetRowStyleOverrides(DataGridView dgv)
+        {
+            foreach (DataGridViewRow row in dgv.Rows)
+                row.DefaultCellStyle.BackColor = Color.Empty;
+        }
 
         public void ApplyTheme()
         {
@@ -37,6 +47,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleSecondaryButton(btnImport);
             ThemeHelper.StyleDataGridView(dgvLocations);
+            ResetRowStyleOverrides(dgvLocations);
         }
 
         private void LoadLocations()
