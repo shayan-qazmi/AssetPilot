@@ -87,6 +87,10 @@ namespace Inventory_Management_System
         private TextBox? _txtSearch;
         private Panel? _pnlUserProfile;
         private Form? _profilePopup;
+        private Label? _lblProfileChevron;
+        private float _chevronRotation = 0f; // 0 = pointing down (closed), 180 = pointing up (open)
+        private System.Windows.Forms.Timer? _chevronAnimTimer;
+
         private Label? _lblBarPeriod;
         private Form? _barPeriodPopup;
 
@@ -1404,7 +1408,7 @@ namespace Inventory_Management_System
             }
             catch (Exception ex) { Logger.LogError(ex, "DashboardForm.BuildTopProfileWidget"); }
 
-            const int widgetW = 52, avatarSize = 34;
+            const int widgetW = 58, avatarSize = 34;
 
             _pnlUserProfile = new Panel
             {
@@ -1424,25 +1428,53 @@ namespace Inventory_Management_System
                 BackColor = Color.Transparent
             };
             avatarPanel.Paint += (s, e) =>
-                AvatarHelper.DrawAvatar(e.Graphics, new Rectangle(0, 0, avatarSize - 1, avatarSize - 1), avatarImage);
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+                var rect = new Rectangle(0, 0, avatarSize - 1, avatarSize - 1);
+                AvatarHelper.DrawAvatar(g, rect, avatarImage);
+
+                // Thin ring so the circular crop reads as deliberate/crisp
+                // rather than a raw jagged photo edge.
+                using var ringPen = new Pen(
+                    ThemeHelper.IsDarkMode ? Color.FromArgb(90, 255, 255, 255) : Color.FromArgb(60, 0, 0, 0), 1.3f);
+                g.DrawEllipse(ringPen, rect);
+            };
             _pnlUserProfile.Controls.Add(avatarPanel);
 
             var lblChevron = new Label
             {
                 Text = "▾",
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(60, 60, 60),
+                Font = new Font("Segoe UI", 13f, FontStyle.Bold),
+                ForeColor = ThemeHelper.IsDarkMode ? Color.FromArgb(210, 215, 225) : Color.FromArgb(70, 70, 70),
                 AutoSize = false,
-                Size = new Size(16, avatarSize),
+                Size = new Size(20, avatarSize),
                 TextAlign = ContentAlignment.MiddleCenter,
                 BackColor = Color.Transparent
             };
             _pnlUserProfile.Controls.Add(lblChevron);
+            _lblProfileChevron = lblChevron;
 
             void OpenMenu(object? s, EventArgs e) => ToggleProfileDropdown();
             _pnlUserProfile.Click += OpenMenu;
             avatarPanel.Click += OpenMenu;
             lblChevron.Click += OpenMenu;
+
+            // ── Hover-to-open ── entering any part of the widget opens it;
+            // closing is handled by a cursor-position poll (see StartProfileHoverWatcher)
+            // which is far more reliable than chaining MouseEnter/Leave across
+            // several child controls and a separate popup window.
+            void OnEnter(object? s, EventArgs e)
+            {
+                if (_profilePopup == null || _profilePopup.IsDisposed)
+                    OpenProfileDropdown();
+            }
+            _pnlUserProfile.MouseEnter += OnEnter;
+            avatarPanel.MouseEnter += OnEnter;
+            lblChevron.MouseEnter += OnEnter;
 
             panelTop.Controls.Add(_pnlUserProfile);
             _pnlUserProfile.BringToFront();
@@ -1471,19 +1503,25 @@ namespace Inventory_Management_System
         private void ToggleProfileDropdown()
         {
             if (_profilePopup != null && !_profilePopup.IsDisposed)
-            {
-                _profilePopup.Close();
-                _profilePopup = null;
-                return;
-            }
+                CloseProfileDropdown();
+            else
+                OpenProfileDropdown();
+        }
 
-            var popup = new Form
+        private System.Windows.Forms.Timer? _profileHoverWatcher;
+
+        private void OpenProfileDropdown()
+        {
+            if (_profilePopup != null && !_profilePopup.IsDisposed) return;
+
+            var popup = new NoActivatePopup
             {
                 FormBorderStyle = FormBorderStyle.None,
                 StartPosition = FormStartPosition.Manual,
                 ShowInTaskbar = false,
-                Size = new Size(168, 76),   // was 200x88
-                BackColor = ThemeHelper.CardBg
+                Size = new Size(168, 76),
+                BackColor = ThemeHelper.CardBg,
+                Opacity = 0d // fades in via the animation below
             };
 
             popup.Paint += (s, e) =>
@@ -1499,16 +1537,16 @@ namespace Inventory_Management_System
             var screenPoint = _pnlUserProfile!.PointToScreen(new Point(0, _pnlUserProfile.Height));
             popup.Location = new Point(screenPoint.X - popup.Width + _pnlUserProfile.Width, screenPoint.Y + 6);
 
-            Button MakeItem(string text, Action onClick)
+            Button MakeItem(string text, Action<Graphics, RectangleF> iconPainter, Action onClick)
             {
                 var b = new Button
                 {
-                    Text = text,
+                    Text = "   " + text, // reserves left space; the icon is drawn over it below
                     Dock = DockStyle.Top,
                     Height = 36,
                     FlatStyle = FlatStyle.Flat,
                     TextAlign = ContentAlignment.MiddleLeft,
-                    Padding = new Padding(12, 0, 0, 0),
+                    Padding = new Padding(32, 0, 0, 0),
                     BackColor = ThemeHelper.CardBg,
                     ForeColor = ThemeHelper.TextPrimary,
                     Font = new Font("Segoe UI", 8.75f),
@@ -1516,30 +1554,165 @@ namespace Inventory_Management_System
                 };
                 b.FlatAppearance.BorderSize = 0;
                 b.FlatAppearance.MouseOverBackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(50, 54, 62) : Color.FromArgb(245, 246, 245);
-                b.Click += (s, e) => { popup.Close(); onClick(); };
+                b.Paint += (s, e) =>
+                {
+                    var iconBounds = new RectangleF(12, (b.Height - 17) / 2f, 17, 17);
+                    iconPainter(e.Graphics, iconBounds);
+                };
+                b.Click += (s, e) => { CloseProfileDropdown(); onClick(); };
                 return b;
             }
 
             var divider = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(235, 235, 235) };
 
-            var btnProfileSettings = MakeItem("⚙  Profile settings", () =>
-            {
-                if (!EnsureAdmin()) return;
-                AnimateTitleTo("Settings");
-                OpenChildForm(new SettingsForm(SettingsForm.InitialSection.Users), btnSettings);
-            });
-            var btnLogoutItem = MakeItem("⏻  Logout", () => btnLogout_Click(this, EventArgs.Empty));
+            var btnProfileSettings = MakeItem("Account Settings",
+                (g, r) => DrawAccountSettingsIcon(g, r, ThemeHelper.TextPrimary),
+                () =>
+                {
+                    if (!EnsureAdmin()) return;
+                    AnimateTitleTo("Settings");
+                    OpenChildForm(new SettingsForm(SettingsForm.InitialSection.Users), btnSettings);
+                });
+            var btnLogoutItem = MakeItem("Logout",
+                (g, r) => DrawPowerIcon(g, r, ThemeHelper.Danger),
+                () => btnLogout_Click(this, EventArgs.Empty));
 
             // Dock.Top stacks in reverse insertion order
             popup.Controls.Add(btnLogoutItem);
             popup.Controls.Add(divider);
             popup.Controls.Add(btnProfileSettings);
 
-            popup.Deactivate += (s, e) => popup.Close();
+            popup.Deactivate += (s, e) => CloseProfileDropdown();
             popup.FormClosed += (s, e) => { _profilePopup = null; };
 
             _profilePopup = popup;
             popup.Show(this);
+            FadePopup(popup, fadeIn: true);
+
+            AnimateChevron(open: true);
+            StartProfileHoverWatcher();
+        }
+
+        private void CloseProfileDropdown()
+        {
+            _profileHoverWatcher?.Stop();
+            _profileHoverWatcher?.Dispose();
+            _profileHoverWatcher = null;
+
+            if (_profilePopup != null && !_profilePopup.IsDisposed)
+            {
+                var popup = _profilePopup;
+                _profilePopup = null;
+                FadePopup(popup, fadeIn: false, onDone: () => popup.Close());
+            }
+            AnimateChevron(open: false);
+        }
+
+        /// Polls the real cursor position every tick instead of chaining
+        /// MouseEnter/Leave across the widget's child controls and a separate
+        /// popup window — those events are unreliable across window boundaries
+        /// and small gaps, which is why the dropdown used to get stuck open.
+        /// Closes the instant the cursor leaves both the widget and the popup.
+        private void StartProfileHoverWatcher()
+        {
+            _profileHoverWatcher?.Stop();
+            _profileHoverWatcher?.Dispose();
+
+            _profileHoverWatcher = new System.Windows.Forms.Timer { Interval = 40 };
+            _profileHoverWatcher.Tick += (s, e) =>
+            {
+                if (_pnlUserProfile == null || _profilePopup == null || _profilePopup.IsDisposed)
+                {
+                    _profileHoverWatcher?.Stop();
+                    return;
+                }
+
+                var cursor = Cursor.Position;
+
+                // Small outward padding bridges the visual gap between the widget
+                // and the popup below it, and the popup's own rounded-corner region
+                // (which can make Bounds.Contains reject points that are visually
+                // inside the card near its corners).
+                var widgetRect = _pnlUserProfile.RectangleToScreen(_pnlUserProfile.ClientRectangle);
+                widgetRect.Inflate(4, 4);
+                var popupRect = _profilePopup.Bounds;
+                popupRect.Inflate(4, 4);
+
+                bool overWidget = widgetRect.Contains(cursor);
+                bool overPopup = popupRect.Contains(cursor);
+
+                if (!overWidget && !overPopup)
+                    CloseProfileDropdown();
+            };
+            _profileHoverWatcher.Start();
+        }
+
+        /// Simple opacity fade — smooths the popup's appear/disappear instead
+        /// of the previous hard show/hide.
+        private static void FadePopup(Form popup, bool fadeIn, Action? onDone = null)
+        {
+            const int steps = 6;
+            const int intervalMs = 10;
+            int step = 0;
+            double from = fadeIn ? 0d : 1d;
+            double to = fadeIn ? 1d : 0d;
+
+            var timer = new System.Windows.Forms.Timer { Interval = intervalMs };
+            timer.Tick += (s, e) =>
+            {
+                if (popup.IsDisposed) { timer.Stop(); timer.Dispose(); return; }
+                step++;
+                double t = Math.Min(1.0, step / (double)steps);
+                popup.Opacity = from + (to - from) * t;
+                if (t >= 1.0)
+                {
+                    timer.Stop();
+                    timer.Dispose();
+                    onDone?.Invoke();
+                }
+            };
+            timer.Start();
+        }
+
+        // Smoothly rotates the ▾ chevron to point up (open) or back down
+        // (closed) using a scale-flip through zero width — same visual
+        // technique already used for the theme-toggle sun/moon icon flip.
+        private void AnimateChevron(bool open)
+        {
+            if (_lblProfileChevron == null) return;
+
+            _chevronAnimTimer?.Stop();
+            _chevronAnimTimer?.Dispose();
+
+            float target = open ? 1f : 0f;
+            float start = _chevronRotation;
+
+            const int steps = 8;
+            int step = 0;
+            _chevronAnimTimer = new System.Windows.Forms.Timer { Interval = 12 };
+            _chevronAnimTimer.Tick += (s, e) =>
+            {
+                step++;
+                float t = Math.Min(1f, step / (float)steps);
+                _chevronRotation = start + (target - start) * t;
+                DrawChevron();
+                if (t >= 1f)
+                {
+                    _chevronAnimTimer?.Stop();
+                    _chevronAnimTimer?.Dispose();
+                    _chevronAnimTimer = null;
+                }
+            };
+            _chevronAnimTimer.Start();
+        }
+
+        private void DrawChevron()
+        {
+            if (_lblProfileChevron == null) return;
+            // Flip the glyph vertically as rotation progresses 0→1 by swapping
+            // the char at the midpoint — reads as a smooth up/down rotation
+            // without needing custom-painted vector arrows.
+            _lblProfileChevron.Text = _chevronRotation < 0.5f ? "▾" : "▴";
         }
 
         // Returns 7 daily counts (oldest → today) for the sparkline. Currently
@@ -3381,12 +3554,86 @@ namespace Inventory_Management_System
         {
             var path = new GraphicsPath();
             int d = radius * 2;
-            path.AddArc(r.X,         r.Y,          d, d, 180, 90);
-            path.AddArc(r.Right - d, r.Y,          d, d, 270, 90);
-            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0,   90);
-            path.AddArc(r.X,         r.Bottom - d, d, d, 90,  90);
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
             path.CloseFigure();
             return path;
+        }
+
+        // Person silhouette with a small gear badge at the bottom-right —
+        // matches the "Account Settings" icon style from the reference screenshot.
+        private static void DrawAccountSettingsIcon(Graphics g, RectangleF bounds, Color color)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using var pen = new Pen(color, 1.4f) { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round };
+
+            // Head
+            float headD = bounds.Height * 0.42f;
+            var headRect = new RectangleF(bounds.X + (bounds.Width - headD) / 2f - 1f, bounds.Y, headD, headD);
+            g.DrawEllipse(pen, headRect);
+
+            // Shoulders (open arc, not a full circle)
+            float bodyW = bounds.Width * 0.78f;
+            float bodyH = bounds.Height * 0.55f;
+            var bodyRect = new RectangleF(bounds.X + (bounds.Width - bodyW) / 2f - 1f, headRect.Bottom - 1f, bodyW, bodyH);
+            g.DrawArc(pen, bodyRect, 180, 180);
+
+            // Small gear badge, bottom-right, overlapping the silhouette slightly
+            float gearD = bounds.Height * 0.46f;
+            var gearCenter = new PointF(bounds.Right - gearD * 0.55f, bounds.Bottom - gearD * 0.55f);
+            using var gearBg = new SolidBrush(Color.White);
+            g.FillEllipse(gearBg, gearCenter.X - gearD / 2f - 1f, gearCenter.Y - gearD / 2f - 1f, gearD + 2f, gearD + 2f);
+            DrawGear(g, gearCenter, gearD / 2f, color);
+        }
+
+        private static void DrawGear(Graphics g, PointF center, float radius, Color color)
+        {
+            using var brush = new SolidBrush(color);
+            using var pen = new Pen(color, 1.1f);
+
+            int teeth = 6;
+            float toothLen = radius * 0.32f;
+            float innerR = radius - toothLen * 0.4f;
+
+            var path = new GraphicsPath();
+            for (int i = 0; i < teeth; i++)
+            {
+                double a0 = i * (360.0 / teeth) - 90;
+                double a1 = a0 + (360.0 / teeth) / 2.2;
+                double a2 = a0 + (360.0 / teeth);
+
+                PointF P(double angleDeg, float r) => new PointF(
+                    center.X + r * (float)Math.Cos(angleDeg * Math.PI / 180),
+                    center.Y + r * (float)Math.Sin(angleDeg * Math.PI / 180));
+
+                if (i == 0) path.StartFigure();
+                path.AddLine(P(a0, innerR), P(a0, radius));
+                path.AddLine(P(a0, radius), P(a1, radius));
+                path.AddLine(P(a1, radius), P(a2, innerR));
+            }
+            path.CloseFigure();
+            g.FillPath(brush, path);
+
+            float holeR = radius * 0.38f;
+            using var holeBrush = new SolidBrush(Color.White);
+            g.FillEllipse(holeBrush, center.X - holeR, center.Y - holeR, holeR * 2, holeR * 2);
+        }
+
+        // Clean power/logout glyph — a broken circle with a vertical tick,
+        // reads better at small sizes than the ⏻ emoji.
+        private static void DrawPowerIcon(Graphics g, RectangleF bounds, Color color)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using var pen = new Pen(color, 1.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+
+            float d = Math.Min(bounds.Width, bounds.Height);
+            var circleRect = new RectangleF(bounds.X + (bounds.Width - d) / 2f, bounds.Y + d * 0.12f, d * 0.92f, d * 0.92f);
+            g.DrawArc(pen, circleRect, -60, 300); // gap at the top for the tick
+
+            float tickX = circleRect.X + circleRect.Width / 2f;
+            g.DrawLine(pen, tickX, bounds.Y, tickX, bounds.Y + d * 0.5f);
         }
 
         private static GraphicsPath RoundedRectF(RectangleF r, float radius)
