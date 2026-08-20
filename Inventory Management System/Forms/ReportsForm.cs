@@ -56,7 +56,7 @@ namespace Inventory_Management_System.Forms
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleLabel(lblReportType, bold: true, color: ThemeHelper.Accent);
-           
+
 
             ThemeHelper.StyleButton(btnEquipmentReport, Color.FromArgb(94, 53, 177));
             ThemeHelper.StyleButton(btnEmployeeReport, Color.FromArgb(123, 31, 162));
@@ -65,6 +65,17 @@ namespace Inventory_Management_System.Forms
 
             ThemeHelper.StyleSecondaryButton(btnExportPDF);
             ThemeHelper.StyleSecondaryButton(btnExportExcel);
+
+            // Preview area is built once in BuildPreviewArea() and never re-styled
+            // otherwise — re-apply here so the grid/title/watermark pick up the
+            // new theme immediately instead of staying stuck on the old colors.
+            if (_preview != null)
+            {
+                ThemeHelper.StyleDataGridView(_preview);
+                _preview.Invalidate();
+            }
+            if (_previewTitle != null)
+                _previewTitle.ForeColor = ThemeHelper.TextPrimary;
         }
 
         // ── Preview grid — built in code since the Designer only has buttons ──

@@ -1144,20 +1144,28 @@ namespace Inventory_Management_System
             panelContent.SuspendLayout();
             activeForm?.SuspendLayout();
 
-            _sidebarCollapseTimer = new System.Windows.Forms.Timer { Interval = 10 };
+            // Elapsed-time-based (not fixed-step) so it's immune to WinForms Timer's
+            // ~15ms tick-rate floor causing choppy jumps — same technique as the
+            // dashboard chart animations. Short duration = fast, eased = smooth.
+            int startWidth = panelMenu.Width;
+            const float durationMs = 140f;
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+
+            _sidebarCollapseTimer = new System.Windows.Forms.Timer { Interval = 8 };
             _sidebarCollapseTimer.Tick += (s, e) =>
             {
-                const int step = 20;
-                int newWidth = _sidebarCollapsed
-                    ? Math.Max(targetWidth, panelMenu.Width - step)
-                    : Math.Min(targetWidth, panelMenu.Width + step);
+                float t = Math.Clamp(clock.ElapsedMilliseconds / durationMs, 0f, 1f);
+                float eased = 1f - MathF.Pow(1f - t, 3f); // ease-out cubic
+
+                int newWidth = (int)(startWidth + (targetWidth - startWidth) * eased);
                 panelMenu.Width = newWidth;
                 PositionSidebarHeader();
                 PositionTopSearchBar();
                 PositionTopProfileWidget();
 
-                if (newWidth == targetWidth)
+                if (t >= 1f)
                 {
+                    panelMenu.Width = targetWidth;
                     _sidebarCollapseTimer?.Stop();
                     _sidebarCollapseTimer?.Dispose();
                     _sidebarCollapseTimer = null;
