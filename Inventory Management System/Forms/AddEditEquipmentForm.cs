@@ -92,6 +92,23 @@ namespace Inventory_Management_System.Forms
             _equipmentService = new EquipmentService();
             _maintenanceService = new MaintenanceService();
 
+            if (_isEditMode)
+            {
+                try
+                {
+                    using var db = new InventoryDbContext();
+                    var eq = db.Equipment
+                        .Include(e => e.Allocations)
+                        .ThenInclude(a => a.Location)
+                        .FirstOrDefault(e => e.Id == _equipment.Id);
+                    if (eq != null) _equipment = eq;
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "AddEditEquipmentForm Constructor (DB reload)");
+                }
+            }
+
             InitializeUI();
             LoadData();
 
@@ -169,13 +186,32 @@ namespace Inventory_Management_System.Forms
             txtModel = AddFieldRow(card, "Model", ColLeft, ref yL, ref altL);
             txtSerialNumber = AddFieldRow(card, "Serial Number * ", ColLeft, ref yL, ref altL);
 
-            cmbStatus = AddComboRow(card, "Current Status", ColLeft, ref yL, ref altL,
-                 new[] { "In Store", "Decommissioned", "Under Repair" });
-            cmbStatus.SelectedIndexChanged += CmbStatus_SelectedIndexChanged;
+            bool isAllocated = _equipment.Allocations != null && _equipment.Allocations.Any(a => string.Equals(a.Status, "approved", StringComparison.OrdinalIgnoreCase));
+            if (isAllocated)
+            {
+                _equipment.CurrentStatus = "allocated";
+            }
 
-            AddHintRow(card,
-                "Allocation is handled from the Allocation screen",
-                ColLeft, ref yL, ref altL);
+            if (_isEditMode && string.Equals(_equipment.CurrentStatus, "allocated", StringComparison.OrdinalIgnoreCase))
+            {
+                cmbStatus = AddComboRow(card, "Current Status", ColLeft, ref yL, ref altL,
+                     new[] { "Allocated" });
+                cmbStatus.Enabled = false;
+                
+                AddHintRow(card,
+                    "Status is locked for allocated equipment. Return to store to edit.",
+                    ColLeft, ref yL, ref altL, rowHeight: 64);
+            }
+            else
+            {
+                cmbStatus = AddComboRow(card, "Current Status", ColLeft, ref yL, ref altL,
+                     new[] { "In Store", "Decommissioned", "Under Repair" });
+                cmbStatus.SelectedIndexChanged += CmbStatus_SelectedIndexChanged;
+
+                AddHintRow(card,
+                    "Allocation is handled from the Allocation screen",
+                    ColLeft, ref yL, ref altL);
+            }
 
             if (!_isEditMode)
             {
@@ -194,7 +230,7 @@ namespace Inventory_Management_System.Forms
             {
                 lblLocationValue = AddReadonlyLabelRow(card, "Current Location", ColLeft, ref yL, ref altL);
                 AddHintRow(card,
-                    "Location can only be changed from the Allocation screen.",
+                    "Location can be updated via the Allocation or Transfer screens.",
                     ColLeft, ref yL, ref altL);
             }
             else
@@ -470,7 +506,7 @@ namespace Inventory_Management_System.Forms
             using var dlg = new Form
             {
                 Text = "Log Maintenance Issue",
-                Size = new Size(420, 320),
+                Size = new Size(440, 390),
                 FormBorderStyle = FormBorderStyle.FixedDialog,
                 MaximizeBox = false,
                 MinimizeBox = false,
@@ -520,14 +556,14 @@ namespace Inventory_Management_System.Forms
             var lblError = new Label
             {
                 Location = new Point(20, 226),
-                Size = new Size(360, 20),
+                Size = new Size(380, 40),
                 ForeColor = ThemeHelper.Danger,
                 Font = ThemeHelper.FontSmall
             };
 
-            var btnOk = new Button { Text = "OK", Location = new Point(200, 252), Size = new Size(85, 32) };
+            var btnOk = new Button { Text = "OK", Location = new Point(220, 310), Size = new Size(85, 32) };
             ThemeHelper.StyleButton(btnOk);
-            var btnCancelDlg = new Button { Text = "Cancel", Location = new Point(295, 252), Size = new Size(85, 32) };
+            var btnCancelDlg = new Button { Text = "Cancel", Location = new Point(315, 310), Size = new Size(85, 32) };
             ThemeHelper.StyleSecondaryButton(btnCancelDlg);
 
             bool confirmed = false;
@@ -659,7 +695,7 @@ namespace Inventory_Management_System.Forms
             if (confirmed)
             {
                 _audit.Log(_equipment.Id, AuditService.ActionDecommissionApproved,
-                    $"Status: {FormatStatus(_originalStatus!)}", $"Status: Decommissioned | Reason: {_decommissionReason}");
+                    $"Status: {FormatStatus(_originalStatus!)}", $"Status: Decommissioned | Reason: {_decommissionReason} | Source Screen: Edit Equipment");
                 _originalStatus = "decommissioned";
             }
             else
@@ -671,7 +707,7 @@ namespace Inventory_Management_System.Forms
         private void LogDecommissionUndone(string newStatus)
         {
             _audit.Log(_equipment.Id, AuditService.ActionDecommissionUndone,
-                "Status: Decommissioned", $"Status: {FormatStatus(newStatus)}");
+                "Status: Decommissioned", $"Status: {FormatStatus(newStatus)} | Source Screen: Edit Equipment");
             _originalStatus = newStatus;
         }
 
@@ -896,15 +932,16 @@ namespace Inventory_Management_System.Forms
         }
 
         /// Read-only display label row (edit mode location) — returns the Label
-        private Label AddReadonlyLabelRow(Panel card, string label, int x, ref int y, ref bool isAlt)
+        private Label AddReadonlyLabelRow(Panel card, string label, int x, ref int y, ref bool isAlt, int rowHeight = 80)
         {
-            var pnl = MakeRowPanel(card, label, x, RowH, ref y, ref isAlt);
+            var pnl = MakeRowPanel(card, label, x, rowHeight, ref y, ref isAlt);
 
             var lbl = new Label
             {
-                Location = new Point(FieldX, 0),
-                Size = new Size(InputW, RowH),
-                TextAlign = ContentAlignment.MiddleLeft,
+                Location = new Point(FieldX, 8),
+                Size = new Size(InputW, rowHeight - 16),
+                TextAlign = ContentAlignment.TopLeft,
+                AutoSize = false,
                 Font = ThemeHelper.FontDefault,
                 ForeColor = ThemeHelper.TextPrimary,
             };
@@ -913,16 +950,16 @@ namespace Inventory_Management_System.Forms
         }
 
         /// Hint note row (add mode location note)
-        private void AddHintRow(Panel card, string hint, int x, ref int y, ref bool isAlt)
+        private void AddHintRow(Panel card, string hint, int x, ref int y, ref bool isAlt, int rowHeight = 64)
         {
-            var pnl = MakeRowPanel(card, "", x, 44, ref y, ref isAlt, hideLabel: true);
+            var pnl = MakeRowPanel(card, "", x, rowHeight, ref y, ref isAlt, hideLabel: true);
 
             var lbl = new Label
             {
                 Text = hint,
                 Location = new Point(8, 6),
                 Width = ColW - 16,
-                Height = 32,
+                Height = rowHeight - 12,
                 Font = ThemeHelper.FontSmall,
                 ForeColor = ThemeHelper.TextSecondary,
                 BackColor = Color.Transparent,
@@ -1085,20 +1122,6 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            try
-            {
-                using var db = new InventoryDbContext();
-                var eq = db.Equipment
-                    .Include(e => e.Allocations)
-                    .ThenInclude(a => a.Location)
-                    .FirstOrDefault(e => e.Id == _equipment.Id);
-                if (eq != null) _equipment = eq;
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "AddEditEquipmentForm.PopulateForm (DB reload)");
-            }
-
             txtName.Text = _equipment.Name;
             txtMake.Text = _equipment.Make;
             txtModel.Text = _equipment.Model;
@@ -1155,7 +1178,14 @@ namespace Inventory_Management_System.Forms
                                          a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase));
                 if (activeAllocation?.Location != null)
                 {
-                    lblLocationValue.Text = activeAllocation.Location.LocationName;
+                    bool hasNum = !string.IsNullOrWhiteSpace(activeAllocation.Location.RoomNumber);
+                    bool hasName = !string.IsNullOrWhiteSpace(activeAllocation.Location.RoomName);
+                    string roomStr = hasNum ? activeAllocation.Location.RoomNumber : (hasName ? activeAllocation.Location.RoomName : "");
+                    string finalLoc = (!hasNum && !hasName) 
+                        ? (activeAllocation.Location.LocationName ?? "") 
+                        : $"{activeAllocation.Location.LocationName} - {roomStr}";
+
+                    lblLocationValue.Text = finalLoc;
                     ThemeHelper.StyleLabel(lblLocationValue, bold: false, color: ThemeHelper.TextPrimary);
                 }
                 else

@@ -521,8 +521,8 @@ namespace Inventory_Management_System.Helpers
                 Font = new Font("Segoe UI", 22f, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = valueFg,
                 AutoSize = false,
-                Size = new Size(190, 40),
-                Location = new Point(12, 12),
+                Size = new Size(190, 48),      // was 40 — 22pt Bold needs more line height than that, so the tops/bottoms of digits were being clipped
+                Location = new Point(12, 8),   // nudged up 4px to keep it centered against the taller box
                 TextAlign = ContentAlignment.MiddleLeft,
                 BackColor = Color.Transparent
             };
@@ -650,8 +650,13 @@ namespace Inventory_Management_System.Helpers
                 g.DrawString(footerText, footerFont, footerFg, sx, sy);
                 g.DrawString("⟳", footerFont, footerFg, sx + fSize.Width + 2, sy - 1);
 
+                // AFTER
                 lblTitle.Location = new Point(12, card.Height - 28 - stripH);
                 lblTitle.Width = card.Width - 24;
+
+                // Keep the value label in sync with the card's actual width too — it was
+                // hardcoded to 190px, which clipped on narrower cards now that 7 share the row.
+                lblValue.Width = Math.Max(60, card.Width - 24);
             };
             if (isNumeric)
             {

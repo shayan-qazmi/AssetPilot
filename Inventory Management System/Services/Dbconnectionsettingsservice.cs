@@ -1,4 +1,4 @@
-﻿// Services/DbConnectionSettingsService.cs
+// Services/DbConnectionSettingsService.cs
 using Inventory_Management_System.Models;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -62,7 +62,7 @@ namespace Inventory_Management_System.Services
             {
                 var connStr = BuildConnectionString(settings, plainPassword);
                 var optionsBuilder = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<Models.InventoryDbContext>();
-                optionsBuilder.UseMySql(connStr, Microsoft.EntityFrameworkCore.ServerVersion.Parse(settings.ServerVersion));
+                optionsBuilder.UseMySql(connStr, Microsoft.EntityFrameworkCore.ServerVersion.AutoDetect(connStr));
 
                 using var db = new Models.InventoryDbContext(optionsBuilder.Options);
                 return db.Database.CanConnect();

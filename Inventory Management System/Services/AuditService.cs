@@ -94,7 +94,13 @@ namespace Inventory_Management_System.Services
             Cmp("Make", before.Make, after.Make);
             Cmp("Model", before.Model, after.Model);
             Cmp("Serial Number", before.SerialNumber, after.SerialNumber);
-            Cmp("Status", FmtStatus(before.CurrentStatus), FmtStatus(after.CurrentStatus));
+            
+            if (!(before.CurrentStatus != after.CurrentStatus && 
+                 (after.CurrentStatus == "decommissioned" || after.CurrentStatus == "under_repair")))
+            {
+                Cmp("Status", FmtStatus(before.CurrentStatus), FmtStatus(after.CurrentStatus));
+            }
+
             Cmp("Category", before.Category, after.Category);
             Cmp("Purchase Date", before.PurchaseDate?.ToString("yyyy-MM-dd"), after.PurchaseDate?.ToString("yyyy-MM-dd"));
             Cmp("Price", before.Price?.ToString("N2"), after.Price?.ToString("N2"));

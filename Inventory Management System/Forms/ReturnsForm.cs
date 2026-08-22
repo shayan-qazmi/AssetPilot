@@ -77,6 +77,25 @@ namespace Inventory_Management_System.Forms
                 dgvReturns.ClearSelection();
                 dgvReturns.CurrentCell = null;
             };
+            dgvReturns.CellDoubleClick += DgvReturns_CellDoubleClick;
+        }
+
+        private void DgvReturns_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            var row = dgvReturns.Rows[e.RowIndex];
+
+            if (!int.TryParse(row.Cells["ReturnID"].Value?.ToString(), out int rowId)) return;
+            var item = _allReturnRows.FirstOrDefault(r => r.Id == rowId);
+            if (item == null) return;
+
+            using var popup = new ReturnDetailPopup(
+                item.EquipmentCode, item.QrCode, item.EquipmentName,
+                item.Make, item.Model, item.SerialNumber,
+                item.Employee, item.Location,
+                item.AllocatedDate, item.ReturnDate, FormatPkt(item.Timestamp),
+                item.DurationDays.ToString(), item.Condition, item.IsOverdue, item.Source);
+            popup.ShowDialog(this);
         }
 
         /// Inserts a "Timestamp" column right after "Return Date" if it doesn't already exist.
@@ -310,9 +329,13 @@ namespace Inventory_Management_System.Forms
             public string QrCode { get; set; } = "—";
             public string EquipmentCode { get; set; } = "—";
             public string EquipmentName { get; set; } = "—";
+            public string Make { get; set; } = "—";
+            public string Model { get; set; } = "—";
+            public string SerialNumber { get; set; } = "—";
             public string Employee { get; set; } = "—";
             public string Location { get; set; } = "—";
             public DateTime SortDate { get; set; }
+            public string AllocatedDate { get; set; } = "—";
             public string ReturnDate { get; set; } = "—";
             public DateTime? Timestamp { get; set; } // real processed-at moment (UTC), when available
             public string Condition { get; set; } = "—";
@@ -365,9 +388,13 @@ namespace Inventory_Management_System.Forms
                         QrCode = string.IsNullOrWhiteSpace(item.Equipment?.QrCode) ? "—" : item.Equipment!.QrCode,
                         EquipmentCode = item.Equipment?.EquipmentCode ?? "—",
                         EquipmentName = item.Equipment?.Name ?? "—",
+                        Make = string.IsNullOrWhiteSpace(item.Equipment?.Make) ? "—" : item.Equipment!.Make,
+                        Model = string.IsNullOrWhiteSpace(item.Equipment?.Model) ? "—" : item.Equipment!.Model,
+                        SerialNumber = string.IsNullOrWhiteSpace(item.Equipment?.SerialNumber) ? "—" : item.Equipment!.SerialNumber,
                         Employee = item.Employee?.FullName ?? "—",
                         Location = FormatLocation(item.Location),
                         SortDate = returnDate,
+                        AllocatedDate = item.AllocationDate.ToString("yyyy-MM-dd"),
                         ReturnDate = item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
                         Timestamp = item.ReturnProcessedAt,
                         Condition = item.Equipment?.ConditionGrade ?? "—",
@@ -393,9 +420,13 @@ namespace Inventory_Management_System.Forms
                         QrCode = string.IsNullOrWhiteSpace(t.Equipment?.QrCode) ? "—" : t.Equipment!.QrCode,
                         EquipmentCode = t.Equipment?.EquipmentCode ?? "—",
                         EquipmentName = t.Equipment?.Name ?? "—",
+                        Make = string.IsNullOrWhiteSpace(t.Equipment?.Make) ? "—" : t.Equipment!.Make,
+                        Model = string.IsNullOrWhiteSpace(t.Equipment?.Model) ? "—" : t.Equipment!.Model,
+                        SerialNumber = string.IsNullOrWhiteSpace(t.Equipment?.SerialNumber) ? "—" : t.Equipment!.SerialNumber,
                         Employee = string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
                         Location = string.IsNullOrWhiteSpace(t.Department) ? "—" : t.Department,
                         SortDate = returnDate,
+                        AllocatedDate = t.TransactionDate.ToString("yyyy-MM-dd"),
                         ReturnDate = t.ActualReturn?.ToString("yyyy-MM-dd") ?? "—",
                         // NOTE: requires a ReturnProcessedAt (DateTime?) column added to Transaction,
                         // stamped when the check-in/out record is marked Completed. Until that's

@@ -413,6 +413,20 @@ namespace Inventory_Management_System.Forms
             string old = row.Cells["OldValue"].Value?.ToString() ?? "";
             string @new = row.Cells["NewValue"].Value?.ToString() ?? "";
 
+            // If the log contains a Source Screen, extract it and append to the Action string
+            if (@new.Contains("Source Screen:"))
+            {
+                var parts = @new.Split(" | ").ToList();
+                var screenPart = parts.FirstOrDefault(p => p.Trim().StartsWith("Source Screen:"));
+                if (screenPart != null)
+                {
+                    string screenName = screenPart.Replace("Source Screen:", "").Trim();
+                    action = $"{action} (via {screenName})";
+                    parts.Remove(screenPart);
+                    @new = string.Join(" | ", parts); // Remove it from the popup body
+                }
+            }
+
             // Model isn't a grid column — pull it from the underlying log by ID
             string model = "—";
             if (int.TryParse(row.Cells["ID"].Value?.ToString(), out int logId))

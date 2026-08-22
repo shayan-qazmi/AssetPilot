@@ -145,7 +145,7 @@ namespace Inventory_Management_System.Forms
                 db.SaveChanges();
 
                 _audit.Log(entity.Id, AuditService.ActionDecommissionUndone,
-                    "Status: Decommissioned", "Status: In Store");
+       "Status: Decommissioned", "Status: In Store | Source Screen: Decommission Screen");
 
                 ToastHelper.Show(this, $"'{entity.Name}' restored to In Store.", ToastType.Success);
                 LoadDecommissioned();
@@ -432,7 +432,7 @@ namespace Inventory_Management_System.Forms
 
                 _audit.Log(eq.Id, AuditService.ActionDecommissionApproved,
                     $"Status: {FormatStatusForLog(oldStatus)} | {activeAllocInfo}",
-                    $"Status: Decommissioned | Reason: {frm.Reason}");
+                    $"Status: Decommissioned | Reason: {frm.Reason} | Source Screen: Decommission Screen");
 
                 LoadDecommissioned();
                 ToastHelper.Show(this, $"'{eq.Name}' has been decommissioned.", ToastType.Success);
@@ -522,7 +522,7 @@ namespace Inventory_Management_System.Forms
 
         // Public properties to expose selected equipment and decommission reason
         public int EquipmentId { get; private set; }
-        public string Reason { get; private set; }
+        public string Reason { get; private set; } = string.Empty;
 
         private static readonly Color DangerAccent = Color.FromArgb(211, 47, 47);
         private static Color CardBorder => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(224, 224, 224);

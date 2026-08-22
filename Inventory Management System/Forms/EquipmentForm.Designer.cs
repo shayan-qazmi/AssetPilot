@@ -60,8 +60,7 @@ namespace Inventory_Management_System.Forms
             flowToolbar.AutoSizeMode  = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
             flowToolbar.Padding       = new System.Windows.Forms.Padding(8, 8, 8, 8);
             flowToolbar.Name          = "flowToolbar";
-            // New order: Add, Edit, Delete, Refresh, Export, Import Excel, Show QR, QR Sheet, Select All
-            // cmbSelectMode and cmbCategory are inserted after Select All by SetupToolbarLayout()
+            // flowToolbar controls
             flowToolbar.Controls.Add(btnAdd);
             flowToolbar.Controls.Add(btnEdit);
             flowToolbar.Controls.Add(btnDelete);
@@ -70,7 +69,6 @@ namespace Inventory_Management_System.Forms
             flowToolbar.Controls.Add(btnImportExcel);
             flowToolbar.Controls.Add(btnShowQR);
             flowToolbar.Controls.Add(btnGenerateQRSheet);
-            flowToolbar.Controls.Add(btnSelectAll);
             flowToolbar.Controls.Add(txtSearch);
 
             btnAdd.Size   = new System.Drawing.Size(100, 32);

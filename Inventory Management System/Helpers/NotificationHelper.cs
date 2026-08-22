@@ -23,7 +23,7 @@ namespace Inventory_Management_System.Helpers
 
     public static class NotificationHelper
     {
-        private static Label _bellLabel = null!;
+        private static Panel _bellLabel = null!;
         private static Label _badgeLabel = null!;
         private static System.Windows.Forms.Timer? _refreshTimer;
         private static Form? _popup;
@@ -33,26 +33,37 @@ namespace Inventory_Management_System.Helpers
         /// Call once, from DashboardForm, after panelTop exists.
         public static void AttachBell(Panel hostTopPanel, Form ownerForm, int rightOffset = 60)
         {
-            _bellLabel = new Label
+            hostTopPanel.Controls.OfType<Control>().Where(c => c == _bellLabel || c == _badgeLabel).ToList()
+        .ForEach(c => { hostTopPanel.Controls.Remove(c); c.Dispose(); });
+
+            const int d = 34;
+
+            _bellLabel = new Panel
             {
-                Text = "🔔",
-                Font = new Font("Segoe UI Emoji", 15f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(33, 33, 33),
+                Size = new Size(d, d),
                 BackColor = Color.Transparent,
-                AutoSize = false,
-                Size = new Size(44, 44),
-                TextAlign = ContentAlignment.MiddleCenter,
                 Cursor = Cursors.Hand,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
-            _bellLabel.Location = new Point(hostTopPanel.Width - rightOffset, (hostTopPanel.Height - 44) / 2);
 
-            hostTopPanel.Controls.Add(_bellLabel);   // ← THIS must exist — the label was never added before
+            _bellLabel.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                using var iconFont = new Font("Segoe UI Emoji", 15f);
+                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                using var iconFg = new SolidBrush(Color.FromArgb(33, 33, 33));
+                g.DrawString("🔔", iconFont, iconFg, new Rectangle(0, 0, d, d), sf);
+            };
+
+            _bellLabel.Location = new Point(hostTopPanel.Width - rightOffset, (hostTopPanel.Height - d) / 2);
+
+            hostTopPanel.Controls.Add(_bellLabel);
             _bellLabel.BringToFront();
 
             hostTopPanel.Resize += (s, e) =>
             {
-                _bellLabel.Location = new Point(hostTopPanel.Width - rightOffset, (hostTopPanel.Height - 44) / 2);
+                _bellLabel.Location = new Point(hostTopPanel.Width - rightOffset, (hostTopPanel.Height - d) / 2);
                 PositionBadge();
             };
 
@@ -95,7 +106,7 @@ namespace Inventory_Management_System.Helpers
         private static void PositionBadge()
         {
             if (_bellLabel == null || _badgeLabel == null) return;
-            _badgeLabel.Location = new Point(_bellLabel.Right - 16, _bellLabel.Top + 2);
+            _badgeLabel.Location = new Point(_bellLabel.Right - 14, _bellLabel.Top - 2);
         }
 
         public static void RefreshNow()

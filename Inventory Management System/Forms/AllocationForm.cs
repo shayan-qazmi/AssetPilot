@@ -29,7 +29,10 @@ namespace Inventory_Management_System.Forms
         private List<AllocationRow> _allSourceRows = new();
 
         private ComboBox cmbEquipmentFilter = null!;
-        private ComboBox cmbSelectMode = null!;          // Select All / Deselect All dropdown
+        // Gmail-style checkbox header controls
+        private Panel  _chkHeaderPanel = null!;   // container: checkbox + arrow button
+        private CheckBox _chkHeaderBox = null!;   // the header checkbox (select-all toggle)
+        private bool   _suppressHeaderSync;       // prevent feedback loop
         private ComboBox cmbAllocCategoryFilter = null!;
         private string _activeCategoryFilter = "";       // empty = All Categories
         private Button btnEditReturn = null!;
@@ -42,10 +45,6 @@ namespace Inventory_Management_System.Forms
         private int _pageSize = 25;
         private int _totalPages = 1;
         private int _totalMatchingCount = 0;
-
-        private bool _userClickedGridRow = false;
-
-        private bool _updatingToolbarHeight = false;
 
 
         [System.Runtime.InteropServices.DllImport("user32.dll")]
@@ -188,7 +187,7 @@ namespace Inventory_Management_System.Forms
 
             ApplyTheme();
             SetupEquipmentFilterDropdown();
-            SetupSelectModeDropdown();
+            SetupCheckboxSelectHeader();
             SetupCategoryFilterDropdown();
             SetupCombinedFiltersButton();
             SetupEditReturnButton();
@@ -204,11 +203,6 @@ namespace Inventory_Management_System.Forms
             SetupSuggestions();
 
             dgvAllocation.SelectionChanged += (s, e) => UpdateActionButtonsForSelection();
-
-            dgvAllocation.CellClick += (s, e) =>
-            {
-                if (e.RowIndex >= 0) _userClickedGridRow = true;
-            };
             dgvAllocation.CellDoubleClick += dgvAllocation_CellDoubleClick;
             this.Shown += (s, e) =>
             {
@@ -217,11 +211,11 @@ namespace Inventory_Management_System.Forms
             };
         }
 
-        public AllocationForm(bool showAvailableOnly) : this()
+        public AllocationForm(string initialFilter = null) : this()
         {
-            if (showAvailableOnly)
+            if (!string.IsNullOrEmpty(initialFilter))
             {
-                int idx = cmbEquipmentFilter.Items.IndexOf("Equipment: Available");
+                int idx = cmbEquipmentFilter.Items.IndexOf($"Equipment: {initialFilter}");
                 if (idx >= 0) cmbEquipmentFilter.SelectedIndex = idx;
             }
         }
@@ -248,6 +242,7 @@ namespace Inventory_Management_System.Forms
             cmbEquipmentFilter.Items.Add("Equipment: Available");
             cmbEquipmentFilter.Items.Add("Equipment: Allocated");
             cmbEquipmentFilter.Items.Add("Equipment: Pending");
+            cmbEquipmentFilter.Items.Add("Equipment: Overdue");
             cmbEquipmentFilter.SelectedIndex = 0; // "Equipment: All" by default
 
             cmbEquipmentFilter.DrawItem += (s, e) =>
@@ -272,6 +267,7 @@ namespace Inventory_Management_System.Forms
                     "Equipment: Available" => "Available",
                     "Equipment: Allocated" => "Allocated",
                     "Equipment: Pending" => "Pending",
+                    "Equipment: Overdue" => "Overdue",
                     _ => "All"
                 };
                 _currentPage = 1;
@@ -355,7 +351,7 @@ namespace Inventory_Management_System.Forms
             var menu = new ContextMenuStrip { Font = ThemeHelper.FontDefault };
 
             var statusSub = new ToolStripMenuItem("Status");
-            foreach (var (label, value) in new[] { ("All", "All"), ("Available", "Available"), ("Allocated", "Allocated"), ("Pending", "Pending") })
+            foreach (var (label, value) in new[] { ("All", "All"), ("Available", "Available"), ("Allocated", "Allocated"), ("Pending", "Pending"), ("Overdue", "Overdue") })
             {
                 var item = new ToolStripMenuItem(label) { Checked = _activeStatusFilter == value };
                 item.Click += (s, e) => { _activeStatusFilter = value; _currentPage = 1; RefreshGrid(txtSearch.Text.Trim()); };
@@ -413,36 +409,27 @@ namespace Inventory_Management_System.Forms
             }
         }
 
-        // ── Select dropdown (Select All / Deselect All) ─────────────────────
-        // Matches the Equipment screen's cmbSelectMode pattern.
-        private void SetupSelectModeDropdown()
+        // ── Gmail-style checkbox header ────────────────────────────────────
+        // Replaces the old Select/Select All/Deselect All combobox with:
+        //   • A permanent checkbox column (ColSelect) that is always visible.
+        //   • A split control in the toolbar: [☐ v] where ☐ toggles all rows
+        //     and [v] opens an All / None context menu.
+        private void SetupCheckboxSelectHeader()
         {
-            cmbSelectMode = new ComboBox
-            {
-                Name = "cmbSelectMode",
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Size = new Size(110, 32),
-                Margin = new Padding(4, 4, 0, 0)
-            };
-            cmbSelectMode.Items.AddRange(new object[] { "Select", "Select ✔", "Select All", "Deselect All" });
-            cmbSelectMode.SelectedIndex = 0;
-            cmbSelectMode.SelectedIndexChanged += CmbSelectMode_SelectedIndexChanged;
-            ThemeHelper.StyleComboBox(cmbSelectMode);
-
-            var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
-            flow.Controls.Add(cmbSelectMode);
-            flow.Controls.SetChildIndex(cmbSelectMode, flow.Controls.IndexOf(btnExport) + 1);
-
+            // ── 1. Create the ColSelect checkbox column (always visible) ──
             if (!dgvAllocation.Columns.Contains("ColSelect"))
             {
                 var chkCol = new DataGridViewCheckBoxColumn
                 {
-                    Name = "ColSelect",
-                    HeaderText = "",
-                    Width = 40,
-                    ReadOnly = false,
-                    Visible = false,
-                    AutoSizeMode = DataGridViewAutoSizeColumnMode.None
+                    Name             = "ColSelect",
+                    HeaderText       = "",
+                    Width            = 40,
+                    ReadOnly         = false,
+                    Visible          = true,
+                    AutoSizeMode     = DataGridViewAutoSizeColumnMode.None,
+                    TrueValue        = true,
+                    FalseValue       = false,
+                    IndeterminateValue = false
                 };
                 dgvAllocation.Columns.Add(chkCol);
                 dgvAllocation.Columns["ColSelect"].DisplayIndex = 0;
@@ -451,6 +438,7 @@ namespace Inventory_Management_System.Forms
                 foreach (DataGridViewColumn col in dgvAllocation.Columns)
                     col.ReadOnly = col.Name != "ColSelect";
 
+                // Commit checkbox edits immediately so value is readable.
                 dgvAllocation.CurrentCellDirtyStateChanged += (s, ev) =>
                 {
                     if (dgvAllocation.CurrentCell is DataGridViewCheckBoxCell)
@@ -460,46 +448,122 @@ namespace Inventory_Management_System.Forms
                 dgvAllocation.CellValueChanged += (s, ev) =>
                 {
                     if (ev.ColumnIndex >= 0 && dgvAllocation.Columns[ev.ColumnIndex].Name == "ColSelect")
+                    {
+                        SyncHeaderCheckbox();
                         UpdateActionButtonsForSelection();
+                    }
                 };
             }
+
+            // ── 2. Build the split [☐ ▾] toolbar control ──
+            // Outer container (renders as a small rounded pill)
+            _chkHeaderPanel = new Panel
+            {
+                Name    = "pnlCheckHeader",
+                Size    = new Size(62, 32),
+                Margin  = new Padding(4, 4, 0, 0),
+                Cursor  = Cursors.Hand,
+                BackColor = ThemeHelper.IsDarkMode
+                    ? Color.FromArgb(40, 44, 52)
+                    : Color.FromArgb(241, 243, 244)
+            };
+
+            // The header checkbox (left portion of the split control)
+            _chkHeaderBox = new CheckBox
+            {
+                Name      = "chkHeaderBox",
+                Size      = new Size(40, 32),
+                Location  = new Point(0, 0),
+                Appearance = Appearance.Normal,
+                FlatStyle  = FlatStyle.Flat,
+                BackColor  = Color.Transparent,
+                ForeColor  = ThemeHelper.TextPrimary,
+                Text       = "",
+                Cursor     = Cursors.Hand,
+                TextAlign  = ContentAlignment.MiddleCenter,
+                CheckAlign = ContentAlignment.MiddleCenter,
+                ThreeState = false
+            };
+            _chkHeaderBox.FlatAppearance.BorderSize  = 0;
+            _chkHeaderBox.FlatAppearance.MouseOverBackColor  = Color.Transparent;
+            _chkHeaderBox.FlatAppearance.CheckedBackColor    = Color.Transparent;
+            _chkHeaderBox.CheckedChanged += (s, e) =>
+            {
+                if (_suppressHeaderSync) return;
+                SetAllCheckboxes(_chkHeaderBox.Checked);
+            };
+
+            // The small arrow button (right portion, shows All/None menu)
+            var btnArrow = new Button
+            {
+                Name      = "btnCheckArrow",
+                Text      = "▾",
+                Size      = new Size(22, 32),
+                Location  = new Point(40, 0),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                ForeColor = ThemeHelper.TextPrimary,
+                Font      = new Font("Segoe UI", 8f),
+                Cursor    = Cursors.Hand,
+                Padding   = Padding.Empty,
+                Margin    = Padding.Empty
+            };
+            btnArrow.FlatAppearance.BorderSize = 0;
+            btnArrow.FlatAppearance.MouseOverBackColor = ThemeHelper.IsDarkMode
+                ? Color.FromArgb(55, 60, 70)
+                : Color.FromArgb(218, 220, 224);
+            btnArrow.Click += (s, e) =>
+            {
+                var menu = new ContextMenuStrip { Font = ThemeHelper.FontDefault };
+                var itemAll  = new ToolStripMenuItem("All");
+                var itemNone = new ToolStripMenuItem("None");
+                itemAll.Click  += (_, __) => { SetAllCheckboxes(true);  _chkHeaderBox.Checked = true; };
+                itemNone.Click += (_, __) => { SetAllCheckboxes(false); _chkHeaderBox.Checked = false; };
+                menu.Items.Add(itemAll);
+                menu.Items.Add(itemNone);
+                menu.Show(btnArrow, new Point(0, btnArrow.Height));
+            };
+
+            // Draw a subtle 1-px separator between checkbox and arrow
+            _chkHeaderPanel.Paint += (s, e) =>
+            {
+                using var pen = new Pen(ThemeHelper.IsDarkMode
+                    ? Color.FromArgb(65, 70, 80)
+                    : Color.FromArgb(200, 202, 206), 1f);
+                e.Graphics.DrawLine(pen, 40, 4, 40, _chkHeaderPanel.Height - 4);
+            };
+
+            _chkHeaderPanel.Controls.Add(_chkHeaderBox);
+            _chkHeaderPanel.Controls.Add(btnArrow);
+
+            // ── 3. Insert the panel BEFORE btnAdd in the toolbar ──
+            var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
+            flow.Controls.Add(_chkHeaderPanel);
+            flow.Controls.SetChildIndex(_chkHeaderPanel, flow.Controls.IndexOf(btnAdd));
         }
 
-        private void CmbSelectMode_SelectedIndexChanged(object? sender, EventArgs e)
+        /// <summary>Check or uncheck every row in ColSelect.</summary>
+        private void SetAllCheckboxes(bool check)
         {
-            string selectedMode = cmbSelectMode.SelectedItem?.ToString() ?? "";
-
-            if (selectedMode == "Select ✔")
-            {
-                dgvAllocation.ClearSelection();
-                if (dgvAllocation.Columns.Contains("ColSelect"))
-                    dgvAllocation.Columns["ColSelect"].Visible = true;
-            }
-            else if (selectedMode == "Select All")
-            {
-                if (dgvAllocation.Columns.Contains("ColSelect"))
-                    dgvAllocation.Columns["ColSelect"].Visible = false;
-                dgvAllocation.SelectAll();
-            }
-            else if (selectedMode == "Deselect All")
-            {
-                if (dgvAllocation.Columns.Contains("ColSelect") && dgvAllocation.Columns["ColSelect"].Visible)
-                {
-                    foreach (DataGridViewRow r in dgvAllocation.Rows)
-                        r.Cells["ColSelect"].Value = false;
-                }
-                dgvAllocation.ClearSelection();
-                dgvAllocation.CurrentCell = null;
-            }
-            else
-            {
-                if (dgvAllocation.Columns.Contains("ColSelect"))
-                    dgvAllocation.Columns["ColSelect"].Visible = false;
-                dgvAllocation.ClearSelection();
-            }
-
+            if (!dgvAllocation.Columns.Contains("ColSelect")) return;
+            foreach (DataGridViewRow row in dgvAllocation.Rows)
+                row.Cells["ColSelect"].Value = check;
+            dgvAllocation.RefreshEdit();
             UpdateActionButtonsForSelection();
-        
+        }
+
+        /// <summary>
+        /// Syncs the header checkbox to reflect all/none/mixed state of row checkboxes.
+        /// </summary>
+        private void SyncHeaderCheckbox()
+        {
+            if (!dgvAllocation.Columns.Contains("ColSelect") || _chkHeaderBox == null) return;
+            _suppressHeaderSync = true;
+            int total   = dgvAllocation.Rows.Count;
+            int checked_ = dgvAllocation.Rows.Cast<DataGridViewRow>()
+                .Count(r => Convert.ToBoolean(r.Cells["ColSelect"].Value));
+            _chkHeaderBox.Checked = total > 0 && checked_ == total;
+            _suppressHeaderSync = false;
         }
 
         // Equipment with no active Allocation and no active Check-Out —
@@ -874,6 +938,7 @@ namespace Inventory_Management_System.Forms
                     "Available" => GetAvailableEquipmentRows(),
                     "Allocated" => _allSourceRows.Where(r => string.Equals(r.Status, "approved", StringComparison.OrdinalIgnoreCase) || string.Equals(r.Status, "Overdue", StringComparison.OrdinalIgnoreCase)).ToList(),
                     "Pending" => _allSourceRows.Where(r => string.Equals(r.Status, "pending", StringComparison.OrdinalIgnoreCase)).ToList(),
+                    "Overdue" => _allSourceRows.Where(r => string.Equals(r.Status, "Overdue", StringComparison.OrdinalIgnoreCase)).ToList(),
                     _ => GetAllCombinedRows() // "All"
                 };
             }
@@ -996,13 +1061,13 @@ namespace Inventory_Management_System.Forms
 
             dgvAllocation.ClearSelection();
             dgvAllocation.CurrentCell = null;
-            _userClickedGridRow = false;
 
             lblRowCount.Text = $"Showing {items.Count} of {_totalMatchingCount} records";
             lblPageIndicator.Text = $"Page {_currentPage} of {Math.Max(1, _totalPages)}";
             btnPrevPage.Enabled = _currentPage > 1;
             btnNextPage.Enabled = _currentPage < _totalPages;
 
+            SyncHeaderCheckbox();
             UpdateActionButtonsForSelection();
         }
 
@@ -1016,13 +1081,13 @@ namespace Inventory_Management_System.Forms
             return rows[0];
         }
 
-        /// <summary>Returns ALL currently selected rows (1 or more).</summary>
+        /// <summary>Returns ALL currently selected rows (checkbox-checked or row-selected).</summary>
         private List<AllocationRow> GetSelectedRows()
         {
             var result = new List<AllocationRow>();
-            bool useCheckbox = dgvAllocation.Columns.Contains("ColSelect") && dgvAllocation.Columns["ColSelect"].Visible;
 
-            if (useCheckbox)
+            // 1. Check if any row has ColSelect checkbox ticked
+            if (dgvAllocation.Columns.Contains("ColSelect"))
             {
                 foreach (DataGridViewRow gridRow in dgvAllocation.Rows)
                 {
@@ -1034,7 +1099,9 @@ namespace Inventory_Management_System.Forms
                     }
                 }
             }
-            else
+
+            // 2. If nothing is checked via checkbox, fall back to row selection
+            if (result.Count == 0)
             {
                 foreach (DataGridViewRow gridRow in dgvAllocation.SelectedRows)
                 {
@@ -1043,6 +1110,7 @@ namespace Inventory_Management_System.Forms
                     if (row != null) result.Add(row);
                 }
             }
+
             return result;
         }
 
@@ -1062,10 +1130,11 @@ namespace Inventory_Management_System.Forms
 
         private void btnEditReturn_Click(object? sender, EventArgs e)
         {
-            var alloc = GetSelectedAllocation();
+            var selectedRow = GetSelectedRow();
+            var alloc = selectedRow?.AllocationRef;
             if (alloc == null)
             {
-                ToastHelper.Show(this, "Select an allocation first.", ToastType.Info);
+                ToastHelper.Show(this, "Select an allocation record first.", ToastType.Info);
                 return;
             }
             if (alloc.Status == "returned")
@@ -1074,7 +1143,11 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            using var frm = new EditExpectedReturnDialog(alloc.ExpectedReturnDate);
+            using var frm = new EditExpectedReturnDialog(
+                alloc.ExpectedReturnDate,
+                selectedRow?.EquipmentCode,
+                selectedRow?.QrCode,
+                selectedRow?.EquipmentName);
             if (frm.ShowDialog() != DialogResult.OK) return;
 
             try
@@ -1088,16 +1161,8 @@ namespace Inventory_Management_System.Forms
                 db.SaveChanges();
 
                 _audit.Log(alloc.EquipmentId, "Expected Return Date Updated",
-                    oldVal, frm.SelectedDate?.ToString("yyyy-MM-dd") ?? "none");
-
-                _audit.Log(alloc.EquipmentId, "Expected Return Date Updated",
-    oldVal, frm.SelectedDate?.ToString("yyyy-MM-dd") ?? "none");
+                 oldVal, (frm.SelectedDate?.ToString("yyyy-MM-dd") ?? "none") + " | Source Screen: Allocation Screen");
                 ToastHelper.Show(this, "Expected return date updated.", ToastType.Success);
-                LoadAllocations();
-
-                // Overdue/approved status is already derived from ExpectedReturnDate
-                // vs. today in LoadAllocations() — reloading picks up the new status
-                // automatically, no extra logic needed here.
                 LoadAllocations();
             }
             catch (Exception ex)
@@ -1108,13 +1173,9 @@ namespace Inventory_Management_System.Forms
 
         private void btnAdd_Click(object sender, EventArgs e)
         {
-            string? preselectCode = null;
-            if (_userClickedGridRow)
-            {
-                var selectedRow = GetSelectedRow();
-                preselectCode = selectedRow?.EquipmentCode;
-                if (preselectCode == "—") preselectCode = null;
-            }
+            var selectedRow = GetSelectedRow();
+            string? preselectCode = selectedRow?.EquipmentCode;
+            if (preselectCode == "—") preselectCode = null;
 
             using var frm = new AddAllocationForm(
                 _equipmentService.GetAll().Data ?? new(),
@@ -1128,15 +1189,9 @@ namespace Inventory_Management_System.Forms
             if (result.Success)
             {
                 _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
-                    null, $"Allocated to Employee ID {frm.Result.EmployeeId}");
+      null, $"Allocated to Employee ID {frm.Result.EmployeeId} | Source Screen: Allocation Screen");
+                ToastHelper.Show(this, "Allocation request created.", ToastType.Success);
                 LoadAllocations();
-                if (result.Success)
-                {
-                    _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
-                        null, $"Allocated to Employee ID {frm.Result.EmployeeId}");
-                    ToastHelper.Show(this, "Allocation request created.", ToastType.Success);
-                    LoadAllocations();
-                }
             }
             else
                 ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
@@ -1210,29 +1265,46 @@ namespace Inventory_Management_System.Forms
 
         private void btnApprove_Click(object sender, EventArgs e)
         {
-            var rows = GetSelectedRows()
-                  .Where(r => r.AllocationRef != null && r.AllocationRef.Status == "pending")
-                  .ToList();
-
-            if (rows.Count == 0)
+            var allSelected = GetSelectedRows();
+            if (allSelected.Count == 0)
             {
-                ToastHelper.Show(this, "Select one or more pending allocations to approve.", ToastType.Info);
+                ToastHelper.Show(this, "Please select at least one allocation to approve.", ToastType.Info);
                 return;
             }
 
-            // Single-row: use original detailed confirm flow
-            if (rows.Count == 1)
+            var allocRows = allSelected
+                .Where(r => r.AllocationRef != null)
+                .ToList();
+
+            if (allocRows.Count == 0)
             {
-                ApproveSingle(rows[0].AllocationRef!);
+                ToastHelper.Show(this, "The selected row(s) are available equipment items, not pending allocations.", ToastType.Warning);
                 return;
             }
 
-            if (MessageBox.Show($"Approve {rows.Count} pending allocations?",
+            var pendingRows = allocRows
+                .Where(r => r.AllocationRef!.Status == "pending")
+                .ToList();
+
+            if (pendingRows.Count == 0)
+            {
+                ToastHelper.Show(this, "The selected allocation(s) are already approved or returned.", ToastType.Info);
+                return;
+            }
+
+            // Single-row: use detailed confirm flow
+            if (pendingRows.Count == 1)
+            {
+                ApproveSingle(pendingRows[0].AllocationRef!);
+                return;
+            }
+
+            if (MessageBox.Show($"Approve {pendingRows.Count} pending allocations?",
                 "Confirm Bulk Approve", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
                 return;
 
             int ok = 0, fail = 0;
-            foreach (var row in rows)
+            foreach (var row in pendingRows)
             {
                 try
                 {
@@ -1250,14 +1322,14 @@ namespace Inventory_Management_System.Forms
                     a.ApprovedByUserId = 1;
                     if (a.Equipment != null) a.Equipment.CurrentStatus = "allocated";
                     db.SaveChanges();
-                    _audit.Log(a.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved");
+                    _audit.Log(a.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved | Source Screen: Allocation Screen");
                     ok++;
                 }
                 catch { fail++; }
             }
 
             ToastHelper.Show(this,
-                fail == 0 ? $"{ok} allocation(s) approved."
+                fail == 0 ? $"{ok} allocation(s) approved successfully."
                           : $"{ok} approved, {fail} failed (checked-out or error).",
                 fail == 0 ? ToastType.Success : ToastType.Warning);
             LoadAllocations();
@@ -1283,9 +1355,8 @@ namespace Inventory_Management_System.Forms
                 a.ApprovedByUserId = 1;
                 if (a.Equipment != null) a.Equipment.CurrentStatus = "allocated";
                 db.SaveChanges();
-                _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved");
-                _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved");
-                ToastHelper.Show(this, "Allocation approved.", ToastType.Success);
+                _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved | Source Screen: Allocation Screen");
+                ToastHelper.Show(this, "Allocation approved successfully.", ToastType.Success);
                 LoadAllocations();
             }
             catch (Exception ex)
@@ -1296,45 +1367,50 @@ namespace Inventory_Management_System.Forms
 
         private void btnReturn_Click(object sender, EventArgs e)
         {
-            var rows = GetSelectedRows()
+            var allSelected = GetSelectedRows();
+            if (allSelected.Count == 0)
+            {
+                ToastHelper.Show(this, "Please select at least one allocation to return.", ToastType.Info);
+                return;
+            }
+
+            var activeRows = allSelected
                 .Where(r => r.AllocationRef != null && r.AllocationRef.Status != "returned")
                 .ToList();
 
-            if (rows.Count == 0)
+            if (activeRows.Count == 0)
             {
-                ToastHelper.Show(this, "Select one or more active allocations to return.", ToastType.Info);
+                ToastHelper.Show(this, "No active or overdue allocations to return in selection.", ToastType.Info);
                 return;
             }
 
-            if (rows.Count == 1)
+            if (activeRows.Count == 1)
             {
-                var alloc = rows[0].AllocationRef!;
-                if (MessageBox.Show($"Return '{alloc.Equipment?.Name}' from '{alloc.Employee?.FullName}'?",
-                    "Confirm Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-                var res = _allocationService.Deallocate(alloc.Id);
-                if (res.Success)
-                {
-                    _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store");
-                    ToastHelper.Show(this, "Return processed.", ToastType.Success);
-                    LoadAllocations();
-                }
-                else ToastHelper.Show(this, "Return Failed: " + res.ErrorMessage, ToastType.Error);
-                return;
+                if (MessageBox.Show("Are you sure you want to mark this allocation as returned?",
+                    "Confirm Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                    return;
             }
-
-            if (MessageBox.Show($"Return {rows.Count} allocations?",
-                "Confirm Bulk Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
-                return;
+            else
+            {
+                if (MessageBox.Show($"Mark {activeRows.Count} allocations as returned?",
+                    "Confirm Bulk Return", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                    return;
+            }
 
             int ok = 0, fail = 0;
-            foreach (var row in rows)
+            foreach (var row in activeRows)
             {
                 var res = _allocationService.Deallocate(row.AllocationRef!.Id);
-                if (res.Success) { _audit.Log(row.AllocationRef.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store"); ok++; }
+                if (res.Success)
+                {
+                    _audit.Log(row.AllocationRef.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store | Source Screen: Allocation Screen");
+                    ok++;
+                }
                 else fail++;
             }
+
             ToastHelper.Show(this,
-                fail == 0 ? $"{ok} allocation(s) returned."
+                fail == 0 ? $"{ok} allocation(s) returned successfully."
                           : $"{ok} returned, {fail} failed.",
                 fail == 0 ? ToastType.Success : ToastType.Warning);
             LoadAllocations();
@@ -1342,40 +1418,59 @@ namespace Inventory_Management_System.Forms
 
         private void btnDelete_Click(object sender, EventArgs e)
         {
-            var rows = GetSelectedRows()
-                .Where(r => r.AllocationRef != null && r.AllocationRef.Status != "approved")
-                .ToList();
-
-            if (rows.Count == 0)
+            var allSelected = GetSelectedRows();
+            if (allSelected.Count == 0)
             {
-                ToastHelper.Show(this, "Select one or more non-approved allocations to delete.", ToastType.Info);
+                ToastHelper.Show(this, "Please select at least one allocation to delete.", ToastType.Info);
                 return;
             }
 
-            string msg = rows.Count == 1
-                ? "Delete this allocation record?"
-                : $"Delete {rows.Count} allocation records?";
+            var allocRows = allSelected
+                .Where(r => r.AllocationRef != null)
+                .ToList();
+
+            if (allocRows.Count == 0)
+            {
+                ToastHelper.Show(this, "The selected row(s) are available equipment items, not allocation records.", ToastType.Warning);
+                return;
+            }
+
+            string msg = allocRows.Count == 1
+                ? "Are you sure you want to delete this allocation record?"
+                : $"Are you sure you want to delete these {allocRows.Count} allocation records?";
 
             if (MessageBox.Show(msg, "Confirm Delete",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
 
             int ok = 0, fail = 0;
-            foreach (var row in rows)
+            foreach (var row in allocRows)
             {
                 try
                 {
                     using var db = new InventoryDbContext();
-                    var a = db.Allocations.FirstOrDefault(x => x.Id == row.AllocationRef!.Id);
-                    if (a != null) { db.Allocations.Remove(a); db.SaveChanges(); ok++; }
+                    var a = db.Allocations.Include(x => x.Equipment).FirstOrDefault(x => x.Id == row.AllocationRef!.Id);
+                    if (a != null)
+                    {
+                        if (a.Equipment != null && a.Equipment.CurrentStatus == "allocated")
+                        {
+                            a.Equipment.CurrentStatus = "in_store";
+                        }
+                        db.Allocations.Remove(a);
+                        db.SaveChanges();
+                        _audit.Log(a.EquipmentId, "Allocation Deleted", a.Status, "Deleted | Source Screen: Allocation Screen");
+                        ok++;
+                    }
                     else fail++;
                 }
                 catch { fail++; }
             }
+
             if (fail > 0)
                 ToastHelper.Show(this, $"{ok} deleted, {fail} failed.", ToastType.Warning);
             else if (ok > 0)
-                ToastHelper.Show(this, ok == 1 ? "Allocation deleted." : $"{ok} allocations deleted.", ToastType.Success);
+                ToastHelper.Show(this, ok == 1 ? "Allocation record deleted successfully." : $"{ok} allocation records deleted successfully.", ToastType.Success);
+
             LoadAllocations();
         }
 
@@ -1384,16 +1479,11 @@ namespace Inventory_Management_System.Forms
             txtSearch.Text = string.Empty;
             _currentPage = 1;
 
-            if (cmbSelectMode != null)
-            {
-                cmbSelectMode.SelectedIndex = -1;
-                cmbSelectMode.Text = "Select";
-            }
+            // Uncheck all rows and reset the header checkbox.
+            SetAllCheckboxes(false);
+            if (_chkHeaderBox != null) _chkHeaderBox.Checked = false;
 
-            if (dgvAllocation.Columns.Contains("ColSelect"))
-                dgvAllocation.Columns["ColSelect"].Visible = false;
             dgvAllocation.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-
             dgvAllocation.ClearSelection();
 
             LoadAllocations();
@@ -1485,7 +1575,6 @@ namespace Inventory_Management_System.Forms
         private readonly List<Employee> _employees;
         private readonly List<Location> _locations;
         private readonly string? _preselectEquipmentCode;
-        private bool _preselectApplied = false;
 
         private int? _selectedEquipmentId;
         private int? _selectedEmployeeId;
@@ -1557,19 +1646,31 @@ namespace Inventory_Management_System.Forms
                 _equipment = equipment.Where(e =>
                 {
                     if (activelyAllocatedEquipmentIds.Contains(e.Id)) return false;
-                    
+
                     bool isAllocated = string.Equals(e.CurrentStatus, "allocated", StringComparison.OrdinalIgnoreCase);
                     if (isAllocated) return !checkedOutEquipmentIds.Contains(e.Id);
-                    
+
                     bool isDecomm = string.Equals(e.CurrentStatus, "decommissioned", StringComparison.OrdinalIgnoreCase);
-                    bool isRepair = string.Equals(e.CurrentStatus, "under_repair", StringComparison.OrdinalIgnoreCase) || 
+                    bool isRepair = string.Equals(e.CurrentStatus, "under_repair", StringComparison.OrdinalIgnoreCase) ||
                                     string.Equals(e.CurrentStatus, "under repair", StringComparison.OrdinalIgnoreCase);
-                                    
+
                     return !isDecomm && !isRepair;
                 }).ToList();
             }
+
+            // Ensure preselected equipment is present in _equipment list
+            if (!string.IsNullOrWhiteSpace(preselectEquipmentCode))
+            {
+                var preselected = equipment.FirstOrDefault(e => e.EquipmentCode == preselectEquipmentCode);
+                if (preselected != null && !_equipment.Any(e => e.Id == preselected.Id))
+                {
+                    _equipment.Insert(0, preselected);
+                }
+            }
+
             _employees = employees.Where(e => e.IsActive).ToList();
             _locations = locations;
+
             BuildUI();
         }
 
@@ -1780,8 +1881,15 @@ namespace Inventory_Management_System.Forms
                 if (match != null)
                 {
                     _selectedEquipmentId = match.Id;
+                    _suppressEquipmentSync = true;
                     txtEquipmentSearch.Text = $"{match.EquipmentCode} — {match.Name}";
-                    _preselectApplied = true;
+                    if (!string.IsNullOrWhiteSpace(match.Category) && cmbCategoryFilter.Items.Contains(match.Category))
+                    {
+                        cmbCategoryFilter.SelectedItem = match.Category;
+                    }
+                    RefreshEquipmentDropdown();
+                    cmbEquipment.SelectedValue = match.Id;
+                    _suppressEquipmentSync = false;
                 }
             }
 
@@ -1914,8 +2022,6 @@ namespace Inventory_Management_System.Forms
             pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
         }
 
-
-
         private void CmbEquipment_SelectedIndexChanged(object? sender, EventArgs e)
         {
             if (_suppressEquipmentSync) return;
@@ -1946,20 +2052,31 @@ namespace Inventory_Management_System.Forms
                 DisplayText = $"{e.EquipmentCode} — {e.Name}" +
                               (string.IsNullOrWhiteSpace(e.SerialNumber) ? "" : $" (S/N: {e.SerialNumber})")
             }).ToList();
-            cmbEquipment.SelectedIndex = -1;
-            _suppressEquipmentSync = false;
 
-            _equipmentSuggest?.LoadItems(filtered);
-
-            if (!_preselectApplied && !string.IsNullOrWhiteSpace(_preselectEquipmentCode))
+            if (_selectedEquipmentId.HasValue && filtered.Any(e => e.Id == _selectedEquipmentId.Value))
+            {
+                cmbEquipment.SelectedValue = _selectedEquipmentId.Value;
+            }
+            else if (!string.IsNullOrWhiteSpace(_preselectEquipmentCode))
             {
                 var match = filtered.FirstOrDefault(e => e.EquipmentCode == _preselectEquipmentCode);
                 if (match != null)
                 {
+                    _selectedEquipmentId = match.Id;
                     cmbEquipment.SelectedValue = match.Id;
-                    _preselectApplied = true;
+                }
+                else
+                {
+                    cmbEquipment.SelectedIndex = -1;
                 }
             }
+            else
+            {
+                cmbEquipment.SelectedIndex = -1;
+            }
+            _suppressEquipmentSync = false;
+
+            _equipmentSuggest?.LoadItems(filtered);
         }
 
         private void RefreshRoomDropdown()
@@ -1985,9 +2102,14 @@ namespace Inventory_Management_System.Forms
 
         private void BtnSave_Click(object? sender, EventArgs e)
         {
+            if (_selectedEquipmentId == null && cmbEquipment.SelectedValue is int cmbEqId && cmbEqId > 0)
+            {
+                _selectedEquipmentId = cmbEqId;
+            }
+
             if (_selectedEquipmentId == null)
             {
-                ToastHelper.Show(this, "Please select an equipment item from the suggestions.", ToastType.Warning);
+                ToastHelper.Show(this, "Please select an equipment item.", ToastType.Warning);
                 return;
             }
 
@@ -2038,13 +2160,14 @@ namespace Inventory_Management_System.Forms
         private static Color CardBorder => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(224, 224, 224);
         private static readonly Color MutedText = Color.FromArgb(110, 110, 120);
 
-        public EditExpectedReturnDialog(DateOnly? currentDate)
+        public EditExpectedReturnDialog(DateOnly? currentDate, string? equipmentCode = null, string? qrCode = null, string? equipmentName = null)
         {
-            BuildUI(currentDate);
+            BuildUI(currentDate, equipmentCode, qrCode, equipmentName);
         }
 
-        private void BuildUI(DateOnly? currentDate)
+        private void BuildUI(DateOnly? currentDate, string? equipmentCode, string? qrCode, string? equipmentName)
         {
+            Text = "Edit Return Date";
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -2052,17 +2175,18 @@ namespace Inventory_Management_System.Forms
             Font = new Font("Segoe UI", 9F);
             ThemeHelper.ApplyFormBackground(this);
 
-            const int formWidth = 380;
-            const int margin = 24;
+            const int formWidth = 470;
+            const int margin = 26;
             int contentWidth = formWidth - margin * 2;
 
+            // ── Header ──
             var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = EditAccent };
             Controls.Add(pnlHeader);
 
             var lblTitle = new Label
             {
                 Text = "📅  Edit Expected Return Date",
-                Font = new Font("Segoe UI", 13.5f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 14f, FontStyle.Bold),
                 ForeColor = Color.White,
                 AutoSize = true,
                 Location = new Point(margin, 16)
@@ -2070,32 +2194,71 @@ namespace Inventory_Management_System.Forms
             pnlHeader.Controls.Add(lblTitle);
 
             var subtitleFont = new Font("Segoe UI", 9f, FontStyle.Regular);
-            string subtitleText = "Update or clear the expected return date for this allocation";
-            var subtitleSize = TextRenderer.MeasureText(
-                subtitleText, subtitleFont, new Size(contentWidth, int.MaxValue), TextFormatFlags.WordBreak);
+            string subtitleText = "Update or clear the expected return date for this item";
             var lblSubtitle = new Label
             {
                 Text = subtitleText,
                 Font = subtitleFont,
                 ForeColor = Color.FromArgb(255, 245, 230),
-                AutoSize = false,
-                Size = new Size(contentWidth, subtitleSize.Height + 4),
-                Location = new Point(margin, lblTitle.Bottom + 6)
+                AutoSize = true,
+                Location = new Point(margin, lblTitle.Bottom + 4)
             };
             pnlHeader.Controls.Add(lblSubtitle);
             pnlHeader.Height = lblSubtitle.Bottom + 16;
 
+            // ── Body ──
             var body = new Panel { Location = new Point(0, pnlHeader.Height), Size = new Size(formWidth, 10) };
             Controls.Add(body);
 
-            int y = 20;
+            int y = 16;
+
+            // ── Equipment / QR details info card ──
+            if (!string.IsNullOrWhiteSpace(equipmentCode) || !string.IsNullOrWhiteSpace(qrCode))
+            {
+                var pnlInfo = new Panel
+                {
+                    Location = new Point(margin, y),
+                    Size = new Size(contentWidth, 48),
+                    BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(35, 38, 45) : Color.FromArgb(245, 247, 250)
+                };
+                pnlInfo.Paint += (s, e) =>
+                {
+                    using var pen = new Pen(CardBorder, 1f);
+                    e.Graphics.DrawRectangle(pen, 0, 0, pnlInfo.Width - 1, pnlInfo.Height - 1);
+                };
+
+                string eqLabel = string.IsNullOrWhiteSpace(equipmentName) || equipmentName == "—"
+                    ? $"Equipment: {equipmentCode ?? "—"}"
+                    : $"{equipmentCode} — {equipmentName}";
+
+                var lblEq = new Label
+                {
+                    Text = eqLabel,
+                    Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                    ForeColor = ThemeHelper.TextPrimary,
+                    Location = new Point(12, 6),
+                    AutoSize = true
+                };
+                var lblQr = new Label
+                {
+                    Text = $"QR Code: {qrCode ?? "—"}",
+                    Font = new Font("Segoe UI", 8.5f),
+                    ForeColor = ThemeHelper.TextSecondary,
+                    Location = new Point(12, 26),
+                    AutoSize = true
+                };
+                pnlInfo.Controls.Add(lblEq);
+                pnlInfo.Controls.Add(lblQr);
+                body.Controls.Add(pnlInfo);
+                y += pnlInfo.Height + 16;
+            }
 
             chkHasDate = new CheckBox
             {
                 Text = "Set expected return date",
                 Location = new Point(margin, y),
                 AutoSize = true,
-                Font = ThemeHelper.FontDefault,
+                Font = ThemeHelper.FontBold,
                 ForeColor = ThemeHelper.TextPrimary,
                 Checked = currentDate.HasValue
             };
@@ -2107,30 +2270,36 @@ namespace Inventory_Management_System.Forms
             {
                 Location = new Point(margin, y),
                 Width = contentWidth,
-                Format = DateTimePickerFormat.Short,
+                Height = 32,
+                Format = DateTimePickerFormat.Long,
                 Enabled = currentDate.HasValue,
                 Value = currentDate.HasValue
                     ? currentDate.Value.ToDateTime(TimeOnly.MinValue)
-                    : DateTime.Today
+                    : DateTime.Today.AddDays(7)
             };
             body.Controls.Add(dtp);
-            y += 46;
+            y += 42;
 
             var lblHint = new Label
             {
                 Text = "A past date marks this allocation overdue.\nA future (or no) date clears the overdue status.",
                 Location = new Point(margin, y),
-                Size = new Size(contentWidth, 40),
+                Size = new Size(contentWidth, 36),
                 Font = ThemeHelper.FontSmall,
                 ForeColor = MutedText
             };
             body.Controls.Add(lblHint);
-            y += 50;
+            y += 44;
 
-            body.Size = new Size(formWidth, y);
+            body.Height = y;
 
+            // ── Footer ──
             const int footerHeight = 64;
-            var pnlFooter = new Panel { Size = new Size(formWidth, footerHeight), BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251) };
+            var pnlFooter = new Panel
+            {
+                Size = new Size(formWidth, footerHeight),
+                BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251)
+            };
             pnlFooter.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 1), BackColor = CardBorder });
 
             btnCancel = new Button { Text = "Cancel", Size = new Size(130, 38) };
@@ -2147,8 +2316,8 @@ namespace Inventory_Management_System.Forms
 
             int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
             int buttonsStartX = (formWidth - totalButtonsWidth) / 2;
-            btnSave.Location = new Point(buttonsStartX, 15);
-            btnCancel.Location = new Point(buttonsStartX + btnSave.Width + 12, 15);
+            btnSave.Location = new Point(buttonsStartX, 13);
+            btnCancel.Location = new Point(buttonsStartX + btnSave.Width + 12, 13);
 
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnSave);

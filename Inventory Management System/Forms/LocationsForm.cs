@@ -10,6 +10,10 @@ namespace Inventory_Management_System.Forms
     public partial class LocationsForm : Form, IThemableForm
     {
         private readonly LocationService _locationService;
+        // ── Gmail-style checkbox header controls ──
+        private Panel _chkHeaderPanel = null!;
+        private CheckBox _chkHeaderBox = null!;
+        private bool _suppressHeaderSync;
 
         public LocationsForm()
         {
@@ -17,6 +21,7 @@ namespace Inventory_Management_System.Forms
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             _locationService = new LocationService();
             ApplyTheme();
+            SetupCheckboxSelectHeader();
             LoadLocations();
 
             this.Shown += (s, e) =>
@@ -50,6 +55,143 @@ namespace Inventory_Management_System.Forms
             ResetRowStyleOverrides(dgvLocations);
         }
 
+        private void SetupCheckboxSelectHeader()
+        {
+            if (!dgvLocations.Columns.Contains("ColSelect"))
+            {
+                var chkCol = new DataGridViewCheckBoxColumn
+                {
+                    Name = "ColSelect",
+                    HeaderText = "",
+                    Width = 40,
+                    ReadOnly = false,
+                    Visible = true,
+                    AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+                    TrueValue = true,
+                    FalseValue = false,
+                    IndeterminateValue = false
+                };
+                dgvLocations.Columns.Add(chkCol);
+                dgvLocations.Columns["ColSelect"].DisplayIndex = 0;
+
+                dgvLocations.ReadOnly = false;
+                foreach (DataGridViewColumn col in dgvLocations.Columns)
+                    col.ReadOnly = col.Name != "ColSelect";
+
+                dgvLocations.CurrentCellDirtyStateChanged += (s, ev) =>
+                {
+                    if (dgvLocations.CurrentCell is DataGridViewCheckBoxCell)
+                        dgvLocations.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                };
+
+                dgvLocations.CellValueChanged += (s, ev) =>
+                {
+                    if (ev.ColumnIndex >= 0 && dgvLocations.Columns[ev.ColumnIndex].Name == "ColSelect")
+                    {
+                        SyncHeaderCheckbox();
+                    }
+                };
+            }
+
+            _chkHeaderPanel = new Panel
+            {
+                Name = "pnlCheckHeader",
+                Size = new Size(62, 32),
+                Margin = new Padding(4, 4, 0, 0),
+                Cursor = Cursors.Hand,
+                BackColor = ThemeHelper.IsDarkMode
+                    ? Color.FromArgb(40, 44, 52)
+                    : Color.FromArgb(241, 243, 244)
+            };
+
+            _chkHeaderBox = new CheckBox
+            {
+                Name = "chkHeaderBox",
+                Size = new Size(40, 32),
+                Location = new Point(0, 0),
+                Appearance = Appearance.Normal,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                ForeColor = ThemeHelper.TextPrimary,
+                Text = "",
+                Cursor = Cursors.Hand,
+                TextAlign = ContentAlignment.MiddleCenter,
+                CheckAlign = ContentAlignment.MiddleCenter,
+                ThreeState = false
+            };
+            _chkHeaderBox.FlatAppearance.BorderSize = 0;
+            _chkHeaderBox.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            _chkHeaderBox.FlatAppearance.CheckedBackColor = Color.Transparent;
+            _chkHeaderBox.CheckedChanged += (s, e) =>
+            {
+                if (_suppressHeaderSync) return;
+                SetAllCheckboxes(_chkHeaderBox.Checked);
+            };
+
+            var btnArrow = new Button
+            {
+                Name = "btnCheckArrow",
+                Text = "▾",
+                Size = new Size(22, 32),
+                Location = new Point(40, 0),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                ForeColor = ThemeHelper.TextPrimary,
+                Font = new Font("Segoe UI", 8f),
+                Cursor = Cursors.Hand,
+                Padding = Padding.Empty,
+                Margin = Padding.Empty
+            };
+            btnArrow.FlatAppearance.BorderSize = 0;
+            btnArrow.FlatAppearance.MouseOverBackColor = ThemeHelper.IsDarkMode
+                ? Color.FromArgb(55, 60, 70)
+                : Color.FromArgb(218, 220, 224);
+            btnArrow.Click += (s, e) =>
+            {
+                var menu = new ContextMenuStrip { Font = ThemeHelper.FontDefault };
+                var itemAll = new ToolStripMenuItem("All");
+                var itemNone = new ToolStripMenuItem("None");
+                itemAll.Click += (_, __) => { SetAllCheckboxes(true); _chkHeaderBox.Checked = true; };
+                itemNone.Click += (_, __) => { SetAllCheckboxes(false); _chkHeaderBox.Checked = false; };
+                menu.Items.Add(itemAll);
+                menu.Items.Add(itemNone);
+                menu.Show(btnArrow, new Point(0, btnArrow.Height));
+            };
+
+            _chkHeaderPanel.Paint += (s, e) =>
+            {
+                using var pen = new Pen(ThemeHelper.IsDarkMode
+                    ? Color.FromArgb(65, 70, 80)
+                    : Color.FromArgb(200, 202, 206), 1f);
+                e.Graphics.DrawLine(pen, 40, 4, 40, _chkHeaderPanel.Height - 4);
+            };
+
+            _chkHeaderPanel.Controls.Add(_chkHeaderBox);
+            _chkHeaderPanel.Controls.Add(btnArrow);
+
+            flowToolbar.Controls.Add(_chkHeaderPanel);
+            flowToolbar.Controls.SetChildIndex(_chkHeaderPanel, flowToolbar.Controls.IndexOf(btnAdd));
+        }
+
+        private void SetAllCheckboxes(bool check)
+        {
+            if (!dgvLocations.Columns.Contains("ColSelect")) return;
+            foreach (DataGridViewRow row in dgvLocations.Rows)
+                row.Cells["ColSelect"].Value = check;
+            dgvLocations.RefreshEdit();
+        }
+
+        private void SyncHeaderCheckbox()
+        {
+            if (!dgvLocations.Columns.Contains("ColSelect") || _chkHeaderBox == null) return;
+            _suppressHeaderSync = true;
+            int total = dgvLocations.Rows.Count;
+            int checked_ = dgvLocations.Rows.Cast<DataGridViewRow>()
+                .Count(r => Convert.ToBoolean(r.Cells["ColSelect"].Value));
+            _chkHeaderBox.Checked = total > 0 && checked_ == total;
+            _suppressHeaderSync = false;
+        }
+
         private void LoadLocations()
         {
             dgvLocations.Rows.Clear();
@@ -71,6 +213,7 @@ namespace Inventory_Management_System.Forms
                     item.RoomName ?? ""
                 );
             }
+            SyncHeaderCheckbox();
         }
 
         private void btnAdd_Click(object sender, EventArgs e)
@@ -107,26 +250,71 @@ namespace Inventory_Management_System.Forms
             }
         }
 
+        private List<int> GetSelectedLocationIds()
+        {
+            var ids = new List<int>();
+
+            if (dgvLocations.Columns.Contains("ColSelect"))
+            {
+                foreach (DataGridViewRow row in dgvLocations.Rows)
+                {
+                    var val = row.Cells["ColSelect"].Value;
+                    if (val is bool b && b)
+                    {
+                        if (int.TryParse(row.Cells["ID"].Value?.ToString(), out int id))
+                            ids.Add(id);
+                    }
+                }
+            }
+
+            if (ids.Count == 0)
+            {
+                foreach (DataGridViewRow row in dgvLocations.SelectedRows)
+                {
+                    if (int.TryParse(row.Cells["ID"].Value?.ToString(), out int id))
+                        ids.Add(id);
+                }
+            }
+
+            return ids;
+        }
+
         private void btnDelete_Click(object sender, EventArgs e)
         {
-            if (dgvLocations.SelectedRows.Count == 0)
+            var selectedIds = GetSelectedLocationIds();
+            if (selectedIds.Count == 0)
             {
-                ToastHelper.Show(this, "Please select a location to delete.", ToastType.Info);
+                ToastHelper.Show(this, "Please select at least one location to delete.", ToastType.Info);
                 return;
             }
-            var id = Convert.ToInt32(dgvLocations.SelectedRows[0].Cells[0].Value);
-            if (MessageBox.Show("Are you sure you want to delete this location?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+
+            string confirmMsg = selectedIds.Count == 1
+                ? "Are you sure you want to delete this location?"
+                : $"Are you sure you want to delete these {selectedIds.Count} locations?";
+
+            if (MessageBox.Show(confirmMsg, "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            int deletedCount = 0;
+            string? firstError = null;
+
+            foreach (var id in selectedIds)
             {
                 var result = _locationService.Delete(id);
                 if (result.Success)
-                {
-                    LoadLocations();
-                    ToastHelper.Show(this, "Location deleted successfully.", ToastType.Success);
-                }
-                else
-                {
-                    ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
-                }
+                    deletedCount++;
+                else if (firstError == null)
+                    firstError = result.ErrorMessage;
+            }
+
+            if (deletedCount > 0)
+            {
+                LoadLocations();
+                ToastHelper.Show(this, $"{deletedCount} location(s) deleted successfully.", ToastType.Success);
+            }
+            else if (firstError != null)
+            {
+                ToastHelper.Show(this, firstError, ToastType.Error);
             }
         }
         private void btnImport_Click(object sender, EventArgs e)
@@ -175,6 +363,8 @@ namespace Inventory_Management_System.Forms
 
         private void btnRefresh_Click(object sender, EventArgs e)
         {
+            SetAllCheckboxes(false);
+            if (_chkHeaderBox != null) _chkHeaderBox.Checked = false;
             LoadLocations();
             ToastHelper.Show(this, "Locations refreshed.", ToastType.Info);
         }

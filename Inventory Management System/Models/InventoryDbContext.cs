@@ -61,7 +61,7 @@ public partial class InventoryDbContext : DbContext
         var password = Services.DbConnectionSettingsService.DecryptPassword(settings);
         var connStr = Services.DbConnectionSettingsService.BuildConnectionString(settings, password);
 
-        optionsBuilder.UseMySql(connStr, Microsoft.EntityFrameworkCore.ServerVersion.Parse(settings.ServerVersion));
+        optionsBuilder.UseMySql(connStr, Microsoft.EntityFrameworkCore.ServerVersion.AutoDetect(connStr));
     }
 
 
@@ -351,7 +351,7 @@ public partial class InventoryDbContext : DbContext
 
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.ActionType)
-                .HasColumnType("enum('equipment_created','location_changed','allocation_requested','allocation_approved','allocation_rejected','allocation_returned','decommission_requested','decommission_approved','decommission_rejected','transferred')")
+                .HasMaxLength(50)
                 .HasColumnName("action_type");
             entity.Property(e => e.ChangedByUserId).HasColumnName("changed_by_user_id");
             entity.Property(e => e.CreatedAt)
@@ -586,7 +586,7 @@ public partial class InventoryDbContext : DbContext
                 .HasColumnName("serviced_by");
             entity.Property(e => e.Status)
                 .HasDefaultValueSql("'open'")
-                .HasColumnType("enum('open','in_progress','resolved')")
+                .HasMaxLength(20)
                 .HasColumnName("status");
             entity.Property(e => e.Notes)
                 .HasColumnType("text")

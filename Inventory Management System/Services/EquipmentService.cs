@@ -288,9 +288,8 @@ namespace Inventory_Management_System.Services
 
                 db.Equipment.Add(equipment);
                 db.SaveChanges();
-
                 _audit.Log(equipment.Id, AuditService.ActionEquipmentCreated,
-                    null, $"Created: {equipment.EquipmentCode} - {equipment.Name}");
+                                   null, $"Created: {equipment.EquipmentCode} - {equipment.Name} | Source Screen: Add Equipment");
 
                 return ServiceResult<Equipment>.Ok(equipment);
             }
@@ -359,7 +358,10 @@ namespace Inventory_Management_System.Services
 
                 db.SaveChanges();
 
-                _audit.Log(existing.Id, AuditService.ActionEquipmentUpdated, oldSummary, newSummary);
+                if (oldSummary != null)
+                {
+                    _audit.Log(existing.Id, AuditService.ActionEquipmentUpdated, oldSummary, newSummary + " | Source Screen: Edit Equipment");
+                }
 
                 return ServiceResult<Equipment>.Ok(existing);
             }

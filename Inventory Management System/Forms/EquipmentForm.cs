@@ -27,8 +27,10 @@ namespace Inventory_Management_System.Forms
         private int _pageSize = 25;
         private int _totalPages = 1;
 
-        // ── Programmatic Dropdown Selection Mode (replacing Select button) ──
-        private ComboBox cmbSelectMode = null!;
+        // ── Gmail-style checkbox header controls ──
+        private Panel _chkHeaderPanel = null!;
+        private CheckBox _chkHeaderBox = null!;
+        private bool _suppressHeaderSync;
 
         // ── Category filter dropdown ───────────────────────────────────────
         private ComboBox cmbCategory = null!;
@@ -69,8 +71,6 @@ namespace Inventory_Management_System.Forms
                 }
             };
         }
-
-        private bool _updatingToolbarHeight = false;
 
 
 
@@ -192,24 +192,134 @@ namespace Inventory_Management_System.Forms
         // with a beautifully styled ComboBox (dropdown) in the exact same position.
         private void SetupToolbarLayout()
         {
-            // Hide the original btnSelectAll button to replace it with ComboBox
+            // Hide the original btnSelectAll button
             btnSelectAll.Visible = false;
-            cmbSelectMode = new ComboBox
-            {
-                Name = "cmbSelectMode",
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                Size = new Size(110, 32),
-                Margin = new Padding(4, 4, 0, 0)
-            };
-            cmbSelectMode.Items.AddRange(new object[] { "Select", "Select ✔", "Select All", "Deselect All" });
-            cmbSelectMode.SelectedIndex = 0;
-            cmbSelectMode.SelectedIndexChanged += cmbSelectMode_SelectedIndexChanged;
-            ThemeHelper.StyleComboBox(cmbSelectMode);
 
-            var flowForSelect = panelTop.Controls.OfType<FlowLayoutPanel>().First();
-            int selectAllIdx = flowForSelect.Controls.IndexOf(btnSelectAll);
-            flowForSelect.Controls.Add(cmbSelectMode);
-            flowForSelect.Controls.SetChildIndex(cmbSelectMode, selectAllIdx);
+            // ── 1. Create the ColSelect checkbox column (always visible) ──
+            if (!dgvEquipment.Columns.Contains("ColSelect"))
+            {
+                var chkCol = new DataGridViewCheckBoxColumn
+                {
+                    Name = "ColSelect",
+                    HeaderText = "",
+                    Width = 40,
+                    ReadOnly = false,
+                    Visible = true,
+                    AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+                    TrueValue = true,
+                    FalseValue = false,
+                    IndeterminateValue = false
+                };
+                dgvEquipment.Columns.Add(chkCol);
+                dgvEquipment.Columns["ColSelect"].DisplayIndex = 0;
+
+                // Configure grid to allow editing the Checkbox column while others are read-only
+                dgvEquipment.ReadOnly = false;
+                foreach (DataGridViewColumn col in dgvEquipment.Columns)
+                {
+                    if (col.Name == "ColSelect")
+                        col.ReadOnly = false;
+                    else
+                        col.ReadOnly = true;
+                }
+
+                // Immediately commit edits when clicking the checkbox cell so value updates instantly
+                dgvEquipment.CurrentCellDirtyStateChanged += (s, ev) =>
+                {
+                    if (dgvEquipment.CurrentCell is DataGridViewCheckBoxCell)
+                        dgvEquipment.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                };
+
+                dgvEquipment.CellValueChanged += (s, ev) =>
+                {
+                    if (ev.ColumnIndex >= 0 && dgvEquipment.Columns[ev.ColumnIndex].Name == "ColSelect")
+                    {
+                        SyncHeaderCheckbox();
+                    }
+                };
+            }
+
+            // ── 2. Build the split [☐ ▾] toolbar control ──
+            _chkHeaderPanel = new Panel
+            {
+                Name = "pnlCheckHeader",
+                Size = new Size(62, 32),
+                Margin = new Padding(4, 4, 0, 0),
+                Cursor = Cursors.Hand,
+                BackColor = ThemeHelper.IsDarkMode
+                    ? Color.FromArgb(40, 44, 52)
+                    : Color.FromArgb(241, 243, 244)
+            };
+
+            _chkHeaderBox = new CheckBox
+            {
+                Name = "chkHeaderBox",
+                Size = new Size(40, 32),
+                Location = new Point(0, 0),
+                Appearance = Appearance.Normal,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                ForeColor = ThemeHelper.TextPrimary,
+                Text = "",
+                Cursor = Cursors.Hand,
+                TextAlign = ContentAlignment.MiddleCenter,
+                CheckAlign = ContentAlignment.MiddleCenter,
+                ThreeState = false
+            };
+            _chkHeaderBox.FlatAppearance.BorderSize = 0;
+            _chkHeaderBox.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            _chkHeaderBox.FlatAppearance.CheckedBackColor = Color.Transparent;
+            _chkHeaderBox.CheckedChanged += (s, e) =>
+            {
+                if (_suppressHeaderSync) return;
+                SetAllCheckboxes(_chkHeaderBox.Checked);
+            };
+
+            var btnArrow = new Button
+            {
+                Name = "btnCheckArrow",
+                Text = "▾",
+                Size = new Size(22, 32),
+                Location = new Point(40, 0),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                ForeColor = ThemeHelper.TextPrimary,
+                Font = new Font("Segoe UI", 8f),
+                Cursor = Cursors.Hand,
+                Padding = Padding.Empty,
+                Margin = Padding.Empty
+            };
+            btnArrow.FlatAppearance.BorderSize = 0;
+            btnArrow.FlatAppearance.MouseOverBackColor = ThemeHelper.IsDarkMode
+                ? Color.FromArgb(55, 60, 70)
+                : Color.FromArgb(218, 220, 224);
+            btnArrow.Click += (s, e) =>
+            {
+                var menu = new ContextMenuStrip { Font = ThemeHelper.FontDefault };
+                var itemAll = new ToolStripMenuItem("All");
+                var itemNone = new ToolStripMenuItem("None");
+                itemAll.Click += (_, __) => { SetAllCheckboxes(true); _chkHeaderBox.Checked = true; };
+                itemNone.Click += (_, __) => { SetAllCheckboxes(false); _chkHeaderBox.Checked = false; };
+                menu.Items.Add(itemAll);
+                menu.Items.Add(itemNone);
+                menu.Show(btnArrow, new Point(0, btnArrow.Height));
+            };
+
+            _chkHeaderPanel.Paint += (s, e) =>
+            {
+                using var pen = new Pen(ThemeHelper.IsDarkMode
+                    ? Color.FromArgb(65, 70, 80)
+                    : Color.FromArgb(200, 202, 206), 1f);
+                e.Graphics.DrawLine(pen, 40, 4, 40, _chkHeaderPanel.Height - 4);
+            };
+
+            _chkHeaderPanel.Controls.Add(_chkHeaderBox);
+            _chkHeaderPanel.Controls.Add(btnArrow);
+
+            // ── 3. Insert the panel BEFORE btnAdd in the toolbar ──
+            var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
+            flow.Controls.Add(_chkHeaderPanel);
+            flow.Controls.SetChildIndex(_chkHeaderPanel, flow.Controls.IndexOf(btnAdd));
 
             // Not added to the toolbar — kept only as a data source for the
             // Filters button's category submenu (see PopulateCategorySubmenu).
@@ -230,54 +340,74 @@ namespace Inventory_Management_System.Forms
             btnFilters.FlatAppearance.BorderSize = 0;
             btnFilters.Click += (s, e) => ShowFiltersMenu(btnFilters);
 
-            var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
             flow.Controls.Add(btnFilters);
             flow.Controls.SetChildIndex(btnFilters, flow.Controls.IndexOf(btnGenerateQRSheet) + 1);
 
             // Re-apply QR button styling after SetupToolbarLayout (ensures correct order)
-            StyleQrButton(btnShowQR,         "◼️ Show QR");
+            StyleQrButton(btnShowQR, "◼️ Show QR");
             StyleQrButton(btnGenerateQRSheet, "📄 QR Sheet");
+        }
 
-            // Dynamically append Checkbox Column for manual selection (visibly hidden by default)
-            if (!dgvEquipment.Columns.Contains("ColSelect"))
-            {
-                var chkCol = new DataGridViewCheckBoxColumn
-                {
-                    Name = "ColSelect",
-                    HeaderText = "",
-                    Width = 40,
-                    ReadOnly = false,
-                    Visible = false,
-                    AutoSizeMode = DataGridViewAutoSizeColumnMode.None
-                };
-                dgvEquipment.Columns.Add(chkCol);
+        private void SetAllCheckboxes(bool check)
+        {
+            if (!dgvEquipment.Columns.Contains("ColSelect")) return;
+            foreach (DataGridViewRow row in dgvEquipment.Rows)
+                row.Cells["ColSelect"].Value = check;
+            dgvEquipment.RefreshEdit();
+        }
 
-                // Configure grid to allow editing the Checkbox column while others are read-only
-                dgvEquipment.ReadOnly = false;
-                foreach (DataGridViewColumn col in dgvEquipment.Columns)
-                {
-                    if (col.Name == "ColSelect")
-                        col.ReadOnly = false;
-                    else
-                        col.ReadOnly = true;
-                }
-
-                // Immediately commit edits when clicking the checkbox cell so value updates instantly
-                dgvEquipment.CurrentCellDirtyStateChanged += (s, ev) =>
-                {
-                    if (dgvEquipment.CurrentCell is DataGridViewCheckBoxCell)
-                        dgvEquipment.CommitEdit(DataGridViewDataErrorContexts.Commit);
-                };
-            }
+        private void SyncHeaderCheckbox()
+        {
+            if (!dgvEquipment.Columns.Contains("ColSelect") || _chkHeaderBox == null) return;
+            _suppressHeaderSync = true;
+            int total = dgvEquipment.Rows.Count;
+            int checked_ = dgvEquipment.Rows.Cast<DataGridViewRow>()
+                .Count(r => Convert.ToBoolean(r.Cells["ColSelect"].Value));
+            _chkHeaderBox.Checked = total > 0 && checked_ == total;
+            _suppressHeaderSync = false;
         }
 
         private void ShowFiltersMenu(Button anchor)
         {
             var menu = new ContextMenuStrip { Font = ThemeHelper.FontDefault };
+
+            var statusSub = new ToolStripMenuItem("Status");
+            menu.Items.Add(statusSub);
+            PopulateStatusSubmenu(statusSub);
+
             var categorySub = new ToolStripMenuItem("Category");
             menu.Items.Add(categorySub);
             PopulateCategorySubmenu(categorySub);
+
             menu.Show(anchor, new Point(0, anchor.Height));
+        }
+
+        private void PopulateStatusSubmenu(ToolStripMenuItem parent)
+        {
+            parent.DropDownItems.Clear();
+
+            var options = new (string label, string? value)[]
+            {
+                ("All", null),
+                ("In store", "in_store"),
+                ("Allocated", "allocated"),
+                ("Decommission", "decommissioned"),
+                ("Under repair", "under_repair")
+            };
+
+            foreach (var (label, value) in options)
+            {
+                bool isChecked = string.IsNullOrEmpty(_statusFilter) ? value == null : string.Equals(_statusFilter, value, StringComparison.OrdinalIgnoreCase);
+                var item = new ToolStripMenuItem(label) { Checked = isChecked };
+                item.Click += (s, e) =>
+                {
+                    _statusFilter = value;
+                    _customFilter = null;
+                    _currentPage = 1;
+                    LoadEquipment(txtSearch.Text.Trim());
+                };
+                parent.DropDownItems.Add(item);
+            }
         }
 
         private void PopulateCategorySubmenu(ToolStripMenuItem parent)
@@ -328,7 +458,6 @@ namespace Inventory_Management_System.Forms
             StyleQrButton(btnGenerateQRSheet,  "📄 QR Sheet");
 
             ThemeHelper.StyleButton(btnSelectAll);
-            if (cmbSelectMode != null) ThemeHelper.StyleComboBox(cmbSelectMode);
             ApplyRoundedSearchStyle(txtSearch);
                 ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
@@ -361,6 +490,29 @@ namespace Inventory_Management_System.Forms
 
         // ── Data ───────────────────────────────────────────────────────────
 
+        private bool MatchesStatusFilter(Equipment eq)
+        {
+            if (string.IsNullOrEmpty(_statusFilter) || _statusFilter == "All") return true;
+
+            var activeAlloc = eq.Allocations?
+                .Where(a => a.Status != null && a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(a => a.EmployeeId.HasValue)
+                .ThenByDescending(a => a.Id)
+                .FirstOrDefault();
+
+            var normalized = (eq.CurrentStatus ?? string.Empty).Trim().ToLowerInvariant();
+            string effectiveStatus = activeAlloc != null ? "allocated" : normalized;
+
+            return _statusFilter.ToLowerInvariant() switch
+            {
+                "in_store" or "in store" => effectiveStatus == "in_store",
+                "allocated" => effectiveStatus == "allocated",
+                "decommission" or "decommissioned" => effectiveStatus == "decommissioned",
+                "under_repair" or "under repair" => effectiveStatus == "under_repair" || effectiveStatus == "under repair",
+                _ => string.Equals(effectiveStatus, _statusFilter, StringComparison.OrdinalIgnoreCase)
+            };
+        }
+
         private void LoadEquipment(string searchTerm = "")
         {
             if (_statusFilter != null || _customFilter != null)
@@ -369,12 +521,34 @@ namespace Inventory_Management_System.Forms
                     RefreshEquipmentCache();
 
                 Func<Equipment, bool> predicate = _customFilter
-                    ?? (eq => string.Equals(eq.CurrentStatus, _statusFilter, StringComparison.OrdinalIgnoreCase));
+                    ?? MatchesStatusFilter;
 
                 var filtered = _fullEquipmentCache.Where(predicate).ToList();
 
                 if (!string.IsNullOrEmpty(_activeCategory))
                     filtered = filtered.Where(eq => string.Equals(eq.Category, _activeCategory, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                if (!string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    filtered = filtered
+                        .Select(eq => new
+                        {
+                            Equipment = eq,
+                            Score = Math.Max(
+                                FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, searchTerm),
+                                Math.Max(
+                                    FuzzySearchHelper.FuzzyScoreCode(eq.QrCode, searchTerm),
+                                    Math.Max(
+                                        FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, searchTerm),
+                                        Math.Max(
+                                            FuzzySearchHelper.FuzzyScore(eq.Name, searchTerm),
+                                            FuzzySearchHelper.FuzzyScore(eq.Make, searchTerm)))))
+                        })
+                        .Where(x => x.Score >= 5000)
+                        .OrderByDescending(x => x.Score)
+                        .Select(x => x.Equipment)
+                        .ToList();
+                }
 
                 _totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)_pageSize));
                 if (_currentPage > _totalPages) _currentPage = _totalPages;
@@ -573,7 +747,7 @@ namespace Inventory_Management_System.Forms
                         "allocated" => "Allocated",
                         "decommissioned" => "Decommissioned",
                         "under_repair" => "Under Repair",
-                        _ => item.CurrentStatus
+                        _ => item.CurrentStatus ?? ""
                     };
                 }
 
@@ -616,12 +790,6 @@ namespace Inventory_Management_System.Forms
                 statusCell.Style.Font = ThemeHelper.FontBold;
             }
 
-            // Maintain automatic full selection when refreshed in Select All mode
-            if (cmbSelectMode != null && cmbSelectMode.SelectedItem?.ToString() == "Select All")
-            {
-                dgvEquipment.MultiSelect = true;
-                dgvEquipment.SelectAll();
-            }
             if (!string.IsNullOrWhiteSpace(_pendingSelectCode))
             {
                 var match = dgvEquipment.Rows.Cast<DataGridViewRow>()
@@ -636,6 +804,7 @@ namespace Inventory_Management_System.Forms
                 _pendingSelectCode = null;
             }
             lblRowCount.Text = $"Showing {dgvEquipment.Rows.Count} records";
+            SyncHeaderCheckbox();
         }
 
         private static string FormatLocationDisplay(Location? loc)
@@ -665,8 +834,8 @@ namespace Inventory_Management_System.Forms
         {
             var selected = new List<Equipment>();
 
-            // In manual check mode, gather only items that are checked
-            if (cmbSelectMode != null && cmbSelectMode.SelectedItem?.ToString() == "Select ✔")
+            // First check if any rows have ColSelect checked
+            if (dgvEquipment.Columns.Contains("ColSelect"))
             {
                 foreach (DataGridViewRow row in dgvEquipment.Rows)
                 {
@@ -679,9 +848,10 @@ namespace Inventory_Management_System.Forms
                     }
                 }
             }
-            else
+
+            // If nothing checked with checkboxes, fall back to row selection
+            if (selected.Count == 0)
             {
-                // In all other modes, use normal Grid Selection
                 foreach (DataGridViewRow row in dgvEquipment.SelectedRows)
                 {
                     var code = row.Cells["Code"].Value?.ToString();
@@ -800,20 +970,10 @@ namespace Inventory_Management_System.Forms
             _statusFilter = null;
             _customFilter = null;
 
-            // Reset Select mode back to normal browsing — Refresh doubles as
-            // the way to exit checkbox/select-all mode since there's no
-            // dedicated "None" option in the dropdown itself.
-            if (cmbSelectMode != null)
-            {
-                cmbSelectMode.SelectedIndex = -1;
-                cmbSelectMode.Text = "Select";
-            }
+            SetAllCheckboxes(false);
+            if (_chkHeaderBox != null) _chkHeaderBox.Checked = false;
 
-            if (dgvEquipment.Columns.Contains("ColSelect"))
-                dgvEquipment.Columns["ColSelect"].Visible = false;
             dgvEquipment.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-
-            dgvEquipment.MultiSelect = false;
             dgvEquipment.ClearSelection();
 
             LoadEquipment();
@@ -854,56 +1014,7 @@ namespace Inventory_Management_System.Forms
             dgvEquipment.SelectAll();
         }
 
-        // ── Dropdown Selection Mode Handler ────────────────────────────────
-        private void cmbSelectMode_SelectedIndexChanged(object? sender, EventArgs e)
-        {
-            string selectedMode = cmbSelectMode.SelectedItem?.ToString() ?? "";
 
-            if (selectedMode == "Select ✔")
-            {
-                // Enter checkbox mode
-                dgvEquipment.MultiSelect = false;
-                dgvEquipment.ClearSelection();
-
-                if (dgvEquipment.Columns.Contains("ColSelect"))
-                {
-                    dgvEquipment.Columns["ColSelect"].Visible = true;
-                    dgvEquipment.Columns["ColSelect"].DisplayIndex = 0;
-                }
-            }
-            else if (selectedMode == "Select All")
-            {
-                // Select all rows immediately
-                if (dgvEquipment.Columns.Contains("ColSelect"))
-                {
-                    dgvEquipment.Columns["ColSelect"].Visible = false;
-                }
-
-                dgvEquipment.MultiSelect = true;
-                dgvEquipment.SelectAll();
-            }
-            else if (selectedMode == "Deselect All")
-            {
-                if (dgvEquipment.Columns.Contains("ColSelect") && dgvEquipment.Columns["ColSelect"].Visible)
-                {
-                    foreach (DataGridViewRow r in dgvEquipment.Rows)
-                        r.Cells["ColSelect"].Value = false;
-                }
-                dgvEquipment.ClearSelection();
-                dgvEquipment.CurrentCell = null;
-            }
-            else
-            {
-                // Neutral default state ("Select")
-                if (dgvEquipment.Columns.Contains("ColSelect"))
-                {
-                    dgvEquipment.Columns["ColSelect"].Visible = false;
-                }
-
-                dgvEquipment.MultiSelect = false;
-                dgvEquipment.ClearSelection();
-            }
-        }
 
         private void btnGenerateQRSheet_Click(object sender, EventArgs e)
         {

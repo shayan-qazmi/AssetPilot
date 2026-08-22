@@ -1,9 +1,11 @@
 ﻿// Forms/EmployeeDetailPopup.cs
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 using Inventory_Management_System.Helpers;
 using Inventory_Management_System.Models;
+using Inventory_Management_System.Services;
 
 namespace Inventory_Management_System.Forms
 {
@@ -14,7 +16,7 @@ namespace Inventory_Management_System.Forms
         private readonly Employee _employee;
         private Image? _avatarImage;
 
-        private const int DialogWidth = 520;
+        private const int DialogWidth = 580;
         private const int PaddingOuter = 20;
         private const int AvatarSize = 140;
 
@@ -26,6 +28,21 @@ namespace Inventory_Management_System.Forms
         {
             _employee = employee;
             InitializeUI();
+        }
+
+        private int GetActiveAllocationCount()
+        {
+            try
+            {
+                var svc = new AllocationService();
+                var result = svc.GetByEmployee(_employee.Id);
+                if (!result.Success || result.Data == null) return 0;
+                return result.Data.Count(a => a.Status == "approved");
+            }
+            catch
+            {
+                return 0;
+            }
         }
 
         private void InitializeUI()
@@ -50,8 +67,10 @@ namespace Inventory_Management_System.Forms
                 Text = "👤",
                 Font = new Font("Segoe UI Emoji", 13f),
                 ForeColor = Color.White,
-                AutoSize = true,
-                Location = new Point(20, 16),
+                AutoSize = false,
+                Size = new Size(30, 30),
+                Location = new Point(18, 13),
+                TextAlign = ContentAlignment.MiddleCenter,
                 BackColor = Color.Transparent
             };
             header.Controls.Add(lblHeaderIcon);
@@ -59,7 +78,7 @@ namespace Inventory_Management_System.Forms
             var lblTitle = new Label
             {
                 Text = "Employee Details",
-                Location = new Point(50, 15),
+                Location = new Point(lblHeaderIcon.Right + 8, 15),
                 AutoSize = true,
                 Font = new Font("Segoe UI Semibold", 12.5f, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = Color.White,
@@ -97,7 +116,7 @@ namespace Inventory_Management_System.Forms
                 Font = new Font("Segoe UI Semibold", 10.5f),
                 ForeColor = ThemeHelper.TextPrimary,
                 AutoSize = false,
-                Size = new Size(AvatarSize, 20),
+                Size = new Size(AvatarSize, 36),
                 Location = new Point(avatarX, avatarPanel.Bottom + 10),
                 TextAlign = ContentAlignment.MiddleCenter,
                 AutoEllipsis = true
@@ -164,19 +183,27 @@ namespace Inventory_Management_System.Forms
                 };
                 detailBlock.Controls.Add(labelLbl);
 
+                string displayValue = string.IsNullOrWhiteSpace(value) ? "—" : value;
+                int valueWidth = detailW - 50;
+
                 var valueLbl = new Label
                 {
-                    Text = string.IsNullOrWhiteSpace(value) ? "—" : value,
+                    Text = displayValue,
                     Font = new Font("Segoe UI Semibold", 9.25f),
                     ForeColor = ThemeHelper.TextPrimary,
                     AutoSize = false,
-                    Size = new Size(detailW - 50, 18),
+                    Size = new Size(valueWidth, 18),
                     Location = new Point(40, rowY + 15),
-                    AutoEllipsis = true
+                    AutoEllipsis = false
                 };
+                // Grow the value label (and thus the row) to fit wrapped text
+                // instead of clipping — long emails/names now wrap to a 2nd
+                // line rather than getting cut off or ellipsis-truncated.
+                int prefH = valueLbl.GetPreferredSize(new Size(valueWidth, 0)).Height;
+                valueLbl.Height = Math.Max(18, prefH);
                 detailBlock.Controls.Add(valueLbl);
 
-                rowY += 46;
+                rowY += Math.Max(46, 15 + valueLbl.Height + 12);
 
                 if (!isLast)
                 {
@@ -193,7 +220,8 @@ namespace Inventory_Management_System.Forms
             DetailRow("🆔", "Employee Code", _employee.EmployeeCode);
             DetailRow("💼", "Designation", _employee.Department);
             DetailRow("✉", "Email", _employee.Email);
-            DetailRow("📞", "Phone", _employee.Phone, isLast: true);
+            DetailRow("📞", "Phone", _employee.Phone);
+            DetailRow("📋", "Active Allocations", GetActiveAllocationCount().ToString(), isLast: true);
 
             detailBlock.Height = rowY;
 

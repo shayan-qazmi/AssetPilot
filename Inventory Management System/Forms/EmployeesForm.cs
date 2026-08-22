@@ -20,6 +20,11 @@ namespace Inventory_Management_System.Forms
         private int _pageSize = 25;
         private int _totalPages = 1;
 
+        // ── Gmail-style checkbox header controls ──
+        private Panel _chkHeaderPanel = null!;
+        private CheckBox _chkHeaderBox = null!;
+        private bool _suppressHeaderSync;
+
         private string? _pendingSelectCode;
         private bool _hasPendingSelection = false;
 
@@ -28,7 +33,9 @@ namespace Inventory_Management_System.Forms
             InitializeComponent();
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             _employeeService = new EmployeeService();
+            SetupPageSizeOptions();
             ApplyTheme();
+            SetupCheckboxSelectHeader();
             dgvEmployees.CellDoubleClick += DgvEmployees_CellDoubleClick;
             LoadEmployees();
 
@@ -40,6 +47,14 @@ namespace Inventory_Management_System.Forms
                     dgvEmployees.CurrentCell = null;
                 }
             };
+        }
+
+        private void SetupPageSizeOptions()
+        {
+            string current = cmbPageSize.SelectedItem?.ToString() ?? "25";
+            cmbPageSize.Items.Clear();
+            cmbPageSize.Items.AddRange(new object[] { "25", "50", "100", "250", "500", "1000" });
+            cmbPageSize.SelectedItem = cmbPageSize.Items.Contains(current) ? current : "25";
         }
 
         public EmployeesForm(string employeeCode) : this()
@@ -79,6 +94,143 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
             ThemeHelper.StyleSecondaryButton(btnNextPage);
+        }
+
+        private void SetupCheckboxSelectHeader()
+        {
+            if (!dgvEmployees.Columns.Contains("ColSelect"))
+            {
+                var chkCol = new DataGridViewCheckBoxColumn
+                {
+                    Name = "ColSelect",
+                    HeaderText = "",
+                    Width = 40,
+                    ReadOnly = false,
+                    Visible = true,
+                    AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
+                    TrueValue = true,
+                    FalseValue = false,
+                    IndeterminateValue = false
+                };
+                dgvEmployees.Columns.Add(chkCol);
+                dgvEmployees.Columns["ColSelect"].DisplayIndex = 0;
+
+                dgvEmployees.ReadOnly = false;
+                foreach (DataGridViewColumn col in dgvEmployees.Columns)
+                    col.ReadOnly = col.Name != "ColSelect";
+
+                dgvEmployees.CurrentCellDirtyStateChanged += (s, ev) =>
+                {
+                    if (dgvEmployees.CurrentCell is DataGridViewCheckBoxCell)
+                        dgvEmployees.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                };
+
+                dgvEmployees.CellValueChanged += (s, ev) =>
+                {
+                    if (ev.ColumnIndex >= 0 && dgvEmployees.Columns[ev.ColumnIndex].Name == "ColSelect")
+                    {
+                        SyncHeaderCheckbox();
+                    }
+                };
+            }
+
+            _chkHeaderPanel = new Panel
+            {
+                Name = "pnlCheckHeader",
+                Size = new Size(62, 32),
+                Margin = new Padding(4, 4, 0, 0),
+                Cursor = Cursors.Hand,
+                BackColor = ThemeHelper.IsDarkMode
+                    ? Color.FromArgb(40, 44, 52)
+                    : Color.FromArgb(241, 243, 244)
+            };
+
+            _chkHeaderBox = new CheckBox
+            {
+                Name = "chkHeaderBox",
+                Size = new Size(40, 32),
+                Location = new Point(0, 0),
+                Appearance = Appearance.Normal,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                ForeColor = ThemeHelper.TextPrimary,
+                Text = "",
+                Cursor = Cursors.Hand,
+                TextAlign = ContentAlignment.MiddleCenter,
+                CheckAlign = ContentAlignment.MiddleCenter,
+                ThreeState = false
+            };
+            _chkHeaderBox.FlatAppearance.BorderSize = 0;
+            _chkHeaderBox.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            _chkHeaderBox.FlatAppearance.CheckedBackColor = Color.Transparent;
+            _chkHeaderBox.CheckedChanged += (s, e) =>
+            {
+                if (_suppressHeaderSync) return;
+                SetAllCheckboxes(_chkHeaderBox.Checked);
+            };
+
+            var btnArrow = new Button
+            {
+                Name = "btnCheckArrow",
+                Text = "▾",
+                Size = new Size(22, 32),
+                Location = new Point(40, 0),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                ForeColor = ThemeHelper.TextPrimary,
+                Font = new Font("Segoe UI", 8f),
+                Cursor = Cursors.Hand,
+                Padding = Padding.Empty,
+                Margin = Padding.Empty
+            };
+            btnArrow.FlatAppearance.BorderSize = 0;
+            btnArrow.FlatAppearance.MouseOverBackColor = ThemeHelper.IsDarkMode
+                ? Color.FromArgb(55, 60, 70)
+                : Color.FromArgb(218, 220, 224);
+            btnArrow.Click += (s, e) =>
+            {
+                var menu = new ContextMenuStrip { Font = ThemeHelper.FontDefault };
+                var itemAll = new ToolStripMenuItem("All");
+                var itemNone = new ToolStripMenuItem("None");
+                itemAll.Click += (_, __) => { SetAllCheckboxes(true); _chkHeaderBox.Checked = true; };
+                itemNone.Click += (_, __) => { SetAllCheckboxes(false); _chkHeaderBox.Checked = false; };
+                menu.Items.Add(itemAll);
+                menu.Items.Add(itemNone);
+                menu.Show(btnArrow, new Point(0, btnArrow.Height));
+            };
+
+            _chkHeaderPanel.Paint += (s, e) =>
+            {
+                using var pen = new Pen(ThemeHelper.IsDarkMode
+                    ? Color.FromArgb(65, 70, 80)
+                    : Color.FromArgb(200, 202, 206), 1f);
+                e.Graphics.DrawLine(pen, 40, 4, 40, _chkHeaderPanel.Height - 4);
+            };
+
+            _chkHeaderPanel.Controls.Add(_chkHeaderBox);
+            _chkHeaderPanel.Controls.Add(btnArrow);
+
+            flowToolbar.Controls.Add(_chkHeaderPanel);
+            flowToolbar.Controls.SetChildIndex(_chkHeaderPanel, flowToolbar.Controls.IndexOf(btnAdd));
+        }
+
+        private void SetAllCheckboxes(bool check)
+        {
+            if (!dgvEmployees.Columns.Contains("ColSelect")) return;
+            foreach (DataGridViewRow row in dgvEmployees.Rows)
+                row.Cells["ColSelect"].Value = check;
+            dgvEmployees.RefreshEdit();
+        }
+
+        private void SyncHeaderCheckbox()
+        {
+            if (!dgvEmployees.Columns.Contains("ColSelect") || _chkHeaderBox == null) return;
+            _suppressHeaderSync = true;
+            int total = dgvEmployees.Rows.Count;
+            int checked_ = dgvEmployees.Rows.Cast<DataGridViewRow>()
+                .Count(r => Convert.ToBoolean(r.Cells["ColSelect"].Value));
+            _chkHeaderBox.Checked = total > 0 && checked_ == total;
+            _suppressHeaderSync = false;
         }
 
 
@@ -258,6 +410,7 @@ namespace Inventory_Management_System.Forms
                 btnNextPage.Enabled = _currentPage < _totalPages;
 
                 dgvEmployees.AutoResizeColumns();
+                SyncHeaderCheckbox();
             }
             catch (Exception ex)
             {
@@ -337,36 +490,84 @@ namespace Inventory_Management_System.Forms
             }
         }
 
-        private void btnDelete_Click(object sender, EventArgs e)
+        private List<string> GetSelectedEmployeeCodes()
         {
-            if (dgvEmployees.SelectedRows.Count == 0)
-            {
-                ToastHelper.Show(this, "Please select an employee to delete.", ToastType.Info);
-                return;
-            }
-            var code = dgvEmployees.SelectedRows[0].Cells[0].Value?.ToString();
-            if (string.IsNullOrEmpty(code)) return;
+            var codes = new List<string>();
 
-            var resultAll = _employeeService.GetAll();
-            if (resultAll.Success && resultAll.Data != null)
+            if (dgvEmployees.Columns.Contains("ColSelect"))
             {
-                var emp = resultAll.Data.Find(x => string.Equals(x.EmployeeCode, code, StringComparison.OrdinalIgnoreCase));
-                if (emp != null)
+                foreach (DataGridViewRow row in dgvEmployees.Rows)
                 {
-                    if (MessageBox.Show("Are you sure you want to delete this employee?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                    var val = row.Cells["ColSelect"].Value;
+                    if (val is bool b && b)
                     {
-                        var result = _employeeService.Delete(emp.Id);
-                        if (result.Success)
-                        {
-                            ToastHelper.Show(this, "Employee deleted successfully.", ToastType.Success);
-                            LoadEmployees(txtSearch.Text.Trim());
-                        }
-                        else
-                        {
-                            ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
-                        }
+                        var code = row.Cells[0].Value?.ToString();
+                        if (!string.IsNullOrEmpty(code)) codes.Add(code);
                     }
                 }
+            }
+
+            if (codes.Count == 0)
+            {
+                foreach (DataGridViewRow row in dgvEmployees.SelectedRows)
+                {
+                    var code = row.Cells[0].Value?.ToString();
+                    if (!string.IsNullOrEmpty(code)) codes.Add(code);
+                }
+            }
+
+            return codes;
+        }
+
+        private void btnDelete_Click(object sender, EventArgs e)
+        {
+            var selectedCodes = GetSelectedEmployeeCodes();
+            if (selectedCodes.Count == 0)
+            {
+                ToastHelper.Show(this, "Please select at least one employee to delete.", ToastType.Info);
+                return;
+            }
+
+            var resultAll = _employeeService.GetAll();
+            if (!resultAll.Success || resultAll.Data == null)
+            {
+                ToastHelper.Show(this, "Unable to retrieve employee data.", ToastType.Error);
+                return;
+            }
+
+            var selectedEmployees = resultAll.Data
+                .Where(emp => selectedCodes.Any(c => string.Equals(c, emp.EmployeeCode, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            if (selectedEmployees.Count == 0) return;
+
+            string confirmMsg = selectedEmployees.Count == 1
+                ? $"Are you sure you want to delete employee '{selectedEmployees[0].FullName}' ({selectedEmployees[0].EmployeeCode})?"
+                : $"Are you sure you want to delete these {selectedEmployees.Count} employees?";
+
+            if (MessageBox.Show(confirmMsg, "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+
+            int deletedCount = 0;
+            string? firstError = null;
+
+            foreach (var emp in selectedEmployees)
+            {
+                var result = _employeeService.Delete(emp.Id);
+                if (result.Success)
+                    deletedCount++;
+                else if (firstError == null)
+                    firstError = result.ErrorMessage;
+            }
+
+            if (deletedCount > 0)
+            {
+                ToastHelper.Show(this, $"{deletedCount} employee(s) deleted successfully.", ToastType.Success);
+                LoadEmployees(txtSearch.Text.Trim());
+            }
+            else if (firstError != null)
+            {
+                ToastHelper.Show(this, firstError, ToastType.Error);
             }
         }
 
@@ -439,6 +640,8 @@ namespace Inventory_Management_System.Forms
         {
             txtSearch.Text = string.Empty;
             _currentPage = 1;
+            SetAllCheckboxes(false);
+            if (_chkHeaderBox != null) _chkHeaderBox.Checked = false;
             LoadEmployees();
             ToastHelper.Show(this, "Employees refreshed.", ToastType.Info);
         }

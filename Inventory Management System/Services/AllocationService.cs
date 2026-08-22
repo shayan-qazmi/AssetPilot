@@ -82,10 +82,9 @@ namespace Inventory_Management_System.Services
                 string action = allocation.Status == "approved"
                     ? AuditService.ActionAllocationApproved
                     : AuditService.ActionAllocationRequested;
-
                 _audit.Log(equipment.Id, action,
-                    $"Status: {equipment.CurrentStatus}",
-                    $"Employee: {empName} | Location: {locName} | Allocation Status: {allocation.Status}");
+                                  $"Status: {equipment.CurrentStatus}",
+                                  $"Employee: {empName} | Location: {locName} | Allocation Status: {allocation.Status} | Source Screen: Allocation Screen");
                 return ServiceResult<Allocation>.Ok(allocation);
             }
             catch (Exception ex)
@@ -119,8 +118,8 @@ namespace Inventory_Management_System.Services
     : "—";
 
                 _audit.Log(allocation.EquipmentId, AuditService.ActionAllocationReturned,
-                    $"Allocated to: {empName}",
-                    "Status: In Store");
+                        $"Allocated to: {empName}",
+                        "Status: In Store | Source Screen: Allocation Screen");
                 return ServiceResult<bool>.Ok(true);
             }
             catch (Exception ex)

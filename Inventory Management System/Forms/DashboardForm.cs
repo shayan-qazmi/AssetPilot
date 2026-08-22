@@ -1,17 +1,17 @@
 // Forms/DashboardForm.cs
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Reflection;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Text;
-using System.Linq;
-using System.Windows.Forms;
 using Inventory_Management_System.Forms;
 using Inventory_Management_System.Helpers;
 using Inventory_Management_System.Models;
 using Inventory_Management_System.Services;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+using System.Linq;
+using System.Reflection;
+using System.Windows.Forms;
 
 namespace Inventory_Management_System
 {
@@ -38,6 +38,57 @@ namespace Inventory_Management_System
                 cp.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
                 return cp;
             }
+        }
+    }
+
+    // BorderStyle.None alone doesn't always stop Windows painting its own
+    // border on a TextBox — stripping WS_BORDER / WS_EX_CLIENTEDGE at the
+    // window-style level (not just intercepting the paint message) is what
+    // actually removes it reliably.
+    internal class NoBorderTextBox : TextBox
+    {
+        private const int WS_BORDER = 0x00800000;
+        private const int WS_EX_CLIENTEDGE = 0x00000200;
+        private const int WS_EX_STATICEDGE = 0x00020000;
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                var cp = base.CreateParams;
+                cp.Style &= ~WS_BORDER;
+                cp.ExStyle &= ~WS_EX_CLIENTEDGE;
+                cp.ExStyle &= ~WS_EX_STATICEDGE;
+                return cp;
+            }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_NCPAINT = 0x0085;
+            if (m.Msg == WM_NCPAINT) return;
+            base.WndProc(ref m);
+        }
+    }
+
+    // Standard Label wraps text onto a second line whenever there's enough
+    // vertical room — AutoEllipsis only kicks in when there's NO room to
+    // wrap. That's why "long" rows were wrapping and overlapping the line
+    // below instead of truncating. This forces true single-line + ellipsis
+    // rendering no matter how tall the label is.
+    internal class SingleLineLabel : Label
+    {
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var flags = TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding;
+            flags |= TextAlign switch
+            {
+                ContentAlignment.MiddleLeft => TextFormatFlags.VerticalCenter | TextFormatFlags.Left,
+                ContentAlignment.MiddleCenter => TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter,
+                ContentAlignment.MiddleRight => TextFormatFlags.VerticalCenter | TextFormatFlags.Right,
+                _ => TextFormatFlags.Top | TextFormatFlags.Left
+            };
+            TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle, ForeColor, flags);
         }
     }
 
@@ -79,14 +130,15 @@ namespace Inventory_Management_System
         private Panel? _panelDonut   = null;
         private Panel? _panelBar     = null;
         private Panel? _panelLine    = null;
-        private Panel? _panelTopRow;   
-        private Panel? _panelBotRow;
         private Panel? _panelActivities = null;
         private Panel? _pnlSidebarHeader;
         private Panel? _pnlSearchBox;
         private TextBox? _txtSearch;
         private Panel? _pnlUserProfile;
         private Form? _profilePopup;
+        private string _profileFullName = "";
+        private string _profileUsername = "";
+        private string _profileEmail = "";
         private Label? _lblProfileChevron;
         private float _chevronRotation = 0f; // 0 = pointing down (closed), 180 = pointing up (open)
         private System.Windows.Forms.Timer? _chevronAnimTimer;
@@ -103,7 +155,6 @@ namespace Inventory_Management_System
 
         private List<(RectangleF Bounds, string Name, int Count)> _empHitRows = new();
         private int _empHoverIndex = -1;
-        private Point _empMousePos;
 
         private List<(RectangleF Bounds, string Location, string RoomLabel, int InStock, int Allocated, int Repair)> _locHitCols = new();
         private int _locHoverIndex = -1;
@@ -137,7 +188,6 @@ namespace Inventory_Management_System
         // AnimTimer_Tick), so chart duration is always accurate regardless
         // of how long the card animation took.
         private readonly Stopwatch _chartAnimClock = new();
-        private bool _chartAnimClockStarted = false;
         // Chart/activities animation duration — deliberately independent of the card
         // entrance speed (CardAnimStepPerTick). They still START at the same instant
         // (both begin in LoadStats), but this controls how long they take to settle.
@@ -163,6 +213,15 @@ namespace Inventory_Management_System
         private int _catHoverIndex = -1;
         private Point _catMousePos;
 
+
+        
+        private List<(RectangleF Bounds, string Month, string DateLabel, float Allocated, float InStock)> _trendHitPoints = new();
+        private int _trendHoverIndex = -1;
+        private Point _trendMousePos;
+        private string _trendPeriod = "This Year";
+        private Label? _lblTrendPeriod;
+        private Form? _trendPeriodPopup;
+
         // ── Cached chart fonts — created once, reused across every repaint
         // instead of allocating (and GDI-handle-backed) fonts every single
         // Paint call. These fire at ~66fps during a 2.8s animation, so this
@@ -177,6 +236,7 @@ namespace Inventory_Management_System
         private static readonly Font DonutLegendBoldFont = new("Segoe UI", 8.25f, FontStyle.Bold, GraphicsUnit.Point);
         private static readonly Font TooltipTitleFont = new("Segoe UI", 8.5f, FontStyle.Bold);
         private static readonly Font TooltipSubFont = new("Segoe UI", 8f);
+        private static readonly Font ChartTitleEmojiFont = new("Segoe UI Emoji", 10f, FontStyle.Regular, GraphicsUnit.Point);
         private const int BellRightOffset = 118; // bell sits left of the profile widget, both hugging the right edge
         private Panel? _pnlThemeToggle;
         private float _toggleThumbProgress = 0f;
@@ -206,9 +266,10 @@ namespace Inventory_Management_System
 
 
         private ToolTip? _employeeTooltip;
-        private string _barPeriod = "All Time";
+        private string _barPeriod = "This Year"; 
         private Dictionary<string, int>? _periodOverrideCounts; // null = show live/all-time counts
         private Dictionary<string, float[]> _trendCache = new();
+        private Dictionary<string, (string[] Labels, string[] DateLabels, float[] Allocated, float[] InStock)> _trendSeriesCache = new();
         private Dictionary<string, string?> _deltaCache = new();
 
 
@@ -245,9 +306,18 @@ namespace Inventory_Management_System
             this.Shown += (s, e) =>
             {
                 // BeginInvoke queues this for right after any pending maximize-resize
-                // message has already been processed, guaranteeing panelStats.Width is
-                // final before cards get built — no more re-click needed.
-                BeginInvoke(new Action(() => { if (panelStats.Visible) LoadStats(); }));
+                // message has already been processed, guaranteeing panelTop/panelStats
+                // widths are final — both for the stat cards and the top-bar widgets
+                // (search box, theme toggle, profile avatar), which could otherwise be
+                // positioned using a stale/zero width from before the window resized.
+                BeginInvoke(new Action(() =>
+                {
+                    PositionTopSearchBar();
+                    PositionTopProfileWidget();
+                    panelTop.Invalidate(true);
+
+                    if (panelStats.Visible) LoadStats();
+                }));
             };
         }
 
@@ -272,7 +342,9 @@ namespace Inventory_Management_System
 
             // Dashboard's own top strip color — intentionally NOT ThemeHelper.Header,
             // since that color is shared by other forms' header strips.
-            panelTop.BackColor    = ThemeHelper.TopBarBg;
+            panelTop.BackColor = ThemeHelper.TopBarBg;
+            panelTop.Paint -= PaintTopBarDiagonal;
+            panelTop.Paint += PaintTopBarDiagonal;
             NotificationHelper.AttachBell(panelTop, this, rightOffset: BellRightOffset);
             BuildThemeToggle();
             BuildTopSearchBar();
@@ -292,11 +364,12 @@ namespace Inventory_Management_System
             lblTitle.Dock         = DockStyle.Fill;
             lblTitle.TextAlign    = ContentAlignment.MiddleCenter;
             lblTitle.Font         = new Font(lblTitle.Font.FontFamily, 16F, FontStyle.Bold);
-            lblTitle.ForeColor    = ThemeHelper.TitleForeColor;
-            lblTitle.Visible      = true;
+            lblTitle.ForeColor = ThemeHelper.TitleForeColor;
+            lblTitle.BackColor = Color.Transparent;
+            lblTitle.Visible = true;
             this.Text             = "Q-Inventory";
 
-            AnimateTitleTo("Dashboard");
+            AnimateTitleTo("🏠 Dashboard");
 
             panelMenu.BackColor = ThemeHelper.Sidebar;
 
@@ -379,6 +452,7 @@ namespace Inventory_Management_System
             activeNavButton = btnDashboard;
             ThemeHelper.StyleSidebarButton(btnEquipment);
             ThemeHelper.StyleSidebarButton(btnEmployees);
+            SetSidebarIcon(btnEmployees, "👥");
             ThemeHelper.StyleSidebarButton(btnLocations);
             ThemeHelper.StyleSidebarButton(btnAllocation);
             ThemeHelper.StyleSidebarButton(btnReturns);
@@ -424,9 +498,10 @@ namespace Inventory_Management_System
 
         private void BuildBarPeriodSelector(Panel host)
         {
+         
             var wrap = new Panel
             {
-                Size = new Size(100, 24),
+                Size = new Size(110, 24),
                 BackColor = ThemeHelper.PeriodDropBg,   // SOLID — covers the title underneath completely
                 Cursor = Cursors.Hand
             };
@@ -453,23 +528,54 @@ namespace Inventory_Management_System
             wrap.BringToFront();
             _lblBarPeriod = lbl;
         }
-
-        private void ToggleBarPeriodPopup(Label anchor)
+        private void BuildTrendPeriodSelector(Panel host)
         {
-            if (_barPeriodPopup != null && !_barPeriodPopup.IsDisposed)
+            var wrap = new Panel
             {
-                _barPeriodPopup.Close();
-                _barPeriodPopup = null;
+                Size = new Size(110, 24),
+                BackColor = ThemeHelper.PeriodDropBg,
+                Cursor = Cursors.Hand
+            };
+            var lbl = new Label
+            {
+                Text = _trendPeriod + "  ▾",
+                Font = new Font("Segoe UI", 8f),
+                ForeColor = ThemeHelper.ChartSecText,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleRight,
+                BackColor = ThemeHelper.PeriodDropBg,
+                Cursor = Cursors.Hand,
+                AutoEllipsis = true
+            };
+            wrap.Controls.Add(lbl);
+
+            void OpenPeriodPopup(object? s, EventArgs e) => ToggleTrendPeriodPopup(lbl);
+            wrap.Click += OpenPeriodPopup;
+            lbl.Click += OpenPeriodPopup;
+
+            host.Controls.Add(wrap);
+            wrap.Location = new Point(host.Width - wrap.Width - 12, 10);
+            wrap.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            wrap.BringToFront();
+            _lblTrendPeriod = lbl;
+        }
+
+        private void ToggleTrendPeriodPopup(Label anchor)
+        {
+            if (_trendPeriodPopup != null && !_trendPeriodPopup.IsDisposed)
+            {
+                _trendPeriodPopup.Close();
+                _trendPeriodPopup = null;
                 return;
             }
 
-            var options = new[] { "All Time", "This Month", "Last Month", "This Year" };
+            var options = new[] { "Today", "This Week", "Last Week", "This Month", "Last Month", "This Year" };
             var popup = new NoActivatePopup
             {
                 FormBorderStyle = FormBorderStyle.None,
                 StartPosition = FormStartPosition.Manual,
                 ShowInTaskbar = false,
-                Size = new Size(120, options.Length * 28 + 8),
+                Size = new Size(130, options.Length * 28 + 8),
                 BackColor = ThemeHelper.PopupBg
             };
             popup.Paint += (s, e) =>
@@ -488,7 +594,70 @@ namespace Inventory_Management_System
                 {
                     Text = opt,
                     Location = new Point(10, y),
-                    Size = new Size(100, 26),
+                    Size = new Size(110, 26),
+                    Font = ThemeHelper.FontSmall,
+                    ForeColor = opt == _trendPeriod ? ThemeHelper.Accent : ThemeHelper.TextPrimary,
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    Cursor = Cursors.Hand,
+                    BackColor = ThemeHelper.PopupBg
+                };
+                row.MouseEnter += (s, e) => row.BackColor = ThemeHelper.PopupHoverBg;
+                row.MouseLeave += (s, e) => row.BackColor = ThemeHelper.PopupBg;
+                row.Click += (s, e) =>
+                {
+                    _trendPeriod = opt;
+                    if (_lblTrendPeriod != null) _lblTrendPeriod.Text = _trendPeriod + "  ▾";
+                    _panelTrend?.Invalidate();
+                    popup.Close();
+                };
+
+                popup.Controls.Add(row);
+                y += 28;
+            }
+
+            popup.Deactivate += (s, e) => popup.Close();
+            popup.FormClosed += (s, e) => _trendPeriodPopup = null;
+            _trendPeriodPopup = popup;
+            popup.Show(this);
+        }
+
+        // AFTER
+        private void ToggleBarPeriodPopup(Label anchor)
+        {
+            if (_barPeriodPopup != null && !_barPeriodPopup.IsDisposed)
+            {
+                _barPeriodPopup.Close();
+                _barPeriodPopup = null;
+                return;
+            }
+
+            var options = new[] { "Today", "This Week", "Last Week", "This Month", "Last Month", "This Year" };
+            var popup = new NoActivatePopup
+            {
+                FormBorderStyle = FormBorderStyle.None,
+                StartPosition = FormStartPosition.Manual,
+                ShowInTaskbar = false,
+                Size = new Size(130, options.Length * 28 + 8),
+                BackColor = ThemeHelper.PopupBg
+            };
+            popup.Paint += (s, e) =>
+            {
+                using var pen = new Pen(ThemeHelper.PopupBorder, 1);
+                e.Graphics.DrawRectangle(pen, 0, 0, popup.Width - 1, popup.Height - 1);
+            };
+
+            var screenPoint = anchor.PointToScreen(new Point(0, anchor.Height));
+            popup.Location = new Point(screenPoint.X - popup.Width + anchor.Width, screenPoint.Y + 4);
+
+            int y = 4;
+            foreach (var opt in options)
+            {
+              
+                var row = new Label
+                {
+                    Text = opt,
+                    Location = new Point(10, y),
+                    Size = new Size(110, 26),
                     Font = ThemeHelper.FontSmall,
                     ForeColor = opt == _barPeriod ? ThemeHelper.Accent : ThemeHelper.TextPrimary,
                     TextAlign = ContentAlignment.MiddleLeft,
@@ -553,47 +722,11 @@ namespace Inventory_Management_System
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
 
-            using (var regionPath = new GraphicsPath())
-            {
-                regionPath.AddEllipse(0, 0, d - 1, d - 1);
-                _pnlThemeToggle.Region = new Region(regionPath);
-            }
-
             _pnlThemeToggle.Paint += (s, e) =>
             {
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
-
                 var rect = new Rectangle(0, 0, d - 1, d - 1);
-
-                Color topC, botC;
-                if (ThemeHelper.IsDarkMode)
-                {
-                    topC = Color.FromArgb(235, 60, 64, 74);
-                    botC = Color.FromArgb(235, 40, 43, 51);
-                }
-                else
-                {
-                    topC = Color.FromArgb(235, 255, 255, 255);
-                    botC = Color.FromArgb(235, 214, 224, 200);
-                }
-                using (var fillGrad = new LinearGradientBrush(rect, topC, botC, LinearGradientMode.Vertical))
-                    g.FillEllipse(fillGrad, rect);
-
-                // Glassy top-arc gloss, clipped to the circle.
-                using var glossClip = new GraphicsPath();
-                glossClip.AddEllipse(1, 1, d - 3, d - 3);
-                var oldClip = g.Clip;
-                g.SetClip(glossClip);
-                using (var glossBrush = new LinearGradientBrush(
-                           new Rectangle(0, 0, d, d / 2 + 2),
-                           Color.FromArgb(ThemeHelper.IsDarkMode ? 35 : 110, 255, 255, 255),
-                           Color.FromArgb(0, 255, 255, 255), LinearGradientMode.Vertical))
-                    g.FillRectangle(glossBrush, 0, 0, d, d / 2 + 2);
-                g.Clip = oldClip;
-
-                using var borderPen = new Pen(Color.FromArgb(ThemeHelper.IsDarkMode ? 70 : 40, 0, 0, 0), 1f);
-                g.DrawEllipse(borderPen, rect);
 
                 // Mirror-flip: shows the pre-toggle icon in the first half of the
                 // animation, the post-toggle icon in the second half, scaled through
@@ -602,9 +735,9 @@ namespace Inventory_Management_System
                 bool showOldIcon = t < 0.5f;
                 bool iconIsDark = showOldIcon ? _toggleIconWasDark : ThemeHelper.IsDarkMode;
                 string icon = iconIsDark ? "🌙" : "☀";
-                using var iconFont = new Font("Segoe UI Emoji", 13f);
+                using var iconFont = new Font("Segoe UI Emoji", 14f);
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                using var iconFg = new SolidBrush(iconIsDark ? Color.FromArgb(205, 215, 255) : Color.FromArgb(235, 165, 20));
+                using var iconFg = new SolidBrush(iconIsDark ? Color.FromArgb(235, 235, 245) : Color.FromArgb(255, 250, 235));
 
                 float flipScale = MathF.Cos(t * MathF.PI); // 1 → 0 → -1, mirrors the glyph through its own centerline
                 var iconState = g.Save();
@@ -613,15 +746,6 @@ namespace Inventory_Management_System
                 g.TranslateTransform(-d / 2f, -d / 2f);
                 g.DrawString(icon, iconFont, iconFg, rect, sf);
                 g.Restore(iconState);
-
-                // Fading click-pulse ring — purely cosmetic, doesn't gate the switch.
-                if (_toggleThumbProgress < 1f)
-                {
-                    int pad = (int)(7 * _toggleThumbProgress);
-                    int alpha = (int)(150 * (1f - _toggleThumbProgress));
-                    using var pulsePen = new Pen(Color.FromArgb(alpha, ThemeHelper.Accent), 2f);
-                    g.DrawEllipse(pulsePen, pad, pad, Math.Max(1, d - 1 - pad * 2), Math.Max(1, d - 1 - pad * 2));
-                }
             };
 
             _pnlThemeToggle.Click += (s, e) => ToggleThemeAnimated();
@@ -706,14 +830,37 @@ namespace Inventory_Management_System
             _pnlThemeToggle.Invalidate();
         }
 
+        // Resolves a semi-transparent fill blended over an opaque backdrop into a
+        // single flat, opaque color — used so the search box panel and the TextBox
+        // sitting inside it are painted with the EXACT same solid color. Previously
+        // the panel used an alpha-blended fill while the TextBox used a different
+        // solid BackColor, so the TextBox always read as a separate visible box.
+        private static Color ResolveOpaqueBlend(Color translucent, Color backdrop)
+        {
+            float a = translucent.A / 255f;
+            int r = (int)(translucent.R * a + backdrop.R * (1 - a));
+            int g = (int)(translucent.G * a + backdrop.G * (1 - a));
+            int b = (int)(translucent.B * a + backdrop.B * (1 - a));
+            return Color.FromArgb(r, g, b);
+        }
+
         private void BuildTopSearchBar()
         {
             var existing = panelTop.Controls.OfType<Panel>().FirstOrDefault(p => p.Name == "pnlSearchBox");
             existing?.Dispose();
 
             const int boxHeight = 36;
-            const int boxWidth = 280;
-            const int searchRadius = 6; // rounded rectangle, subtle corners — not a pill
+            const int boxWidth = 300;
+            const int searchRadius = 18; // fully rounded pill — reads as "glass", not a form field
+
+            // One flat, opaque color used identically by the panel's Paint handler
+            // AND the TextBox's BackColor — this is what makes the TextBox
+            // invisible as a separate element instead of looking like a nested box.
+            // Low-alpha overlay so the pill reads as frosted glass sitting on the
+            // banner rather than a solid card — the banner color still dominates.
+            Color glassFill = ThemeHelper.IsDarkMode
+                ? ResolveOpaqueBlend(Color.FromArgb(60, 20, 22, 26), ThemeHelper.TopBarBg)
+                : ResolveOpaqueBlend(Color.FromArgb(70, 255, 255, 255), ThemeHelper.TopBarBg);
 
             _pnlSearchBox = new Panel
             {
@@ -736,15 +883,42 @@ namespace Inventory_Management_System
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                using var path = RoundedRect(new Rectangle(0, 0, _pnlSearchBox.Width - 1, _pnlSearchBox.Height - 1), searchRadius);
+                var rect = new Rectangle(0, 0, _pnlSearchBox.Width - 1, _pnlSearchBox.Height - 1);
 
-                using var fillBrush = new SolidBrush(ThemeHelper.SearchBoxBg);
+                // Layered shadow — soft wide pass + tight close pass — gives the
+                // pill a clear edge against the banner while the fill itself
+                // stays translucent.
+                using (var farShadowPath = RoundedRect(new Rectangle(rect.X - 2, rect.Y + 5, rect.Width + 4, rect.Height + 4), searchRadius))
+                using (var farShadowBrush = new SolidBrush(Color.FromArgb(35, 0, 0, 0)))
+                {
+                    g.FillPath(farShadowBrush, farShadowPath);
+                }
+                using (var shadowPath = RoundedRect(new Rectangle(rect.X - 1, rect.Y + 2, rect.Width + 2, rect.Height + 2), searchRadius))
+                using (var shadowBrush = new SolidBrush(Color.FromArgb(55, 0, 0, 0)))
+                {
+                    g.FillPath(shadowBrush, shadowPath);
+                }
+
+                using var path = RoundedRect(rect, searchRadius);
+
+                using var fillBrush = new SolidBrush(glassFill);
                 g.FillPath(fillBrush, path);
-                using var borderPen = new Pen(Color.FromArgb(40, 0, 0, 0), 1f);
+
+                using var borderPen = new Pen(Color.FromArgb(ThemeHelper.IsDarkMode ? 70 : 55, 255, 255, 255), 1f);
                 g.DrawPath(borderPen, path);
 
+                // Subtle top gloss highlight for the "glass" feel
+                using var glossClip = new GraphicsPath();
+                glossClip.AddEllipse(rect.X, rect.Y - rect.Height, rect.Width, rect.Height * 2);
+                var oldClip = g.Clip;
+                g.SetClip(path, CombineMode.Replace);
+                g.IntersectClip(new Region(glossClip));
+                using (var glossBrush = new SolidBrush(Color.FromArgb(ThemeHelper.IsDarkMode ? 12 : 60, 255, 255, 255)))
+                    g.FillPath(glossBrush, path);
+                g.Clip = oldClip;
+
                 // magnifying glass icon
-                Color iconColor = ThemeHelper.IsDarkMode ? Color.FromArgb(160, 170, 185) : Color.FromArgb(140, 140, 140);
+                Color iconColor = ThemeHelper.IsDarkMode ? Color.FromArgb(190, 195, 210) : Color.FromArgb(120, 120, 120);
                 using var iconPen = new Pen(iconColor, 1.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
                 int glassCx = 20, glassCy = boxHeight / 2 - 2;
                 int glassR = 6;
@@ -754,17 +928,18 @@ namespace Inventory_Management_System
                     glassCx + glassR + 4, glassCy + glassR + 4);
             };
 
-            _txtSearch = new TextBox
+            _txtSearch = new NoBorderTextBox
             {
                 Name = "txtSearch",
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Segoe UI", 9f),
                 ForeColor = ThemeHelper.SearchFgColor,
-                BackColor = ThemeHelper.SearchBoxBg,
+                BackColor = glassFill, // identical to the panel's painted fill — no visible seam
                 Location = new Point(36, (boxHeight - 18) / 2),
                 Size = new Size(boxWidth - 36 - 52, 18),
                 PlaceholderText = "Search anything..."
             };
+
             _pnlSearchBox.Controls.Add(_txtSearch);
 
             var lblShortcut = new Label
@@ -843,12 +1018,12 @@ namespace Inventory_Management_System
     else
         _searchSelectedIndex = (_searchSelectedIndex + delta + _searchResultRows.Count) % _searchResultRows.Count;
 
-    for (int i = 0; i < _searchResultRows.Count; i++)
-        _searchResultRows[i].Row.BackColor = (i == _searchSelectedIndex)
-            ? Color.FromArgb(230, 240, 255)
-            : Color.White;
+            for (int i = 0; i < _searchResultRows.Count; i++)
+                _searchResultRows[i].Row.BackColor = (i == _searchSelectedIndex)
+                    ? (ThemeHelper.IsDarkMode ? Color.FromArgb(50, 54, 62) : Color.FromArgb(238, 240, 244))
+                    : ThemeHelper.CardBg;
 
-    var host = _searchResultRows[_searchSelectedIndex].Row.Parent as Panel;
+            var host = _searchResultRows[_searchSelectedIndex].Row.Parent as Panel;
     host?.ScrollControlIntoView(_searchResultRows[_searchSelectedIndex].Row);
     // _txtSearch keeps focus the whole time now — Enter/Down/Up all keep working
 }
@@ -902,24 +1077,25 @@ namespace Inventory_Management_System
             _searchSelectedIndex = -1;
 
             int rowCount = equipItems.Count + empItems.Count;
+            // Wider than the search box itself — the pill is intentionally narrow,
+            // but result rows (code + name + category) need more horizontal room
+            // or they get squeezed and read as cut off.
+            int popupWidth = Math.Max(_pnlSearchBox!.Width, 380);
             var popup = new NoActivatePopup
             {
                 FormBorderStyle = FormBorderStyle.None,
                 StartPosition = FormStartPosition.Manual,
                 ShowInTaskbar = false,
-                Size = new Size(_pnlSearchBox!.Width, Math.Min(380, 20 + rowCount * 40 + (equipItems.Count > 0 && empItems.Count > 0 ? 24 : 0))),
-                BackColor = Color.White
-            };
-            popup.Paint += (s, e) =>
-            {
-                using var pen = new Pen(Color.FromArgb(220, 220, 220), 1);
-                e.Graphics.DrawRectangle(pen, 0, 0, popup.Width - 1, popup.Height - 1);
+                Size = new Size(popupWidth, Math.Min(380, 20 + rowCount * 40 + (equipItems.Count > 0 && empItems.Count > 0 ? 24 : 0))),
+                BackColor = ThemeHelper.CardBg
             };
 
-            var screenPoint = _pnlSearchBox.PointToScreen(new Point(0, _pnlSearchBox.Height));
-            popup.Location = new Point(screenPoint.X, screenPoint.Y + 4);
+            // Right-align the wider popup to the search box's right edge, since
+            // the popup can now be wider than the box that anchors it.
+            var screenPoint = _pnlSearchBox.PointToScreen(new Point(_pnlSearchBox.Width, _pnlSearchBox.Height));
+            popup.Location = new Point(screenPoint.X - popup.Width, screenPoint.Y + 4);
 
-            var listPanel = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.White };
+            var listPanel = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = ThemeHelper.CardBg };
             popup.Controls.Add(listPanel);
 
             int y = 4;
@@ -939,27 +1115,34 @@ namespace Inventory_Management_System
 
             void AddRow(string title, string subtitle, Action onClick)
             {
-                var row = new Panel { Location = new Point(0, y), Size = new Size(listPanel.Width - 18, 36), BackColor = Color.White, Cursor = Cursors.Hand };
-                var lblT = new Label
+                var row = new Panel { Location = new Point(0, y), Size = new Size(listPanel.Width - 18, 40), BackColor = ThemeHelper.CardBg, Cursor = Cursors.Hand };
+                var lblT = new SingleLineLabel
                 {
                     Text = title,
                     Font = ThemeHelper.FontBold,
                     ForeColor = ThemeHelper.TextPrimary,
-                    Location = new Point(12, 2),
-                    Size = new Size(row.Width - 24, 16),
-                    AutoEllipsis = true
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    Location = new Point(12, 3),
+                    Size = new Size(row.Width - 24, 18),
+                    BackColor = Color.Transparent
                 };
-                var lblS = new Label
+                var lblS = new SingleLineLabel
                 {
                     Text = subtitle,
                     Font = ThemeHelper.FontSmall,
-                    ForeColor = ThemeHelper.TextSecondary,
-                    Location = new Point(12, 18),
-                    Size = new Size(row.Width - 24, 16),
-                    AutoEllipsis = true
+                    ForeColor = ThemeHelper.IsDarkMode ? Color.FromArgb(160, 165, 175) : Color.FromArgb(100, 104, 112),
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    Location = new Point(12, 21),
+                    Size = new Size(row.Width - 24, 18),
+                    BackColor = Color.Transparent
                 };
+             
+          
                 row.Controls.Add(lblT);
                 row.Controls.Add(lblS);
+
+                Color rowDefaultBg = ThemeHelper.CardBg;
+                Color rowHoverBg = ThemeHelper.IsDarkMode ? Color.FromArgb(50, 54, 62) : Color.FromArgb(238, 240, 244);
 
                 void Go()
                 {
@@ -968,15 +1151,15 @@ namespace Inventory_Management_System
                     onClick();
                 }
 
-                row.MouseEnter += (s, e) => { if (row.BackColor != Color.FromArgb(230, 240, 255)) row.BackColor = Color.FromArgb(243, 244, 246); };
-                row.MouseLeave += (s, e) => { if (_searchResultRows.Count > 0 && _searchResultRows[_searchSelectedIndex == -1 ? 0 : _searchSelectedIndex].Row != row) row.BackColor = Color.White; };
+                row.MouseEnter += (s, e) => { row.BackColor = rowHoverBg; lblT.BackColor = Color.Transparent; lblS.BackColor = Color.Transparent; };
+                row.MouseLeave += (s, e) => { if (_searchResultRows.Count > 0 && _searchResultRows[_searchSelectedIndex == -1 ? 0 : _searchSelectedIndex].Row != row) row.BackColor = rowDefaultBg; };
                 row.Click += (s2, e2) => Go();
                 lblT.Click += (s2, e2) => Go();
                 lblS.Click += (s2, e2) => Go();
 
                 listPanel.Controls.Add(row);
                 _searchResultRows.Add((row, Go));
-                y += 36;
+                y += 40;
             }
 
             // TODO (needs EquipmentForm.cs / EmployeesForm.cs source): these onClick
@@ -988,7 +1171,7 @@ namespace Inventory_Management_System
                 AddSectionHeader("EQUIPMENT");
                 foreach (var eq in equipItems)
                     AddRow($"{eq.EquipmentCode} — {eq.Name}", eq.Category ?? "",
-                        () => { AnimateTitleTo("Equipment"); OpenChildForm(new EquipmentForm(eq.EquipmentCode), btnEquipment); });
+                        () => { AnimateTitleTo("🖥️ Equipment"); OpenChildForm(new EquipmentForm(eq.EquipmentCode), btnEquipment); });
             }
             if (empItems.Count > 0)
             {
@@ -1003,8 +1186,18 @@ namespace Inventory_Management_System
             _searchResultsPopup = popup;
             popup.Show(this);
             _txtSearch?.Focus();
-        }   
-
+        }
+        // Strips whatever leading emoji/icon token the button's designer text already
+        // carries, then prefixes the given one — prevents icons stacking (e.g. the old
+        // "👥 👤 Employees" bug where a designer-set emoji and a code-added one collided).
+        private static void SetSidebarIcon(Button btn, string emoji)
+        {
+            string baseText = btn.Text.TrimStart();
+            int firstSpace = baseText.IndexOf(' ');
+            if (firstSpace > 0 && baseText.Substring(0, firstSpace).Any(ch => ch > 127))
+                baseText = baseText.Substring(firstSpace + 1).TrimStart();
+            btn.Text = emoji + " " + baseText;
+        }
         private void PositionTopSearchBar()
         {
             if (_pnlSearchBox == null) return;
@@ -1196,11 +1389,17 @@ namespace Inventory_Management_System
 
         private void BuildUserProfileFooter()
         {
-            // Rebuild from scratch each time ApplyTheme runs (e.g. after
-            // login) so the picture/name/username always reflect who's
-            // actually signed in.
             var existing = panelMenu.Controls.OfType<Panel>().FirstOrDefault(p => p.Name == "pnlUserFooter");
-            existing?.Dispose();
+            if (existing != null)
+            {
+                // Rescue btnLogout before disposing the old footer — it's nested inside
+                // footer now (see below), and Control.Dispose() disposes its children
+                // too. Without this, btnLogout itself would get disposed on the very
+                // next theme toggle and every click/style reference to it would break.
+                existing.Controls.Remove(btnLogout);
+                panelMenu.Controls.Remove(existing);
+                existing.Dispose();
+            }
 
             string fullName = AuthService.CurrentFullName;
             string username = "";
@@ -1222,13 +1421,18 @@ namespace Inventory_Management_System
                 Logger.LogError(ex, "DashboardForm.BuildUserProfileFooter");
             }
 
+            // footer now hosts BOTH the profile row AND btnLogout, so panelMenu only
+            // ever has ONE Dock=Bottom child — no more two-siblings-racing-for-the-edge
+            // ambiguity, which is what caused the profile card to vanish either way.
+            const int profileRowHeight = 68;
+
             var footer = new Panel
             {
                 Name = "pnlUserFooter",
                 Dock = DockStyle.Bottom,
-                Height = 64,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand
+                Height = profileRowHeight + btnLogout.Height,
+                BackColor = ControlPaint.Dark(ThemeHelper.Sidebar, 0.12f),
+                Padding = new Padding(8, 4, 8, 4)
             };
 
             var divider = new Panel
@@ -1239,42 +1443,103 @@ namespace Inventory_Management_System
             };
             footer.Controls.Add(divider);
 
-            const int avatarSize = 40;
+            var hoverStrip = new Panel
+            {
+                Location = new Point(6, 8),
+                Size = new Size(footer.Width - 12, 52),
+                BackColor = ControlPaint.Dark(ThemeHelper.Sidebar, 0.12f),
+                Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+            };
+            hoverStrip.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                using var path = RoundedRect(new Rectangle(0, 0, hoverStrip.Width - 1, hoverStrip.Height - 1), 10);
+                if (hoverStrip.Tag is bool hover && hover)
+                {
+                    using var hoverBrush = new SolidBrush(Color.FromArgb(28, 255, 255, 255));
+                    g.FillPath(hoverBrush, path);
+                }
+            };
+            footer.Controls.Add(hoverStrip);
+            divider.BringToFront();
+
+            const int avatarSize = 38;
             var avatarImage = AvatarHelper.TryLoadUserImage(picturePath);
             footer.Disposed += (s, e) => avatarImage?.Dispose();
 
-            var avatarPanel = new Panel
+            var avatarBitmap = new Bitmap(avatarSize, avatarSize);
+            using (var bg = Graphics.FromImage(avatarBitmap))
+            {
+                bg.SmoothingMode = SmoothingMode.AntiAlias;
+                bg.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                bg.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                bg.Clear(ControlPaint.Dark(ThemeHelper.Sidebar, 0.12f));
+                var rect = new Rectangle(0, 0, avatarSize - 1, avatarSize - 1);
+                AvatarHelper.DrawAvatar(bg, rect, avatarImage);
+                using var ringPen = new Pen(Color.FromArgb(90, 255, 255, 255), 1.3f);
+                bg.DrawEllipse(ringPen, rect);
+            }
+            var avatarPanel = new PictureBox
             {
                 Size = new Size(avatarSize, avatarSize),
-                Location = new Point(16, (footer.Height - avatarSize) / 2),
-                BackColor = Color.Transparent
+                // Was measured against footer.Height (68 before merge). Now footer.Height
+                // is 118 (profile row + logout), so this must use profileRowHeight
+                // instead, or the avatar centers itself in the wrong band and drifts
+                // down into where Logout now lives.
+                Location = new Point(14, (profileRowHeight - avatarSize) / 2 - 3),
+                BackColor = ControlPaint.Dark(ThemeHelper.Sidebar, 0.12f),
+                Image = avatarBitmap,
+                SizeMode = PictureBoxSizeMode.CenterImage
             };
-            avatarPanel.Paint += (s, e) =>
-                AvatarHelper.DrawAvatar(e.Graphics, new Rectangle(0, 0, avatarSize - 1, avatarSize - 1), avatarImage);
+            footer.Disposed += (s, e) => avatarBitmap.Dispose();
             footer.Controls.Add(avatarPanel);
 
             var lblName = new Label
             {
-                Text = string.IsNullOrWhiteSpace(fullName) ? username : fullName,
-                Location = new Point(avatarPanel.Right + 10, 15),
+                Text = string.IsNullOrWhiteSpace(fullName) ? (string.IsNullOrWhiteSpace(username) ? "Admin" : username) : fullName,
+                Location = new Point(avatarPanel.Right + 10, 14),
                 AutoSize = true,
-                Font = new Font("Segoe UI Semibold", 9.5f),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
                 ForeColor = Color.White,
-                BackColor = Color.Transparent
+                BackColor = ControlPaint.Dark(ThemeHelper.Sidebar, 0.12f)
             };
             footer.Controls.Add(lblName);
 
             var lblUsername = new Label
             {
-                Text = "@" + username,
+                Text = "@" + (string.IsNullOrWhiteSpace(username) ? "admin" : username),
                 Location = new Point(avatarPanel.Right + 10, lblName.Bottom + 1),
                 AutoSize = true,
                 Font = ThemeHelper.FontSmall,
                 ForeColor = Color.FromArgb(190, 210, 190),
-                BackColor = Color.Transparent
+                BackColor = ControlPaint.Dark(ThemeHelper.Sidebar, 0.12f)
             };
             footer.Controls.Add(lblUsername);
 
+            var lblChevron = new Label
+            {
+                Text = "›",
+                Font = new Font("Segoe UI", 12f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(190, 210, 190),
+                AutoSize = false,
+                Size = new Size(18, profileRowHeight - 10),
+                Location = new Point(footer.Width - 26, 4),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = ControlPaint.Dark(ThemeHelper.Sidebar, 0.12f),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            footer.Controls.Add(lblChevron);
+
+            // Ensure hover strip sits behind the profile elements we just added
+            hoverStrip.SendToBack();
+
+            void SetHover(bool hovering)
+            {
+                hoverStrip.Tag = hovering;
+                hoverStrip.Invalidate();
+                lblChevron.ForeColor = hovering ? Color.White : Color.FromArgb(190, 210, 190);
+            }
             void GoToUserProfile(object? s, EventArgs e)
             {
                 if (!EnsureAdmin()) return;
@@ -1282,14 +1547,21 @@ namespace Inventory_Management_System
                 OpenChildForm(new SettingsForm(SettingsForm.InitialSection.Users), btnSettings);
             }
 
-            footer.Click += GoToUserProfile;
-            avatarPanel.Click += GoToUserProfile;
-            lblName.Click += GoToUserProfile;
-            lblUsername.Click += GoToUserProfile;
+            foreach (Control c in new Control[] { footer, hoverStrip, avatarPanel, lblName, lblUsername, lblChevron })
+            {
+                c.Click += GoToUserProfile;
+            }
+
+            // Move btnLogout inside footer instead of leaving it as a second Dock=Bottom
+            // sibling on panelMenu — this is the actual fix. Click handler, styling,
+            // colors etc. are untouched; only its parent and Dock target change.
+            btnLogout.Parent?.Controls.Remove(btnLogout);
+            footer.Controls.Add(btnLogout);
+            btnLogout.Dock = DockStyle.Bottom;
 
             panelMenu.Controls.Add(footer);
-            panelMenu.Controls.SetChildIndex(footer, 0);
         }
+
 
         private void EnsureAccentIndicator()
         {
@@ -1396,6 +1668,8 @@ namespace Inventory_Management_System
 
             string fullName = AuthService.CurrentFullName;
             string? picturePath = null;
+            string username = "";
+            string email = "";
             try
             {
                 using var db = new InventoryDbContext();
@@ -1403,17 +1677,25 @@ namespace Inventory_Management_System
                 if (user != null)
                 {
                     picturePath = user.PicturePath;
+                    username = user.Username ?? "";
+                    email = user.Email ?? "";
                     if (string.IsNullOrWhiteSpace(fullName)) fullName = user.FullName;
                 }
             }
             catch (Exception ex) { Logger.LogError(ex, "DashboardForm.BuildTopProfileWidget"); }
 
-            const int widgetW = 58, avatarSize = 34;
+            _profileFullName = fullName;
+            _profileUsername = username;
+            _profileEmail = email;
+
+            const int avatarSize = 30, gapAvatarChevron = 2, chevronW = 16;
+            int widgetW = avatarSize + gapAvatarChevron + chevronW;
+            int widgetH = Math.Max(avatarSize, 24);
 
             _pnlUserProfile = new Panel
             {
                 Name = "pnlTopProfile",
-                Size = new Size(widgetW, panelTop.Height),
+                Size = new Size(widgetW, widgetH),
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
@@ -1422,36 +1704,38 @@ namespace Inventory_Management_System
             var avatarImage = AvatarHelper.TryLoadUserImage(picturePath);
             _pnlUserProfile.Disposed += (s, e) => avatarImage?.Dispose();
 
-            var avatarPanel = new Panel
+            var topAvatarBitmap = new Bitmap(avatarSize, avatarSize);
+            using (var bg = Graphics.FromImage(topAvatarBitmap))
             {
-                Size = new Size(avatarSize, avatarSize),
-                BackColor = Color.Transparent
-            };
-            avatarPanel.Paint += (s, e) =>
-            {
-                var g = e.Graphics;
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-
+                bg.SmoothingMode = SmoothingMode.AntiAlias;
+                bg.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                bg.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                bg.Clear(ThemeHelper.TopBarBg); // exact banner color — no visible box behind the avatar
                 var rect = new Rectangle(0, 0, avatarSize - 1, avatarSize - 1);
-                AvatarHelper.DrawAvatar(g, rect, avatarImage);
-
-                // Thin ring so the circular crop reads as deliberate/crisp
-                // rather than a raw jagged photo edge.
+                AvatarHelper.DrawAvatar(bg, rect, avatarImage);
                 using var ringPen = new Pen(
                     ThemeHelper.IsDarkMode ? Color.FromArgb(90, 255, 255, 255) : Color.FromArgb(60, 0, 0, 0), 1.3f);
-                g.DrawEllipse(ringPen, rect);
+                bg.DrawEllipse(ringPen, rect);
+            }
+            var avatarPanel = new PictureBox
+            {
+                Size = new Size(avatarSize, avatarSize),
+                Location = new Point(0, (widgetH - avatarSize) / 2),
+                BackColor = ThemeHelper.TopBarBg,
+                Image = topAvatarBitmap,
+                SizeMode = PictureBoxSizeMode.CenterImage
             };
+            _pnlUserProfile.Disposed += (s, e) => topAvatarBitmap.Dispose();
             _pnlUserProfile.Controls.Add(avatarPanel);
 
             var lblChevron = new Label
             {
                 Text = "▾",
-                Font = new Font("Segoe UI", 13f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 11f, FontStyle.Bold),
                 ForeColor = ThemeHelper.IsDarkMode ? Color.FromArgb(210, 215, 225) : Color.FromArgb(70, 70, 70),
                 AutoSize = false,
-                Size = new Size(20, avatarSize),
+                Size = new Size(chevronW, widgetH),
+                Location = new Point(avatarPanel.Right + gapAvatarChevron, 0),
                 TextAlign = ContentAlignment.MiddleCenter,
                 BackColor = Color.Transparent
             };
@@ -1463,10 +1747,6 @@ namespace Inventory_Management_System
             avatarPanel.Click += OpenMenu;
             lblChevron.Click += OpenMenu;
 
-            // ── Hover-to-open ── entering any part of the widget opens it;
-            // closing is handled by a cursor-position poll (see StartProfileHoverWatcher)
-            // which is far more reliable than chaining MouseEnter/Leave across
-            // several child controls and a separate popup window.
             void OnEnter(object? s, EventArgs e)
             {
                 if (_profilePopup == null || _profilePopup.IsDisposed)
@@ -1479,25 +1759,17 @@ namespace Inventory_Management_System
             panelTop.Controls.Add(_pnlUserProfile);
             _pnlUserProfile.BringToFront();
             PositionTopProfileWidget();
-
         }
 
         private void PositionTopProfileWidget()
         {
             if (_pnlUserProfile == null) return;
             const int rightMargin = 14;
-            _pnlUserProfile.Location = new Point(panelTop.Width - _pnlUserProfile.Width - rightMargin, 0);
-            _pnlUserProfile.Height = panelTop.Height;
-            foreach (Control c in _pnlUserProfile.Controls)
-                c.Top = (_pnlUserProfile.Height - c.Height) / 2;
-
-            // Re-flow avatar/chevron left-to-right within the widget
-            int x = 0;
-            foreach (Control c in _pnlUserProfile.Controls)
-            {
-                c.Left = x;
-                x += c.Width + 2;
-            }
+            _pnlUserProfile.Location = new Point(
+                panelTop.Width - _pnlUserProfile.Width - rightMargin,
+                (panelTop.Height - _pnlUserProfile.Height) / 2);
+            _pnlUserProfile.BringToFront();
+            _pnlUserProfile.Invalidate(true);
         }
 
         private void ToggleProfileDropdown()
@@ -1514,15 +1786,29 @@ namespace Inventory_Management_System
         {
             if (_profilePopup != null && !_profilePopup.IsDisposed) return;
 
+            // Identity text is measured up front so the popup is sized to fit it —
+            // fixes the email/name clipping regardless of how long it is.
+            string roleLabel = AuthService.IsAdmin ? "ADMINISTRATOR" : "OPERATOR";
+            string identityLine = !string.IsNullOrWhiteSpace(_profileEmail)
+                ? _profileEmail
+                : (!string.IsNullOrWhiteSpace(_profileFullName) ? _profileFullName : "@" + _profileUsername);
+
+            // Not "using" — this Font must outlive the method since lblIdentity
+            // keeps a reference to it after OpenProfileDropdown returns.
+            var identityFont = new Font("Segoe UI", 8.75f, FontStyle.Bold);
+            int measuredTextW = TextRenderer.MeasureText(identityLine, identityFont, Size.Empty, TextFormatFlags.NoPadding).Width;
+            int popupWidth = Math.Clamp(measuredTextW + 60, 220, 360);
+
             var popup = new NoActivatePopup
             {
                 FormBorderStyle = FormBorderStyle.None,
                 StartPosition = FormStartPosition.Manual,
                 ShowInTaskbar = false,
-                Size = new Size(168, 76),
+                Size = new Size(popupWidth, 130),
                 BackColor = ThemeHelper.CardBg,
                 Opacity = 0d // fades in via the animation below
             };
+            popup.Disposed += (s, e) => identityFont.Dispose();
 
             popup.Paint += (s, e) =>
             {
@@ -1535,7 +1821,7 @@ namespace Inventory_Management_System
             };
 
             var screenPoint = _pnlUserProfile!.PointToScreen(new Point(0, _pnlUserProfile.Height));
-            popup.Location = new Point(screenPoint.X - popup.Width + _pnlUserProfile.Width, screenPoint.Y + 6);
+            popup.Location = new Point(screenPoint.X - popup.Width + _pnlUserProfile.Width, screenPoint.Y + 2);
 
             Button MakeItem(string text, Action<Graphics, RectangleF> iconPainter, Action onClick)
             {
@@ -1563,6 +1849,42 @@ namespace Inventory_Management_System
                 return b;
             }
 
+            // ── Identity header — role/status + name/email, matching the
+            // reference dropdown (role caption, then bold name/email below). ──
+            var headerPanel = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 54,
+                BackColor = ThemeHelper.CardBg,
+                Padding = new Padding(12, 8, 12, 6)
+            };
+
+            var lblRole = new Label
+            {
+                Text = roleLabel,
+                Font = new Font("Segoe UI", 7.25f, FontStyle.Bold),
+                ForeColor = ThemeHelper.Accent,
+                AutoSize = true,
+                Location = new Point(12, 8),
+                BackColor = Color.Transparent
+            };
+            headerPanel.Controls.Add(lblRole);
+
+            var lblIdentity = new SingleLineLabel
+            {
+                Text = identityLine,
+                Font = identityFont, // same instance used for measuring — no mismatch
+                ForeColor = ThemeHelper.TextPrimary,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoSize = false,
+                Size = new Size(popup.Width - 24, 18),
+                Location = new Point(12, lblRole.Bottom + 2),
+                BackColor = Color.Transparent
+            };
+            headerPanel.Controls.Add(lblIdentity);
+
+            var headerDivider = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(235, 235, 235) };
+
             var divider = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(235, 235, 235) };
 
             var btnProfileSettings = MakeItem("Account Settings",
@@ -1581,6 +1903,8 @@ namespace Inventory_Management_System
             popup.Controls.Add(btnLogoutItem);
             popup.Controls.Add(divider);
             popup.Controls.Add(btnProfileSettings);
+            popup.Controls.Add(headerDivider);
+            popup.Controls.Add(headerPanel);
 
             popup.Deactivate += (s, e) => CloseProfileDropdown();
             popup.FormClosed += (s, e) => { _profilePopup = null; };
@@ -1629,12 +1953,8 @@ namespace Inventory_Management_System
 
                 var cursor = Cursor.Position;
 
-                // Small outward padding bridges the visual gap between the widget
-                // and the popup below it, and the popup's own rounded-corner region
-                // (which can make Bounds.Contains reject points that are visually
-                // inside the card near its corners).
                 var widgetRect = _pnlUserProfile.RectangleToScreen(_pnlUserProfile.ClientRectangle);
-                widgetRect.Inflate(4, 4);
+                widgetRect.Inflate(4, 12);
                 var popupRect = _profilePopup.Bounds;
                 popupRect.Inflate(4, 4);
 
@@ -1811,6 +2131,135 @@ namespace Inventory_Management_System
             if (!_trendCache.TryGetValue(key, out var v)) { v = GetLast12MonthCounts(metric); _trendCache[key] = v; }
             return v;
         }
+
+        private static DateTime StartOfWeek(DateTime date)
+        {
+            int diff = (7 + (date.DayOfWeek - DayOfWeek.Monday)) % 7;
+            return date.AddDays(-diff).Date;
+        }
+        // Full, human-readable date/time for a trend bucket — used in the chart tooltip
+        // so hovering shows an actual date instead of just the short axis label ("Jan", "Mon"...).
+        private static string FormatBucketDateLabel(string period, DateTime start, DateTime end)
+        {
+            return period switch
+            {
+                "Today" => $"{start:h:mm tt} – {end:h:mm tt}, {start:MMM d, yyyy}",
+                "This Week" or "Last Week" or "This Month" or "Last Month" => start.ToString("MMM d, yyyy"),
+                _ => start.ToString("MMMM yyyy") // "This Year" — 12 monthly buckets
+            };
+        }
+
+        // Builds the actual data + labels for whichever period is selected in the
+        // trend-chart dropdown — previously the dropdown existed but nothing
+        // downstream read _trendPeriod, so selecting an option did nothing.
+        private (string[] Labels, string[] DateLabels, float[] Allocated, float[] InStock) GetTrendData(string period)
+        {
+            var now = DateTime.Now;
+            var buckets = new List<(DateTime start, DateTime end, string label)>();
+
+            switch (period)
+            {
+                case "Today":
+                    for (int h = 0; h < 24; h += 2)
+                    {
+                        var s = DateTime.Today.AddHours(h);
+                        buckets.Add((s, s.AddHours(2), s.ToString("h tt")));
+                    }
+                    break;
+
+                case "This Week":
+                    {
+                        var start = StartOfWeek(DateTime.Today);
+                        for (int d = 0; d < 7; d++)
+                        {
+                            var s = start.AddDays(d);
+                            buckets.Add((s, s.AddDays(1), s.ToString("ddd")));
+                        }
+                        break;
+                    }
+
+                case "Last Week":
+                    {
+                        var start = StartOfWeek(DateTime.Today).AddDays(-7);
+                        for (int d = 0; d < 7; d++)
+                        {
+                            var s = start.AddDays(d);
+                            buckets.Add((s, s.AddDays(1), s.ToString("ddd")));
+                        }
+                        break;
+                    }
+
+                case "This Month":
+                    {
+                        var start = new DateTime(now.Year, now.Month, 1);
+                        int days = DateTime.DaysInMonth(now.Year, now.Month);
+                        for (int d = 0; d < days; d++)
+                        {
+                            var s = start.AddDays(d);
+                            buckets.Add((s, s.AddDays(1), (d + 1).ToString()));
+                        }
+                        break;
+                    }
+
+                case "Last Month":
+                    {
+                        var thisMonthStart = new DateTime(now.Year, now.Month, 1);
+                        var start = thisMonthStart.AddMonths(-1);
+                        int days = DateTime.DaysInMonth(start.Year, start.Month);
+                        for (int d = 0; d < days; d++)
+                        {
+                            var s = start.AddDays(d);
+                            buckets.Add((s, s.AddDays(1), (d + 1).ToString()));
+                        }
+                        break;
+                    }
+
+                default: // "This Year" — last 12 months
+                    for (int i = 0; i < 12; i++)
+                    {
+                        var s = new DateTime(now.Year, now.Month, 1).AddMonths(-11 + i);
+                        buckets.Add((s, s.AddMonths(1), s.ToString("MMM")));
+                    }
+                    break;
+            }
+
+            
+            var labels = buckets.Select(b => b.label).ToArray();
+            var dateLabels = buckets.Select(b => FormatBucketDateLabel(period, b.start, b.end)).ToArray();
+            var allocated = new float[buckets.Count];
+            var inStock = new float[buckets.Count];
+
+            try
+            {
+                using var db = new InventoryDbContext();
+                for (int i = 0; i < buckets.Count; i++)
+                {
+                    var (s, e, _) = buckets[i];
+                    allocated[i] = db.EquipmentLogs.Count(l =>
+                        l.ActionType == "allocation_approved" &&
+                        l.CreatedAt.HasValue && l.CreatedAt.Value >= s && l.CreatedAt.Value < e);
+                    inStock[i] = db.EquipmentLogs.Count(l =>
+                        l.ActionType == "allocation_returned" &&
+                        l.CreatedAt.HasValue && l.CreatedAt.Value >= s && l.CreatedAt.Value < e);
+                }
+            }
+            catch { /* leaves zeros — chart shows a flat line instead of crashing */ }
+
+            // AFTER
+            return (labels, dateLabels, allocated, inStock);
+        }
+
+        // AFTER
+        private (string[] Labels, string[] DateLabels, float[] Allocated, float[] InStock) GetCachedTrendSeries(string period)
+        {
+            if (!_trendSeriesCache.TryGetValue(period, out var v))
+            {
+                v = GetTrendData(period);
+                _trendSeriesCache[period] = v;
+            }
+            return v;
+        }
+
         private string? GetCachedDelta(string metric)
         {
             if (!_deltaCache.TryGetValue(metric, out var v)) { v = GetWeeklyDeltaText(metric); _deltaCache[metric] = v; }
@@ -1872,11 +2321,17 @@ namespace Inventory_Management_System
 
                 foreach (var alloc in overdueAllocations)
                 {
+                    // Log once per overdue *episode*: skip if an allocation_overdue
+                    // entry already exists for this equipment more recently than its
+                    // last return/reallocation. Using a fixed 24h window meant a fresh
+                    // row (with a fresh CreatedAt) got written every single day the
+                    // item stayed overdue, which kept bumping it back to the top of
+                    // the Logs screen even though nothing new had actually happened.
                     bool alreadyLogged = db.EquipmentLogs.Any(l =>
                         l.EquipmentId == alloc.EquipmentId &&
                         l.ActionType == "allocation_overdue" &&
                         l.CreatedAt.HasValue &&
-                        l.CreatedAt.Value.Date >= DateTime.Today.AddDays(-1)); // don't relog if it happened in the last day
+                        l.CreatedAt.Value >= alloc.AllocationDate);
 
                     if (!alreadyLogged)
                     {
@@ -1884,7 +2339,7 @@ namespace Inventory_Management_System
                         {
                             EquipmentId = alloc.EquipmentId,
                             ActionType = "allocation_overdue",
-                            CreatedAt = DateTime.Now,
+                            CreatedAt = DateTime.UtcNow,
                             ChangedByUserId = AuthService.CurrentUserId
                         });
                     }
@@ -1914,7 +2369,6 @@ namespace Inventory_Management_System
                 _activitiesAnimProgress = (instant || _activitiesIntroPlayed) ? 1f : 0f;
                 if (!instant) _activitiesIntroPlayed = true;
                 _chartAnimClock.Restart();
-                _chartAnimClockStarted = true; // start immediately alongside the cards, not after they finish
 
                 using var db = new InventoryDbContext();
 
@@ -1965,7 +2419,7 @@ namespace Inventory_Management_System
     (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(33,  150, 243), icon:"🔧", trendValues:GetCachedTrend("under_repair"),   deltaText:GetCachedDelta("under_repair")),
 (title:"Currently Overdue",  value:_cntOverdue.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️", trendValues:GetCachedTrend("overdue"), deltaText:GetCachedDelta("overdue")),
     (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68,  68),  icon:"🚫", trendValues:GetCachedTrend("decommissioned"), deltaText:GetCachedDelta("decommissioned")),
-    (title:"Total Employees",    value:_cntEmployees.ToString(),     color:Color.FromArgb(123, 31,  162), icon:"👤", trendValues:(float[]?)null, deltaText:(string?)null),
+    (title:"Total Employees",    value:_cntEmployees.ToString(),     color:Color.FromArgb(123, 31,  162), icon:"👥", trendValues:(float[]?)null, deltaText:(string?)null),
 };
                 int padL  = 12;
                 int gap   = 10;
@@ -2117,11 +2571,13 @@ namespace Inventory_Management_System
                     .ToDictionary(x => x.EmployeeId, x => x.Count);
 
                 _topEmployees = db.Employees
-                    .Where(e => e.IsActive)
-                    .OrderBy(e => e.EmployeeCode)
-                    .ToList()
-                    .Select(e => (Name: e.FullName, Count: counts.TryGetValue(e.Id, out var c) ? c : 0))
-                    .ToList();
+                        .Where(e => e.IsActive)
+                        .ToList()
+                        .Select(e => (Code: e.EmployeeCode, Name: e.FullName, Count: counts.TryGetValue(e.Id, out var c) ? c : 0))
+                        .OrderByDescending(e => e.Count)
+                        .ThenBy(e => e.Code, StringComparer.OrdinalIgnoreCase)
+                        .Select(e => (Name: e.Name, Count: e.Count))
+                        .ToList();
             }
             catch { _topEmployees = new(); }
         }
@@ -2164,7 +2620,6 @@ namespace Inventory_Management_System
             bool allDone = true;
 
             // ── Phase 1: card entrance (slide/bounce) ───────────────────────
-            bool cardsDone = true;
             if (_cardAnims != null)
             {
                 foreach (var anim in _cardAnims)
@@ -2173,7 +2628,6 @@ namespace Inventory_Management_System
                     {
                         anim.DelayMs -= AnimTickIntervalMs;
                         allDone = false;
-                        cardsDone = false;
                         continue;
                     }
 
@@ -2181,7 +2635,7 @@ namespace Inventory_Management_System
                     {
                         anim.Progress += CardAnimStepPerTick;
                         if (anim.Progress >= 1f) anim.Progress = 1f;
-                        else { allDone = false; cardsDone = false; }
+                        else { allDone = false; }
 
                         float t = anim.Progress;
 
@@ -2295,7 +2749,8 @@ namespace Inventory_Management_System
             panelContent.Controls.Add(_panelCharts);
 
             // Row 1
-            _panelBar = MakeChartCard("Asset Status Breakdown");
+            _panelBar = MakeChartCard("Asset Status Breakdown", 140);       // has the period-selector dropdown
+
             _panelBar.Paint += PaintBarChart;
             _panelBar.MouseMove += (s, e) =>
             {
@@ -2308,7 +2763,8 @@ namespace Inventory_Management_System
             _panelBar.MouseLeave += (s, e) => { if (_barHoverIndex != -1) { _barHoverIndex = -1; _panelBar.Invalidate(); } };
             BuildBarPeriodSelector(_panelBar);
 
-            _panelDonut = MakeChartCard("Equipment Status");
+            _panelDonut = MakeChartCard("Equipment Status", 50);             // has only the small "›" link
+
             _panelDonut.Paint += PaintDonutChart;
             _panelDonut.MouseMove += (s, e) =>
             {
@@ -2339,14 +2795,17 @@ namespace Inventory_Management_System
             lnkViewAllEquipment.BringToFront();
 
             // Employees card — spans both rows
-            _panelEmployees = MakeChartCard("Top Employees by Holdings");
+            _panelEmployees = MakeChartCard("Top Employees by Holdings", 20); // no right-side control
+
             BuildEmployeesList(_panelEmployees);
 
-            _panelActivities = MakeChartCard("Recent Activities");
+            _panelActivities = MakeChartCard("Recent Activities", 50);       // has only the small "›" link
+
             BuildActivitiesList(_panelActivities);
 
             // Row 2
-            _panelLine = MakeChartCard("Equipment by Category");
+            _panelLine = MakeChartCard("Equipment by Category", 20);         // no right-side control
+
             _panelLine.Paint += PaintCategoryBreakdownChart;
             _panelLine.MouseMove += (s, e) =>
             {
@@ -2358,7 +2817,8 @@ namespace Inventory_Management_System
             };
             _panelLine.MouseLeave += (s, e) => { if (_catHoverIndex != -1) { _catHoverIndex = -1; _panelLine.Invalidate(); } };
 
-            _panelLocation = MakeChartCard("Equipment Allocation by Location");
+            _panelLocation = MakeChartCard("Equipment Allocation by Location", 20); // no right-side control
+
             _panelLocation.Paint += PaintLocationChart;
             _panelLocation.MouseMove += (s, e) =>
             {
@@ -2370,8 +2830,18 @@ namespace Inventory_Management_System
             };
             _panelLocation.MouseLeave += (s, e) => { if (_locHoverIndex != -1) { _locHoverIndex = -1; _panelLocation.Invalidate(); } };
 
-            _panelTrend = MakeChartCard("Asset Allocation and Usage Trend");
+            _panelTrend = MakeChartCard("Asset Allocation and Usage Trend", 140);   // has the period-selector dropdown
             _panelTrend.Paint += PaintTrendChart;
+            _panelTrend.MouseMove += (s, e) =>
+            {
+                _trendMousePos = e.Location;
+                int idx = _trendHitPoints.FindIndex(p => p.Bounds.Contains(e.Location));
+                bool changed = idx != _trendHoverIndex;
+                _trendHoverIndex = idx;
+                if (changed || idx >= 0) _panelTrend.Invalidate();
+            };
+            _panelTrend.MouseLeave += (s, e) => { if (_trendHoverIndex != -1) { _trendHoverIndex = -1; _panelTrend.Invalidate(); } };
+            BuildTrendPeriodSelector(_panelTrend);
 
             _panelCharts.Controls.Add(_panelBar);
             _panelCharts.Controls.Add(_panelDonut);
@@ -2387,18 +2857,32 @@ namespace Inventory_Management_System
 
         private void RecomputeBarChartForPeriod()
         {
-            if (_barPeriod == "All Time") { _periodOverrideCounts = null; return; }
+            DateTime cutoffStart;
+            DateTime cutoffEnd = DateTime.Today.AddDays(1);
 
-            DateTime cutoffStart = _barPeriod switch
+            switch (_barPeriod)
             {
-                "This Month" => new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1),
-                "Last Month" => new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-1),
-                "This Year" => new DateTime(DateTime.Today.Year, 1, 1),
-                _ => DateTime.MinValue
-            };
-            DateTime cutoffEnd = _barPeriod == "Last Month"
-                ? new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1)
-                : DateTime.Today.AddDays(1);
+                case "Today":
+                    cutoffStart = DateTime.Today;
+                    break;
+                case "This Week":
+                    cutoffStart = StartOfWeek(DateTime.Today);
+                    break;
+                case "Last Week":
+                    cutoffStart = StartOfWeek(DateTime.Today).AddDays(-7);
+                    cutoffEnd = StartOfWeek(DateTime.Today);
+                    break;
+                case "This Month":
+                    cutoffStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+                    break;
+                case "Last Month":
+                    cutoffStart = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-1);
+                    cutoffEnd = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+                    break;
+                default: // "This Year"
+                    cutoffStart = new DateTime(DateTime.Today.Year, 1, 1);
+                    break;
+            }
 
             try
             {
@@ -2505,6 +2989,18 @@ namespace Inventory_Management_System
                 Tag = "employeesHost"
             };
             card.Controls.Add(listHost);
+
+            // Rows were being built while card.Width was still 0 (before layout
+            // ran), leaving every name label at ~0px wide. Rebuild whenever the
+            // host is actually resized to its real width.
+            int lastWidth = -1;
+            listHost.Resize += (s, e) =>
+            {
+                if (listHost.Width == lastWidth) return;
+                lastWidth = listHost.Width;
+                LoadEmployeesRows(listHost);
+            };
+
             LoadEmployeesRows(listHost);
         }
 
@@ -2549,17 +3045,6 @@ namespace Inventory_Management_System
                 ? $"{name} — {count} item{(count == 1 ? "" : "s")} currently allocated"
                 : $"{name} — no equipment currently allocated";
 
-            row.Controls.Add(new Label
-            {
-                Text = rank.ToString(),
-                Font = ChartLabelFont,
-                ForeColor = ThemeHelper.ChartSecText,
-                Size = new Size(26, 34),
-                Location = new Point(0, 0),
-                TextAlign = ContentAlignment.MiddleCenter,
-                AutoEllipsis = false
-            });
-
             const int avatarD = 24;
             string initial = name.Length > 0 ? name.Trim().Substring(0, 1).ToUpper() : "?";
             Color avatarColor = count > 0 ? Color.FromArgb(127, 119, 221) : ThemeHelper.ChartTrackBg;
@@ -2568,7 +3053,7 @@ namespace Inventory_Management_System
             var avatarPanel = new Panel
             {
                 Size = new Size(avatarD, avatarD),
-                Location = new Point(28, 5),
+                Location = new Point(8, 5),
                 BackColor = Color.Transparent
             };
             avatarPanel.Paint += (s, e) =>
@@ -2836,7 +3321,8 @@ namespace Inventory_Management_System
         // ════════════════════════════════════════════════════════════════
         //  CHART CARD FACTORY
         // ════════════════════════════════════════════════════════════════
-        private static Panel MakeChartCard(string title)
+      
+        private static Panel MakeChartCard(string title, int reservedRight = 40)
         {
             var card = new DoubleBufferedPanel { BackColor = ThemeHelper.ChartCardBg };
 
@@ -2859,10 +3345,52 @@ namespace Inventory_Management_System
                 using var tFg = new SolidBrush(ThemeHelper.ChartTitleText);
 
                 string titleText = card.Tag?.ToString() ?? "";
-                const int reservedRight = 130;
                 var titleRect = new RectangleF(16, 12, Math.Max(20, card.Width - 16 - reservedRight), 22);
                 using var titleSf = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
-                g.DrawString(titleText, ChartTitleFont, tFg, titleRect, titleSf);
+
+                // Split off a leading emoji so it draws with an emoji-capable font —
+                // drawing the whole title with ChartTitleFont (Segoe UI, no color-emoji
+                // glyphs) is what produced the garbled box/red-dot icon.
+                string emojiPart = "";
+                string textPart = titleText;
+                int splitIdx = 0;
+                while (splitIdx < titleText.Length && titleText[splitIdx] > 127) splitIdx++;
+                if (splitIdx > 0)
+                {
+                    emojiPart = titleText.Substring(0, splitIdx).TrimEnd();
+                    textPart = titleText.Substring(splitIdx).TrimStart();
+                }
+
+                float textX = titleRect.X;
+                if (emojiPart.Length > 0)
+                {
+                    g.DrawString(emojiPart, ChartTitleEmojiFont, tFg, new PointF(titleRect.X, titleRect.Y - 1));
+                    textX += g.MeasureString(emojiPart, ChartTitleEmojiFont).Width + 4;
+                }
+                var remainingRect = new RectangleF(textX, titleRect.Y, Math.Max(10, titleRect.Right - textX), titleRect.Height);
+
+                // Auto-shrink long headings instead of ellipsis-truncating them — steps
+                // the font down in 0.5pt increments until the full title fits, with a
+                // floor so it never gets illegibly small. Falls back to ellipsis only
+                // if even the smallest size doesn't fit.
+                Font fitFont = ChartTitleFont;
+                bool ownsFitFont = false;
+                if (g.MeasureString(textPart, fitFont).Width > remainingRect.Width)
+                {
+                    for (float size = 9.5f; size >= 7.5f; size -= 0.5f)
+                    {
+                        var candidate = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Point);
+                        if (g.MeasureString(textPart, candidate).Width <= remainingRect.Width)
+                        {
+                            fitFont = candidate;
+                            ownsFitFont = true;
+                            break;
+                        }
+                        candidate.Dispose();
+                    }
+                }
+                g.DrawString(textPart, fitFont, tFg, remainingRect, titleSf);
+                if (ownsFitFont) fitFont.Dispose();
 
                 using var div = new Pen(ThemeHelper.ChartDivider, 1f);
                 g.DrawLine(div, 0, 44, card.Width, 44);
@@ -3035,15 +3563,22 @@ namespace Inventory_Management_System
                 // Split on the nearest space to the middle so both lines are
                 // roughly balanced and nothing is truncated.
                 var words = text.Split(' ');
+                string line1, line2;
                 if (words.Length < 2)
                 {
-                    g.DrawString(text, labelFont, labelFg, centerX - fullSize.Width / 2f, startY);
-                    return;
+                    // No space to split on (e.g. "Decommissioned") — break the
+                    // word itself near the middle with a hyphen instead of
+                    // overlapping the neighboring label.
+                    int midChar = Math.Max(1, text.Length / 2);
+                    line1 = text.Substring(0, midChar) + "-";
+                    line2 = text.Substring(midChar);
                 }
-
-                int mid = words.Length / 2;
-                string line1 = string.Join(" ", words.Take(mid));
-                string line2 = string.Join(" ", words.Skip(mid));
+                else
+                {
+                    int mid = words.Length / 2;
+                    line1 = string.Join(" ", words.Take(mid));
+                    line2 = string.Join(" ", words.Skip(mid));
+                }
 
                 var l1Size = g.MeasureString(line1, labelFont);
                 var l2Size = g.MeasureString(line2, labelFont);
@@ -3069,7 +3604,12 @@ namespace Inventory_Management_System
                 // both feel like one animation language.
                 float colDelay = i * 0.12f;
                 float colProgress = Math.Clamp((_barAnimProgress - colDelay) / (1f - colDelay), 0f, 1f);
-                float targetFillH = maxVal == 0 ? 0 : Math.Max(b.Count > 0 ? barWidth * 0.4f : 0, (float)b.Count / maxVal * chartH);
+                // Sqrt scale instead of linear — with a category as dominant as
+                // "In Stock" (421 vs 1/1/6), a linear ratio rounds every small
+                // value down to the same minimum-visible floor. Sqrt compresses
+                // the dominant bar and stretches small ones apart instead.
+                float ratio = maxVal == 0 ? 0 : MathF.Sqrt(b.Count) / MathF.Sqrt(maxVal);
+                float targetFillH = b.Count > 0 ? Math.Max(6f, ratio * chartH) : 0;
                 float fillH = targetFillH * colProgress;
 
                 if (fillH > 0)
@@ -3232,7 +3772,6 @@ namespace Inventory_Management_System
             if (_empHoverIndex >= 0 && _empHoverIndex < _empHitRows.Count)
             {
                 var hr = _empHitRows[_empHoverIndex];
-                DrawHoverTooltip(g, p, _empMousePos, hr.Name, $"{hr.Count} items allocated", barColor);
             }
         }
 
@@ -3338,14 +3877,13 @@ namespace Inventory_Management_System
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            float[] allocatedTrend = GetCachedMonthlyTrend("allocated");
-            float[] inStockTrend = GetCachedMonthlyTrend("in_store");
-
-            string[] monthAbbr = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-            int todayMonth = DateTime.Today.Month;
-            var labels = new string[12];
-            for (int i = 0; i < 12; i++)
-                labels[i] = monthAbbr[((todayMonth - 1 - 11 + i) % 12 + 12) % 12];
+            // AFTER
+            var trendSeries = GetCachedTrendSeries(_trendPeriod);
+            float[] allocatedTrend = trendSeries.Allocated;
+            float[] inStockTrend = trendSeries.InStock;
+            string[] labels = trendSeries.Labels;
+            string[] dateLabels = trendSeries.DateLabels;
+            if (allocatedTrend.Length < 2) return; // not enough buckets to draw a line
 
             int top = 58, padOuter = 24, bottom = 26;
             int chartW = p.Width - padOuter * 2;
@@ -3380,6 +3918,15 @@ namespace Inventory_Management_System
 
             var allocPts = MapPoints(allocatedTrend);
             var stockPts = MapPoints(inStockTrend);
+
+            // AFTER
+            _trendHitPoints.Clear();
+            for (int i = 0; i < allocPts.Length; i++)
+            {
+                var hitRect = new RectangleF(allocPts[i].X - 8, Math.Min(allocPts[i].Y, stockPts[i].Y) - 8,
+                    16, Math.Abs(stockPts[i].Y - allocPts[i].Y) + 16);
+                _trendHitPoints.Add((hitRect, labels[i], dateLabels[i], allocatedTrend[i], inStockTrend[i]));
+            }
 
             int visible = Math.Max(2, (int)(allocPts.Length * _barAnimProgress) + 1);
             visible = Math.Min(visible, allocPts.Length);
@@ -3426,7 +3973,7 @@ namespace Inventory_Management_System
 
             using var axisFg = new SolidBrush(ThemeHelper.ChartSecText);
             using var axisSf = new StringFormat { Alignment = StringAlignment.Center };
-            int step = labels.Length > 8 ? 2 : 1;
+            int step = labels.Length > 20 ? 4 : labels.Length > 8 ? 2 : 1;
             for (int i = 0; i < labels.Length; i += step)
             {
                 float lx = padOuter + chartW * i / (float)(labels.Length - 1);
@@ -3443,6 +3990,13 @@ namespace Inventory_Management_System
             }
             DrawLegendItem("Allocated Assets", allocColor, ref lx2);
             DrawLegendItem("In Stock Assets", stockColor, ref lx2);
+            // AFTER
+            if (_trendHoverIndex >= 0 && _trendHoverIndex < _trendHitPoints.Count)
+            {
+                var hp = _trendHitPoints[_trendHoverIndex];
+                DrawHoverTooltip(g, p, _trendMousePos, hp.DateLabel,
+                    $"Allocated: {(int)hp.Allocated}   In Stock: {(int)hp.InStock}", allocColor);
+            }
         }
 
         private void PaintCategoryColumn(Graphics g, List<(string Category, int Count)> cats, Rectangle bounds, Color[] palette, int colorOffset)
@@ -3535,6 +4089,20 @@ namespace Inventory_Management_System
             int index = panelMenu.Controls.IndexOf(afterButton);
             panelMenu.Controls.Add(divider);
             panelMenu.Controls.SetChildIndex(divider, index); // sits directly above it in dock order
+        }
+
+        // AFTER
+        // Tune this to move the divide up/down — 0.62 means the top (light) band
+        // takes 62% of the bar's height, the bottom (dark) band the remaining 38%.
+        private void PaintTopBarDiagonal(object? sender, PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var rect = panelTop.ClientRectangle;
+            if (rect.Width <= 0 || rect.Height <= 0) return;
+
+            using var baseBrush = new SolidBrush(ThemeHelper.TopBarBg);
+            g.FillRectangle(baseBrush, rect);
         }
 
         private void PaintSidebarShadow(object? sender, PaintEventArgs e)
@@ -3752,14 +4320,21 @@ namespace Inventory_Management_System
             childForm.FormBorderStyle = FormBorderStyle.None;
             childForm.Dock            = DockStyle.Fill;
 
+            // AFTER
             panelContent.Controls.Clear();
             panelContent.Controls.Add(childForm);
             childForm.BringToFront();
             childForm.Show();
 
             panelStats.Visible = false;
-        }
 
+            // Defensive: make sure the top-bar widgets (search, profile) stay positioned
+            // and on top of the z-order after every navigation, not just on initial load/resize.
+            PositionTopSearchBar();
+            PositionTopProfileWidget();
+            _pnlUserProfile?.BringToFront();
+        }
+        
         private void CloseAllTopBarPopups()
         {
             _barPeriodPopup?.Close();
@@ -3779,7 +4354,7 @@ namespace Inventory_Management_System
             activeForm = null;
             panelStats.Visible = true;
             SetActiveButton(btnDashboard);
-            AnimateTitleTo("Dashboard");
+            AnimateTitleTo("🏠 Dashboard");
             LoadStats();
         }
 
@@ -3787,13 +4362,13 @@ namespace Inventory_Management_System
 
         private void OpenAllocationAvailable()
         {
-            AnimateTitleTo("Allocation");
-            OpenChildForm(new AllocationForm(true), btnAllocation);
+            AnimateTitleTo("📋 Allocation");
+            OpenChildForm(new AllocationForm("Available"), btnAllocation);
         }
 
         private void OpenEquipmentByStatus(string status)
         {
-            AnimateTitleTo("Equipment");
+            AnimateTitleTo("🖥️ Equipment");
             var frm = new EquipmentForm();
             OpenChildForm(frm, btnEquipment);
             frm.ApplyStatusFilter(status);
@@ -3801,123 +4376,104 @@ namespace Inventory_Management_System
 
         private void OpenOverdueEquipment()
         {
-            AnimateTitleTo("Equipment");
-            var frm = new EquipmentForm();
-            OpenChildForm(frm, btnEquipment);
-
-            var overdueIds = new HashSet<int>();
-            try
-            {
-                using var db = new InventoryDbContext();
-                var today = DateOnly.FromDateTime(DateTime.Today);
-                overdueIds = db.Allocations
-                    .Where(a => !a.Equipment.IsDeleted &&
-                                a.Equipment.CurrentStatus == "allocated" &&
-                                a.Status == "approved" &&
-                                a.ExpectedReturnDate.HasValue &&
-                                a.ExpectedReturnDate.Value < today &&
-                                a.ActualReturnDate == null)
-                    .Select(a => a.EquipmentId)
-                    .Distinct()
-                    .ToHashSet();
-            }
-            catch { /* leaves overdueIds empty — grid will just show nothing */ }
-
-            frm.ApplyCustomFilter(eq => overdueIds.Contains(eq.Id));
+            AnimateTitleTo("📋 Allocation");
+            var frm = new AllocationForm("Overdue");
+            OpenChildForm(frm, btnAllocation);
         }
 
         private void btnEquipment_Click(object? sender, EventArgs e)
         {
-            AnimateTitleTo("Equipment");
+            AnimateTitleTo("🖥️ Equipment");
             OpenChildForm(new EquipmentForm(), btnEquipment);
         }
 
         private void btnEmployees_Click(object? sender, EventArgs e)
         {
-            AnimateTitleTo("Employees");
+            AnimateTitleTo("👥 Employees");
             OpenChildForm(new EmployeesForm(), btnEmployees);
         }
 
         public void NavigateToEmployee(string employeeCode)
         {
-            AnimateTitleTo("Employees");
+            AnimateTitleTo("👥 Employees");
             OpenChildForm(new EmployeesForm(employeeCode), btnEmployees);
         }
 
 
         public void NavigateToLogs(string equipmentCode)
         {
-            AnimateTitleTo("Logs");
+            AnimateTitleTo("📜 Logs");
             OpenChildForm(new LogsForm(equipmentCode), btnLogs);
         }
 
 
         private void btnLocations_Click(object? sender, EventArgs e)
         {
-            AnimateTitleTo("Locations");
+            AnimateTitleTo("📍 Locations");
             OpenChildForm(new LocationsForm(), btnLocations);
         }
 
         private void btnAllocation_Click(object? sender, EventArgs e)
         {
-            AnimateTitleTo("Allocation");
+            AnimateTitleTo("📋 Allocation");
             OpenChildForm(new AllocationForm(), btnAllocation);
         }
 
         private void btnReturns_Click(object? sender, EventArgs e)
         {
-            AnimateTitleTo("Returns");
+            AnimateTitleTo("↩️ Returns");
             OpenChildForm(new ReturnsForm(), btnReturns);
         }
 
         private void btnTransfer_Click(object? sender, EventArgs e)
         {
-            AnimateTitleTo("Transfer");
+            AnimateTitleTo("🔄 Transfer");
             OpenChildForm(new TransferForm(), btnTransfer);
         }
 
         private void btnDecommission_Click(object? sender, EventArgs e)
         {
             if (!EnsureAdmin()) return;
-            AnimateTitleTo("Decommission");
+            AnimateTitleTo("🚫 Decommission");
+
             OpenChildForm(new DecommissionForm(), btnDecommission);
         }
 
         private void btnDeletedItems_Click(object? sender, EventArgs e)
         {
             if (!EnsureAdmin()) return;
-            AnimateTitleTo("Deleted Items");
+            AnimateTitleTo("♻️ Deleted Items");
             OpenChildForm(new DeletedItemsForm(), btnDeletedItems);
         }
 
         private void btnLogs_Click(object? sender, EventArgs e)
         {
-            AnimateTitleTo("Logs");
+            AnimateTitleTo("📜 Logs");
             OpenChildForm(new LogsForm(), btnLogs);
         }
 
         private void btnQRScanner_Click(object? sender, EventArgs e)
         {
-            AnimateTitleTo("QR Scanner");
+            AnimateTitleTo("📷 QR Scanner");
             OpenChildForm(new QRScannerForm(), btnQRScanner);
         }
 
         private void btnCheckInOut_Click(object? sender, EventArgs e)
         {
-            AnimateTitleTo("Check In/Out");
+            AnimateTitleTo("✅ Check In/Out");
             OpenChildForm(new CheckInOutForm(), btnCheckInOut);
         }
 
         private void btnReports_Click(object? sender, EventArgs e)
         {
-            AnimateTitleTo("Reports");
+            AnimateTitleTo("📊 Reports");
             OpenChildForm(new ReportsForm(), btnReports);
         }
 
         private void btnSettings_Click(object? sender, EventArgs e)
         {
             if (!EnsureAdmin()) return;
-            AnimateTitleTo("Settings");
+            AnimateTitleTo("⚙️ Settings");
             OpenChildForm(new SettingsForm(), btnSettings);
         }
 

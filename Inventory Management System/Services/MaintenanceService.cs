@@ -59,8 +59,8 @@ namespace Inventory_Management_System.Services
                 db.MaintenanceRecords.Add(record);
                 db.SaveChanges();
                 _audit.Log(equipmentId, AuditService.ActionMaintenanceOpened,
-    "Status: In Store",
-    $"Issue: {record.IssueDescription} | Serviced By: {record.ServicedBy ?? "—"} | Est. Cost: {(cost.HasValue ? cost.Value.ToString("N2") : "—")}");
+       "Status: In Store",
+       $"Issue: {record.IssueDescription} | Serviced By: {record.ServicedBy ?? "—"} | Est. Cost: {(cost.HasValue ? cost.Value.ToString("N2") : "—")} | Source Screen: Edit Equipment");
                 return ServiceResult<MaintenanceRecord>.Ok(record);
             }
             catch (Exception ex)
@@ -91,8 +91,8 @@ namespace Inventory_Management_System.Services
 
                 db.SaveChanges();
                 _audit.Log(record.EquipmentId, AuditService.ActionMaintenanceResolved,
-    $"Status: Under Repair | Issue: {record.IssueDescription}",
-    $"Status: In Store | Resolved: {resolvedDate:yyyy-MM-dd} | Final Cost: {(finalCost.HasValue ? finalCost.Value.ToString("N2") : "—")}");
+       $"Status: Under Repair | Issue: {record.IssueDescription}",
+       $"Status: In Store | Resolved: {resolvedDate:yyyy-MM-dd} | Final Cost: {(finalCost.HasValue ? finalCost.Value.ToString("N2") : "—")} | Source Screen: Edit Equipment");
                 return ServiceResult<bool>.Ok(true);
             }
             catch (Exception ex)
