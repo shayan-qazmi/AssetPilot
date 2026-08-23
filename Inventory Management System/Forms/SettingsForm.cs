@@ -970,7 +970,8 @@ namespace Inventory_Management_System.Forms
         private void BtnClearLogs_Click(object? sender, EventArgs e)
         {
             if (MessageBox.Show(
-                "This will permanently delete ALL entries in the activity log. This cannot be undone.",
+                "This will permanently delete ALL entries in the activity log. This cannot be undone.\n\n" +
+                "Note: this action will be recorded in a separate, non-deletable security audit log (who did it, when).",
                 "Confirm Clear Logs", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
 
@@ -980,25 +981,27 @@ namespace Inventory_Management_System.Forms
                 var logs = db.EquipmentLogs.ToList();
                 db.EquipmentLogs.RemoveRange(logs);
                 db.SaveChanges();
-                ToastHelper.Show(this, $"{logs.Count} log entries deleted.", ToastType.Success);
 
+                SecurityAuditLogger.Log("Cleared all activity logs", $"{logs.Count} entries deleted");
+                ToastHelper.Show(this, $"{logs.Count} log entries deleted.", ToastType.Success);
             }
             catch (Exception ex)
             {
                 ToastHelper.Show(this, "Could not clear logs: " + ex.Message, ToastType.Error);
-
             }
         }
 
         private void BtnResetAppData_Click(object? sender, EventArgs e)
         {
             if (!ShowTypedConfirm(
-                "This will permanently delete ALL operational data:\n" +
-                "Equipment, Allocations, Returns, Transfers, Employees,\n" +
-                "Locations, Logs, Check-In/Out history, Decommissioned &\n" +
-                "Deleted items, and Maintenance records.\n\n" +
-                "Users, roles, categories, and settings will NOT be affected.\n\n" +
-                "Type RESET below to confirm.", "RESET"))
+      "This will permanently delete ALL operational data:\n" +
+      "Equipment, Allocations, Returns, Transfers, Employees,\n" +
+      "Locations, Logs, Check-In/Out history, Decommissioned &\n" +
+      "Deleted items, and Maintenance records.\n\n" +
+      "Users, roles, categories, and settings will NOT be affected.\n\n" +
+      "This action will be recorded in a separate, non-deletable\n" +
+      "security audit log (who performed it and when).\n\n" +
+      "Type RESET below to confirm.", "RESET"))
                 return;
 
             var errors = new List<string>();
@@ -1100,6 +1103,12 @@ namespace Inventory_Management_System.Forms
             if (errors.Count > 0)
                 summary += "\n\nSome tables could not be cleared:\n" + string.Join("\n", errors);
 
+
+            SecurityAuditLogger.Log("Reset application data",
+    string.Join(", ", counts.Select(kv => $"{kv.Key}: {kv.Value}")) +
+    (errors.Count > 0 ? $" | Errors: {errors.Count}" : ""));
+
+            ToastHelper.Show(this, summary, errors.Count > 0 ? ToastType.Warning : ToastType.Success);
             ToastHelper.Show(this, summary, errors.Count > 0 ? ToastType.Warning : ToastType.Success);
         }
 
@@ -1359,7 +1368,6 @@ namespace Inventory_Management_System.Forms
             if (dgvUsers.SelectedRows.Count == 0)
             {
                 ToastHelper.Show(this, "Please select a user.", ToastType.Info);
-
                 return;
             }
             int id = Convert.ToInt32(dgvUsers.SelectedRows[0].Cells["ID"].Value);
@@ -1385,6 +1393,11 @@ namespace Inventory_Management_System.Forms
                 entity.IsActive = !(user.IsActive == true);
                 db.SaveChanges();
                 LoadUsers();
+
+                SecurityAuditLogger.Log(
+                    entity.IsActive == true ? "Activated user" : "Deactivated user",
+                    $"Target: {user.Username} (ID {id})");
+
                 ToastHelper.Show(this,
                     $"'{user.Username}' {(entity.IsActive == true ? "activated" : "deactivated")} successfully.",
                     ToastType.Success);
@@ -1392,7 +1405,6 @@ namespace Inventory_Management_System.Forms
             catch (Exception ex)
             {
                 ToastHelper.Show(this, "Error: " + ex.Message, ToastType.Error);
-
             }
         }
 
@@ -1415,7 +1427,9 @@ namespace Inventory_Management_System.Forms
             }
 
             if (MessageBox.Show(
-                $"Are you sure you want to PERMANENTLY delete '{user.Username}'?\nThis cannot be undone.",
+                $"Are you sure you want to PERMANENTLY delete '{user.Username}'?\n" +
+                "This cannot be undone.\n\n" +
+                "This action will be recorded in a separate, non-deletable security audit log.",
                 "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
 
             try
@@ -1431,6 +1445,8 @@ namespace Inventory_Management_System.Forms
                 db.Users.Remove(entity);
                 db.SaveChanges();
                 LoadUsers();
+
+                SecurityAuditLogger.Log("Deleted user", $"Target: {user.Username} (ID {id})");
 
                 ToastHelper.Show(this, $"'{user.Username}' was deleted.", ToastType.Success);
             }

@@ -30,9 +30,26 @@ namespace Inventory_Management_System.Forms
         private string _currentReport = "";
         private string _activeEquipmentCategory = "All Categories";
         private DataGridView _preview = null!;
+        private ContextMenuStrip? _equipmentMenu;
+        private System.Windows.Forms.Timer? _equipmentMenuCloseTimer;
         private Label _previewTitle = null!;
         private Label _lblWatermark = null!;
         private string _companyName = "Q-Inventory";
+
+        // ── Pagination — built once, only shown once a report is selected ──
+        private Panel _pnlPagination = null!;
+        private ComboBox cmbPageSize = null!;
+        private Button btnPrevPage = null!;
+        private Button btnNextPage = null!;
+        private Label lblPageIndicator = null!;
+        private Label lblRowCount = null!;
+        private int _currentPage = 1;
+        private int _pageSize = 25;
+        private int _totalPages = 1;
+        // Each entry adds ONE fully-built row (with its own styling) to _preview —
+        // built once per report selection, then only the current page's slice is
+        // actually invoked/rendered, instead of dumping every row at once.
+        private List<Action> _reportRowBuilders = new();
 
         public ReportsForm()
         {
@@ -40,6 +57,7 @@ namespace Inventory_Management_System.Forms
             ApplyTheme();
             BuildPreviewArea();
             LoadCompanyName();
+            SetupEquipmentDropdown();
         }
 
         private void LoadCompanyName()
@@ -72,10 +90,27 @@ namespace Inventory_Management_System.Forms
             if (_preview != null)
             {
                 ThemeHelper.StyleDataGridView(_preview);
-                _preview.Invalidate();
+                // Rebuild the current page's rows so per-cell colors (Status,
+                // Overdue, Source) get reapplied for the new theme — Invalidate()
+                // alone just repaints with the old cell-level Style values,
+                // which is what caused the half-updated flash and flat colors.
+                if (_reportRowBuilders.Count > 0)
+                    RenderReportPage();
+                else
+                    _preview.Invalidate();
             }
             if (_previewTitle != null)
                 _previewTitle.ForeColor = ThemeHelper.TextPrimary;
+
+            if (_pnlPagination != null)
+            {
+                _pnlPagination.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251);
+                lblRowCount.ForeColor = ThemeHelper.TextSecondary;
+                lblPageIndicator.ForeColor = ThemeHelper.TextSecondary;
+                ThemeHelper.StyleComboBox(cmbPageSize);
+                ThemeHelper.StyleSecondaryButton(btnPrevPage);
+                ThemeHelper.StyleSecondaryButton(btnNextPage);
+            }
         }
 
         // ── Preview grid — built in code since the Designer only has buttons ──
@@ -117,12 +152,22 @@ namespace Inventory_Management_System.Forms
                 _previewTitle.Location = new Point(left, top);
                 _previewTitle.Width = w;
                 _preview.Location = new Point(left, top + _previewTitle.Height + 2);
-                _preview.Size = new Size(w, ClientSize.Height - _preview.Top - 8);
+
+                int paginationSpace = _pnlPagination != null && _pnlPagination.Visible ? _pnlPagination.Height + 4 : 8;
+                _preview.Size = new Size(w, ClientSize.Height - _preview.Top - paginationSpace);
+
+                if (_pnlPagination != null)
+                {
+                    _pnlPagination.Location = new Point(left, ClientSize.Height - _pnlPagination.Height - 4);
+                    _pnlPagination.Width = w;
+                }
             }
 
+            BuildPaginationBar();
+
             panelTop.SizeChanged += (s, e) => RepositionPreview();
-            Resize             += (s, e) => RepositionPreview();
-            Shown              += (s, e) => RepositionPreview();
+            Resize += (s, e) => RepositionPreview();
+            Shown += (s, e) => RepositionPreview();
             RepositionPreview(); // initial placement
 
             _lblWatermark = new Label
@@ -143,6 +188,17 @@ namespace Inventory_Management_System.Forms
             _lblWatermark.SizeChanged += (s, e) => PositionWatermark();
         }
 
+        private void RepositionPaginationControls()
+        {
+            if (_pnlPagination == null) return;
+            int rightMargin = 4, gap = 8, ctrlY = 5;
+            int x = _pnlPagination.Width - rightMargin;
+            x -= btnNextPage.Width; btnNextPage.Location = new Point(x, ctrlY); x -= gap;
+            x -= lblPageIndicator.PreferredWidth; lblPageIndicator.Location = new Point(x, ctrlY + 3); x -= gap;
+            x -= btnPrevPage.Width; btnPrevPage.Location = new Point(x, ctrlY); x -= gap;
+            x -= cmbPageSize.Width; cmbPageSize.Location = new Point(x, ctrlY);
+        }
+
         private void PositionWatermark()
         {
             if (_lblWatermark == null) return;
@@ -152,9 +208,149 @@ namespace Inventory_Management_System.Forms
                 ClientSize.Height - _lblWatermark.Height - margin);
         }
 
+        private void BuildPaginationBar()
+        {
+            _pnlPagination = new Panel
+            {
+                Height = 36,
+                Visible = false, // only shown once a report is actually selected
+                BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251)
+            };
+            Controls.Add(_pnlPagination);
+
+            lblRowCount = new Label
+            {
+                AutoSize = true,
+                Font = ThemeHelper.FontSmall,
+                ForeColor = ThemeHelper.TextSecondary,
+                Location = new Point(4, 10)
+            };
+            _pnlPagination.Controls.Add(lblRowCount);
+
+            cmbPageSize = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Size = new Size(85, 26) };
+            cmbPageSize.Items.AddRange(new object[] { "25", "50", "100", "250", "500", "1000", "2000" });
+            cmbPageSize.SelectedItem = "25";
+            ThemeHelper.StyleComboBox(cmbPageSize);
+            cmbPageSize.SelectedIndexChanged += (s, e) =>
+            {
+                if (int.TryParse(cmbPageSize.SelectedItem?.ToString(), out int size))
+                {
+                    _pageSize = size;
+                    _currentPage = 1;
+                    RenderReportPage();
+                }
+            };
+
+            btnPrevPage = new Button { Text = "◀ Prev", Size = new Size(90, 26), Font = ThemeHelper.FontSmall };
+            ThemeHelper.StyleSecondaryButton(btnPrevPage);
+            btnPrevPage.Click += (s, e) => { if (_currentPage > 1) { _currentPage--; RenderReportPage(); } };
+
+            lblPageIndicator = new Label { AutoSize = true, Font = ThemeHelper.FontSmall, ForeColor = ThemeHelper.TextSecondary, TextAlign = ContentAlignment.MiddleCenter };
+
+            btnNextPage = new Button { Text = "Next ▶", Size = new Size(90, 26), Font = ThemeHelper.FontSmall };
+            ThemeHelper.StyleSecondaryButton(btnNextPage);
+            btnNextPage.Click += (s, e) => { if (_currentPage < _totalPages) { _currentPage++; RenderReportPage(); } };
+
+            _pnlPagination.Controls.Add(cmbPageSize);
+            _pnlPagination.Controls.Add(btnPrevPage);
+            _pnlPagination.Controls.Add(lblPageIndicator);
+            _pnlPagination.Controls.Add(btnNextPage);
+
+            _pnlPagination.Resize += (s, e) => RepositionPaginationControls();
+            RepositionPaginationControls();
+        }
+
+        // Shows the pagination bar (and correspondingly hides the watermark,
+        // since they occupy the same bottom strip) once a report is selected;
+        // hides it again if there's ever nothing to page through.
+        private void ShowPaginationBar(bool show)
+        {
+            _pnlPagination.Visible = show;
+            if (_lblWatermark != null) _lblWatermark.Visible = !show;
+
+            // Re-run the preview's own resize logic (defined as a local function
+            // inside BuildPreviewArea) so the grid reclaims/cedes the bottom strip.
+            _preview.Size = new Size(_preview.Width,
+                ClientSize.Height - _preview.Top - (show ? _pnlPagination.Height + 4 : 8));
+        }
+
+        // Clears the grid and renders only the current page's slice of
+        // _reportRowBuilders — call after (re)building the full builder list.
+        private void RenderReportPage()
+        {
+            _preview.Rows.Clear();
+
+            _totalPages = Math.Max(1, (int)Math.Ceiling(_reportRowBuilders.Count / (double)_pageSize));
+            if (_currentPage > _totalPages) _currentPage = _totalPages;
+
+            var slice = _reportRowBuilders.Skip((_currentPage - 1) * _pageSize).Take(_pageSize);
+            foreach (var build in slice) build();
+
+            int shown = Math.Max(0, Math.Min(_pageSize, _reportRowBuilders.Count - (_currentPage - 1) * _pageSize));
+            lblRowCount.Text = $"Showing {shown} of {_reportRowBuilders.Count} records";
+            lblPageIndicator.Text = $"Page {_currentPage} of {_totalPages}";
+            btnPrevPage.Enabled = _currentPage > 1;
+            btnNextPage.Enabled = _currentPage < _totalPages;
+
+            ShowPaginationBar(_reportRowBuilders.Count > 0);
+            RepositionPaginationControls();
+        }
+
+        // Kept as the Click handler the Designer already wires up — also acts as
+        // a fallback for touch/keyboard activation, since the primary trigger is
+        // now hover (see SetupEquipmentDropdown).
         private void btnEquipmentReport_Click(object sender, EventArgs e)
         {
-            // Build the ContextMenuStrip
+            ShowEquipmentCategoryMenu();
+        }
+
+        // ── Hover-driven category dropdown ──────────────────────────────
+        // Menu opens on MouseEnter over the button and closes automatically
+        // once the cursor leaves BOTH the button and the open menu — a short
+        // timer debounces the gap between "left the button" and "entered the
+        // menu" so it doesn't flicker shut while crossing that boundary.
+    
+
+        private void SetupEquipmentDropdown()
+        {
+            // Visual affordance — same idea as the dropdown caret on the
+            // profile icon in the top-right corner.
+            if (!btnEquipmentReport.Text.TrimEnd().EndsWith("▾"))
+                btnEquipmentReport.Text = btnEquipmentReport.Text.TrimEnd() + "  ▾";
+
+            _equipmentMenuCloseTimer = new System.Windows.Forms.Timer { Interval = 150 };
+            _equipmentMenuCloseTimer.Tick += (s, e) =>
+            {
+                _equipmentMenuCloseTimer!.Stop();
+                if (_equipmentMenu == null || !_equipmentMenu.Visible) return;
+
+                var cursorPos = Cursor.Position;
+                bool overButton = btnEquipmentReport.RectangleToScreen(btnEquipmentReport.ClientRectangle).Contains(cursorPos);
+                bool overMenu = _equipmentMenu.Bounds.Contains(cursorPos);
+
+                if (!overButton && !overMenu)
+                    _equipmentMenu.Close();
+            };
+
+            btnEquipmentReport.MouseEnter += (s, e) => ShowEquipmentCategoryMenu();
+            btnEquipmentReport.MouseLeave += (s, e) => _equipmentMenuCloseTimer!.Start();
+        }
+
+        private void ShowEquipmentCategoryMenu()
+        {
+            _equipmentMenuCloseTimer?.Stop();
+            if (_equipmentMenu != null && _equipmentMenu.Visible) return;
+
+            _equipmentMenu = BuildEquipmentCategoryMenu();
+            _equipmentMenu.MouseEnter += (s, e) => _equipmentMenuCloseTimer!.Stop();
+            _equipmentMenu.MouseLeave += (s, e) => _equipmentMenuCloseTimer!.Start();
+            _equipmentMenu.Closed += (s, e) => _equipmentMenu = null;
+
+            _equipmentMenu.Show(btnEquipmentReport, new Point(0, btnEquipmentReport.Height));
+        }
+
+        private ContextMenuStrip BuildEquipmentCategoryMenu()
+        {
             var menu = new ContextMenuStrip
             {
                 Font = ThemeHelper.FontDefault,
@@ -188,24 +384,20 @@ namespace Inventory_Management_System.Forms
                     .ToList();
             }
 
-            // Default to "All Categories" before displaying category menu
             _activeEquipmentCategory = "All Categories";
 
-            // Add "All Categories" item
             var allCatItem = new ToolStripMenuItem("All Categories");
-            allCatItem.Click += (s, ev) => LoadEquipmentReport("All Categories");
+            allCatItem.Click += (s, ev) => { LoadEquipmentReport("All Categories"); _equipmentMenu?.Close(); };
             menu.Items.Add(allCatItem);
 
-            // Add other category items
             foreach (var cat in categories)
             {
                 var item = new ToolStripMenuItem(cat);
-                item.Click += (s, ev) => LoadEquipmentReport(cat);
+                item.Click += (s, ev) => { LoadEquipmentReport(cat); _equipmentMenu?.Close(); };
                 menu.Items.Add(item);
             }
 
-            // Show menu below the button
-            menu.Show(btnEquipmentReport, new Point(0, btnEquipmentReport.Height));
+            return menu;
         }
 
         private void LoadEquipmentReport(string category)
@@ -244,14 +436,14 @@ namespace Inventory_Management_System.Forms
                     .ToList();
             }
 
-            foreach (var item in equipmentList)
+            _reportRowBuilders = equipmentList.Select(item => (Action)(() =>
             {
                 string location = ReturnsForm.FormatLocation(
                     item.Allocations.FirstOrDefault(a => a.Status == "approved")?.Location) ?? "—";
 
                 int rowIdx = _preview.Rows.Add(
-       item.EquipmentCode, item.QrCode ?? "—", item.Name, item.Make ?? "—", item.Model ?? "—",
-       item.SerialNumber, item.CurrentStatus, location);
+                    item.EquipmentCode, item.QrCode ?? "—", item.Name, item.Make ?? "—", item.Model ?? "—",
+                    item.SerialNumber, item.CurrentStatus, location);
 
                 var statusCell = _preview.Rows[rowIdx].Cells["Status"];
                 statusCell.Style.ForeColor = item.CurrentStatus switch
@@ -263,7 +455,10 @@ namespace Inventory_Management_System.Forms
                     _ => ThemeHelper.TextPrimary
                 };
                 statusCell.Style.Font = ThemeHelper.FontBold;
-            }
+            })).ToList();
+
+            _currentPage = 1;
+            RenderReportPage();
         }
 
         private void btnEmployeeReport_Click(object sender, EventArgs e)
@@ -293,16 +488,25 @@ namespace Inventory_Management_System.Forms
 
             var allocations = allocResult.Data ?? new List<Allocation>();
 
-            foreach (var emp in (empResult.Data ?? new List<Employee>()).Where(e => e.IsActive))
-            {
-                var empAllocs = allocations.Where(a => a.EmployeeId == emp.Id).ToList();
-                int activeCount = empAllocs.Count(a => a.Status == "approved");
-                int totalCount = empAllocs.Count;
+            _reportRowBuilders = (empResult.Data ?? new List<Employee>())
+                .Where(e => e.IsActive)
+                .Select(emp =>
+                {
+                    var empAllocs = allocations.Where(a => a.EmployeeId == emp.Id).ToList();
+                    int activeCount = empAllocs.Count(a => a.Status == "approved");
+                    int totalCount = empAllocs.Count;
+                    return (emp, activeCount, totalCount);
+                })
+                .Where(x => x.totalCount > 0) // skip employees with no history
+                .Select(x => (Action)(() =>
+                {
+                    _preview.Rows.Add(x.emp.EmployeeCode ?? "—", x.emp.FullName, x.emp.Department ?? "—",
+                        x.emp.Email ?? "—", x.emp.Phone ?? "—", x.activeCount, x.totalCount);
+                }))
+                .ToList();
 
-                if (totalCount == 0) continue; // skip employees with no history
-
-                _preview.Rows.Add(emp.EmployeeCode ?? "—", emp.FullName, emp.Department ?? "—", emp.Email ?? "—", emp.Phone ?? "—", activeCount, totalCount);
-            }
+            _currentPage = 1;
+            RenderReportPage();
         }
 
         private void btnAllocationReport_Click(object sender, EventArgs e)
@@ -331,26 +535,31 @@ namespace Inventory_Management_System.Forms
             _preview.Columns.Add("Source", "Source");
             _preview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
-            foreach (var item in (result.Data ?? new List<Allocation>())
-                                  .Where(a => a.Status == "approved" || a.Status == "pending"))
-            {
-                string fullLocation = ReturnsForm.FormatLocation(item.Location);
+            _reportRowBuilders = (result.Data ?? new List<Allocation>())
+         .Where(a => a.Status == "approved" || a.Status == "pending")
+         .Select(item => (Action)(() =>
+         {
+             string fullLocation = ReturnsForm.FormatLocation(item.Location);
 
-                int rowIdx = _preview.Rows.Add(
-                    item.Equipment?.EquipmentCode ?? "—",
-                    item.Equipment?.QrCode ?? "—",
-                    item.Equipment?.Name ?? "—",
-                    item.Employee?.FullName ?? "—",
-                    fullLocation,
-                    item.AllocationDate.ToString("yyyy-MM-dd"),
-                    item.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—",
-                    item.Status,
-                    "Allocation");
+             int rowIdx = _preview.Rows.Add(
+                 item.Equipment?.EquipmentCode ?? "—",
+                 item.Equipment?.QrCode ?? "—",
+                 item.Equipment?.Name ?? "—",
+                 item.Employee?.FullName ?? "—",
+                 fullLocation,
+                 item.AllocationDate.ToString("yyyy-MM-dd"),
+                 item.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—",
+                 item.Status,
+                 "Allocation");
 
-                var statusCell = _preview.Rows[rowIdx].Cells["Status"];
-                statusCell.Style.ForeColor = item.Status == "approved" ? ThemeHelper.Success : ThemeHelper.Warning;
-                statusCell.Style.Font = ThemeHelper.FontBold;
-            }
+             var statusCell = _preview.Rows[rowIdx].Cells["Status"];
+             statusCell.Style.ForeColor = item.Status == "approved" ? ThemeHelper.Success : ThemeHelper.Warning;
+             statusCell.Style.Font = ThemeHelper.FontBold;
+         }))
+         .ToList();
+
+            _currentPage = 1;
+            RenderReportPage();
         }
 
         private void btnReturnReport_Click(object sender, EventArgs e)
@@ -383,65 +592,74 @@ namespace Inventory_Management_System.Forms
                 .OrderByDescending(a => a.ActualReturnDate)
                 .ToList();
 
-            foreach (var item in returnedAllocations)
-            {
-                var returnDate = item.ActualReturnDate.HasValue
-                    ? item.ActualReturnDate.Value.ToDateTime(TimeOnly.MinValue)
-                    : DateTime.Today;
-                bool isOverdue = item.ExpectedReturnDate.HasValue && item.ActualReturnDate.HasValue &&
-                                 item.ActualReturnDate.Value > item.ExpectedReturnDate.Value;
-                string fullLocation = ReturnsForm.FormatLocation(item.Location);
+                var builders = new List<Action>();
 
-                int rowIdx = _preview.Rows.Add(
-                    item.Equipment?.QrCode ?? "—",
-                    item.Equipment?.EquipmentCode ?? "—",
-                    item.Equipment?.Name ?? "—",
-                    item.Employee?.FullName ?? "—",
-                    fullLocation,
-                    item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
-                    item.Equipment?.ConditionGrade ?? "—",
-                    "Allocation",
-                    isOverdue ? "Yes" : "No");
+                foreach (var item in returnedAllocations)
+                {
+                    builders.Add(() =>
+                    {
+                        bool isOverdue = item.ExpectedReturnDate.HasValue && item.ActualReturnDate.HasValue &&
+                                         item.ActualReturnDate.Value > item.ExpectedReturnDate.Value;
+                        string fullLocation = ReturnsForm.FormatLocation(item.Location);
 
-                var overdueCell = _preview.Rows[rowIdx].Cells["Overdue"];
-                overdueCell.Style.Font = ThemeHelper.FontBold;
-                overdueCell.Style.ForeColor = isOverdue ? ThemeHelper.Danger : ThemeHelper.TextSecondary;
+                        int rowIdx = _preview.Rows.Add(
+                            item.Equipment?.QrCode ?? "—",
+                            item.Equipment?.EquipmentCode ?? "—",
+                            item.Equipment?.Name ?? "—",
+                            item.Employee?.FullName ?? "—",
+                            fullLocation,
+                            item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
+                            item.Equipment?.ConditionGrade ?? "—",
+                            "Allocation",
+                            isOverdue ? "Yes" : "No");
 
-                var sourceCell = _preview.Rows[rowIdx].Cells["Source"];
-                sourceCell.Style.ForeColor = Color.FromArgb(107, 114, 128);
-            }
+                        var overdueCell = _preview.Rows[rowIdx].Cells["Overdue"];
+                        overdueCell.Style.Font = ThemeHelper.FontBold;
+                        overdueCell.Style.ForeColor = isOverdue ? ThemeHelper.Danger : ThemeHelper.TextSecondary;
 
-            // Load Check In/Out completed returns
-            var completedCheckIns = db.Transactions
-                .Include(t => t.Equipment)
-                .Where(t => t.Status == "Completed" && t.ActualReturn.HasValue && t.TransactionType == "Check-Out")
-                .OrderByDescending(t => t.ActualReturn)
-                .ToList();
+                        var sourceCell = _preview.Rows[rowIdx].Cells["Source"];
+                        sourceCell.Style.ForeColor = Color.FromArgb(107, 114, 128);
+                    });
+                }
 
-            foreach (var t in completedCheckIns)
-            {
-                bool isOverdue = t.ExpectedReturn.HasValue && t.ActualReturn.HasValue &&
-                                 t.ActualReturn.Value > t.ExpectedReturn.Value;
+                // Load Check In/Out completed returns
+                var completedCheckIns = db.Transactions
+                    .Include(t => t.Equipment)
+                    .Where(t => t.Status == "Completed" && t.ActualReturn.HasValue && t.TransactionType == "Check-Out")
+                    .OrderByDescending(t => t.ActualReturn)
+                    .ToList();
 
-                int rowIdx = _preview.Rows.Add(
-                    t.Equipment?.QrCode ?? "—",
-                    t.Equipment?.EquipmentCode ?? "—",
-                    t.Equipment?.Name ?? "—",
-                    string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
-                    string.IsNullOrWhiteSpace(t.Department) ? "—" : t.Department,
-                    t.ActualReturn?.ToString("yyyy-MM-dd") ?? "—",
-                    t.ConditionAfter ?? "—",
-                    "Check In/Out",
-                    isOverdue ? "Yes" : "No");
+                foreach (var t in completedCheckIns)
+                {
+                    builders.Add(() =>
+                    {
+                        bool isOverdue = t.ExpectedReturn.HasValue && t.ActualReturn.HasValue &&
+                                         t.ActualReturn.Value > t.ExpectedReturn.Value;
 
-                var overdueCell = _preview.Rows[rowIdx].Cells["Overdue"];
-                overdueCell.Style.Font = ThemeHelper.FontBold;
-                overdueCell.Style.ForeColor = isOverdue ? ThemeHelper.Danger : ThemeHelper.TextSecondary;
+                        int rowIdx = _preview.Rows.Add(
+                            t.Equipment?.QrCode ?? "—",
+                            t.Equipment?.EquipmentCode ?? "—",
+                            t.Equipment?.Name ?? "—",
+                            string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo,
+                            string.IsNullOrWhiteSpace(t.Department) ? "—" : t.Department,
+                            t.ActualReturn?.ToString("yyyy-MM-dd") ?? "—",
+                            t.ConditionAfter ?? "—",
+                            "Check In/Out",
+                            isOverdue ? "Yes" : "No");
 
-                var sourceCell = _preview.Rows[rowIdx].Cells["Source"];
-                sourceCell.Style.ForeColor = Color.FromArgb(25, 118, 210);
-                sourceCell.Style.Font = ThemeHelper.FontBold;
-            }
+                        var overdueCell = _preview.Rows[rowIdx].Cells["Overdue"];
+                        overdueCell.Style.Font = ThemeHelper.FontBold;
+                        overdueCell.Style.ForeColor = isOverdue ? ThemeHelper.Danger : ThemeHelper.TextSecondary;
+
+                        var sourceCell = _preview.Rows[rowIdx].Cells["Source"];
+                        sourceCell.Style.ForeColor = Color.FromArgb(25, 118, 210);
+                        sourceCell.Style.Font = ThemeHelper.FontBold;
+                    });
+                }
+
+                _reportRowBuilders = builders;
+                _currentPage = 1;
+                RenderReportPage();
             }
             catch (Exception ex)
             {

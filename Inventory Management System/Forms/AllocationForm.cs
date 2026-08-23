@@ -339,6 +339,12 @@ namespace Inventory_Management_System.Forms
                 Font = ThemeHelper.FontBold
             };
             btnFilters.FlatAppearance.BorderSize = 0;
+            
+            btnFilters.MouseEnter += (s, e) =>
+            {
+                if (!btnFilters.ContextMenuStrip?.Visible ?? true)
+                    ShowAllocFiltersMenu(btnFilters);
+            };
             btnFilters.Click += (s, e) => ShowAllocFiltersMenu(btnFilters);
 
             var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
@@ -348,7 +354,7 @@ namespace Inventory_Management_System.Forms
 
         private void ShowAllocFiltersMenu(Button anchor)
         {
-            var menu = new ContextMenuStrip { Font = ThemeHelper.FontDefault };
+            var allocFiltersMenu = new ContextMenuStrip { Font = ThemeHelper.FontDefault };
 
             var statusSub = new ToolStripMenuItem("Status");
             foreach (var (label, value) in new[] { ("All", "All"), ("Available", "Available"), ("Allocated", "Allocated"), ("Pending", "Pending"), ("Overdue", "Overdue") })
@@ -357,7 +363,7 @@ namespace Inventory_Management_System.Forms
                 item.Click += (s, e) => { _activeStatusFilter = value; _currentPage = 1; RefreshGrid(txtSearch.Text.Trim()); };
                 statusSub.DropDownItems.Add(item);
             }
-            menu.Items.Add(statusSub);
+            allocFiltersMenu.Items.Add(statusSub);
 
             var categorySub = new ToolStripMenuItem("Category");
             var allCat = new ToolStripMenuItem("All Categories") { Checked = string.IsNullOrEmpty(_activeCategoryFilter) };
@@ -370,9 +376,34 @@ namespace Inventory_Management_System.Forms
                 item.Click += (s, e) => { _activeCategoryFilter = cat; _currentPage = 1; RefreshGrid(txtSearch.Text.Trim()); };
                 categorySub.DropDownItems.Add(item);
             }
-            menu.Items.Add(categorySub);
+            allocFiltersMenu.Items.Add(categorySub);
 
-            menu.Show(anchor, new Point(0, anchor.Height));
+            allocFiltersMenu.Show(anchor, new Point(0, anchor.Height + 2));
+            anchor.ContextMenuStrip = allocFiltersMenu;
+
+            var hoverTimer = new System.Windows.Forms.Timer { Interval = 40 };
+            hoverTimer.Tick += (s, e) =>
+            {
+                if (allocFiltersMenu == null || allocFiltersMenu.IsDisposed || !allocFiltersMenu.Visible)
+                {
+                    hoverTimer.Stop();
+                    hoverTimer.Dispose();
+                    return;
+                }
+                var cursor = Cursor.Position;
+                var btnRect = anchor.RectangleToScreen(anchor.ClientRectangle);
+                btnRect.Inflate(4, 12);
+                var menuRect = allocFiltersMenu.Bounds;
+                menuRect.Inflate(4, 4);
+
+                if (!btnRect.Contains(cursor) && !menuRect.Contains(cursor))
+                {
+                    allocFiltersMenu.Close();
+                    hoverTimer.Stop();
+                    hoverTimer.Dispose();
+                }
+            };
+            hoverTimer.Start();
         }
 
         private void LoadAllocCategoryFilterItems()

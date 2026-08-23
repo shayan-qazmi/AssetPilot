@@ -150,7 +150,7 @@ namespace Inventory_Management_System
         private Panel? _panelLocation = null;
         private Panel? _panelTrend = null;
 
-        private List<(string Name, int Count)> _topEmployees = new();
+        private List<(string Name, int Count, string Dept, string Email, string Code)> _topEmployees = new();
         private List<(string Location, string RoomLabel, int InStock, int Allocated, int Repair)> _locationBreakdown = new();
 
         private List<(RectangleF Bounds, string Name, int Count)> _empHitRows = new();
@@ -862,39 +862,41 @@ namespace Inventory_Management_System
                 ? ResolveOpaqueBlend(Color.FromArgb(60, 20, 22, 26), ThemeHelper.TopBarBg)
                 : ResolveOpaqueBlend(Color.FromArgb(70, 255, 255, 255), ThemeHelper.TopBarBg);
 
+            const int shadowPad = 10; // extra room below the pill so the drop shadow has
+                                      // space to actually render instead of being clipped
+                                      // by the panel's own Region (see below)
+
             _pnlSearchBox = new Panel
             {
                 Name = "pnlSearchBox",
-                Size = new Size(boxWidth, boxHeight),
+                Size = new Size(boxWidth, boxHeight + shadowPad),
                 BackColor = Color.Transparent,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
 
-            void ApplySearchBoxRegion()
-            {
-                using var path = RoundedRect(new Rectangle(0, 0, _pnlSearchBox.Width - 1, _pnlSearchBox.Height - 1), searchRadius);
-                _pnlSearchBox.Region = new Region(path);
-            }
-            ApplySearchBoxRegion();
-            _pnlSearchBox.Resize += (s, e) => ApplySearchBoxRegion();
+            // No tight pill-shaped Region anymore — that was clipping the shadow at
+            // exactly the pill's edge. The pill still reads as rounded because it's
+            // painted that way below; the panel's hit box is just the full rectangle.
+            _pnlSearchBox.Region = null;
 
             _pnlSearchBox.Paint += (s, e) =>
             {
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
-                var rect = new Rectangle(0, 0, _pnlSearchBox.Width - 1, _pnlSearchBox.Height - 1);
+                // Pill is always drawn at the fixed boxHeight, at the top of the panel —
+                // the extra shadowPad below is empty space reserved just for the shadow.
+                var rect = new Rectangle(0, 0, _pnlSearchBox.Width - 1, boxHeight - 1);
 
-                // Layered shadow — soft wide pass + tight close pass — gives the
-                // pill a clear edge against the banner while the fill itself
-                // stays translucent.
-                using (var farShadowPath = RoundedRect(new Rectangle(rect.X - 2, rect.Y + 5, rect.Width + 4, rect.Height + 4), searchRadius))
-                using (var farShadowBrush = new SolidBrush(Color.FromArgb(35, 0, 0, 0)))
+                // Layered shadow, weighted downward — a soft wide pass plus a tighter
+                // close pass just underneath the pill.
+                using (var farShadowPath = RoundedRect(new Rectangle(rect.X - 2, rect.Y + 6, rect.Width + 4, rect.Height + 6), searchRadius))
+                using (var farShadowBrush = new SolidBrush(Color.FromArgb(40, 0, 0, 0)))
                 {
                     g.FillPath(farShadowBrush, farShadowPath);
                 }
-                using (var shadowPath = RoundedRect(new Rectangle(rect.X - 1, rect.Y + 2, rect.Width + 2, rect.Height + 2), searchRadius))
-                using (var shadowBrush = new SolidBrush(Color.FromArgb(55, 0, 0, 0)))
+                using (var shadowPath = RoundedRect(new Rectangle(rect.X - 1, rect.Y + 3, rect.Width + 2, rect.Height + 3), searchRadius))
+                using (var shadowBrush = new SolidBrush(Color.FromArgb(60, 0, 0, 0)))
                 {
                     g.FillPath(shadowBrush, shadowPath);
                 }
@@ -907,15 +909,11 @@ namespace Inventory_Management_System
                 using var borderPen = new Pen(Color.FromArgb(ThemeHelper.IsDarkMode ? 70 : 55, 255, 255, 255), 1f);
                 g.DrawPath(borderPen, path);
 
-                // Subtle top gloss highlight for the "glass" feel
-                using var glossClip = new GraphicsPath();
-                glossClip.AddEllipse(rect.X, rect.Y - rect.Height, rect.Width, rect.Height * 2);
-                var oldClip = g.Clip;
-                g.SetClip(path, CombineMode.Replace);
-                g.IntersectClip(new Region(glossClip));
-                using (var glossBrush = new SolidBrush(Color.FromArgb(ThemeHelper.IsDarkMode ? 12 : 60, 255, 255, 255)))
-                    g.FillPath(glossBrush, path);
-                g.Clip = oldClip;
+                // Gloss highlight removed — it was a gradient painted across the whole
+                // pill, and the TextBox sitting on top of it (flat single color, can't
+                // reproduce a gradient) created a visible rectangular seam wherever it
+                // sat. A flat fill everywhere keeps the pill and the textbox identical
+                // with no seam at all.
 
                 // magnifying glass icon
                 Color iconColor = ThemeHelper.IsDarkMode ? Color.FromArgb(190, 195, 210) : Color.FromArgb(120, 120, 120);
@@ -934,7 +932,10 @@ namespace Inventory_Management_System
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Segoe UI", 9f),
                 ForeColor = ThemeHelper.SearchFgColor,
-                BackColor = glassFill, // identical to the panel's painted fill — no visible seam
+                // Must be IDENTICAL to the panel's own painted fill color — a different
+                // shade here (even a "close" one) is exactly what makes the TextBox
+                // read as its own separate visible box inside the pill.
+                BackColor = glassFill,
                 Location = new Point(36, (boxHeight - 18) / 2),
                 Size = new Size(boxWidth - 36 - 52, 18),
                 PlaceholderText = "Search anything..."
@@ -1464,7 +1465,7 @@ namespace Inventory_Management_System
             footer.Controls.Add(hoverStrip);
             divider.BringToFront();
 
-            const int avatarSize = 38;
+            const int avatarSize = 50;
             var avatarImage = AvatarHelper.TryLoadUserImage(picturePath);
             footer.Disposed += (s, e) => avatarImage?.Dispose();
 
@@ -1688,7 +1689,8 @@ namespace Inventory_Management_System
             _profileUsername = username;
             _profileEmail = email;
 
-            const int avatarSize = 30, gapAvatarChevron = 2, chevronW = 16;
+            const int avatarSize = 36, gapAvatarChevron = 2, chevronW = 16; // bumped from 30 to visually
+                                                                            // match the notification bell icon
             int widgetW = avatarSize + gapAvatarChevron + chevronW;
             int widgetH = Math.Max(avatarSize, 24);
 
@@ -1742,7 +1744,11 @@ namespace Inventory_Management_System
             _pnlUserProfile.Controls.Add(lblChevron);
             _lblProfileChevron = lblChevron;
 
-            void OpenMenu(object? s, EventArgs e) => ToggleProfileDropdown();
+            void OpenMenu(object? s, EventArgs e)
+            {
+                if (_profilePopup == null || _profilePopup.IsDisposed)
+                    OpenProfileDropdown();
+            }
             _pnlUserProfile.Click += OpenMenu;
             avatarPanel.Click += OpenMenu;
             lblChevron.Click += OpenMenu;
@@ -1845,7 +1851,26 @@ namespace Inventory_Management_System
                     var iconBounds = new RectangleF(12, (b.Height - 17) / 2f, 17, 17);
                     iconPainter(e.Graphics, iconBounds);
                 };
-                b.Click += (s, e) => { CloseProfileDropdown(); onClick(); };
+                b.Click += (s, e) =>
+                {
+                    // Stop hover watcher immediately so it cannot re-open
+                    // the popup while we are in the middle of closing it.
+                    _profileHoverWatcher?.Stop();
+                    _profileHoverWatcher?.Dispose();
+                    _profileHoverWatcher = null;
+
+                    // Close popup synchronously (no fade) so the action's
+                    // MessageBox does not trigger Deactivate mid-fade.
+                    if (_profilePopup != null && !_profilePopup.IsDisposed)
+                    {
+                        var p = _profilePopup;
+                        _profilePopup = null;
+                        p.Close();
+                    }
+                    AnimateChevron(open: false);
+
+                    onClick();
+                };
                 return b;
             }
 
@@ -2573,10 +2598,10 @@ namespace Inventory_Management_System
                 _topEmployees = db.Employees
                         .Where(e => e.IsActive)
                         .ToList()
-                        .Select(e => (Code: e.EmployeeCode, Name: e.FullName, Count: counts.TryGetValue(e.Id, out var c) ? c : 0))
+                        .Select(e => (Code: e.EmployeeCode, Name: e.FullName, Count: counts.TryGetValue(e.Id, out var c) ? c : 0, Dept: e.Department ?? "—", Email: e.Email ?? "—"))
                         .OrderByDescending(e => e.Count)
                         .ThenBy(e => e.Code, StringComparer.OrdinalIgnoreCase)
-                        .Select(e => (Name: e.Name, Count: e.Count))
+                        .Select(e => (Name: e.Name, Count: e.Count, Dept: e.Dept, Email: e.Email, Code: e.Code))
                         .ToList();
             }
             catch { _topEmployees = new(); }
@@ -3029,7 +3054,7 @@ namespace Inventory_Management_System
             for (int i = 0; i < _topEmployees.Count; i++)
             {
                 var emp = _topEmployees[i];
-                var row = BuildEmployeeRow(i + 1, emp.Name, emp.Count, maxVal, showBars, listHost.Width - 20, _employeeTooltip);
+                var row = BuildEmployeeRow(i + 1, emp.Name, emp.Count, emp.Dept, emp.Email, emp.Code, maxVal, showBars, listHost.Width - 20, _employeeTooltip);
                 row.Location = new Point(10, y);
                 row.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
                 listHost.Controls.Add(row);
@@ -3037,13 +3062,13 @@ namespace Inventory_Management_System
             }
         }
 
-        private static Panel BuildEmployeeRow(int rank, string name, int count, int maxVal, bool showBar, int width, ToolTip tooltip)
+        private static Panel BuildEmployeeRow(int rank, string name, int count, string dept, string email, string code, int maxVal, bool showBar, int width, ToolTip tooltip)
         {
-            var row = new Panel { Size = new Size(width, 34), BackColor = Color.Transparent };
+            var row = new Panel { Size = new Size(width, 34), BackColor = ThemeHelper.ContentBg };
 
             string tooltipText = count > 0
-                ? $"{name} — {count} item{(count == 1 ? "" : "s")} currently allocated"
-                : $"{name} — no equipment currently allocated";
+                ? $"{name} ({code})\n{count} allocation{(count == 1 ? "" : "s")}"
+                : $"{name} ({code})\nNo allocations";
 
             const int avatarD = 24;
             string initial = name.Length > 0 ? name.Trim().Substring(0, 1).ToUpper() : "?";
@@ -3083,7 +3108,7 @@ namespace Inventory_Management_System
             row.Controls.Add(lblName);
 
             row.MouseEnter += (s, e) => row.BackColor = ThemeHelper.ChartTrackBg;
-            row.MouseLeave += (s, e) => row.BackColor = Color.Transparent;
+            row.MouseLeave += (s, e) => row.BackColor = ThemeHelper.ContentBg;
 
             if (showBar)
             {
@@ -3679,20 +3704,17 @@ namespace Inventory_Management_System
         Color.FromArgb(239,  68,  68), Color.FromArgb(123,  31, 162),
     };
 
-            int top = 54, colGap = 40, padOuter = 16;
-            int colWidth = (p.Width - padOuter * 2 - colGap) / 2;
+            int top = 54, padOuter = 16;
 
-            // Split roughly in half — left gets the first ceil(n/2), right gets the rest.
-            int half = (int)Math.Ceiling(_categoryBreakdown.Count / 2.0);
-            var leftCats = _categoryBreakdown.Take(half).ToList();
-            var rightCats = _categoryBreakdown.Skip(half).ToList();
-
-            var leftBounds = new Rectangle(padOuter, top, colWidth, p.Height - top - 20);
-            var rightBounds = new Rectangle(padOuter + colWidth + colGap, top, colWidth, p.Height - top - 20);
+            // Single column now, smallest count first. This sort is local to this
+            // chart only — _categoryBreakdown itself stays descending everywhere
+            // else (nothing else reads it in a particular order, but keeping it
+            // untouched avoids any risk of side effects).
+            var catsAsc = _categoryBreakdown.OrderBy(c => c.Count).ToList();
+            var bounds = new Rectangle(padOuter, top, p.Width - padOuter * 2, p.Height - top - 20);
 
             _catHitRows.Clear();
-            PaintCategoryColumn(g, leftCats, leftBounds, palette, colorOffset: 0);
-            PaintCategoryColumn(g, rightCats, rightBounds, palette, colorOffset: half);
+            PaintCategoryColumn(g, catsAsc, bounds, palette, colorOffset: 0);
 
             if (_catHoverIndex >= 0 && _catHoverIndex < _catHitRows.Count)
             {
@@ -4015,7 +4037,9 @@ namespace Inventory_Management_System
             using var bgBar = new SolidBrush(ThemeHelper.ChartTrackBg);
 
             float rowH = (float)bounds.Height / cats.Count;
-            float barH = Math.Clamp(rowH * 0.68f, 20f, 44f);
+            float barH = Math.Clamp(rowH * 0.55f, 14f, 26f); // slimmer bars — the old up-to-44px floor was
+                                                             // what made small and large counts look almost
+                                                             // the same width
 
             for (int i = 0; i < cats.Count; i++)
             {
@@ -4033,7 +4057,10 @@ namespace Inventory_Management_System
                 using var trackPath = RoundedRectF(new RectangleF(chartX, by, chartW, barH), 5f);
                 g.FillPath(bgBar, trackPath);
 
-                float fillW = maxVal == 0 ? 0 : Math.Max(barH, (float)cat.Count / maxVal * chartW);
+                // Real proportional width — a small 4px floor just keeps a near-zero
+                // count visible, instead of the old 44px-tall floor that made every
+                // bar read as roughly the same size regardless of its actual count.
+                float fillW = maxVal == 0 ? 0 : Math.Max(4f, (float)cat.Count / maxVal * chartW);
                 if (fillW > 0)
                 {
                     using var grad = new LinearGradientBrush(
@@ -4047,12 +4074,15 @@ namespace Inventory_Management_System
                 float lblX = Math.Max(bounds.X, chartX - lSz.Width - 10);
                 g.DrawString(cat.Category, labelFont, labelFg, lblX, by + barH / 2f - lSz.Height / 2f);
 
+                // Value text is now FIXED at chartX + chartW + 8 for every row, instead
+                // of trailing the end of each bar — that's what was pushing the number
+                // on top of the bar when the fallback clamp kicked in. Now it always
+                // lands in the reserved right-hand strip, forming a clean aligned column.
                 float pct = (float)cat.Count / total * 100f;
-                string valStr = $"{cat.Count}  ({pct:0}%)";
-                var vSz = g.MeasureString(valStr, valFont);
+                string valStr = $"{cat.Count} ({pct:0}%)";
                 using var vFg = new SolidBrush(color);
-                float valX = chartX + fillW + 8;
-                if (valX + vSz.Width > bounds.Right - 4) valX = Math.Max(chartX, bounds.Right - vSz.Width - 4);
+                var vSz = g.MeasureString(valStr, valFont);
+                float valX = chartX + chartW + 8;
                 g.DrawString(valStr, valFont, vFg, valX, by + barH / 2f - vSz.Height / 2f);
             }
         }

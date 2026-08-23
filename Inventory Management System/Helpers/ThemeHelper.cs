@@ -418,6 +418,13 @@ namespace Inventory_Management_System.Helpers
             if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
 
             var cellStyle = dgv.Rows[e.RowIndex].Cells[e.ColumnIndex].Style;
+
+            // If the cell already has an explicit custom ForeColor (e.g. Status
+            // badges colored green/orange/red in ReportsForm), leave it alone —
+            // only fall back to the safe gray when nothing custom was set.
+            if (!cellStyle.ForeColor.IsEmpty)
+                return;
+
             Color rowBg = dgv.Rows[e.RowIndex].DefaultCellStyle.BackColor;
             Color effectiveBg = cellStyle.BackColor.IsEmpty ? rowBg : cellStyle.BackColor;
 

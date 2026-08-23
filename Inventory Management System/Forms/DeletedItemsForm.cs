@@ -147,8 +147,8 @@ namespace Inventory_Management_System.Forms
             _chkHeaderPanel.Controls.Add(btnArrow);
 
             flowToolbar.Controls.Add(_chkHeaderPanel);
-            flowToolbar.Controls.Add(btnRestore);
             flowToolbar.Controls.Add(btnDelete);
+            flowToolbar.Controls.Add(btnRestore);
             flowToolbar.Controls.Add(btnRefresh);
 
             panelTop.Controls.Add(flowToolbar);

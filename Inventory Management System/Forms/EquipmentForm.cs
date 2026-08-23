@@ -338,6 +338,12 @@ namespace Inventory_Management_System.Forms
                 Font = ThemeHelper.FontBold
             };
             btnFilters.FlatAppearance.BorderSize = 0;
+            
+            btnFilters.MouseEnter += (s, e) =>
+            {
+                if (!btnFilters.ContextMenuStrip?.Visible ?? true)
+                    ShowFiltersMenu(btnFilters);
+            };
             btnFilters.Click += (s, e) => ShowFiltersMenu(btnFilters);
 
             flow.Controls.Add(btnFilters);
@@ -379,7 +385,32 @@ namespace Inventory_Management_System.Forms
             menu.Items.Add(categorySub);
             PopulateCategorySubmenu(categorySub);
 
-            menu.Show(anchor, new Point(0, anchor.Height));
+            menu.Show(anchor, new Point(0, anchor.Height + 2));
+            anchor.ContextMenuStrip = menu;
+
+            var hoverTimer = new System.Windows.Forms.Timer { Interval = 40 };
+            hoverTimer.Tick += (s, e) =>
+            {
+                if (menu == null || menu.IsDisposed || !menu.Visible)
+                {
+                    hoverTimer.Stop();
+                    hoverTimer.Dispose();
+                    return;
+                }
+                var cursor = Cursor.Position;
+                var btnRect = anchor.RectangleToScreen(anchor.ClientRectangle);
+                btnRect.Inflate(4, 12);
+                var menuRect = menu.Bounds;
+                menuRect.Inflate(4, 4);
+
+                if (!btnRect.Contains(cursor) && !menuRect.Contains(cursor))
+                {
+                    menu.Close();
+                    hoverTimer.Stop();
+                    hoverTimer.Dispose();
+                }
+            };
+            hoverTimer.Start();
         }
 
         private void PopulateStatusSubmenu(ToolStripMenuItem parent)

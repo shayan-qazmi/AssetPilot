@@ -48,19 +48,19 @@ namespace Inventory_Management_System.Forms
             flowToolbar.Controls.Add(btnExport);
             flowToolbar.Controls.Add(txtSearch);
 
-            btnDecommission.Size   = new System.Drawing.Size(160, 32);
-            btnDecommission.Text   = "🗑 Decommission Item";
+            btnDecommission.Size   = new System.Drawing.Size(130, 32);
+            btnDecommission.Text   = "🚫 Decommission Item";
             btnDecommission.Name   = "btnDecommission";
             btnDecommission.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnDecommission.Click += btnDecommission_Click;
 
-            btnRefresh.Size   = new System.Drawing.Size(90, 32);
+            btnRefresh.Size   = new System.Drawing.Size(130, 32);
             btnRefresh.Text   = "🔄 Refresh";
             btnRefresh.Name   = "btnRefresh";
             btnRefresh.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnRefresh.Click += btnRefresh_Click;
 
-            btnExport.Size   = new System.Drawing.Size(90, 32);
+            btnExport.Size   = new System.Drawing.Size(130, 32);
             btnExport.Text   = "📥 Export CSV";
             btnExport.Name   = "btnExport";
             btnExport.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);

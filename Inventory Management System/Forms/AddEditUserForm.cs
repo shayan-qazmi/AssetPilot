@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Net.Mail;
 using System.Linq;
 using System.Windows.Forms;
 using Inventory_Management_System.Helpers;
@@ -44,6 +45,11 @@ namespace Inventory_Management_System.Forms
             if (_isEditMode) PopulateFields();
 
             FormClosed += (s, e) => _avatarImage?.Dispose();
+        }
+        private static bool IsValidEmail(string email)
+        {
+            try { return new MailAddress(email).Address == email; }
+            catch { return false; }
         }
 
         private static Color CardBorder => ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(224, 224, 224);
@@ -444,10 +450,19 @@ namespace Inventory_Management_System.Forms
                 }
 
                 string newEmail = string.IsNullOrWhiteSpace(txtEmail.Text) ? null : txtEmail.Text.Trim();
+
+                if (!string.IsNullOrWhiteSpace(newEmail) && !IsValidEmail(newEmail))
+                {
+                    lblStatus.Text = "Please enter a valid email address.";
+                    ToastHelper.Show(this, "Please enter a valid email address (e.g. name@example.com).", ToastType.Warning);
+                    return;
+                }
+
                 if (!string.IsNullOrWhiteSpace(newEmail) &&
                     db.Users.Any(u => u.Email == newEmail && u.Id != _user.Id))
                 {
                     lblStatus.Text = "Email is already in use by another user.";
+                    ToastHelper.Show(this, "That email is already in use by another user.", ToastType.Warning);
                     return;
                 }
 

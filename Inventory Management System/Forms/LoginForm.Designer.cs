@@ -40,8 +40,8 @@ namespace Inventory_Management_System.Forms
             btnLogin            = new System.Windows.Forms.Button();
             btnCancel           = new System.Windows.Forms.Button();
             lblError            = new System.Windows.Forms.Label();
-            panelBottom = new System.Windows.Forms.Panel();
-            lblRowCount = new System.Windows.Forms.Label(); 
+            panelBottom         = new System.Windows.Forms.Panel();
+            lblRowCount         = new System.Windows.Forms.Label();
 
             ((System.ComponentModel.ISupportInitialize)picLogo).BeginInit();
             panelLeft.SuspendLayout();
@@ -53,16 +53,13 @@ namespace Inventory_Management_System.Forms
             SuspendLayout();
 
             // ── panelLeft ─────────────────────────────────────────────────
-            // Exact same green as btnLogin everywhere on this side now.
             panelLeft.Dock      = System.Windows.Forms.DockStyle.Left;
             panelLeft.Width     = 420;
             panelLeft.BackColor = System.Drawing.Color.FromArgb(27, 94, 32);
             panelLeft.Name      = "panelLeft";
             panelLeft.Controls.Add(panelAnim);
 
-            // ── panelAnim (fills the ENTIRE left side — single continuous canvas) ──
-            // No more split panel = no more seam line. Logo/brand/tagline are
-            // placed directly inside this panel so they paint in the same surface.
+            // ── panelAnim ─────────────────────────────────────────────────
             panelAnim.Dock      = System.Windows.Forms.DockStyle.Fill;
             panelAnim.BackColor = System.Drawing.Color.FromArgb(27, 94, 32);
             panelAnim.Name      = "panelAnim";
@@ -106,10 +103,8 @@ namespace Inventory_Management_System.Forms
             panelRight.Controls.Add(panelCard);
 
             // ── panelCard ─────────────────────────────────────────────────
-            // Height increased to 470 to safely fit every control with margin —
-            // this, combined with the Resize-based centering below, fixes the
-            // Sign In / Cancel clipping issue.
-            panelCard.Size      = new System.Drawing.Size(360, 470);
+            // Reduced height since Cancel is removed and replaced by circle button
+            panelCard.Size      = new System.Drawing.Size(360, 420);
             panelCard.BackColor = System.Drawing.Color.White;
             panelCard.Anchor    = System.Windows.Forms.AnchorStyles.None;
             panelCard.Name      = "panelCard";
@@ -122,8 +117,8 @@ namespace Inventory_Management_System.Forms
             panelCard.Controls.Add(lblToggleLabel);
             panelCard.Controls.Add(pnlToggle);
             panelCard.Controls.Add(btnLogin);
-            panelCard.Controls.Add(btnCancel);
-            panelCard.Controls.Add(lblError);
+            panelCard.Controls.Add(btnCancel); // kept in field but hidden
+            panelCard.Controls.Add(lblError);  // kept in field but hidden
 
             // ── lblAppTitle ───────────────────────────────────────────────
             lblAppTitle.Text      = "Sign In";
@@ -247,7 +242,6 @@ namespace Inventory_Management_System.Forms
             lblToggleLabel.Name      = "lblToggleLabel";
             lblToggleLabel.Cursor    = System.Windows.Forms.Cursors.Hand;
             lblToggleLabel.Click    += lblToggleLabel_Click;
-          
 
             // Toggle switch panel (drawn in code)
             pnlToggle.Location  = new System.Drawing.Point(0, 260);
@@ -259,12 +253,12 @@ namespace Inventory_Management_System.Forms
             pnlToggle.Click    += pnlToggle_Click;
             pnlToggle.TabIndex = 2;
 
-
-            // ── btnLogin (rounded green) ───────────────────────────────────
-            // Width/height match panelUsername/panelPassword exactly: 360 x 44.
-            btnLogin.Text      = "Sign In";
-            btnLogin.Location  = new System.Drawing.Point(0, 304);
-            btnLogin.Size      = new System.Drawing.Size(360, 44);
+            // ── btnLogin — circle button (replaces Sign In + Cancel) ──────
+            // Rendered as a circle with an arrow glyph via owner-draw.
+            int circleD = 64;
+            btnLogin.Text      = "";
+            btnLogin.Location  = new System.Drawing.Point((360 - circleD) / 2, 316);
+            btnLogin.Size      = new System.Drawing.Size(circleD, circleD);
             btnLogin.Font      = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
             btnLogin.BackColor = System.Drawing.Color.FromArgb(27, 94, 32);
             btnLogin.ForeColor = System.Drawing.Color.White;
@@ -276,27 +270,23 @@ namespace Inventory_Management_System.Forms
             btnLogin.Name      = "btnLogin";
             btnLogin.TabIndex  = 3;
             btnLogin.Click    += btnLogin_Click;
+            // Make it a pill/circle
+          
 
-            // ── btnCancel ────────────────────────────────────────────────────
+            // ── btnCancel — hidden (kept for compat) ──────────────────────
             btnCancel.Text      = "Cancel";
-            btnCancel.Location  = new System.Drawing.Point(0, 358);
-            btnCancel.Size      = new System.Drawing.Size(360, 38);
-            btnCancel.Font      = new System.Drawing.Font("Segoe UI", 10F);
-            btnCancel.BackColor = System.Drawing.Color.FromArgb(229, 231, 235);
-            btnCancel.ForeColor = System.Drawing.Color.FromArgb(55, 65, 81);
-            btnCancel.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            btnCancel.FlatAppearance.BorderSize         = 0;
-            btnCancel.FlatAppearance.MouseOverBackColor = System.Drawing.Color.FromArgb(209, 213, 219);
-            btnCancel.FlatAppearance.MouseDownBackColor = System.Drawing.Color.FromArgb(229, 231, 235);
-            btnCancel.Cursor    = System.Windows.Forms.Cursors.Hand;
+            btnCancel.Location  = new System.Drawing.Point(-1000, -1000); // off-screen
+            btnCancel.Size      = new System.Drawing.Size(1, 1);
+            btnCancel.Visible   = false;
             btnCancel.Name      = "btnCancel";
             btnCancel.TabIndex  = 4;
             btnCancel.Click    += btnCancel_Click;
 
-            // ── lblError ──────────────────────────────────────────────────
+            // ── lblError — hidden (replaced by toast) ─────────────────────
             lblError.AutoSize  = false;
-            lblError.Size      = new System.Drawing.Size(360, 40);
-            lblError.Location  = new System.Drawing.Point(0, 414);
+            lblError.Size      = new System.Drawing.Size(1, 1);
+            lblError.Location  = new System.Drawing.Point(-1000, -1000);
+            lblError.Visible   = false;
             lblError.Font      = new System.Drawing.Font("Segoe UI", 8.5F);
             lblError.ForeColor = System.Drawing.Color.FromArgb(239, 68, 68);
             lblError.Name      = "lblError";
@@ -326,9 +316,6 @@ namespace Inventory_Management_System.Forms
             panelPassword.PerformLayout();
             ResumeLayout(false);
 
-            // Centering logic now runs on BOTH Shown and Resize, so the card
-            // is always correctly positioned and buttons are never clipped —
-            // this directly fixes the Sign In / Cancel cut-off issue.
             void CenterCard()
             {
                 if (panelRight.Width <= 0 || panelRight.Height <= 0) return;
@@ -336,8 +323,6 @@ namespace Inventory_Management_System.Forms
                     Math.Max(0, (panelRight.Width - panelCard.Width) / 2),
                     Math.Max(0, (panelRight.Height - panelCard.Height) / 2));
 
-                // Vertically center the "Remember Me" label against the toggle's
-                // actual switch pill center (pnlToggle.Top + 18) across all DPI scaling.
                 int labelPrefH = lblToggleLabel.PreferredHeight;
                 int toggleCenterY = pnlToggle.Top + 18;
                 int labelTop = toggleCenterY - (labelPrefH / 2);
@@ -350,16 +335,18 @@ namespace Inventory_Management_System.Forms
             Shown += (s, e) =>
             {
                 CenterCard();
-
-                // Load embedded logo
                 try
                 {
                     picLogo.Image = global::Inventory_Management_System.Properties.Resources.logo;
                 }
-                catch
-                {
-                }
+                catch { }
+
+                // ── Slide-up entrance animation for the right panel card ──
+                StartSlideUpAnimation();
             };
+
+            // Draw arrow on circle button
+            btnLogin.Paint += BtnLogin_PaintArrow;
         }
 
         #endregion
