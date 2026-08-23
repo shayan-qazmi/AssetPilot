@@ -45,6 +45,12 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Timer? _loginBtnSpinTimer;
         private float _loginBtnSpinAngle = 0f;
 
+        // ── Create-account button hover/press state ───────────────────────
+        private enum CreateBtnState { Normal, Hover, Pressed }
+        private CreateBtnState _createBtnState = CreateBtnState.Normal;
+        private float _createBtnHoverT = 0f;
+        private System.Windows.Forms.Timer? _createBtnAnimTimer;
+
         // ── Slide-up animation state ─────────────────────────────────────
         private float _slideProgress = 0f;
         private System.Windows.Forms.Timer? _slideTimer;
@@ -140,6 +146,28 @@ namespace Inventory_Management_System.Forms
             _loginBtnAnimTimer.Start();
         }
 
+        private void AnimateCreateBtnTo(Button btnCreate, CreateBtnState target)
+        {
+            _createBtnState = target;
+            _createBtnAnimTimer?.Stop();
+            _createBtnAnimTimer?.Dispose();
+            _createBtnAnimTimer = new System.Windows.Forms.Timer { Interval = 12 };
+            _createBtnAnimTimer.Tick += (s, e) =>
+            {
+                float dest = (target == CreateBtnState.Hover || target == CreateBtnState.Pressed) ? 1f : 0f;
+                _createBtnHoverT += (dest - _createBtnHoverT) * 0.25f;
+                if (Math.Abs(_createBtnHoverT - dest) < 0.01f)
+                {
+                    _createBtnHoverT = dest;
+                    _createBtnAnimTimer?.Stop();
+                    _createBtnAnimTimer?.Dispose();
+                    _createBtnAnimTimer = null;
+                }
+                btnCreate.Invalidate();
+            };
+            _createBtnAnimTimer.Start();
+        }
+
         private void SetLoginBtnLoading(bool loading)
         {
             if (loading)
@@ -188,12 +216,43 @@ namespace Inventory_Management_System.Forms
 
             btnLogin.Size = new Size(panelUsername.Width, fieldH);
             btnLogin.Left = panelUsername.Left;
-            btnLogin.Top = pnlToggle.Bottom + 46; // extra gap so the link above doesn't crowd the button
+            btnLogin.Top = pnlToggle.Bottom + 20; // tightened gap toggle -> button
             btnLogin.Region = MakeRoundedRegion(btnLogin.Width, btnLogin.Height, fieldRadius);
             btnLogin.Resize += (s, e) =>
                 btnLogin.Region = MakeRoundedRegion(btnLogin.Width, btnLogin.Height, fieldRadius);
 
-            SetupCreateAccountLink();
+            int createAccountRowBottom = SetupCreateAccountLink();
+            AddLoginSsoSection(fieldRadius, createAccountRowBottom);
+        }
+
+        private void AddLoginSsoSection(int fieldRadius, int startY)
+        {
+            var parent = btnLogin.Parent;
+            int contentLeft = panelUsername.Left;
+            int contentWidth = panelUsername.Width;
+            int y = startY + 24;
+
+            var lblOr = new Label { Text = "or continue with", Font = new Font("Segoe UI", 8.5f), ForeColor = Color.FromArgb(156, 163, 175), AutoSize = true, Top = y };
+            parent.Controls.Add(lblOr);
+            lblOr.Left = contentLeft + (contentWidth - lblOr.PreferredWidth) / 2;
+            var lineLeft = new Panel { Width = lblOr.Left - contentLeft - 10, Height = 1, Left = contentLeft, Top = y + lblOr.PreferredHeight / 2, BackColor = Color.FromArgb(229, 231, 235) };
+            var lineRight = new Panel { Width = contentLeft + contentWidth - (lblOr.Left + lblOr.PreferredWidth + 10), Height = 1, Left = lblOr.Left + lblOr.PreferredWidth + 10, Top = y + lblOr.PreferredHeight / 2, BackColor = Color.FromArgb(229, 231, 235) };
+            parent.Controls.Add(lineLeft);
+            parent.Controls.Add(lineRight);
+            y += lblOr.PreferredHeight + 20;
+
+            int ssoGap = 12;
+            int ssoWidth = (contentWidth - ssoGap) / 2;
+            var btnGoogle = MakeSsoButtonLocal("Google", contentLeft, y, ssoWidth, fieldRadius);
+            var btnMicrosoft = MakeSsoButtonLocal("Microsoft", contentLeft + ssoWidth + ssoGap, y, ssoWidth, fieldRadius);
+            btnGoogle.Click += (s, e) => ShowToast("This feature is coming soon in the next update!", isError: false);
+            btnMicrosoft.Click += (s, e) => ShowToast("This feature is coming soon in the next update!", isError: false);
+            parent.Controls.Add(btnGoogle);
+            parent.Controls.Add(btnMicrosoft);
+            y += 42 + 24;
+
+            if (panelCard.Height < y)
+                panelCard.Height = y;
         }
         private Panel? _signUpPanel;
         private readonly Dictionary<Control, Point> _signUpOriginalPositions = new();
@@ -294,13 +353,13 @@ namespace Inventory_Management_System.Forms
             y += lblSubtitle.PreferredHeight + 32;
 
             // ── Full name ────────────────────────────────────────────
-            y = AddSignUpField(panel, "Full name", contentLeft, contentWidth, y, out var txtFullName, isPassword: false);
+            y = AddSignUpField(panel, "Full name", contentLeft, contentWidth, y, out var txtFullName, isPassword: false, icon: SignUpFieldIcon.Person);
 
             // ── Work email ───────────────────────────────────────────
-            y = AddSignUpField(panel, "Work email", contentLeft, contentWidth, y, out var txtEmail, isPassword: false);
+            y = AddSignUpField(panel, "Work email", contentLeft, contentWidth, y, out var txtEmail, isPassword: false, icon: SignUpFieldIcon.Mail);
 
             // ── Password ─────────────────────────────────────────────
-            y = AddSignUpField(panel, "Password", contentLeft, contentWidth, y, out var txtPassword, isPassword: true);
+            y = AddSignUpField(panel, "Password", contentLeft, contentWidth, y, out var txtPassword, isPassword: true, icon: SignUpFieldIcon.Key);
             y += 8;
 
             // ── Strength bars ────────────────────────────────────────
@@ -389,23 +448,67 @@ namespace Inventory_Management_System.Forms
             };
             btnCreate.FlatAppearance.BorderSize = 0;
             btnCreate.Region = MakeRoundedRegion(btnCreate.Width, btnCreate.Height, fieldRadius);
+            btnCreate.Cursor = Cursors.Hand;
             btnCreate.Paint += (s, e) =>
             {
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
-                var rect = new RectangleF(0, 0, btnCreate.Width, btnCreate.Height);
-                using var path = RoundRect(new Rectangle(0, 0, btnCreate.Width, btnCreate.Height), fieldRadius);
-                using var grad = new LinearGradientBrush(rect, GreenMid, GreenDark, LinearGradientMode.Vertical);
-                g.FillPath(grad, path);
-                DrawLabelWithArrow(g, rect, "Create account");
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+                float t = _createBtnHoverT;
+                bool pressed = _createBtnState == CreateBtnState.Pressed;
+
+                float scale = pressed ? 0.97f : 1f;
+                int sw = (int)(btnCreate.Width * scale);
+                int sh = (int)(btnCreate.Height * scale);
+                int ox = (btnCreate.Width - sw) / 2;
+                int oy = (btnCreate.Height - sh) / 2;
+                var rect = new RectangleF(ox, oy, sw, sh);
+
+                using var pillPath = RoundRect(new Rectangle((int)rect.X, (int)rect.Y, (int)rect.Width, (int)rect.Height), fieldRadius);
+
+                float shadowAlpha = pressed ? 35 : 45 + t * 30;
+                float shadowLift = pressed ? 2f : 3f + t * 3f;
+                using (var shadowBrush = new SolidBrush(Color.FromArgb((int)shadowAlpha, 27, 94, 32)))
+                {
+                    var shadowRect = new RectangleF(rect.X, rect.Y + shadowLift, rect.Width, rect.Height);
+                    using var shadowPath = RoundRect(new Rectangle((int)shadowRect.X, (int)shadowRect.Y, (int)shadowRect.Width, (int)shadowRect.Height), fieldRadius);
+                    g.FillPath(shadowBrush, shadowPath);
+                }
+
+                Color topColor = pressed ? GreenDark : LerpColor(GreenMid, GreenLight, t * 0.6f);
+                Color bottomColor = pressed ? Color.FromArgb(255, 15, 55, 18) : GreenDark;
+
+                using var grad = new LinearGradientBrush(rect, topColor, bottomColor, LinearGradientMode.Vertical);
+                g.FillPath(grad, pillPath);
+
+                using var glossBrush = new SolidBrush(Color.FromArgb(28, 255, 255, 255));
+                var glossRect = new RectangleF(rect.X + 6, rect.Y + 3, rect.Width - 12, rect.Height * 0.42f);
+                using var glossPath = RoundRect(new Rectangle((int)glossRect.X, (int)glossRect.Y, (int)glossRect.Width, (int)glossRect.Height), (int)(glossRect.Height / 2f));
+                g.FillPath(glossBrush, glossPath);
+
+                if (t > 0.01f && !pressed)
+                {
+                    using var ringPen = new Pen(Color.FromArgb((int)(70 * t), GreenLight), 2f);
+                    var ringRect = new RectangleF(rect.X - 3, rect.Y - 3, rect.Width + 6, rect.Height + 6);
+                    using var ringPath = RoundRect(new Rectangle((int)ringRect.X, (int)ringRect.Y, (int)ringRect.Width, (int)ringRect.Height), fieldRadius + 3);
+                    g.DrawPath(ringPen, ringPath);
+                }
+
+                float nudge = t * 3f;
+                DrawLabelWithArrow(g, rect, "Create account", nudge);
             };
-            btnCreate.Click += (s, e) =>
+            btnCreate.MouseEnter += (s, e) => AnimateCreateBtnTo(btnCreate, CreateBtnState.Hover);
+            btnCreate.MouseLeave += (s, e) => AnimateCreateBtnTo(btnCreate, CreateBtnState.Normal);
+            btnCreate.MouseDown += (s, e) =>
             {
-                if (string.IsNullOrWhiteSpace(txtFullName.Text)) { ShowToast("Please enter your full name."); return; }
-                if (string.IsNullOrWhiteSpace(txtEmail.Text) || !txtEmail.Text.Contains("@")) { ShowToast("Please enter a valid email address."); return; }
-                if (string.IsNullOrWhiteSpace(txtPassword.Text)) { ShowToast("Please choose a password."); return; }
-                if (!termsAccepted) { ShowToast("Please accept the Terms of Service to continue."); return; }
-                ShowToast("This feature is coming soon in the next update!", isError: false);
+                _createBtnState = CreateBtnState.Pressed;
+                btnCreate.Invalidate();
+            };
+            btnCreate.MouseUp += (s, e) =>
+            {
+                _createBtnState = CreateBtnState.Hover;
+                btnCreate.Invalidate();
             };
             panel.Controls.Add(btnCreate);
             y += btnCreate.Height + 24;
@@ -520,10 +623,16 @@ namespace Inventory_Management_System.Forms
 
             int newContentBottom = maxBottom + offsetY;
             _signUpPanel.AutoScrollMinSize = new Size(0, Math.Max(newContentBottom + 20, availableHeight));
+            _signUpPanel.Invalidate(true);
+            _signUpPanel.Update();
         }
 
+        private enum SignUpFieldIcon { None, Person, Mail, Key }
+
+       
+
         private int AddSignUpField(Panel parent, string labelText, int left, int width, int y,
-            out TextBox textBox, bool isPassword)
+            out TextBox textBox, bool isPassword, SignUpFieldIcon icon = SignUpFieldIcon.None)
         {
             var lbl = new Label
             {
@@ -550,14 +659,37 @@ namespace Inventory_Management_System.Forms
             };
             parent.Controls.Add(field);
 
+            int iconGutter = icon == SignUpFieldIcon.None ? 0 : 32;
+            if (icon != SignUpFieldIcon.None)
+            {
+                string glyph = icon switch
+                {
+                    SignUpFieldIcon.Person => "👤",
+                    SignUpFieldIcon.Mail => "✉",
+                    SignUpFieldIcon.Key => "🔑",
+                    _ => ""
+                };
+                var lblIcon = new Label
+                {
+                    Text = glyph,
+                    Font = new Font("Segoe UI", 11.5f),
+                    ForeColor = Color.FromArgb(156, 163, 175),
+                    AutoSize = true,
+                    BackColor = Color.Transparent
+                };
+                lblIcon.Location = new Point(12, (field.Height - lblIcon.PreferredHeight) / 2);
+                field.Controls.Add(lblIcon);
+                iconGutter = Math.Max(iconGutter, lblIcon.PreferredWidth + 20);
+            }
+
             var tb = new TextBox
             {
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Segoe UI", 10.5f),
                 ForeColor = Color.FromArgb(17, 24, 39),
                 BackColor = field.BackColor,
-                Left = 16,
-                Width = width - (isPassword ? 46 : 32),
+                Left = 16 + iconGutter,
+                Width = width - (isPassword ? 46 : 32) - iconGutter,
                 UseSystemPasswordChar = isPassword
             };
             tb.Top = (field.Height - tb.Height) / 2;
@@ -568,14 +700,15 @@ namespace Inventory_Management_System.Forms
                 var lblEye = new Label
                 {
                     Text = "👁",
-                    Font = new Font("Segoe UI", 11f),
-                    ForeColor = Color.FromArgb(107, 114, 128),
-                    AutoSize = true,
+                    Font = new Font("Segoe UI", 11.5f),
+                    ForeColor = Color.FromArgb(156, 163, 175),
+                    AutoSize = false,
+                    Size = new Size(24, 22),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Location = new Point(field.Width - 32, 11),
                     Cursor = Cursors.Hand,
                     BackColor = Color.Transparent
                 };
-                lblEye.Left = field.Width - 34;
-                lblEye.Top = (field.Height - lblEye.PreferredHeight) / 2;
                 lblEye.Click += (s, e) =>
                 {
                     tb.UseSystemPasswordChar = !tb.UseSystemPasswordChar;
@@ -687,7 +820,7 @@ namespace Inventory_Management_System.Forms
             g.FillRectangle(yellow, x + sq + gap, y + sq + gap, sq, sq);
         }
 
-        private void SetupCreateAccountLink()
+        private int SetupCreateAccountLink()
         {
             var font = new Font("Segoe UI", 8.5f, FontStyle.Regular);
 
@@ -717,7 +850,7 @@ namespace Inventory_Management_System.Forms
 
             int totalWidth = lblPrompt.PreferredWidth + lblCreateAccount.PreferredWidth;
             int startX = btnLogin.Left + (btnLogin.Width - totalWidth) / 2;
-            int rowY = btnLogin.Top - 26;
+            int rowY = btnLogin.Bottom + 14; // now BELOW the button
 
             lblPrompt.Location = new Point(startX, rowY);
             lblCreateAccount.Location = new Point(startX + lblPrompt.PreferredWidth, rowY);
@@ -726,6 +859,8 @@ namespace Inventory_Management_System.Forms
 
             lblPrompt.BringToFront();
             lblCreateAccount.BringToFront();
+
+            return rowY + Math.Max(lblPrompt.PreferredHeight, lblCreateAccount.PreferredHeight);
         }
 
         // ── Paint the full-width "Sign in" pill button ────────────────────

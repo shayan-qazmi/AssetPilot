@@ -247,6 +247,8 @@ namespace Inventory_Management_System
         private Rectangle _activitiesTargetBounds;
         private bool _activitiesIntroPlayed = false;
 
+        // add a field near the other Dashboard fields
+        private bool _titleInitialized = false;
 
 
         private enum CardAnimKind { Slide, Bounce }
@@ -367,9 +369,12 @@ namespace Inventory_Management_System
             lblTitle.ForeColor = ThemeHelper.TitleForeColor;
             lblTitle.BackColor = Color.Transparent;
             lblTitle.Visible = true;
-            this.Text             = "Q-Inventory";
-
-            AnimateTitleTo("🏠 Dashboard");
+            this.Text = "Q-Inventory";
+            if (!_titleInitialized)
+            {
+                _titleInitialized = true;
+                AnimateTitleTo("🏠 Dashboard"); // only type this out once, at startup
+            }
 
             panelMenu.BackColor = ThemeHelper.Sidebar;
 
@@ -447,29 +452,27 @@ namespace Inventory_Management_System
                 _pnlSidebarHeader.Controls.Add(logoDivider);
             }
 
-            // Nav buttons
-            ThemeHelper.StyleSidebarButton(btnDashboard, active: true);
-            activeNavButton = btnDashboard;
-            ThemeHelper.StyleSidebarButton(btnEquipment);
-            ThemeHelper.StyleSidebarButton(btnEmployees);
+            // Restyle all nav buttons for the new theme, but keep whichever screen is
+            // ACTUALLY active — ApplyTheme() runs on every theme toggle (see
+            // ToggleThemeAnimated), not just at startup, so it must never hard-reset
+            // navigation state back to Dashboard.
+            var currentActiveButton = activeNavButton ?? btnDashboard;
+            var themeNavButtons = new[]
+            {
+    btnDashboard, btnEquipment, btnEmployees, btnLocations, btnAllocation,
+    btnReturns, btnTransfer, btnDecommission, btnDeletedItems, btnLogs,
+    btnQRScanner, btnCheckInOut, btnReports, btnSettings
+};
+            foreach (var navBtn in themeNavButtons)
+                ThemeHelper.StyleSidebarButton(navBtn, active: navBtn == currentActiveButton);
             SetSidebarIcon(btnEmployees, "👥");
-            ThemeHelper.StyleSidebarButton(btnLocations);
-            ThemeHelper.StyleSidebarButton(btnAllocation);
-            ThemeHelper.StyleSidebarButton(btnReturns);
-            ThemeHelper.StyleSidebarButton(btnTransfer);
-            ThemeHelper.StyleSidebarButton(btnDecommission);
-            ThemeHelper.StyleSidebarButton(btnDeletedItems);
-            ThemeHelper.StyleSidebarButton(btnLogs);
-            ThemeHelper.StyleSidebarButton(btnQRScanner);
-            ThemeHelper.StyleSidebarButton(btnCheckInOut);
-            ThemeHelper.StyleSidebarButton(btnReports);
-            ThemeHelper.StyleSidebarButton(btnSettings);
+            activeNavButton = currentActiveButton;
 
             // Use one shared, animated accent bar instead of each button
             // drawing its own static one.
             ThemeHelper.UseGlobalAccentIndicator = true;
             EnsureAccentIndicator();
-            PositionAccentIndicator(btnDashboard, animate: false);
+            PositionAccentIndicator(currentActiveButton, animate: false);
 
             // Logout — keep red
             btnLogout.UseVisualStyleBackColor              = false;
@@ -788,6 +791,7 @@ namespace Inventory_Management_System
             // Replay the full dashboard entrance animation on theme switch,
             // same as clicking the Dashboard nav button — not an instant snap.
             if (panelStats.Visible) LoadStats(instant: false);
+
 
             // Re-theme whatever child form is currently open. Every form in this
             // codebase follows the same "private void ApplyTheme()" convention,
