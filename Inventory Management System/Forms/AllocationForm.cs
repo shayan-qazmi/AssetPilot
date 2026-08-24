@@ -393,10 +393,14 @@ namespace Inventory_Management_System.Forms
                 var cursor = Cursor.Position;
                 var btnRect = anchor.RectangleToScreen(anchor.ClientRectangle);
                 btnRect.Inflate(4, 12);
-                var menuRect = allocFiltersMenu.Bounds;
-                menuRect.Inflate(4, 4);
 
-                if (!btnRect.Contains(cursor) && !menuRect.Contains(cursor))
+                // Include the bounds of any currently-open submenu (Status/Category),
+                // not just the top-level menu — otherwise moving into the submenu
+                // reads as "left the menu" and closes it.
+                bool insideAnyMenu = GetOpenMenuScreenBounds(allocFiltersMenu)
+                    .Any(r => { r.Inflate(4, 4); return r.Contains(cursor); });
+
+                if (!btnRect.Contains(cursor) && !insideAnyMenu)
                 {
                     allocFiltersMenu.Close();
                     hoverTimer.Stop();
@@ -404,6 +408,23 @@ namespace Inventory_Management_System.Forms
                 }
             };
             hoverTimer.Start();
+        }
+
+        // Recursively collects screen bounds of a menu and any of its open submenus,
+        // so hover-tracking treats the whole chain as one continuous area.
+        private static IEnumerable<Rectangle> GetOpenMenuScreenBounds(ToolStripDropDown menu)
+        {
+            if (menu == null || menu.IsDisposed || !menu.Visible) yield break;
+            yield return menu.Bounds;
+
+            foreach (ToolStripItem item in menu.Items)
+            {
+                if (item is ToolStripMenuItem mi && mi.HasDropDownItems && mi.DropDown.Visible)
+                {
+                    foreach (var r in GetOpenMenuScreenBounds(mi.DropDown))
+                        yield return r;
+                }
+            }
         }
 
         private void LoadAllocCategoryFilterItems()

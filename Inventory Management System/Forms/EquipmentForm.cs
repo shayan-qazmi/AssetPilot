@@ -400,10 +400,11 @@ namespace Inventory_Management_System.Forms
                 var cursor = Cursor.Position;
                 var btnRect = anchor.RectangleToScreen(anchor.ClientRectangle);
                 btnRect.Inflate(4, 12);
-                var menuRect = menu.Bounds;
-                menuRect.Inflate(4, 4);
 
-                if (!btnRect.Contains(cursor) && !menuRect.Contains(cursor))
+                bool insideAnyMenu = GetOpenMenuScreenBounds(menu)
+                    .Any(r => { r.Inflate(4, 4); return r.Contains(cursor); });
+
+                if (!btnRect.Contains(cursor) && !insideAnyMenu)
                 {
                     menu.Close();
                     hoverTimer.Stop();
@@ -411,6 +412,21 @@ namespace Inventory_Management_System.Forms
                 }
             };
             hoverTimer.Start();
+        }
+
+        private static IEnumerable<Rectangle> GetOpenMenuScreenBounds(ToolStripDropDown menu)
+        {
+            if (menu == null || menu.IsDisposed || !menu.Visible) yield break;
+            yield return menu.Bounds;
+
+            foreach (ToolStripItem item in menu.Items)
+            {
+                if (item is ToolStripMenuItem mi && mi.HasDropDownItems && mi.DropDown.Visible)
+                {
+                    foreach (var r in GetOpenMenuScreenBounds(mi.DropDown))
+                        yield return r;
+                }
+            }
         }
 
         private void PopulateStatusSubmenu(ToolStripMenuItem parent)

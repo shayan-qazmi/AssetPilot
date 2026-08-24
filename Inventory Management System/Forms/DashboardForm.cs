@@ -1960,6 +1960,34 @@ namespace Inventory_Management_System
             }
             AnimateChevron(open: false);
         }
+        // Instant, synchronous close — no fade, no timer left running. Used
+        // whenever the screen itself is changing (theme toggle, navigation,
+        // Dashboard reload, logout, sidebar collapse) so the dropdown can
+        // never linger into the next state. CloseProfileDropdown() (above)
+        // is for the ordinary hover-away / deactivate case and keeps the
+        // nicer fade.
+        private void ForceCloseProfileDropdown()
+        {
+            _profileHoverWatcher?.Stop();
+            _profileHoverWatcher?.Dispose();
+            _profileHoverWatcher = null;
+
+            _chevronAnimTimer?.Stop();
+            _chevronAnimTimer?.Dispose();
+            _chevronAnimTimer = null;
+            _chevronRotation = 0f;
+            DrawChevron();
+
+            if (_profilePopup != null && !_profilePopup.IsDisposed)
+            {
+                var popup = _profilePopup;
+                _profilePopup = null;
+                popup.Close();
+            }
+        }
+
+   
+
 
         /// Polls the real cursor position every tick instead of chaining
         /// MouseEnter/Leave across the widget's child controls and a separate
@@ -4368,15 +4396,16 @@ namespace Inventory_Management_System
             PositionTopProfileWidget();
             _pnlUserProfile?.BringToFront();
         }
-        
+
         private void CloseAllTopBarPopups()
         {
             _barPeriodPopup?.Close();
             _barPeriodPopup = null;
+            _trendPeriodPopup?.Close();
+            _trendPeriodPopup = null;
             _searchResultsPopup?.Close();
             _searchResultsPopup = null;
-            _profilePopup?.Close();
-            _profilePopup = null;
+            ForceCloseProfileDropdown();
         }
 
         private void ShowDashboard()
