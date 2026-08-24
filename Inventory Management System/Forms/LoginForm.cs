@@ -622,7 +622,12 @@ namespace Inventory_Management_System.Forms
             }
 
             int newContentBottom = maxBottom + offsetY;
-            _signUpPanel.AutoScrollMinSize = new Size(0, Math.Max(newContentBottom + 20, availableHeight));
+            // Always reserve room for a bottom margin equal to the top margin,
+            // so the last line never sits flush against (or past) the edge.
+            int requiredScrollHeight = newContentBottom + Math.Max(24, desiredTopMargin);
+            _signUpPanel.AutoScrollMinSize = new Size(0, Math.Max(requiredScrollHeight, availableHeight));
+            _signUpPanel.AutoScrollPosition = new Point(0, 0);
+            _signUpPanel.PerformLayout();
             _signUpPanel.Invalidate(true);
             _signUpPanel.Update();
         }

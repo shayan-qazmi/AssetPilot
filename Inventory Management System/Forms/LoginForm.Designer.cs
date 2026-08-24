@@ -293,11 +293,14 @@ namespace Inventory_Management_System.Forms
             lblError.Text      = "";
 
             // ── LoginForm ─────────────────────────────────────────────────
-            AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
-            AutoScaleMode       = System.Windows.Forms.AutoScaleMode.Font;
-            ClientSize          = new System.Drawing.Size(980, 640);
+            AutoScaleDimensions = new System.Drawing.SizeF(96F, 96F);
+            AutoScaleMode = System.Windows.Forms.AutoScaleMode.Dpi;
+            ClientSize = new System.Drawing.Size(1180, 760);
+            MinimumSize = new System.Drawing.Size(980, 640);
             Controls.Add(panelRight);
             Controls.Add(panelLeft);
+            FormBorderStyle = System.Windows.Forms.FormBorderStyle.Sizable;
+            MaximizeBox = true;
             FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             MaximizeBox     = false;
             Name            = "LoginForm";
@@ -326,7 +329,7 @@ namespace Inventory_Management_System.Forms
                 int labelPrefH = lblToggleLabel.PreferredHeight;
                 int toggleCenterY = pnlToggle.Top + 18;
                 int labelTop = toggleCenterY - (labelPrefH / 2);
-                lblToggleLabel.Location = new System.Drawing.Point(pnlToggle.Right - 22, labelTop);
+                lblToggleLabel.Location = new System.Drawing.Point(pnlToggle.Right + 10, labelTop);
             }
 
             panelRight.Resize += (s, e) => CenterCard();
