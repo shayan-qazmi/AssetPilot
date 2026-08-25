@@ -496,7 +496,7 @@ namespace Inventory_Management_System.Forms
                 }
 
                 float nudge = t * 3f;
-                DrawLabelWithArrow(g, rect, "Create account", nudge);
+                DrawLabelWithIcon(g, rect, (gg, r) => DrawPersonPlusIcon(gg, r, Color.White), "Create account", nudge);
             };
             btnCreate.MouseEnter += (s, e) => AnimateCreateBtnTo(btnCreate, CreateBtnState.Hover);
             btnCreate.MouseLeave += (s, e) => AnimateCreateBtnTo(btnCreate, CreateBtnState.Normal);
@@ -808,6 +808,55 @@ namespace Inventory_Management_System.Forms
                 g.FillRectangle(bBlueBar, cx - 1f, cy - barHeight / 2f, outerR - (cx - 1f - x) + 1f, barHeight);
         }
 
+        private static void DrawPersonPlusIcon(Graphics g, RectangleF bounds, Color color)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using var pen = new Pen(color, 1.6f) { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round };
+
+            float headD = bounds.Height * 0.42f;
+            var headRect = new RectangleF(bounds.X + (bounds.Width - headD) / 2f - 2f, bounds.Y, headD, headD);
+            g.DrawEllipse(pen, headRect);
+
+            float bodyW = bounds.Width * 0.72f;
+            float bodyH = bounds.Height * 0.55f;
+            var bodyRect = new RectangleF(bounds.X + (bounds.Width - bodyW) / 2f - 2f, headRect.Bottom - 1f, bodyW, bodyH);
+            g.DrawArc(pen, bodyRect, 180, 180);
+
+            float plusD = bounds.Height * 0.5f;
+            var plusCenter = new PointF(bounds.Right - plusD * 0.5f, bounds.Bottom - plusD * 0.5f);
+            using var plusBg = new SolidBrush(Color.White);
+            g.FillEllipse(plusBg, plusCenter.X - plusD / 2f - 1f, plusCenter.Y - plusD / 2f - 1f, plusD + 2f, plusD + 2f);
+
+            using var plusPen = new Pen(color, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            float r = plusD * 0.28f;
+            g.DrawLine(plusPen, plusCenter.X - r, plusCenter.Y, plusCenter.X + r, plusCenter.Y);
+            g.DrawLine(plusPen, plusCenter.X, plusCenter.Y - r, plusCenter.X, plusCenter.Y + r);
+        }
+
+        // Icon + label, centered as one unit — same layout math as DrawLabelWithArrow,
+        // but with a custom-painted icon on the left instead of a trailing arrow.
+        private static void DrawLabelWithIcon(Graphics g, RectangleF rect, Action<Graphics, RectangleF> iconPainter, string label, float nudge = 0f)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+            using var labelFont = new Font("Segoe UI", 19f, FontStyle.Bold, GraphicsUnit.Pixel);
+            using var labelBrush = new SolidBrush(Color.White);
+            var textSize = g.MeasureString(label, labelFont);
+
+            float iconSize = 20f;
+            float gap = 10f;
+            float totalW = iconSize + gap + textSize.Width;
+            float startX = rect.X + (rect.Width - totalW) / 2f + nudge;
+
+            var iconBounds = new RectangleF(startX, rect.Y + (rect.Height - iconSize) / 2f, iconSize, iconSize);
+            iconPainter(g, iconBounds);
+
+            using var sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+            g.DrawString(label, labelFont, labelBrush,
+                new RectangleF(startX + iconSize + gap, rect.Y, textSize.Width + 4, rect.Height), sf);
+        }
+
         private static void DrawMicrosoftIcon(Graphics g, float x, float y, float size)
         {
             float half = size / 2f;
@@ -944,7 +993,7 @@ namespace Inventory_Management_System.Forms
             else
             {
                 float nudge = t * 3f;
-                DrawLabelWithArrow(g, rect, "Sign in", nudge);
+                DrawLabelWithEmoji(g, rect, "🔓", "Sign in", nudge);
             }
         }
 
@@ -956,6 +1005,28 @@ namespace Inventory_Management_System.Forms
                 (int)(a.R + (b.R - a.R) * t),
                 (int)(a.G + (b.G - a.G) * t),
                 (int)(a.B + (b.B - a.B) * t));
+        }
+
+        // Same layout as DrawLabelWithArrow but with a leading emoji instead of
+        // the drawn arrow — used for buttons that read better as "icon + label".
+        private static void DrawLabelWithEmoji(Graphics g, RectangleF rect, string emoji, string label, float nudge = 0f)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+            using var emojiFont = new Font("Segoe UI Emoji", 15f, FontStyle.Regular, GraphicsUnit.Pixel);
+            using var labelFont = new Font("Segoe UI", 19f, FontStyle.Bold, GraphicsUnit.Pixel);
+            using var labelBrush = new SolidBrush(Color.White);
+
+            var emojiSize = g.MeasureString(emoji, emojiFont);
+            var textSize = g.MeasureString(label, labelFont);
+            float gap = 8f;
+            float totalW = emojiSize.Width + gap + textSize.Width;
+            float startX = rect.X + (rect.Width - totalW) / 2f + nudge;
+
+            using var sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+            g.DrawString(emoji, emojiFont, labelBrush, new RectangleF(startX, rect.Y, emojiSize.Width + 4, rect.Height), sf);
+            g.DrawString(label, labelFont, labelBrush, new RectangleF(startX + emojiSize.Width + gap, rect.Y, textSize.Width + 4, rect.Height), sf);
         }
 
         // Shared by btnLogin and btnCreate so both render an identical centered label + arrow.

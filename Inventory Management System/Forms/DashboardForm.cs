@@ -92,6 +92,8 @@ namespace Inventory_Management_System
         }
     }
 
+
+    
     internal class SharpPictureBox : PictureBox
     {
         public SharpPictureBox()
@@ -110,7 +112,7 @@ namespace Inventory_Management_System
 
     public partial class DashboardForm : Form
     {
-        private Form?   activeForm      = null;
+        private Form? activeForm = null;
         private Button? activeNavButton = null;
 
         // ── Live data ─────────────────────────────────────────────────────
@@ -307,11 +309,6 @@ namespace Inventory_Management_System
             panelMenu.Resize += (s, e) => PositionSidebarHeader();
             this.Shown += (s, e) =>
             {
-                // BeginInvoke queues this for right after any pending maximize-resize
-                // message has already been processed, guaranteeing panelTop/panelStats
-                // widths are final — both for the stat cards and the top-bar widgets
-                // (search box, theme toggle, profile avatar), which could otherwise be
-                // positioned using a stale/zero width from before the window resized.
                 BeginInvoke(new Action(() =>
                 {
                     PositionTopSearchBar();
@@ -323,7 +320,7 @@ namespace Inventory_Management_System
             };
         }
 
-            protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
             if (keyData == (Keys.Control | Keys.K))
             {
@@ -333,7 +330,6 @@ namespace Inventory_Management_System
             }
             return base.ProcessCmdKey(ref msg, keyData);
         }
-        
 
 
         //  THEME
@@ -392,7 +388,9 @@ namespace Inventory_Management_System
             };
             panelMenu.Invalidate();
 
+
             EnsureSidebarHeaderPanel();
+            ReorderSidebarNav();
 
             // Hard-kill lblAppBrand and any stray PictureBox left directly on panelMenu
             // from the old (pre-refactor) logo logic — this is the second/bottom logo box.
@@ -787,6 +785,7 @@ namespace Inventory_Management_System
 
             SuspendLayout();
             ApplyTheme();
+            ApplyRolePermissions(); // re-apply the greyed/locked look — ApplyTheme() just reset every nav button's color
 
             // Replay the full dashboard entrance animation on theme switch,
             // same as clicking the Dashboard nav button — not an instant snap.
@@ -1389,7 +1388,29 @@ namespace Inventory_Management_System
         private void ApplyRolePermissions()
         {
             bool isAdmin = AuthService.IsAdmin;
-            foreach (var btn in AdminOnlyButtons) btn.Visible = isAdmin;
+            foreach (var btn in AdminOnlyButtons)
+            {
+                // Always visible now — locked screens stay in the sidebar, just
+                // greyed out, instead of disappearing entirely for non-admins.
+                btn.Visible = true;
+
+                if (isAdmin)
+                {
+                    btn.Enabled = true;
+                    btn.ForeColor = ThemeHelper.IsDarkMode ? Color.White : Color.White; // matches normal sidebar text — adjust if ThemeHelper exposes a named color for this
+                    btn.Cursor = Cursors.Hand;
+                }
+                else
+                {
+                    // Enabled stays TRUE on purpose — a fully disabled WinForms Button
+                    // swallows its Click event, and we still need the click to fire so
+                    // the handler's EnsureAdminToast() can show the "admin only" toast.
+                    // The greyed-out look is faked with color/cursor alone.
+                    btn.Enabled = true;
+                    btn.ForeColor = Color.FromArgb(100, 255, 255, 255);
+                    btn.Cursor = Cursors.No;
+                }
+            }
         }
 
         private void BuildUserProfileFooter()
@@ -1583,6 +1604,93 @@ namespace Inventory_Management_System
             _accentIndicator.BringToFront();
         }
 
+        private bool _sidebarReordered = false;
+
+        // Groups the sidebar into Overview / Operations / People & Places / Admin,
+        // purely by rearranging existing button controls and inserting labels —
+        // no click handlers, no visibility logic, no navigation behavior changes.
+        private void ReorderSidebarNav()
+        {
+            if (_sidebarReordered) return; // labels/divider only ever get created once
+            _sidebarReordered = true;
+
+            Label MakeSectionLabel(string text)
+            {
+                var lbl = new Label
+                {
+                    Name = "lblSidebarSection_" + text.Replace(" ", ""),
+                    Text = text,
+                    Dock = DockStyle.Top,
+                    Height = 30,                       // was 26 — a touch more room for the label + top gap
+                    Font = new Font("Segoe UI", 7.5f, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(150, 255, 255, 255), // slightly brighter than before for legibility
+                    TextAlign = ContentAlignment.BottomLeft,
+                    Padding = new Padding(16, 0, 0, 6), // a bit more bottom padding before the first button of the group
+                    BackColor = Color.Transparent
+                };
+                panelMenu.Controls.Add(lbl);
+                return lbl;
+            }
+
+            // Small empty spacer so each section header has visual breathing room
+            // from the button of the PREVIOUS group above it, instead of touching it.
+            Panel MakeSpacer(int height = 10)
+            {
+                var sp = new Panel
+                {
+                    Name = "pnlSidebarSectionSpacer",
+                    Height = height,
+                    Dock = DockStyle.Top,
+                    BackColor = Color.Transparent
+                };
+                panelMenu.Controls.Add(sp);
+                return sp;
+            }
+
+            Panel MakeDivider()
+            {
+                var div = new Panel
+                {
+                    Name = "pnlSidebarSectionDivider",
+                    Height = 1,
+                    Dock = DockStyle.Top,
+                    BackColor = Color.FromArgb(40, 255, 255, 255)
+                };
+                panelMenu.Controls.Add(div);
+                return div;
+            }
+
+            // NEW — was missing entirely; SS2 shows "OVERVIEW" above Dashboard/Reports.
+            var lblOverview = MakeSectionLabel("OVERVIEW");
+
+            var spacerOps = MakeSpacer();
+            var lblOperations = MakeSectionLabel("OPERATIONS");
+
+            var spacerPeople = MakeSpacer();
+            var lblPeople = MakeSectionLabel("PEOPLE & PLACES");
+
+            var spacerAdmin = MakeSpacer();
+            var adminDivider = MakeDivider();
+            var lblAdmin = MakeSectionLabel("ADMIN ONLY");
+
+            var orderedTopToBottom = new List<Control>
+    {
+        lblOverview, btnDashboard, btnReports,
+        spacerOps, lblOperations, btnEquipment, btnAllocation, btnReturns, btnTransfer, btnCheckInOut, btnQRScanner,
+        spacerPeople, lblPeople, btnEmployees, btnLocations, btnLogs,
+        spacerAdmin, adminDivider, lblAdmin, btnDecommission, btnDeletedItems, btnSettings
+    };
+
+            // FIX: iterate FORWARD (first item to last), not backward. SetChildIndex(x, 0)
+            // makes x frontmost — and frontmost in a Dock=Top stack renders at the BOTTOM,
+            // not the top. Processing the list front-to-back means the LAST item processed
+            // (btnSettings) ends up frontmost/bottom, and the FIRST item processed
+            // (lblOverview) ends up pushed furthest back — which is what renders at the TOP.
+            // The old reversed loop did the exact opposite, which is why Dashboard was
+            // landing at the bottom and Settings at the top.
+            for (int i = 0; i < orderedTopToBottom.Count; i++)
+                panelMenu.Controls.SetChildIndex(orderedTopToBottom[i], 0);
+        }
         private void PositionAccentIndicator(Button btn, bool animate = true)
         {
             if (_accentIndicator == null) return;
@@ -1628,6 +1736,114 @@ namespace Inventory_Management_System
             _accentTimer.Start();
         }
 
+        private Form? _adminToastPopup;
+        private System.Windows.Forms.Timer? _adminToastTimer;
+
+        // Gate used by the admin-only SIDEBAR buttons specifically — shows a
+        // non-blocking toast instead of the blocking MessageBox EnsureAdmin() uses,
+        // since these buttons are now always visible/clickable rather than hidden.
+        private bool EnsureAdminToast(string screenName)
+        {
+            if (AuthService.IsAdmin) return true;
+            ShowAdminOnlyToast(screenName);
+            return false;
+        }
+
+        private void ShowAdminOnlyToast(string screenName)
+        {
+            _adminToastTimer?.Stop();
+            _adminToastTimer?.Dispose();
+            _adminToastTimer = null;
+            if (_adminToastPopup != null && !_adminToastPopup.IsDisposed)
+            {
+                _adminToastPopup.Close();
+                _adminToastPopup = null;
+            }
+
+            string message = $"{screenName} is only available to Administrators.";
+
+            using var measureFont = new Font("Segoe UI", 9f);
+            var textSz = TextRenderer.MeasureText(message, measureFont, new Size(240, 0), TextFormatFlags.WordBreak);
+            int toastW = Math.Min(320, Math.Max(230, textSz.Width + 60));
+            int toastH = Math.Max(52, textSz.Height + 26);
+
+            var toast = new NoActivatePopup
+            {
+                FormBorderStyle = FormBorderStyle.None,
+                StartPosition = FormStartPosition.Manual,
+                ShowInTaskbar = false,
+                Size = new Size(toastW, toastH),
+                BackColor = ThemeHelper.CardBg,
+                Opacity = 0d
+            };
+
+            toast.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                using var path = RoundedRect(new Rectangle(0, 0, toast.Width - 1, toast.Height - 1), 10);
+                toast.Region = new Region(path);
+
+                using var pen = new Pen(Color.FromArgb(239, 68, 68), 1.3f);
+                g.DrawPath(pen, path);
+
+                using var accentBrush = new SolidBrush(Color.FromArgb(239, 68, 68));
+                g.FillRectangle(accentBrush, 0, 6, 3, toast.Height - 12);
+
+                DrawLockIcon(g, new RectangleF(14, toast.Height / 2f - 9, 18, 18), Color.FromArgb(239, 68, 68));
+            };
+
+            var lbl = new Label
+            {
+                Text = message,
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = ThemeHelper.TextPrimary,
+                Location = new Point(42, 0),
+                Size = new Size(toastW - 54, toastH),
+                TextAlign = ContentAlignment.MiddleLeft,
+                BackColor = Color.Transparent
+            };
+            toast.Controls.Add(lbl);
+
+            // Bottom-right corner of the main window.
+            var corner = this.PointToScreen(new Point(this.ClientSize.Width, this.ClientSize.Height));
+            toast.Location = new Point(corner.X - toast.Width - 24, corner.Y - toast.Height - 24);
+
+            _adminToastPopup = toast;
+            toast.Show(this);
+            FadePopup(toast, fadeIn: true); // reuses the fade helper already defined for the profile dropdown
+
+            _adminToastTimer = new System.Windows.Forms.Timer { Interval = 2200 };
+            _adminToastTimer.Tick += (s, e) =>
+            {
+                _adminToastTimer?.Stop();
+                _adminToastTimer?.Dispose();
+                _adminToastTimer = null;
+                if (toast.IsDisposed) return;
+                FadePopup(toast, fadeIn: false, onDone: () =>
+                {
+                    if (!toast.IsDisposed) toast.Close();
+                    if (_adminToastPopup == toast) _adminToastPopup = null;
+                });
+            };
+            _adminToastTimer.Start();
+        }
+
+        private static void DrawLockIcon(Graphics g, RectangleF bounds, Color color)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using var pen = new Pen(color, 1.6f) { LineJoin = LineJoin.Round };
+
+            float shackleW = bounds.Width * 0.55f;
+            var shackleRect = new RectangleF(bounds.X + (bounds.Width - shackleW) / 2f, bounds.Y, shackleW, bounds.Height * 0.9f);
+            g.DrawArc(pen, shackleRect, 180, 180);
+
+            float bodyH = bounds.Height * 0.55f;
+            var bodyRect = new RectangleF(bounds.X, bounds.Bottom - bodyH, bounds.Width, bodyH);
+            using var bodyPath = RoundedRectF(bodyRect, 2.5f);
+            using var bodyBrush = new SolidBrush(color);
+            g.FillPath(bodyBrush, bodyPath);
+        }
 
 
         private bool EnsureAdmin()
@@ -2588,7 +2804,7 @@ namespace Inventory_Management_System
                         "In Stock" => (EventHandler)((s, e) => OpenAllocationAvailable()),
                         "Under Repair" => (EventHandler)((s, e) => OpenEquipmentByStatus("under_repair")),
                         "Currently Overdue" => (EventHandler)((s, e) => OpenOverdueEquipment()),
-                        "Decommissioned" => AuthService.IsAdmin ? btnDecommission_Click : null,
+                        "Decommissioned" => btnDecommission_Click,
                         "Total Employees" => btnEmployees_Click,
                         _ => null
                     };  
@@ -4496,17 +4712,23 @@ namespace Inventory_Management_System
 
         private void btnDecommission_Click(object? sender, EventArgs e)
         {
-            if (!EnsureAdmin()) return;
+            if (!EnsureAdminToast("Decommission")) return;
             AnimateTitleTo("🚫 Decommission");
-
             OpenChildForm(new DecommissionForm(), btnDecommission);
         }
 
         private void btnDeletedItems_Click(object? sender, EventArgs e)
         {
-            if (!EnsureAdmin()) return;
+            if (!EnsureAdminToast("Deleted Items")) return;
             AnimateTitleTo("♻️ Deleted Items");
             OpenChildForm(new DeletedItemsForm(), btnDeletedItems);
+        }
+
+        private void btnSettings_Click(object? sender, EventArgs e)
+        {
+            if (!EnsureAdminToast("Settings")) return;
+            AnimateTitleTo("⚙️ Settings");
+            OpenChildForm(new SettingsForm(), btnSettings);
         }
 
         private void btnLogs_Click(object? sender, EventArgs e)
@@ -4531,13 +4753,6 @@ namespace Inventory_Management_System
         {
             AnimateTitleTo("📊 Reports");
             OpenChildForm(new ReportsForm(), btnReports);
-        }
-
-        private void btnSettings_Click(object? sender, EventArgs e)
-        {
-            if (!EnsureAdmin()) return;
-            AnimateTitleTo("⚙️ Settings");
-            OpenChildForm(new SettingsForm(), btnSettings);
         }
 
         private void btnLogout_Click(object? sender, EventArgs e)
