@@ -144,6 +144,12 @@ namespace Inventory_Management_System.Forms
             return room;
         }
 
+        // All toasts in Transfer screen are purple
+        private void ShowToast(string message, ToastType type = ToastType.Success)
+        {
+            ToastHelper.Show(this, message, type, 3000, Color.FromArgb(156, 39, 176));
+        }
+
         public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
@@ -293,7 +299,7 @@ namespace Inventory_Management_System.Forms
 
                 if (activeAllocations.Count == 0)
                 {
-                    ToastHelper.Show(this, "No allocated equipment available to transfer.", ToastType.Info);
+                    ShowToast("No allocated equipment available to transfer.", ToastType.Info);
                     return;
                 }
 
@@ -337,11 +343,11 @@ namespace Inventory_Management_System.Forms
                     $"Employee: {newEmpName} | Location: {newLocName}");
 
                 LoadAllocatedEquipment();
-                ToastHelper.Show(this, "Equipment transferred successfully.", ToastType.Success);
+                ShowToast("Equipment transferred successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Transfer failed: " + ex.ToString(), ToastType.Error);
+                ShowToast("Transfer failed: " + ex.ToString(), ToastType.Error);
             }
         }
 
@@ -405,11 +411,11 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
                         E(row.Cells["AllocatedSince"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
-                ToastHelper.Show(this, "Exported successfully.", ToastType.Success);
+                ShowToast("Exported successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
+                ShowToast("Export failed: " + ex.Message, ToastType.Error);
             }
         }
     }
@@ -460,6 +466,11 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
             _locations = locations;
             _preselectedAllocationId = preselectedAllocationId;
             BuildUI();
+        }
+
+        private void ShowToast(string message, ToastType type = ToastType.Success)
+        {
+            ToastHelper.Show(this, message, type, 3000, Color.FromArgb(156, 39, 176));
         }
 
         private class LocationNameOption
@@ -886,7 +897,7 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
 
             if (cmbAllocation.SelectedValue == null || (int)cmbAllocation.SelectedValue == 0)
             {
-                ToastHelper.Show(this, "Please select equipment to transfer.", ToastType.Warning);
+                ShowToast("Please select equipment to transfer.", ToastType.Warning);
                 return;
             }
 
@@ -899,7 +910,7 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
 
             if (empId == null && roomId == null)
             {
-                ToastHelper.Show(this, "Select a new employee and/or a new location to transfer to.", ToastType.Warning);
+                ShowToast("Select a new employee and/or a new location to transfer to.", ToastType.Warning);
                 return;
             }
 

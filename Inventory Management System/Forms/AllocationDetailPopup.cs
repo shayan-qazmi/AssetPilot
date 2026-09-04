@@ -34,7 +34,7 @@ namespace Inventory_Management_System.Forms
         private readonly AllocationDetailInfo _info;
         private Image? _pictureImage;
 
-        private const int DialogWidth = 560;
+        private const int DialogWidth = 580;
         private const int PaddingOuter = 20;
         private const int IconSize = 140;
 
@@ -97,7 +97,7 @@ namespace Inventory_Management_System.Forms
                 Font = new Font("Segoe UI Emoji", 13f),
                 ForeColor = Color.White,
                 AutoSize = true,
-                Location = new Point(20, 16),
+                Location = new Point(18, 15),
                 BackColor = Color.Transparent
             };
             header.Controls.Add(lblHeaderIcon);
@@ -105,7 +105,7 @@ namespace Inventory_Management_System.Forms
             var lblTitle = new Label
             {
                 Text = "Allocation Details",
-                Location = new Point(50, 15),
+                Location = new Point(54, 15),
                 AutoSize = true,
                 Font = new Font("Segoe UI Semibold", 12.5f, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = Color.White,
@@ -263,18 +263,19 @@ namespace Inventory_Management_System.Forms
                 string displayValue = string.IsNullOrWhiteSpace(value) ? "—" : value;
                 int valueLblWidth = detailW - 50;
 
+                int valueY = rowY + 17;
+                int valHeight = 20;
+
                 if (wrap)
                 {
-                    // Measure how tall the text will be when wrapped
                     var measureFont = new Font("Segoe UI Semibold", 9.25f);
-                    int textHeight;
                     using (var gfx = CreateGraphics())
                     {
                         var proposed = new Size(valueLblWidth, int.MaxValue);
-                        textHeight = TextRenderer.MeasureText(gfx, displayValue, measureFont, proposed,
+                        valHeight = TextRenderer.MeasureText(gfx, displayValue, measureFont, proposed,
                             TextFormatFlags.WordBreak).Height;
                     }
-                    textHeight = Math.Max(textHeight, 18);
+                    valHeight = Math.Max(valHeight, 20);
 
                     var valueLbl = new Label
                     {
@@ -282,13 +283,11 @@ namespace Inventory_Management_System.Forms
                         Font = measureFont,
                         ForeColor = ThemeHelper.TextPrimary,
                         AutoSize = false,
-                        Size = new Size(valueLblWidth, textHeight),
-                        Location = new Point(40, rowY + 15),
+                        Size = new Size(valueLblWidth, valHeight),
+                        Location = new Point(40, valueY),
                         AutoEllipsis = false
                     };
                     detailBlock.Controls.Add(valueLbl);
-
-                    rowY += 15 + textHeight + 14;
                 }
                 else
                 {
@@ -298,24 +297,29 @@ namespace Inventory_Management_System.Forms
                         Font = new Font("Segoe UI Semibold", 9.25f),
                         ForeColor = ThemeHelper.TextPrimary,
                         AutoSize = false,
-                        Size = new Size(valueLblWidth, 18),
-                        Location = new Point(40, rowY + 15),
+                        Size = new Size(valueLblWidth, 20),
+                        Location = new Point(40, valueY),
                         AutoEllipsis = true
                     };
                     detailBlock.Controls.Add(valueLbl);
-
-                    rowY += 46;
                 }
+
+                int rowBottom = valueY + valHeight;
 
                 if (!isLast)
                 {
                     var divider = new Panel
                     {
-                        Location = new Point(14, rowY - 10),
+                        Location = new Point(14, rowBottom + 6),
                         Size = new Size(detailW - 28, 1),
                         BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(229, 231, 235)
                     };
                     detailBlock.Controls.Add(divider);
+                    rowY = rowBottom + 14;
+                }
+                else
+                {
+                    rowY = rowBottom + 14;
                 }
             }
 

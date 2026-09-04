@@ -1,4 +1,4 @@
-﻿// Forms/CheckInOutHistoryPanel.cs
+// Forms/CheckInOutHistoryPanel.cs
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -115,7 +115,7 @@ namespace Inventory_Management_System.Forms
             dgv.Columns.Add("ConditionAfter", "Condition After");
             dgv.Columns.Add("Date", "Date");
             dgv.Columns.Add("Timestamp", "Timestamp");
-            ThemeHelper.StyleDataGridView(dgv);
+            ThemeHelper.StyleDataGridView(dgv, Color.FromArgb(33, 150, 243));
             Controls.Add(dgv);
             dgv.BringToFront();
 
@@ -177,7 +177,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleToolbarPanel(panelTop);
             ThemeHelper.StyleSecondaryButton(btnBack);
             ThemeHelper.StyleSecondaryButton(btnExport);
-            ThemeHelper.StyleDataGridView(dgv);
+            ThemeHelper.StyleDataGridView(dgv, Color.FromArgb(33, 150, 243));
             panelBottom.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
             lblPageIndicator.ForeColor = ThemeHelper.TextSecondary;
@@ -243,14 +243,28 @@ namespace Inventory_Management_System.Forms
                         .ToList();
             }
 
-            // Expand each transaction into up to two display entries: the original
-            // check-out, and (if it's been returned) a synthetic check-in entry.
+            // Expand transactions into display entries: dedicated Check-In rows are added as Check-In;
+            // Check-Out rows are added as Check-Out, and only synthesize a Check-In if no dedicated Check-In row exists.
             var entries = new List<HistoryEntry>();
+            var checkInTxEquipmentIds = matched
+                .Where(t => string.Equals(t.TransactionType, "Check-In", StringComparison.OrdinalIgnoreCase))
+                .Select(t => t.EquipmentId)
+                .ToHashSet();
+
             foreach (var t in matched)
             {
-                entries.Add(new HistoryEntry { Tx = t, IsCheckIn = false });
-                if (t.ActualReturn.HasValue)
+                if (string.Equals(t.TransactionType, "Check-In", StringComparison.OrdinalIgnoreCase))
+                {
                     entries.Add(new HistoryEntry { Tx = t, IsCheckIn = true });
+                }
+                else
+                {
+                    entries.Add(new HistoryEntry { Tx = t, IsCheckIn = false });
+                    if (t.ActualReturn.HasValue && !checkInTxEquipmentIds.Contains(t.EquipmentId))
+                    {
+                        entries.Add(new HistoryEntry { Tx = t, IsCheckIn = true });
+                    }
+                }
             }
             entries = entries
                 .OrderByDescending(en => en.IsCheckIn

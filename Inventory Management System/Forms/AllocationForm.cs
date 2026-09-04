@@ -215,6 +215,8 @@ namespace Inventory_Management_System.Forms
         {
             if (!string.IsNullOrEmpty(initialFilter))
             {
+                if (string.Equals(initialFilter, "Available", StringComparison.OrdinalIgnoreCase))
+                    initialFilter = "In Store";
                 int idx = cmbEquipmentFilter.Items.IndexOf($"Equipment: {initialFilter}");
                 if (idx >= 0) cmbEquipmentFilter.SelectedIndex = idx;
             }
@@ -239,7 +241,7 @@ namespace Inventory_Management_System.Forms
             };
 
             cmbEquipmentFilter.Items.Add("Equipment: All");
-            cmbEquipmentFilter.Items.Add("Equipment: Available");
+            cmbEquipmentFilter.Items.Add("Equipment: In Store");
             cmbEquipmentFilter.Items.Add("Equipment: Allocated");
             cmbEquipmentFilter.Items.Add("Equipment: Pending");
             cmbEquipmentFilter.Items.Add("Equipment: Overdue");
@@ -264,7 +266,7 @@ namespace Inventory_Management_System.Forms
             {
                 _activeStatusFilter = cmbEquipmentFilter.SelectedItem?.ToString() switch
                 {
-                    "Equipment: Available" => "Available",
+                    "Equipment: In Store" => "In Store",
                     "Equipment: Allocated" => "Allocated",
                     "Equipment: Pending" => "Pending",
                     "Equipment: Overdue" => "Overdue",
@@ -357,7 +359,7 @@ namespace Inventory_Management_System.Forms
             var allocFiltersMenu = new ContextMenuStrip { Font = ThemeHelper.FontDefault };
 
             var statusSub = new ToolStripMenuItem("Status");
-            foreach (var (label, value) in new[] { ("All", "All"), ("Available", "Available"), ("Allocated", "Allocated"), ("Pending", "Pending"), ("Overdue", "Overdue") })
+            foreach (var (label, value) in new[] { ("All", "All"), ("In Store", "In Store"), ("Allocated", "Allocated"), ("Pending", "Pending"), ("Overdue", "Overdue") })
             {
                 var item = new ToolStripMenuItem(label) { Checked = _activeStatusFilter == value };
                 item.Click += (s, e) => { _activeStatusFilter = value; _currentPage = 1; RefreshGrid(txtSearch.Text.Trim()); };
@@ -644,13 +646,14 @@ namespace Inventory_Management_System.Forms
                 using var db = new InventoryDbContext();
 
                 return db.Equipment
-                    .Where(e => !e.IsDeleted && e.CurrentStatus == "in_store")
-                    .OrderBy(e => e.EquipmentCode)
+                    .Where(e => !e.IsDeleted && e.CurrentStatus != "allocated" && e.CurrentStatus != "under_repair" && e.CurrentStatus != "decommissioned")
+                    .OrderBy(e => e.QrCode)
+                    .ThenBy(e => e.EquipmentCode)
                     .ToList()
                     .Select(e => new AllocationRow
                     {
                         Id = -(2_000_000 + e.Id),
-                        Source = "Available",
+                        Source = "In Store",
                         Category = string.IsNullOrWhiteSpace(e.Category) ? "—" : e.Category,
                         QrCode = string.IsNullOrWhiteSpace(e.QrCode) ? "—" : e.QrCode,
                         EquipmentCode = e.EquipmentCode,
@@ -663,7 +666,7 @@ namespace Inventory_Management_System.Forms
                         SortDate = DateTime.MinValue,
                         DateAllocated = "—",
                         ExpectedReturn = "—",
-                        Status = "available",
+                        Status = "in_store",
                         AllocationRef = null,
                         TransactionId = null
                     })
@@ -692,7 +695,8 @@ namespace Inventory_Management_System.Forms
 
             return _allSourceRows
                 .Concat(availableRows)
-                .OrderByDescending(r => r.SortDate)
+                .OrderBy(r => r.QrCode)
+                .ThenBy(r => r.EquipmentCode)
                 .ToList();
         }
         // Formats a Location as "LocationName - Room ..." — mirrors RoomOptionDisplay
@@ -729,7 +733,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleToolbarPanel(panelTop);
             ThemeHelper.StyleButton(btnAdd);
             ThemeHelper.StyleButton(btnApprove, Color.FromArgb(25, 118, 210));
-            ThemeHelper.StyleButton(btnReturn, Color.FromArgb(245, 124, 0));
+            ThemeHelper.StyleButton(btnReturn, Color.FromArgb(99, 102, 241)); // indigo — matches Undo Return in Returns screen
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleDangerButton(btnDelete);
@@ -835,9 +839,9 @@ namespace Inventory_Management_System.Forms
                     statusCell.Style.BackColor = Color.FromArgb(255, 205, 210);
                     statusCell.Style.ForeColor = Color.FromArgb(183, 28, 28);
                     break;
-                case "available":
-                    statusCell.Style.BackColor = Color.FromArgb(224, 231, 255);
-                    statusCell.Style.ForeColor = Color.FromArgb(63, 81, 181);
+                case "in_store":
+                    statusCell.Style.BackColor = Color.FromArgb(200, 230, 201);
+                    statusCell.Style.ForeColor = Color.FromArgb(27, 94, 32);
                     break;
             }
             statusCell.Style.Font = ThemeHelper.FontBold;
@@ -848,7 +852,7 @@ namespace Inventory_Management_System.Forms
                 sourceCell.Style.ForeColor = Color.FromArgb(25, 118, 210);
                 sourceCell.Style.Font = ThemeHelper.FontBold;
             }
-            else if (item.Source == "Available")
+            else if (item.Source == "In Store")
             {
                 sourceCell.Style.ForeColor = Color.FromArgb(94, 53, 177);
                 sourceCell.Style.Font = ThemeHelper.FontBold;
@@ -987,7 +991,7 @@ namespace Inventory_Management_System.Forms
             {
                 baseline = _activeStatusFilter switch
                 {
-                    "Available" => GetAvailableEquipmentRows(),
+                    "In Store" => GetAvailableEquipmentRows(),
                     "Allocated" => _allSourceRows.Where(r => string.Equals(r.Status, "approved", StringComparison.OrdinalIgnoreCase) || string.Equals(r.Status, "Overdue", StringComparison.OrdinalIgnoreCase)).ToList(),
                     "Pending" => _allSourceRows.Where(r => string.Equals(r.Status, "pending", StringComparison.OrdinalIgnoreCase)).ToList(),
                     "Overdue" => _allSourceRows.Where(r => string.Equals(r.Status, "Overdue", StringComparison.OrdinalIgnoreCase)).ToList(),
@@ -1000,6 +1004,11 @@ namespace Inventory_Management_System.Forms
                 baseline = baseline.Where(r =>
                     string.Equals(r.Category, _activeCategoryFilter, StringComparison.OrdinalIgnoreCase)).ToList();
             }
+
+            baseline = baseline
+                .OrderBy(r => r.QrCode)
+                .ThenBy(r => r.EquipmentCode)
+                .ToList();
 
             List<AllocationRow> matched;
             if (hasSearch)
@@ -1086,9 +1095,9 @@ namespace Inventory_Management_System.Forms
                         statusCell.Style.BackColor = Color.FromArgb(255, 205, 210);
                         statusCell.Style.ForeColor = Color.FromArgb(183, 28, 28);
                         break;
-                    case "available":
-                        statusCell.Style.BackColor = Color.FromArgb(224, 231, 255);
-                        statusCell.Style.ForeColor = Color.FromArgb(63, 81, 181);
+                    case "in_store":
+                        statusCell.Style.BackColor = Color.FromArgb(200, 230, 201);
+                        statusCell.Style.ForeColor = Color.FromArgb(27, 94, 32);
                         break;
                 }
                 statusCell.Style.Font = ThemeHelper.FontBold;
@@ -1099,7 +1108,7 @@ namespace Inventory_Management_System.Forms
                     sourceCell.Style.ForeColor = Color.FromArgb(25, 118, 210);
                     sourceCell.Style.Font = ThemeHelper.FontBold;
                 }
-                else if (item.Source == "Available")
+                else if (item.Source == "In Store")
                 {
                     sourceCell.Style.ForeColor = Color.FromArgb(94, 53, 177);
                     sourceCell.Style.Font = ThemeHelper.FontBold;
@@ -1180,18 +1189,32 @@ namespace Inventory_Management_System.Forms
             btnEditReturn.Enabled = true;
         }
 
+        private static void ShowToast(Form form, string message, ToastType type = ToastType.Success, bool isEdit = false, bool isDelete = false, bool isReturn = false, bool isApprove = false)
+        {
+            Color color = isDelete
+                ? Color.FromArgb(211, 47, 47)
+                : isReturn
+                    ? Color.FromArgb(99, 102, 241)
+                    : isEdit
+                        ? Color.FromArgb(245, 158, 11) // Yellow for edit
+                        : isApprove
+                            ? Color.FromArgb(25, 118, 210) // Blue for approve
+                            : Color.FromArgb(76, 175, 80);
+            ToastHelper.Show(form, message, type, 3000, color);
+        }
+
         private void btnEditReturn_Click(object? sender, EventArgs e)
         {
             var selectedRow = GetSelectedRow();
             var alloc = selectedRow?.AllocationRef;
             if (alloc == null)
             {
-                ToastHelper.Show(this, "Select an allocation record first.", ToastType.Info);
+                ShowToast(this, "Select an allocation record first.", ToastType.Info, isEdit: true);
                 return;
             }
             if (alloc.Status == "returned")
             {
-                ToastHelper.Show(this, "Cannot edit the return date of a returned allocation.", ToastType.Warning);
+                ShowToast(this, "Cannot edit the return date of a returned allocation.", ToastType.Warning, isEdit: true);
                 return;
             }
 
@@ -1214,12 +1237,12 @@ namespace Inventory_Management_System.Forms
 
                 _audit.Log(alloc.EquipmentId, "Expected Return Date Updated",
                  oldVal, (frm.SelectedDate?.ToString("yyyy-MM-dd") ?? "none") + " | Source Screen: Allocation Screen");
-                ToastHelper.Show(this, "Expected return date updated.", ToastType.Success);
+                ShowToast(this, "Expected return date updated.", ToastType.Success, isEdit: true);
                 LoadAllocations();
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Update failed: " + ex.Message, ToastType.Error);
+                ShowToast(this, "Update failed: " + ex.Message, ToastType.Error, isEdit: true);
             }
         }
 
@@ -1242,11 +1265,11 @@ namespace Inventory_Management_System.Forms
             {
                 _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
       null, $"Allocated to Employee ID {frm.Result.EmployeeId} | Source Screen: Allocation Screen");
-                ToastHelper.Show(this, "Allocation request created.", ToastType.Success);
+                ShowToast(this, "Allocation request created.", ToastType.Success);
                 LoadAllocations();
             }
             else
-                ToastHelper.Show(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
+                ShowToast(this, "Allocation Failed: " + result.ErrorMessage, ToastType.Error);
         }
 
         private void dgvAllocation_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
@@ -1261,7 +1284,7 @@ namespace Inventory_Management_System.Forms
             if (row == null) return;
 
             // Anything that isn't "Available" already has allocation details to show.
-            if (row.Source != "Available")
+            if (row.Source != "In Store")
             {
                 ShowAllocationDetailPopup(row);
                 return;
@@ -1320,7 +1343,7 @@ namespace Inventory_Management_System.Forms
             var allSelected = GetSelectedRows();
             if (allSelected.Count == 0)
             {
-                ToastHelper.Show(this, "Please select at least one allocation to approve.", ToastType.Info);
+                ShowToast(this, "Please select at least one allocation to approve.", ToastType.Info);
                 return;
             }
 
@@ -1330,7 +1353,7 @@ namespace Inventory_Management_System.Forms
 
             if (allocRows.Count == 0)
             {
-                ToastHelper.Show(this, "The selected row(s) are available equipment items, not pending allocations.", ToastType.Warning);
+                ShowToast(this, "The selected row(s) are available equipment items, not pending allocations.", ToastType.Warning);
                 return;
             }
 
@@ -1340,7 +1363,7 @@ namespace Inventory_Management_System.Forms
 
             if (pendingRows.Count == 0)
             {
-                ToastHelper.Show(this, "The selected allocation(s) are already approved or returned.", ToastType.Info);
+                ShowToast(this, "The selected allocation(s) are already approved or returned.", ToastType.Info);
                 return;
             }
 
@@ -1380,10 +1403,10 @@ namespace Inventory_Management_System.Forms
                 catch { fail++; }
             }
 
-            ToastHelper.Show(this,
+            ShowToast(this,
                 fail == 0 ? $"{ok} allocation(s) approved successfully."
                           : $"{ok} approved, {fail} failed (checked-out or error).",
-                fail == 0 ? ToastType.Success : ToastType.Warning);
+                fail == 0 ? ToastType.Success : ToastType.Warning, isApprove: true);
             LoadAllocations();
         }
 
@@ -1397,7 +1420,7 @@ namespace Inventory_Management_System.Forms
                     (t.Status == "Pending" || t.Status == "Overdue"));
                 if (isCheckedOut)
                 {
-                    ToastHelper.Show(this, "This equipment is currently checked out and cannot be approved until it is checked back in.", ToastType.Warning);
+                    ShowToast(this, "This equipment is currently checked out and cannot be approved until it is checked back in.", ToastType.Warning);
                     return;
                 }
                 var a = db.Allocations.Include(x => x.Equipment).FirstOrDefault(x => x.Id == alloc.Id);
@@ -1408,12 +1431,12 @@ namespace Inventory_Management_System.Forms
                 if (a.Equipment != null) a.Equipment.CurrentStatus = "allocated";
                 db.SaveChanges();
                 _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved | Source Screen: Allocation Screen");
-                ToastHelper.Show(this, "Allocation approved successfully.", ToastType.Success);
+                ShowToast(this, "Allocation approved successfully.", ToastType.Success, isApprove: true);
                 LoadAllocations();
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Approve failed: " + ex.Message, ToastType.Error);
+                ShowToast(this, "Approve failed: " + ex.Message, ToastType.Error, isApprove: true);
             }
         }
 
@@ -1422,9 +1445,11 @@ namespace Inventory_Management_System.Forms
             var allSelected = GetSelectedRows();
             if (allSelected.Count == 0)
             {
-                ToastHelper.Show(this, "Please select at least one allocation to return.", ToastType.Info);
+                ShowToast(this, "Please select at least one allocation to return.", ToastType.Info, isReturn: true);
                 return;
             }
+
+            bool hasCheckInOut = allSelected.Any(r => string.Equals(r.Source, "Check In/Out", StringComparison.OrdinalIgnoreCase) || (r.AllocationRef == null && r.TransactionId != null));
 
             var activeRows = allSelected
                 .Where(r => r.AllocationRef != null && r.AllocationRef.Status != "returned")
@@ -1432,7 +1457,20 @@ namespace Inventory_Management_System.Forms
 
             if (activeRows.Count == 0)
             {
-                ToastHelper.Show(this, "No active or overdue allocations to return in selection.", ToastType.Info);
+                if (hasCheckInOut)
+                {
+                    ShowToast(this, "This item was issued via Check In/Out. Please check it in from the Check In/Out screen.", ToastType.Warning, isReturn: true);
+                }
+                else
+                {
+                    ShowToast(this, "No active or overdue allocations to return in selection.", ToastType.Info, isReturn: true);
+                }
+                return;
+            }
+
+            if (hasCheckInOut)
+            {
+                ShowToast(this, "Selected item(s) include equipment issued via Check In/Out. Please check them in from the Check In/Out screen.", ToastType.Warning, isReturn: true);
                 return;
             }
 
@@ -1461,10 +1499,10 @@ namespace Inventory_Management_System.Forms
                 else fail++;
             }
 
-            ToastHelper.Show(this,
+            ShowToast(this,
                 fail == 0 ? $"{ok} allocation(s) returned successfully."
                           : $"{ok} returned, {fail} failed.",
-                fail == 0 ? ToastType.Success : ToastType.Warning);
+                fail == 0 ? ToastType.Success : ToastType.Warning, isReturn: true);
             LoadAllocations();
         }
 
@@ -1473,7 +1511,7 @@ namespace Inventory_Management_System.Forms
             var allSelected = GetSelectedRows();
             if (allSelected.Count == 0)
             {
-                ToastHelper.Show(this, "Please select at least one allocation to delete.", ToastType.Info);
+                ShowToast(this, "Please select at least one allocation to delete.", ToastType.Info, isDelete: true);
                 return;
             }
 
@@ -1483,7 +1521,7 @@ namespace Inventory_Management_System.Forms
 
             if (allocRows.Count == 0)
             {
-                ToastHelper.Show(this, "The selected row(s) are available equipment items, not allocation records.", ToastType.Warning);
+                ShowToast(this, "The selected row(s) are available equipment items, not allocation records.", ToastType.Warning);
                 return;
             }
 
@@ -1519,9 +1557,9 @@ namespace Inventory_Management_System.Forms
             }
 
             if (fail > 0)
-                ToastHelper.Show(this, $"{ok} deleted, {fail} failed.", ToastType.Warning);
+                ShowToast(this, $"{ok} deleted, {fail} failed.", ToastType.Warning, isDelete: true);
             else if (ok > 0)
-                ToastHelper.Show(this, ok == 1 ? "Allocation record deleted successfully." : $"{ok} allocation records deleted successfully.", ToastType.Success);
+                ShowToast(this, ok == 1 ? "Allocation record deleted successfully." : $"{ok} allocation records deleted successfully.", ToastType.Success, isDelete: true);
 
             LoadAllocations();
         }
@@ -1599,11 +1637,11 @@ namespace Inventory_Management_System.Forms
                         E(row.Cells["Source"].Value), E(row.Cells["AllocatedBy"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
-                ToastHelper.Show(this, "Exported successfully.", ToastType.Success);
+                ShowToast(this, "Exported successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
+                ShowToast(this, "Export failed: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -2161,7 +2199,7 @@ namespace Inventory_Management_System.Forms
 
             if (_selectedEquipmentId == null)
             {
-                ToastHelper.Show(this, "Please select an equipment item.", ToastType.Warning);
+                ToastHelper.Show(this, "Please select an equipment item.", ToastType.Warning, 3000, Color.FromArgb(76, 175, 80));
                 return;
             }
 
@@ -2171,7 +2209,7 @@ namespace Inventory_Management_System.Forms
             // employee / location must be set — not both, not neither.
             if (_selectedEmployeeId == null && locationId == null)
             {
-                ToastHelper.Show(this, "Please choose an employee, a location, or both — at least one is required.", ToastType.Warning);
+                ToastHelper.Show(this, "Please choose an employee, a location, or both — at least one is required.", ToastType.Warning, 3000, Color.FromArgb(76, 175, 80));
                 return;
             }
 

@@ -106,7 +106,7 @@ namespace Inventory_Management_System.Forms
         // after a plain Yes/No confirmation. Replaces the old Edit-dialog flow. ──
         private void BuildRestoreButton()
         {
-            btnRestoreDecomm = new Button { Text = "↩ Restore", Size = new Size(130, 32) };
+            btnRestoreDecomm = new Button { Text = "↩ Restore", Size = new Size(130, 32), Margin = new Padding(4, 4, 0, 0) };
             ThemeHelper.StyleButton(btnRestoreDecomm, Color.FromArgb(0, 150, 136));
             btnRestoreDecomm.Click += BtnRestoreDecomm_Click;
 
@@ -118,7 +118,8 @@ namespace Inventory_Management_System.Forms
         {
             if (dgvDecommission.SelectedRows.Count == 0)
             {
-                ToastHelper.Show(this, "Please select an item to restore.", ToastType.Info);
+                ToastHelper.Show(this, "Please select an item to restore.", ToastType.Info,
+                    customBgColor: Color.FromArgb(0, 150, 136));
                 return;
             }
 
@@ -147,7 +148,8 @@ namespace Inventory_Management_System.Forms
                 _audit.Log(entity.Id, AuditService.ActionDecommissionUndone,
        "Status: Decommissioned", "Status: In Store | Source Screen: Decommission Screen");
 
-                ToastHelper.Show(this, $"'{entity.Name}' restored to In Store.", ToastType.Success);
+                ToastHelper.Show(this, $"'{entity.Name}' restored to In Store.", ToastType.Success,
+                    customBgColor: Color.FromArgb(0, 150, 136));
                 LoadDecommissioned();
             }
             catch (Exception ex)
@@ -435,11 +437,13 @@ namespace Inventory_Management_System.Forms
                     $"Status: Decommissioned | Reason: {frm.Reason} | Source Screen: Decommission Screen");
 
                 LoadDecommissioned();
-                ToastHelper.Show(this, $"'{eq.Name}' has been decommissioned.", ToastType.Success);
+                ToastHelper.Show(this, $"'{eq.Name}' has been decommissioned.", ToastType.Success,
+                    customBgColor: Color.FromArgb(211, 47, 47));
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Decommission failed: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(this, "Decommission failed: " + ex.Message, ToastType.Error,
+                    customBgColor: Color.FromArgb(211, 47, 47));
             }
         }
 
@@ -791,7 +795,7 @@ namespace Inventory_Management_System.Forms
         {
             if (cmbEquipment.SelectedValue == null || (int)cmbEquipment.SelectedValue == 0)
             {
-                ToastHelper.Show(this, "Please select equipment.", ToastType.Warning);
+                ToastHelper.Show(this, "Please select equipment.", ToastType.Warning, customBgColor: Color.FromArgb(211, 47, 47));
                 return;
             }
 

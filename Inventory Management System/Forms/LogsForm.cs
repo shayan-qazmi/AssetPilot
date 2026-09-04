@@ -317,41 +317,85 @@ namespace Inventory_Management_System.Forms
 
                 switch (item.ActionType)
                 {
+                    // ── Equipment add → green ──────────────────────────────
                     case "equipment_created":
                         actionCell.Style.BackColor = Color.FromArgb(200, 230, 201);
                         actionCell.Style.ForeColor = Color.FromArgb(27, 94, 32);
                         break;
-                    case "allocation_approved":
-                    case "allocation_requested":
-                        actionCell.Style.BackColor = Color.FromArgb(187, 222, 251);
-                        actionCell.Style.ForeColor = Color.FromArgb(13, 71, 161);
-                        break;
-                    case "allocation_returned":
+
+                    // ── Equipment edit ──
+                    case "equipment_updated":
+                    case "employee_updated":
+                    case "location_updated":
+                    case "Expected Return Date Updated":
                         actionCell.Style.BackColor = Color.FromArgb(255, 249, 196);
                         actionCell.Style.ForeColor = Color.FromArgb(130, 100, 0);
                         break;
+
+                    // ── Equipment Restore ──
+                    case "equipment_restored":
                     case "decommission_undone":
-                        actionCell.Style.BackColor = Color.FromArgb(200, 230, 201);
-                        actionCell.Style.ForeColor = Color.FromArgb(27, 94, 32);
+                        actionCell.Style.BackColor = Color.FromArgb(204, 243, 239);
+                        actionCell.Style.ForeColor = Color.FromArgb(0, 150, 136); // Teal to match restore button
                         break;
+
+                    // ── Allocation (created/approved/requested) → light green ──
+                    case "allocation_approved":
+                    case "allocation_requested":
+                    case "employee_created":
+                    case "location_created":
+                        actionCell.Style.BackColor = Color.FromArgb(220, 237, 200);
+                        actionCell.Style.ForeColor = Color.FromArgb(39, 100, 30);
+                        break;
+
+                    // ── Return → indigo (matches Return/Undo Return buttons) ─
+                    case "allocation_returned":
+                        actionCell.Style.BackColor = Color.FromArgb(225, 226, 252);
+                        actionCell.Style.ForeColor = Color.FromArgb(57, 60, 180);
+                        break;
+
+                    // ── Check In/Out → light blue ─────────────────────────
+                    case "checked_out":
+                    case "checked_in":
+                        actionCell.Style.BackColor = Color.FromArgb(179, 229, 252);
+                        actionCell.Style.ForeColor = Color.FromArgb(1, 87, 155);
+                        break;
+
+                    // ── Decommission / Delete / Settings wipe → red ───────
                     case "allocation_rejected":
                     case "decommission_requested":
                     case "decommission_approved":
+                    case "equipment_deleted":
+                    case "employee_deleted":
+                    case "location_deleted":
+                    case "settings_data_delete":
                         actionCell.Style.BackColor = Color.FromArgb(255, 205, 210);
                         actionCell.Style.ForeColor = Color.FromArgb(183, 28, 28);
+                        // For settings data wipe also highlight the whole row in light red
+                        if (item.ActionType == "settings_data_delete")
+                        {
+                            row.DefaultCellStyle.BackColor = Color.FromArgb(255, 235, 238);
+                            row.DefaultCellStyle.ForeColor = Color.FromArgb(183, 28, 28);
+                        }
                         break;
+
+                    // ── Transfer → purple ─────────────────────────────────
                     case "transferred":
                         actionCell.Style.BackColor = Color.FromArgb(225, 190, 231);
                         actionCell.Style.ForeColor = Color.FromArgb(74, 20, 140);
                         break;
+
+                    // ── Location changed / maintenance → amber ────────────
                     case "location_changed":
                         actionCell.Style.BackColor = Color.FromArgb(255, 224, 178);
                         actionCell.Style.ForeColor = Color.FromArgb(130, 60, 0);
                         break;
+
                     case "maintenance_opened":
                         actionCell.Style.BackColor = Color.FromArgb(255, 224, 130);
                         actionCell.Style.ForeColor = Color.FromArgb(130, 90, 0);
                         break;
+
                     case "maintenance_resolved":
                         actionCell.Style.BackColor = Color.FromArgb(197, 225, 165);
                         actionCell.Style.ForeColor = Color.FromArgb(51, 105, 30);
@@ -368,19 +412,31 @@ namespace Inventory_Management_System.Forms
 
         private static string FormatAction(string? raw) => raw switch
         {
-            "equipment_created" => "Equipment Created",
-            "location_changed" => "Location Changed",
+            "equipment_created"    => "Equipment Created",
+            "equipment_updated"    => "Equipment Updated",
+            "equipment_deleted"    => "Equipment Deleted",
+            "equipment_restored"   => "Equipment Restored",
+            "location_changed"     => "Location Changed",
+            "employee_created"     => "Employee Created",
+            "employee_updated"     => "Employee Updated",
+            "employee_deleted"     => "Employee Deleted",
+            "location_created"     => "Location Created",
+            "location_updated"     => "Location Updated",
+            "location_deleted"     => "Location Deleted",
             "allocation_requested" => "Allocation Requested",
-            "allocation_approved" => "Allocation Approved",
-            "allocation_rejected" => "Allocation Rejected",
-            "allocation_returned" => "Returned to Store",
+            "allocation_approved"  => "Allocation Approved",
+            "allocation_rejected"  => "Allocation Rejected",
+            "allocation_returned"  => "Returned to Store",
             "decommission_requested" => "Decommission Requested",
-            "decommission_approved" => "Decommission Approved",
-            "decommission_undone" => "Decommission Undone",
-            "decommission_rejected" => "Decommission Rejected",
-            "transferred" => "Transferred",
-            "maintenance_opened" => "Maintenance Opened",
-            "maintenance_resolved" => "Maintenance Resolved",
+            "decommission_approved"  => "Decommission Approved",
+            "decommission_undone"    => "Decommission Undone",
+            "decommission_rejected"  => "Decommission Rejected",
+            "transferred"            => "Transferred",
+            "checked_out"            => "Checked Out",
+            "checked_in"             => "Checked In",
+            "maintenance_opened"     => "Maintenance Opened",
+            "maintenance_resolved"   => "Maintenance Resolved",
+            "settings_data_delete"   => "⚠ Settings Data Deleted",
             "Maintenance History Cleared" => "Maintenance History Cleared",
             _ => raw ?? "Unknown"
         };

@@ -363,7 +363,7 @@ namespace Inventory_Management_System.Helpers
         }
 
         // ── DataGridView ───────────────────────────────────────────────────
-        public static void StyleDataGridView(DataGridView dgv)
+        public static void StyleDataGridView(DataGridView dgv, Color? headerColor = null)
         {
             Color baseBg = IsDarkMode ? Color.FromArgb(20, 22, 27) : Color.White;
             Color altBg = IsDarkMode ? Color.FromArgb(20, 22, 27) : GridAltRow; // same as base in dark mode — no banding
@@ -392,7 +392,7 @@ namespace Inventory_Management_System.Helpers
             dgv.AlternatingRowsDefaultCellStyle.SelectionBackColor = dgv.DefaultCellStyle.SelectionBackColor;
             dgv.AlternatingRowsDefaultCellStyle.SelectionForeColor = dgv.DefaultCellStyle.SelectionForeColor;
 
-            dgv.ColumnHeadersDefaultCellStyle.BackColor = GridHeader; // green, both modes
+            dgv.ColumnHeadersDefaultCellStyle.BackColor = headerColor ?? GridHeader;
             dgv.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             dgv.ColumnHeadersDefaultCellStyle.Font = FontBold;
             dgv.ColumnHeadersDefaultCellStyle.Padding = new Padding(4, 0, 4, 0);
@@ -622,13 +622,34 @@ namespace Inventory_Management_System.Helpers
                     visibleCount = Math.Min(visibleCount, points.Length);
                     if (visibleCount >= 2)
                     {
-                        Color sparkColor = dark ? Color.FromArgb(210, cardColor) : Color.FromArgb(210, 255, 255, 255);
-                        using var sparkPen = new Pen(sparkColor, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
-                        g.DrawLines(sparkPen, points[..visibleCount]);
+                        var activePoints = points[..visibleCount];
+                        Color sparkColor = dark ? Color.FromArgb(230, cardColor) : Color.FromArgb(240, 255, 255, 255);
 
-                        var last = points[visibleCount - 1];
-                        using var dotBrush = new SolidBrush(dark ? cardColor : Color.White);
-                        g.FillEllipse(dotBrush, last.X - 3, last.Y - 3, 6, 6);
+                        // Soft gradient fill under the curve
+                        using (var areaPath = new GraphicsPath())
+                        {
+                            areaPath.AddCurve(activePoints, 0.35f);
+                            areaPath.AddLine(activePoints[^1], new PointF(activePoints[^1].X, sparkY + sparkH + 2));
+                            areaPath.AddLine(new PointF(activePoints[0].X, sparkY + sparkH + 2), activePoints[0]);
+                            areaPath.CloseFigure();
+
+                            using var areaBrush = new LinearGradientBrush(
+                                new PointF(0, sparkY), new PointF(0, sparkY + sparkH + 2),
+                                Color.FromArgb(dark ? 65 : 85, sparkColor),
+                                Color.FromArgb(0, sparkColor));
+                            g.FillPath(areaBrush, areaPath);
+                        }
+
+                        // Smooth curved line
+                        using var sparkPen = new Pen(sparkColor, 2.2f) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
+                        g.DrawCurve(sparkPen, activePoints, 0.35f);
+
+                        // Endpoint glow dot
+                        var last = activePoints[^1];
+                        using (var outerDot = new SolidBrush(Color.FromArgb(90, sparkColor)))
+                            g.FillEllipse(outerDot, last.X - 5, last.Y - 5, 10, 10);
+                        using (var innerDot = new SolidBrush(dark ? cardColor : Color.White))
+                            g.FillEllipse(innerDot, last.X - 2.5f, last.Y - 2.5f, 5, 5);
                     }
 
                     if (!string.IsNullOrWhiteSpace(deltaText) && sparkProgress >= 1f)

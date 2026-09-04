@@ -18,6 +18,7 @@ namespace Inventory_Management_System.Forms
         public LocationsForm()
         {
             InitializeComponent();
+            dgvLocations.Columns["ID"].Visible = false;
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             _locationService = new LocationService();
             ApplyTheme();
@@ -216,13 +217,26 @@ namespace Inventory_Management_System.Forms
             SyncHeaderCheckbox();
         }
 
+        // ── Centralised toast helper — delete=red, edit=yellow, everything else=green ──
+        private void ShowToast(string message, ToastType type = ToastType.Success, ToastIntent intent = ToastIntent.Normal)
+        {
+            Color? col = intent switch
+            {
+                ToastIntent.Delete => Color.FromArgb(211, 47, 47),
+                ToastIntent.Edit   => Color.FromArgb(245, 158, 11),
+                _                  => Color.FromArgb(56, 142, 60)
+            };
+            ToastHelper.Show(this, message, type, 3000, col);
+        }
+        private enum ToastIntent { Normal, Edit, Delete }
+
         private void btnAdd_Click(object sender, EventArgs e)
         {
             using var form = new AddEditLocationForm();
             if (form.ShowDialog() == DialogResult.OK)
             {
                 LoadLocations();
-                ToastHelper.Show(this, "Location added successfully.", ToastType.Success);
+                ShowToast("Location added successfully.");
             }
         }
 
@@ -241,7 +255,7 @@ namespace Inventory_Management_System.Forms
                 if (form.ShowDialog() == DialogResult.OK)
                 {
                     LoadLocations();
-                    ToastHelper.Show(this, "Location updated successfully.", ToastType.Success);
+                    ShowToast("Location updated successfully.", ToastType.Success, ToastIntent.Edit);
                 }
             }
             else
@@ -284,7 +298,7 @@ namespace Inventory_Management_System.Forms
             var selectedIds = GetSelectedLocationIds();
             if (selectedIds.Count == 0)
             {
-                ToastHelper.Show(this, "Please select at least one location to delete.", ToastType.Info);
+                ShowToast("Please select at least one location to delete.", ToastType.Info, ToastIntent.Delete);
                 return;
             }
 
@@ -310,19 +324,19 @@ namespace Inventory_Management_System.Forms
             if (deletedCount > 0)
             {
                 LoadLocations();
-                ToastHelper.Show(this, $"{deletedCount} location(s) deleted successfully.", ToastType.Success);
+                ShowToast($"{deletedCount} location(s) deleted successfully.", ToastType.Success, ToastIntent.Delete);
             }
             else if (firstError != null)
             {
-                ToastHelper.Show(this, firstError, ToastType.Error);
+                ShowToast(firstError, ToastType.Error, ToastIntent.Delete);
             }
         }
         private void btnImport_Click(object sender, EventArgs e)
         {
             using var ofd = new OpenFileDialog
             {
-                Filter = "Excel Files (*.xlsx;*.xls)|*.xlsx;*.xls",
-                Title = "Import Locations from Excel"
+                Filter = "Excel & CSV Files (*.xlsx;*.xls;*.csv)|*.xlsx;*.xls;*.csv|All Files (*.*)|*.*",
+                Title = "Import Locations"
             };
 
             if (ofd.ShowDialog() != DialogResult.OK) return;
@@ -347,7 +361,7 @@ namespace Inventory_Management_System.Forms
                         if (result.Success) importedCount++;
                     }
 
-                    ToastHelper.Show(this, $"Successfully imported {importedCount} locations.", ToastType.Success);
+                    ShowToast($"Successfully imported {importedCount} locations.");
                     LoadLocations();
                 }
                 else if (errors.Count == 0)
@@ -382,12 +396,11 @@ namespace Inventory_Management_System.Forms
         if (sfd.ShowDialog() != DialogResult.OK) return;
 
         var sb = new System.Text.StringBuilder();
-                sb.AppendLine("Location ID,Location Name,Address/Building,Room Number,Allocated Person");    
+                sb.AppendLine("Location Name,Address/Building,Room Number,Room Name");    
 
                 foreach (DataGridViewRow row in dgvLocations.Rows)
         {
             sb.AppendLine(string.Join(",",
-                $"\"{row.Cells["ID"]?.Value}\"",
                 $"\"{row.Cells["Name"]?.Value}\"",
                 $"\"{row.Cells["Building"]?.Value}\"",
                 $"\"{row.Cells["RoomNumber"]?.Value}\"",
@@ -395,7 +408,7 @@ namespace Inventory_Management_System.Forms
         }
 
         System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
-     ToastHelper.Show(this, "Locations exported successfully.", ToastType.Success);
+     ShowToast("Locations exported successfully.");
 
             }
             catch (Exception ex)

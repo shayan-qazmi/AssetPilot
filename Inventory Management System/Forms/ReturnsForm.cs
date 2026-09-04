@@ -112,11 +112,8 @@ namespace Inventory_Management_System.Forms
                 SortMode = DataGridViewColumnSortMode.NotSortable
             };
 
-            int insertAt = dgvReturns.Columns.Contains("ReturnDate")
-                ? dgvReturns.Columns["ReturnDate"].Index + 1
-                : dgvReturns.Columns.Count;
-
-            dgvReturns.Columns.Insert(insertAt, col);
+            // Always insert Timestamp at the very last position
+            dgvReturns.Columns.Add(col);
         }
 
         /// Expands the page-size options to include 250 and 500.
@@ -126,6 +123,12 @@ namespace Inventory_Management_System.Forms
             cmbPageSize.Items.Clear();
             cmbPageSize.Items.AddRange(new object[] { "25", "50", "100", "250", "500" });
             cmbPageSize.SelectedItem = cmbPageSize.Items.Contains(current) ? current : "25";
+        }
+
+        private void ShowToast(string message, ToastType type = ToastType.Success, bool isEdit = false)
+        {
+            Color color = isEdit ? Color.FromArgb(245, 158, 11) : Color.FromArgb(99, 102, 241);
+            ToastHelper.Show(this, message, type, 3000, color);
         }
 
         public void ApplyTheme()
@@ -293,10 +296,10 @@ namespace Inventory_Management_System.Forms
                             item.Employee,
                             item.Location,
                             item.ReturnDate,
-                            FormatPkt(item.Timestamp),
                             item.Condition,
                             item.Source,
-                            item.IsOverdue ? "Yes" : "No"
+                            item.IsOverdue ? "Yes" : "No",
+                            FormatPkt(item.Timestamp)
                         );
 
             if (item.DurationDays > 30)
@@ -453,7 +456,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Error loading returns: " + ex.Message, ToastType.Error);
+                ShowToast("Error loading returns: " + ex.Message, ToastType.Error);
 
             }
         }
@@ -502,9 +505,10 @@ namespace Inventory_Management_System.Forms
             {
                 int rowIdx = dgvReturns.Rows.Add(
                           item.Id, item.QrCode, item.EquipmentCode, item.EquipmentName,
-                          item.Employee, item.Location, item.ReturnDate, FormatPkt(item.Timestamp),
+                          item.Employee, item.Location, item.ReturnDate,
                           item.Condition, item.Source,
-                          item.IsOverdue ? "Yes" : "No");
+                          item.IsOverdue ? "Yes" : "No",
+                          FormatPkt(item.Timestamp));
 
                 if (item.DurationDays > 30)
                     dgvReturns.Rows[rowIdx].Cells["ReturnDate"].Style.ForeColor = ThemeHelper.Warning;
@@ -547,7 +551,7 @@ namespace Inventory_Management_System.Forms
 
                 if (activeAllocations.Count == 0)
                 {
-                    ToastHelper.Show(this, "There are no active approved allocations to return.", ToastType.Info);
+                    ShowToast("There are no active approved allocations to return.", ToastType.Info);
 
                     return;
                 }
@@ -561,7 +565,7 @@ namespace Inventory_Management_System.Forms
 
                 if (alloc == null)
                 {
-                    ToastHelper.Show(this, "Allocation not found.", ToastType.Error);
+                    ShowToast("Allocation not found.", ToastType.Error);
                     return;
                 }
 
@@ -575,12 +579,12 @@ namespace Inventory_Management_System.Forms
                 }
                 db.SaveChanges();
                 _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned, "allocated", "in_store");
-                ToastHelper.Show(this, $"Return processed for '{alloc.Equipment?.EquipmentCode}'.", ToastType.Success);
+                ShowToast($"Return processed for '{alloc.Equipment?.EquipmentCode}'.", ToastType.Success);
                 LoadReturns();
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Failed to process return: " + ex.Message, ToastType.Error);
+                ShowToast("Failed to process return: " + ex.Message, ToastType.Error);
 
             }
         }
@@ -590,7 +594,7 @@ namespace Inventory_Management_System.Forms
             var ret = GetSelectedReturn();
             if (ret == null)
             {
-                ToastHelper.Show(this, "Please select a return to edit.", ToastType.Warning);
+                ShowToast("Please select a return to edit.", ToastType.Warning);
                 return;
             }
 
@@ -603,19 +607,19 @@ namespace Inventory_Management_System.Forms
                 var alloc = db.Allocations.Include(a => a.Equipment).FirstOrDefault(a => a.Id == ret.Id);
                 if (alloc == null)
                 {
-                    ToastHelper.Show(this, "Return record not found.", ToastType.Error);
+                    ShowToast("Return record not found.", ToastType.Error);
                     return;
                 }
                 alloc.ActualReturnDate = frm.ReturnDate;
                 alloc.ReturnProcessedAt = DateTime.UtcNow; // bump to reflect the edit as the latest activity
                 if (alloc.Equipment != null) alloc.Equipment.ConditionGrade = frm.ConditionGrade;
                 db.SaveChanges();
-                ToastHelper.Show(this, "Return updated successfully.", ToastType.Success);
+                ShowToast("Return updated successfully.", ToastType.Success, isEdit: true);
                 LoadReturns();
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Failed to update return: " + ex.Message, ToastType.Error);
+                ShowToast("Failed to update return: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -624,7 +628,7 @@ namespace Inventory_Management_System.Forms
             var ret = GetSelectedReturn();
             if (ret == null)
             {
-                ToastHelper.Show(this, "Please select a return to delete.", ToastType.Warning);
+                ShowToast("Please select a return to Undo.", ToastType.Warning);
                 return;
             }
 
@@ -634,7 +638,7 @@ namespace Inventory_Management_System.Forms
                 var alloc = db.Allocations.Include(a => a.Equipment).FirstOrDefault(a => a.Id == ret.Id);
                 if (alloc == null)
                 {
-                    ToastHelper.Show(this, "Return record not found.", ToastType.Error);
+                    ShowToast("Return record not found.", ToastType.Error);
                     return;
                 }
 
@@ -665,12 +669,12 @@ namespace Inventory_Management_System.Forms
                 db.SaveChanges();
                 _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned,
                     oldValue, $"{alloc.Equipment?.EquipmentCode} - approved (return undone)");
-                ToastHelper.Show(this, $"Return undone — '{alloc.Equipment?.EquipmentCode}' is active again.", ToastType.Success);
+                ShowToast($"Return undone — '{alloc.Equipment?.EquipmentCode}' is active again.", ToastType.Success);
                 LoadReturns();
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Failed to undo return: " + ex.Message, ToastType.Error);
+                ShowToast("Failed to undo return: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -735,11 +739,11 @@ namespace Inventory_Management_System.Forms
                         E(row.Cells["Condition"].Value), E(row.Cells["Overdue"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
-                ToastHelper.Show(this, "Exported successfully.", ToastType.Success);
+                ShowToast("Exported successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
+                ShowToast("Export failed: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -781,6 +785,11 @@ namespace Inventory_Management_System.Forms
             _allocations = allocations;
             _isEdit = isEdit;
             BuildUI(existing);
+        }
+
+        private void ShowToast(string message, ToastType type = ToastType.Success)
+        {
+            ToastHelper.Show(this, message, type, 3000, Color.FromArgb(99, 102, 241));
         }
 
         private void BuildUI(Allocation? existing)
@@ -1076,12 +1085,12 @@ namespace Inventory_Management_System.Forms
 
             if (cmbAllocation.SelectedValue == null)
             {
-                ToastHelper.Show(this, "Please select an allocation.", ToastType.Warning);
+                ShowToast("Please select an allocation.", ToastType.Warning);
                 return;
             }
             if (cmbCondition.SelectedItem == null)
             {
-                ToastHelper.Show(this, "Please select a condition grade.", ToastType.Warning);
+                ShowToast("Please select a condition grade.", ToastType.Warning);
                 return;
             }
             AllocationId = (int)cmbAllocation.SelectedValue;

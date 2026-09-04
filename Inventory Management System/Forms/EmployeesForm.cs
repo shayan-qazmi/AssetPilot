@@ -454,12 +454,25 @@ namespace Inventory_Management_System.Forms
             popup.ShowDialog(this);
         }
 
+        // ── Centralised toast helper — delete=red, edit=yellow, everything else=green ──
+        private void ShowToast(string message, ToastType type = ToastType.Success, ToastIntent intent = ToastIntent.Normal)
+        {
+            Color? col = intent switch
+            {
+                ToastIntent.Delete => Color.FromArgb(211, 47, 47),
+                ToastIntent.Edit   => Color.FromArgb(245, 158, 11),
+                _                  => Color.FromArgb(56, 142, 60)
+            };
+            ToastHelper.Show(this, message, type, 3000, col);
+        }
+        private enum ToastIntent { Normal, Edit, Delete }
+
         private void btnAdd_Click(object sender, EventArgs e)
         {
             using var form = new AddEditEmployeeForm();
             if (form.ShowDialog() == DialogResult.OK)
             {
-                ToastHelper.Show(this, "Employee added successfully.", ToastType.Success);
+                ShowToast("Employee added successfully.");
                 LoadEmployees(txtSearch.Text.Trim());
             }
         }
@@ -483,7 +496,7 @@ namespace Inventory_Management_System.Forms
                     using var form = new AddEditEmployeeForm(emp);
                     if (form.ShowDialog() == DialogResult.OK)
                     {
-                        ToastHelper.Show(this, "Employee updated successfully.", ToastType.Success);
+                        ShowToast("Employee updated successfully.", ToastType.Success, ToastIntent.Edit);
                         LoadEmployees(txtSearch.Text.Trim());
                     }
                 }
@@ -524,7 +537,7 @@ namespace Inventory_Management_System.Forms
             var selectedCodes = GetSelectedEmployeeCodes();
             if (selectedCodes.Count == 0)
             {
-                ToastHelper.Show(this, "Please select at least one employee to delete.", ToastType.Info);
+                ShowToast("Please select at least one employee to delete.", ToastType.Info, ToastIntent.Delete);
                 return;
             }
 
@@ -562,12 +575,12 @@ namespace Inventory_Management_System.Forms
 
             if (deletedCount > 0)
             {
-                ToastHelper.Show(this, $"{deletedCount} employee(s) deleted successfully.", ToastType.Success);
+                ShowToast($"{deletedCount} employee(s) deleted successfully.", ToastType.Success, ToastIntent.Delete);
                 LoadEmployees(txtSearch.Text.Trim());
             }
             else if (firstError != null)
             {
-                ToastHelper.Show(this, firstError, ToastType.Error);
+                ShowToast(firstError, ToastType.Error, ToastIntent.Delete);
             }
         }
 
@@ -615,9 +628,9 @@ namespace Inventory_Management_System.Forms
                         string failMsg = string.Join("\n", importFailures.Take(5));
                         ToastHelper.Show(this, $"Imported {importedCount} of {items.Count}.\nErrors:\n{failMsg}", ToastType.Error);
                     }
-                    else
+                    if (importedCount > 0 && importFailures.Count == 0)
                     {
-                        ToastHelper.Show(this, $"Successfully imported {importedCount} employees.", ToastType.Success);
+                        ShowToast($"Successfully imported {importedCount} employees.");
                     }
 
                     // Reset search filter and pagination to show imported records immediately

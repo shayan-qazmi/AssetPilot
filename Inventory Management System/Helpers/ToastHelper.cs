@@ -1,4 +1,4 @@
-﻿//Helpers/ToastHelper.cs
+//Helpers/ToastHelper.cs
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -14,9 +14,8 @@ namespace Inventory_Management_System.Helpers
         private const int MaxContentWidth = 380; // text wraps once it would exceed this
         private const int MaxVisibleToasts = 4;  // cap stacked toasts so they can't push off-screen
 
-        public static void Show(Form hostForm, string message, ToastType type = ToastType.Success, int durationMs = 3000)
+        public static void Show(Form hostForm, string message, ToastType type = ToastType.Success, int durationMs = 3000, Color? customBgColor = null)
         {
-            if (hostForm == null || hostForm.IsDisposed) return;
             if (hostForm == null || hostForm.IsDisposed) return;
 
             // If too many toasts are already stacked, remove the oldest one
@@ -45,6 +44,10 @@ namespace Inventory_Management_System.Helpers
                 ToastType.Error => (Color.FromArgb(239, 68, 68), "✕"),
                 _ => (Color.FromArgb(46, 125, 50), "✓")
             };
+            if (customBgColor.HasValue)
+            {
+                bgColor = customBgColor.Value;
+            }
 
             string fullText = $"{icon}  {message}";
             var font = new Font("Segoe UI", 9.5f, FontStyle.Bold);

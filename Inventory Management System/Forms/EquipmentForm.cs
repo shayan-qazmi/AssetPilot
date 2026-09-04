@@ -794,7 +794,7 @@ namespace Inventory_Management_System.Forms
                         "allocated" => "Allocated",
                         "decommissioned" => "Decommissioned",
                         "under_repair" => "Under Repair",
-                        _ => item.CurrentStatus ?? ""
+                        _ => "In Store"  // null/empty/unrecognized statuses default to In Store
                     };
                 }
 
@@ -934,12 +934,26 @@ namespace Inventory_Management_System.Forms
             LoadCategoryFilter();
         }
 
+        // ── Centralised toast helper — delete=red, edit=yellow, everything else=green ──
+        private void ShowToast(string message, ToastType type = ToastType.Success, ToastIntent intent = ToastIntent.Normal)
+        {
+            Color? col = intent switch
+            {
+                ToastIntent.Delete => Color.FromArgb(211, 47, 47),
+                ToastIntent.Edit   => Color.FromArgb(245, 158, 11),
+                _                  => Color.FromArgb(56, 142, 60)
+            };
+            ToastHelper.Show(this, message, type, 3000, col);
+        }
+
+        private enum ToastIntent { Normal, Edit, Delete }
+
         private void btnAdd_Click(object sender, EventArgs e)
         {
             using var form = new AddEditEquipmentForm();
             if (form.ShowDialog() == DialogResult.OK)
             {
-                ToastHelper.Show(this, "Equipment added successfully.", ToastType.Success);
+                ShowToast("Equipment added successfully.");
                 RefreshAfterDataChange();
             }
         }
@@ -955,7 +969,7 @@ namespace Inventory_Management_System.Forms
             using var form = new AddEditEquipmentForm(eq);
             if (form.ShowDialog() == DialogResult.OK)
             {
-                ToastHelper.Show(this, "Equipment updated successfully.", ToastType.Success);
+                ShowToast("Equipment updated successfully.", ToastType.Success, ToastIntent.Edit);
                 RefreshAfterDataChange(eq.EquipmentCode);
             }
         }
@@ -966,7 +980,28 @@ namespace Inventory_Management_System.Forms
 
             if (selectedList.Count == 0)
             {
-                ToastHelper.Show(this, "Please select at least one equipment row to delete.", ToastType.Info);
+                ShowToast("Please select at least one equipment row to delete.", ToastType.Info, ToastIntent.Delete);
+                return;
+            }
+
+            bool hasAllocated = false;
+            foreach (var eq in selectedList)
+            {
+                var activeAlloc = eq.Allocations?
+                    .Where(a => a.Status != null && a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase))
+                    .FirstOrDefault();
+
+                string effectiveStatus = activeAlloc != null ? "allocated" : (eq.CurrentStatus ?? string.Empty).Trim().ToLowerInvariant();
+                if (effectiveStatus == "allocated")
+                {
+                    hasAllocated = true;
+                    break;
+                }
+            }
+
+            if (hasAllocated)
+            {
+                ShowToast("In order to delete an equipment it must first be returned.", ToastType.Warning, ToastIntent.Delete);
                 return;
             }
 
@@ -1002,11 +1037,11 @@ namespace Inventory_Management_System.Forms
 
             if (result.Success)
             {
-                ToastHelper.Show(this, $"{result.Data} item(s) deleted successfully.", ToastType.Success);
+                ShowToast($"{result.Data} item(s) deleted successfully.", ToastType.Success, ToastIntent.Delete);
             }
             else
             {
-                ToastHelper.Show(this, result.ErrorMessage, ToastType.Warning);
+                ShowToast(result.ErrorMessage ?? "Delete failed.", ToastType.Warning, ToastIntent.Delete);
             }
         }
 
@@ -1046,7 +1081,7 @@ namespace Inventory_Management_System.Forms
             try
             {
                 ExcelHelper.ExportEquipment(_allEquipment, sfd.FileName);
-                ToastHelper.Show(this, "Equipment exported successfully.", ToastType.Success);
+                ShowToast("Equipment exported successfully.");
             }
             catch (Exception ex)
             {
@@ -1071,6 +1106,7 @@ namespace Inventory_Management_System.Forms
                 ToastHelper.Show(this, "Please select at least one equipment item.", ToastType.Info);
                 return;
             }
+
 
             var qrItems = new List<(Equipment eq, Bitmap bmp)>();
             foreach (var eq in selected)
@@ -1421,7 +1457,7 @@ namespace Inventory_Management_System.Forms
 
             if (allErrors.Count == 0)
             {
-                ToastHelper.Show(this, $"✅ {result.Data} of {items.Count} records imported successfully.", ToastType.Success);
+                ShowToast($"✅ {result.Data} of {items.Count} records imported successfully.");
             }
             else
             {

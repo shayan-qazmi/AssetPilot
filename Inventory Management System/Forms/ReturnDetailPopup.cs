@@ -1,4 +1,4 @@
-﻿using Inventory_Management_System.Helpers;
+using Inventory_Management_System.Helpers;
 using System;
 using System.Drawing;
 using System.Linq;
@@ -24,10 +24,10 @@ namespace Inventory_Management_System.Forms
             BackColor = ThemeHelper.CardBg;
             ClientSize = new Size(w, 100);
 
-            var header = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = ThemeHelper.Header };
+            var header = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = Color.FromArgb(99, 102, 241) };
             var lblTitle = new Label
             {
-                Text = "↩  Return Details",
+                Text = "?  Return Details",
                 Font = new Font("Segoe UI", 13.5f, FontStyle.Bold),
                 ForeColor = Color.White,
                 AutoSize = true,
@@ -55,7 +55,7 @@ namespace Inventory_Management_System.Forms
                 body.Controls.Add(lbl);
                 y += 18;
 
-                var text = string.IsNullOrWhiteSpace(value) ? "—" : value;
+                var text = string.IsNullOrWhiteSpace(value) ? "�" : value;
                 var sz = TextRenderer.MeasureText(text, ThemeHelper.FontBold,
                     new Size(maxWidth, int.MaxValue), TextFormatFlags.WordBreak);
 
@@ -72,29 +72,29 @@ namespace Inventory_Management_System.Forms
                 y += val.Height + 12;
             }
 
-            Row("🏷", "Equipment Code | QR Code", $"{equipmentCode}  |  {qrCode}");
+            Row("??", "Equipment Code | QR Code", $"{equipmentCode}  |  {qrCode}");
 
-            string details = string.Join("  •  ", new[] { equipmentName, make, model }
-                .Where(v => !string.IsNullOrWhiteSpace(v) && v != "—"));
-            Row("🧾", "Name, Make, Model", string.IsNullOrWhiteSpace(details) ? "—" : details);
+            string details = string.Join("  �  ", new[] { equipmentName, make, model }
+                .Where(v => !string.IsNullOrWhiteSpace(v) && v != "�"));
+            Row("??", "Name, Make, Model", string.IsNullOrWhiteSpace(details) ? "�" : details);
 
-            Row("🔢", "Serial Number", serialNumber);
-            Row("👤", "Returned By", employee);
-            Row("📍", "Location", location);
+            Row("??", "Serial Number", serialNumber);
+            Row("??", "Returned By", employee);
+            Row("??", "Location", location);
 
             var divider = new Panel { Location = new Point(20, y), Size = new Size(w - 40, 1), BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(220, 225, 230) };
             body.Controls.Add(divider);
             y += 16;
 
-            Row("📅", "Allocated On", allocatedDate);
-            Row("↩", "Return Date", returnDate);
-            Row("🕒", "Processed At", timestamp);
-            Row("⏱", "Duration", string.IsNullOrWhiteSpace(durationDays) ? "—" : $"{durationDays} day(s)");
+            Row("??", "Allocated On", allocatedDate);
+            Row("?", "Return Date", returnDate);
+            Row("??", "Processed At", timestamp);
+            Row("?", "Duration", string.IsNullOrWhiteSpace(durationDays) ? "�" : $"{durationDays} day(s)");
 
-            var overdueVal = isOverdue ? "Yes — returned late" : "No";
+            var overdueVal = isOverdue ? "Yes � returned late" : "No";
             var overdueLbl = new Label
             {
-                Text = "⚠  Overdue",
+                Text = "?  Overdue",
                 Font = ThemeHelper.FontSmall,
                 ForeColor = ThemeHelper.TextSecondary,
                 AutoSize = true,
@@ -114,7 +114,7 @@ namespace Inventory_Management_System.Forms
             body.Controls.Add(overdueValLbl);
             y += overdueValLbl.Height + 12;
 
-            Row("🔖", "Source", source);
+            Row("??", "Source", source);
 
             var btnClose = new Button
             {
@@ -122,7 +122,7 @@ namespace Inventory_Management_System.Forms
                 Size = new Size(120, 38),
                 Location = new Point((w - 120) / 2, y + 4)
             };
-            ThemeHelper.StyleButton(btnClose);
+            ThemeHelper.StyleButton(btnClose, Color.FromArgb(99, 102, 241));
             btnClose.Click += (s, e) => Close();
             body.Controls.Add(btnClose);
             y += 60;

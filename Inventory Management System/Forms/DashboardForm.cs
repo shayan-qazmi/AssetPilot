@@ -27,6 +27,40 @@ namespace Inventory_Management_System
         }
     }
 
+    internal class DropdownClickFilter : IMessageFilter
+    {
+        private readonly Form _popup;
+        private readonly Control _widget;
+        private readonly Action _onClickOutside;
+
+        public DropdownClickFilter(Form popup, Control widget, Action onClickOutside)
+        {
+            _popup = popup;
+            _widget = widget;
+            _onClickOutside = onClickOutside;
+        }
+
+        public bool PreFilterMessage(ref Message m)
+        {
+            const int WM_LBUTTONDOWN = 0x0201;
+            const int WM_RBUTTONDOWN = 0x0204;
+            const int WM_NCLBUTTONDOWN = 0x00A1;
+
+            if (m.Msg == WM_LBUTTONDOWN || m.Msg == WM_RBUTTONDOWN || m.Msg == WM_NCLBUTTONDOWN)
+            {
+                var cursor = Cursor.Position;
+                bool inPopup = !_popup.IsDisposed && _popup.Bounds.Contains(cursor);
+                bool inWidget = !_widget.IsDisposed && _widget.RectangleToScreen(_widget.ClientRectangle).Contains(cursor);
+
+                if (!inPopup && !inWidget)
+                {
+                    _onClickOutside();
+                }
+            }
+            return false;
+        }
+    }
+
     internal class NoActivatePopup : Form
     {
         protected override bool ShowWithoutActivation => true;
@@ -472,7 +506,7 @@ namespace Inventory_Management_System
             EnsureAccentIndicator();
             PositionAccentIndicator(currentActiveButton, animate: false);
 
-            // Logout — keep red
+            // Logout — custom owner paint for 100% reliable power icon + text display in expanded and collapsed modes
             btnLogout.UseVisualStyleBackColor              = false;
             btnLogout.FlatStyle                           = FlatStyle.Flat;
             btnLogout.FlatAppearance.BorderSize           = 0;
@@ -480,11 +514,9 @@ namespace Inventory_Management_System
             btnLogout.ForeColor                           = Color.White;
             btnLogout.FlatAppearance.MouseOverBackColor   = Color.DarkRed;
             btnLogout.FlatAppearance.MouseDownBackColor   = Color.Maroon;
-            // Icon-only, always — keep just the leading glyph, drop the label text.
-            int logoutSpaceIdx = btnLogout.Text.IndexOf(' ');
-            if (logoutSpaceIdx > 0) btnLogout.Text = btnLogout.Text.Substring(0, logoutSpaceIdx);
-            btnLogout.TextAlign = ContentAlignment.MiddleCenter;
-            btnLogout.Padding = new Padding(0);
+            btnLogout.Text                                = "";
+            btnLogout.Paint                              -= BtnLogout_Paint;
+            btnLogout.Paint                              += BtnLogout_Paint;
 
             panelDesktop.BackColor = ThemeHelper.DashboardBg;
             panelStats.BackColor = ThemeHelper.DashboardBg;
@@ -735,17 +767,24 @@ namespace Inventory_Management_System
                 float t = Math.Clamp(_toggleThumbProgress, 0f, 1f);
                 bool showOldIcon = t < 0.5f;
                 bool iconIsDark = showOldIcon ? _toggleIconWasDark : ThemeHelper.IsDarkMode;
-                string icon = iconIsDark ? "🌙" : "☀";
-                using var iconFont = new Font("Segoe UI Emoji", 14f);
-                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                using var iconFg = new SolidBrush(iconIsDark ? Color.FromArgb(235, 235, 245) : Color.FromArgb(255, 250, 235));
 
                 float flipScale = MathF.Cos(t * MathF.PI); // 1 → 0 → -1, mirrors the glyph through its own centerline
                 var iconState = g.Save();
                 g.TranslateTransform(d / 2f, d / 2f);
                 g.ScaleTransform(Math.Max(0.08f, MathF.Abs(flipScale)), 1f);
                 g.TranslateTransform(-d / 2f, -d / 2f);
-                g.DrawString(icon, iconFont, iconFg, rect, sf);
+
+                if (iconIsDark)
+                {
+                    using var iconFont = new Font("Segoe UI Emoji", 13f);
+                    using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                    using var iconFg = new SolidBrush(Color.FromArgb(235, 235, 245));
+                    g.DrawString("🌙", iconFont, iconFg, rect, sf);
+                }
+                else
+                {
+                    DrawSunIcon(g, new RectangleF(0, 0, d, d), Color.FromArgb(255, 215, 64));
+                }
                 g.Restore(iconState);
             };
 
@@ -1337,10 +1376,51 @@ namespace Inventory_Management_System
                 }
             }
 
+            // Hide/show section labels, spacers, and dividers when collapsing/expanding
+            foreach (Control c in panelMenu.Controls)
+            {
+                if (c.Name.StartsWith("lblSidebarSection_") ||
+                    c.Name == "pnlSidebarSectionSpacer" ||
+                    c.Name == "pnlSidebarSectionDivider")
+                {
+                    c.Visible = !_sidebarCollapsed;
+                }
+            }
+
             var footer = panelMenu.Controls.OfType<Panel>().FirstOrDefault(p => p.Name == "pnlUserFooter");
             if (footer != null)
+            {
                 foreach (Label lbl in footer.Controls.OfType<Label>())
                     lbl.Visible = !_sidebarCollapsed;
+
+                var hoverStrip = footer.Controls.OfType<Panel>()
+                    .FirstOrDefault(p => p != footer && p.Name != "pnlSidebarSectionDivider");
+                if (hoverStrip != null && hoverStrip.Dock != DockStyle.Top) // skip the divider
+                    hoverStrip.Visible = !_sidebarCollapsed;
+
+                const int avatarSize = 50;
+                const int profileRowHeight = 68;
+                var pb = footer.Controls.OfType<PictureBox>().FirstOrDefault();
+                if (pb != null)
+                {
+                    pb.Visible = true;
+                    if (_sidebarCollapsed)
+                    {
+                        pb.Location = new Point((SidebarCollapsedWidth - avatarSize) / 2, 8);
+                    }
+                    else
+                    {
+                        pb.Location = new Point(14, (profileRowHeight - avatarSize) / 2 - 3);
+                    }
+                }
+
+                btnLogout.Text = _sidebarCollapsed ? "⏻" : "⏻  Logout";
+                btnLogout.TextAlign = _sidebarCollapsed ? ContentAlignment.MiddleCenter : ContentAlignment.MiddleLeft;
+
+                footer.Height = _sidebarCollapsed
+                    ? avatarSize + 16 + btnLogout.Height
+                    : profileRowHeight + btnLogout.Height;
+            }
 
             panelContent.SuspendLayout();
             activeForm?.SuspendLayout();
@@ -1964,18 +2044,14 @@ namespace Inventory_Management_System
             _pnlUserProfile.Controls.Add(lblChevron);
             _lblProfileChevron = lblChevron;
 
-            void OpenMenu(object? s, EventArgs e)
-            {
-                if (_profilePopup == null || _profilePopup.IsDisposed)
-                    OpenProfileDropdown();
-            }
-            _pnlUserProfile.Click += OpenMenu;
-            avatarPanel.Click += OpenMenu;
-            lblChevron.Click += OpenMenu;
+            void ToggleMenu(object? s, EventArgs e) => ToggleProfileDropdown();
+            _pnlUserProfile.Click += ToggleMenu;
+            avatarPanel.Click += ToggleMenu;
+            lblChevron.Click += ToggleMenu;
 
             void OnEnter(object? s, EventArgs e)
             {
-                if (_profilePopup == null || _profilePopup.IsDisposed)
+                if (!_isProfileClosing && (_profilePopup == null || _profilePopup.IsDisposed))
                     OpenProfileDropdown();
             }
             _pnlUserProfile.MouseEnter += OnEnter;
@@ -1998,11 +2074,14 @@ namespace Inventory_Management_System
             _pnlUserProfile.Invalidate(true);
         }
 
+        private bool _isProfileClosing = false;
+        private DropdownClickFilter? _profileClickFilter;
+
         private void ToggleProfileDropdown()
         {
             if (_profilePopup != null && !_profilePopup.IsDisposed)
                 CloseProfileDropdown();
-            else
+            else if (!_isProfileClosing)
                 OpenProfileDropdown();
         }
 
@@ -2010,7 +2089,7 @@ namespace Inventory_Management_System
 
         private void OpenProfileDropdown()
         {
-            if (_profilePopup != null && !_profilePopup.IsDisposed) return;
+            if (_isProfileClosing || (_profilePopup != null && !_profilePopup.IsDisposed)) return;
 
             // Identity text is measured up front so the popup is sized to fit it —
             // fixes the email/name clipping regardless of how long it is.
@@ -2151,10 +2230,15 @@ namespace Inventory_Management_System
             popup.Controls.Add(headerDivider);
             popup.Controls.Add(headerPanel);
 
-            popup.Deactivate += (s, e) => CloseProfileDropdown();
-            popup.FormClosed += (s, e) => { _profilePopup = null; };
+            popup.FormClosed += (s, e) =>
+            {
+                _profilePopup = null;
+                _isProfileClosing = false;
+                RemoveProfileClickFilter();
+            };
 
             _profilePopup = popup;
+            InstallProfileClickFilter(popup);
             popup.Show(this);
             FadePopup(popup, fadeIn: true);
 
@@ -2162,31 +2246,53 @@ namespace Inventory_Management_System
             StartProfileHoverWatcher();
         }
 
+        private void InstallProfileClickFilter(Form popup)
+        {
+            RemoveProfileClickFilter();
+            if (_pnlUserProfile == null) return;
+            _profileClickFilter = new DropdownClickFilter(popup, _pnlUserProfile, () =>
+            {
+                BeginInvoke(new Action(CloseProfileDropdown));
+            });
+            Application.AddMessageFilter(_profileClickFilter);
+        }
+
+        private void RemoveProfileClickFilter()
+        {
+            if (_profileClickFilter != null)
+            {
+                Application.RemoveMessageFilter(_profileClickFilter);
+                _profileClickFilter = null;
+            }
+        }
+
         private void CloseProfileDropdown()
         {
+            if (_profilePopup == null || _profilePopup.IsDisposed || _isProfileClosing) return;
+
+            _isProfileClosing = true;
             _profileHoverWatcher?.Stop();
             _profileHoverWatcher?.Dispose();
             _profileHoverWatcher = null;
+            RemoveProfileClickFilter();
 
-            if (_profilePopup != null && !_profilePopup.IsDisposed)
+            var popup = _profilePopup;
+            FadePopup(popup, fadeIn: false, onDone: () =>
             {
-                var popup = _profilePopup;
                 _profilePopup = null;
-                FadePopup(popup, fadeIn: false, onDone: () => popup.Close());
-            }
+                _isProfileClosing = false;
+                if (!popup.IsDisposed) popup.Close();
+            });
             AnimateChevron(open: false);
         }
-        // Instant, synchronous close — no fade, no timer left running. Used
-        // whenever the screen itself is changing (theme toggle, navigation,
-        // Dashboard reload, logout, sidebar collapse) so the dropdown can
-        // never linger into the next state. CloseProfileDropdown() (above)
-        // is for the ordinary hover-away / deactivate case and keeps the
-        // nicer fade.
+
         private void ForceCloseProfileDropdown()
         {
+            _isProfileClosing = false;
             _profileHoverWatcher?.Stop();
             _profileHoverWatcher?.Dispose();
             _profileHoverWatcher = null;
+            RemoveProfileClickFilter();
 
             _chevronAnimTimer?.Stop();
             _chevronAnimTimer?.Dispose();
@@ -2215,10 +2321,10 @@ namespace Inventory_Management_System
             _profileHoverWatcher?.Stop();
             _profileHoverWatcher?.Dispose();
 
-            _profileHoverWatcher = new System.Windows.Forms.Timer { Interval = 40 };
+            _profileHoverWatcher = new System.Windows.Forms.Timer { Interval = 30 };
             _profileHoverWatcher.Tick += (s, e) =>
             {
-                if (_pnlUserProfile == null || _profilePopup == null || _profilePopup.IsDisposed)
+                if (_pnlUserProfile == null || _profilePopup == null || _profilePopup.IsDisposed || _isProfileClosing)
                 {
                     _profileHoverWatcher?.Stop();
                     return;
@@ -2227,14 +2333,12 @@ namespace Inventory_Management_System
                 var cursor = Cursor.Position;
 
                 var widgetRect = _pnlUserProfile.RectangleToScreen(_pnlUserProfile.ClientRectangle);
-                widgetRect.Inflate(4, 12);
                 var popupRect = _profilePopup.Bounds;
-                popupRect.Inflate(4, 4);
 
-                bool overWidget = widgetRect.Contains(cursor);
-                bool overPopup = popupRect.Contains(cursor);
+                var combined = Rectangle.Union(widgetRect, popupRect);
+                combined.Inflate(8, 8);
 
-                if (!overWidget && !overPopup)
+                if (!combined.Contains(cursor) && !widgetRect.Contains(cursor) && !popupRect.Contains(cursor))
                     CloseProfileDropdown();
             };
             _profileHoverWatcher.Start();
@@ -2508,12 +2612,16 @@ namespace Inventory_Management_System
                 for (int i = 0; i < buckets.Count; i++)
                 {
                     var (s, e, _) = buckets[i];
+                    var sUtc = s.ToUniversalTime();
+                    var eUtc = e.ToUniversalTime();
+
                     allocated[i] = db.EquipmentLogs.Count(l =>
-                        l.ActionType == "allocation_approved" &&
-                        l.CreatedAt.HasValue && l.CreatedAt.Value >= s && l.CreatedAt.Value < e);
+                        l.CreatedAt.HasValue && l.CreatedAt.Value >= sUtc && l.CreatedAt.Value < eUtc &&
+                        (l.ActionType == "allocation_approved" || l.ActionType == "allocation_requested" || l.ActionType == "checked_out" || l.ActionType == "check_out"));
+
                     inStock[i] = db.EquipmentLogs.Count(l =>
-                        l.ActionType == "allocation_returned" &&
-                        l.CreatedAt.HasValue && l.CreatedAt.Value >= s && l.CreatedAt.Value < e);
+                        l.CreatedAt.HasValue && l.CreatedAt.Value >= sUtc && l.CreatedAt.Value < eUtc &&
+                        (l.ActionType == "allocation_returned" || l.ActionType == "check_in" || l.ActionType == "checked_in" || l.ActionType == "equipment_updated" || l.ActionType == "equipment_created"));
                 }
             }
             catch { /* leaves zeros — chart shows a flat line instead of crashing */ }
@@ -2567,8 +2675,8 @@ namespace Inventory_Management_System
                 int delta = thisWeek - lastWeek;
 
                 if (delta == 0) return "No change this week";
-                string sign = delta > 0 ? "+" : "";
-                return $"{sign}{delta} this week";
+                string sign = delta > 0 ? "▲ " : "▼ ";
+                return $"{sign}{Math.Abs(delta)} this week";
             }
             catch { return null; }
         }
@@ -2649,9 +2757,9 @@ namespace Inventory_Management_System
                 int totalEquipment = activeEq.Count();
 
                 _cntAllocated      = activeEq.Count(e => e.CurrentStatus == "allocated");
-                _cntInStore        = activeEq.Count(e => e.CurrentStatus == "in_store");
                 _cntUnderRepair    = activeEq.Count(e => e.CurrentStatus == "under_repair");
                 _cntDecommission   = activeEq.Count(e => e.CurrentStatus == "decommissioned");
+                _cntInStore        = totalEquipment - _cntAllocated - _cntUnderRepair - _cntDecommission;
                 _cntEmployees      = db.Employees.Count(e => e.IsActive);
 
                 var today = DateOnly.FromDateTime(DateTime.Today);
@@ -2688,7 +2796,7 @@ namespace Inventory_Management_System
                 {
     (title:"Total Equipment",    value:totalEquipment.ToString(),    color:Color.FromArgb(94, 53, 177), icon:"🖥", trendValues:GetCachedTrend("equipment"),      deltaText:GetCachedDelta("equipment")),
     (title:"Allocated",          value:_cntAllocated.ToString(),     color:Color.FromArgb(245, 124, 0),   icon:"📋", trendValues:GetCachedTrend("allocated"),      deltaText:GetCachedDelta("allocated")),
-    (title:"In Stock",           value:_cntInStore.ToString(),       color:Color.FromArgb(56,  142, 60),  icon:"✅", trendValues:GetCachedTrend("in_store"),       deltaText:GetCachedDelta("in_store")),
+    (title:"In Store",           value:_cntInStore.ToString(),       color:Color.FromArgb(56,  142, 60),  icon:"✅", trendValues:GetCachedTrend("in_store"),       deltaText:GetCachedDelta("in_store")),
     (title:"Under Repair",       value:_cntUnderRepair.ToString(),   color:Color.FromArgb(33,  150, 243), icon:"🔧", trendValues:GetCachedTrend("under_repair"),   deltaText:GetCachedDelta("under_repair")),
 (title:"Currently Overdue",  value:_cntOverdue.ToString(),      color:Color.FromArgb(255, 160,  0),  icon:"⚠️", trendValues:GetCachedTrend("overdue"), deltaText:GetCachedDelta("overdue")),
     (title:"Decommissioned",     value:_cntDecommission.ToString(),  color:Color.FromArgb(239, 68,  68),  icon:"🚫", trendValues:GetCachedTrend("decommissioned"), deltaText:GetCachedDelta("decommissioned")),
@@ -2800,8 +2908,8 @@ namespace Inventory_Management_System
                     EventHandler? clickHandler = def.title switch
                     {
                         "Total Equipment" => btnEquipment_Click,
-                        "Allocated" => btnAllocation_Click,
-                        "In Stock" => (EventHandler)((s, e) => OpenAllocationAvailable()),
+                        "Allocated" => (EventHandler)((s, e) => OpenAllocationAllocated()),
+                        "In Store" => (EventHandler)((s, e) => OpenAllocationAvailable()),
                         "Under Repair" => (EventHandler)((s, e) => OpenEquipmentByStatus("under_repair")),
                         "Currently Overdue" => (EventHandler)((s, e) => OpenOverdueEquipment()),
                         "Decommissioned" => btnDecommission_Click,
@@ -3277,49 +3385,70 @@ namespace Inventory_Management_System
             LoadEmployeesRows(listHost);
         }
 
+        private bool _isLoadingEmployeeRows = false;
+
         private void LoadEmployeesRows(Panel listHost)
         {
-            listHost.Controls.Clear();
-            _employeeTooltip ??= new ToolTip { AutoPopDelay = 4000, InitialDelay = 200, ReshowDelay = 100, ShowAlways = true };
-
-            if (_topEmployees.Count == 0)
+            if (_isLoadingEmployeeRows || listHost == null || listHost.IsDisposed) return;
+            try
             {
-                listHost.Controls.Add(new Label
+                _isLoadingEmployeeRows = true;
+                listHost.SuspendLayout();
+                listHost.Controls.Clear();
+                _employeeTooltip ??= new ToolTip { AutoPopDelay = 4000, InitialDelay = 200, ReshowDelay = 100, ShowAlways = true };
+
+                if (_topEmployees == null || _topEmployees.Count == 0)
                 {
-                    Text = "No employee data available.",
-                    ForeColor = ThemeHelper.ChartSecText,
-                    Font = ThemeHelper.FontSmall,
-                    AutoSize = true,
-                    Location = new Point(14, 14)
-                });
-                return;
+                    listHost.Controls.Add(new Label
+                    {
+                        Text = "No employee data available.",
+                        ForeColor = ThemeHelper.ChartSecText,
+                        Font = ThemeHelper.FontSmall,
+                        AutoSize = true,
+                        Location = new Point(14, 14)
+                    });
+                    return;
+                }
+
+                int maxVal = Math.Max(1, _topEmployees.Max(x => x.Count));
+                bool showBars = _topEmployees.Any(x => x.Count > 0);
+
+                int y = 4;
+                for (int i = 0; i < _topEmployees.Count; i++)
+                {
+                    var emp = _topEmployees[i];
+                    var row = BuildEmployeeRow(i + 1, emp.Name, emp.Count, emp.Dept, emp.Email, emp.Code, maxVal, showBars, Math.Max(100, listHost.Width - 20), _employeeTooltip);
+                    row.Location = new Point(10, y);
+                    row.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+                    listHost.Controls.Add(row);
+
+                    y += row.Height + 4;
+                }
             }
-
-            int maxVal = Math.Max(1, _topEmployees.Max(x => x.Count));
-            bool showBars = _topEmployees.Any(x => x.Count > 0);
-
-            int y = 4;
-            for (int i = 0; i < _topEmployees.Count; i++)
+            catch
             {
-                var emp = _topEmployees[i];
-                var row = BuildEmployeeRow(i + 1, emp.Name, emp.Count, emp.Dept, emp.Email, emp.Code, maxVal, showBars, listHost.Width - 20, _employeeTooltip);
-                row.Location = new Point(10, y);
-                row.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-                listHost.Controls.Add(row);
-                y += row.Height + 4;
+                /* prevent layout crash */
+            }
+            finally
+            {
+                if (listHost != null && !listHost.IsDisposed) listHost.ResumeLayout(true);
+                _isLoadingEmployeeRows = false;
             }
         }
 
-        private static Panel BuildEmployeeRow(int rank, string name, int count, string dept, string email, string code, int maxVal, bool showBar, int width, ToolTip tooltip)
+        private static Panel BuildEmployeeRow(int rank, string? name, int count, string? dept, string? email, string? code, int maxVal, bool showBar, int width, ToolTip tooltip)
         {
             var row = new Panel { Size = new Size(width, 34), BackColor = ThemeHelper.ContentBg };
 
+            string safeName = string.IsNullOrWhiteSpace(name) ? "Unknown" : name.Trim();
+            string safeCode = string.IsNullOrWhiteSpace(code) ? "—" : code;
+
             string tooltipText = count > 0
-                ? $"{name} ({code})\n{count} allocation{(count == 1 ? "" : "s")}"
-                : $"{name} ({code})\nNo allocations";
+                ? $"{safeName} ({safeCode})\n{count} allocation{(count == 1 ? "" : "s")}"
+                : $"{safeName} ({safeCode})\nNo allocations";
 
             const int avatarD = 24;
-            string initial = name.Length > 0 ? name.Trim().Substring(0, 1).ToUpper() : "?";
+            string initial = safeName.Length > 0 ? safeName.Substring(0, 1).ToUpper() : "?";
             Color avatarColor = count > 0 ? Color.FromArgb(127, 119, 221) : ThemeHelper.ChartTrackBg;
             Color avatarFg = count > 0 ? Color.White : ThemeHelper.ChartSecText;
 
@@ -3618,7 +3747,7 @@ namespace Inventory_Management_System
                 using var tFg = new SolidBrush(ThemeHelper.ChartTitleText);
 
                 string titleText = card.Tag?.ToString() ?? "";
-                var titleRect = new RectangleF(16, 12, Math.Max(20, card.Width - 16 - reservedRight), 22);
+                var titleRect = new RectangleF(16, 10, Math.Max(20, card.Width - 16 - reservedRight), 28);
                 using var titleSf = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
 
                 // Split off a leading emoji so it draws with an emoji-capable font —
@@ -3689,7 +3818,7 @@ namespace Inventory_Management_System
 
             var segs = new[]
             {
-                (Label:"In Stock",       Count:_cntInStore,      Color:Color.FromArgb(56,  142, 60)),
+                (Label:"In Store",       Count:_cntInStore,      Color:Color.FromArgb(56,  142, 60)),
                 (Label:"Allocated",      Count:allocatedNotOverdue, Color:Color.FromArgb(245, 124, 0)),
                 (Label:"Under Repair",   Count:_cntUnderRepair,  Color:Color.FromArgb(33,  150, 243)),
                 (Label:"Overdue",        Count:_cntOverdue,      Color:Color.FromArgb(255, 160, 0)),
@@ -3786,7 +3915,7 @@ namespace Inventory_Management_System
             int allocatedNotOverdue = Math.Max(0, _cntAllocated - _cntOverdue);
             var bars = new[]
             {
-    (Label:"In Stock",        Count:inStock,          Color:Color.FromArgb(56,  142, 60)),
+    (Label:"In Store",        Count:inStock,          Color:Color.FromArgb(56,  142, 60)),
     (Label:"Allocated",       Count:allocatedNotOverdue, Color:Color.FromArgb(245, 124, 0)),
     (Label:"Under Repair",    Count:underRepair,      Color:Color.FromArgb(33,  150, 243)),
     (Label:"Decommissioned",  Count:decommissioned,   Color:Color.FromArgb(239, 68,  68)),
@@ -3878,7 +4007,7 @@ namespace Inventory_Management_System
                 float colDelay = i * 0.12f;
                 float colProgress = Math.Clamp((_barAnimProgress - colDelay) / (1f - colDelay), 0f, 1f);
                 // Sqrt scale instead of linear — with a category as dominant as
-                // "In Stock" (421 vs 1/1/6), a linear ratio rounds every small
+                // "In Store" (421 vs 1/1/6), a linear ratio rounds every small
                 // value down to the same minimum-visible floor. Sqrt compresses
                 // the dominant bar and stretches small ones apart instead.
                 float ratio = maxVal == 0 ? 0 : MathF.Sqrt(b.Count) / MathF.Sqrt(maxVal);
@@ -4318,9 +4447,15 @@ namespace Inventory_Management_System
                     g.FillPath(grad, fillPath);
                 }
 
-                var lSz = g.MeasureString(cat.Category, labelFont);
-                float lblX = Math.Max(bounds.X, chartX - lSz.Width - 10);
-                g.DrawString(cat.Category, labelFont, labelFg, lblX, by + barH / 2f - lSz.Height / 2f);
+                var labelRect = new RectangleF(bounds.X, by - 2, padL - 10, barH + 4);
+                using var labelSf = new StringFormat
+                {
+                    Alignment = StringAlignment.Far,
+                    LineAlignment = StringAlignment.Center,
+                    Trimming = StringTrimming.EllipsisCharacter,
+                    FormatFlags = StringFormatFlags.NoWrap
+                };
+                g.DrawString(cat.Category, labelFont, labelFg, labelRect, labelSf);
 
                 // Value text is now FIXED at chartX + chartW + 8 for every row, instead
                 // of trailing the end of each bar — that's what was pushing the number
@@ -4469,6 +4604,32 @@ namespace Inventory_Management_System
 
         // Clean power/logout glyph — a broken circle with a vertical tick,
         // reads better at small sizes than the ⏻ emoji.
+        private void BtnLogout_Paint(object? sender, PaintEventArgs e)
+        {
+            if (sender is not Button btn) return;
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            if (_sidebarCollapsed)
+            {
+                float size = 18f;
+                var bounds = new RectangleF((btn.Width - size) / 2f, (btn.Height - size) / 2f, size, size);
+                DrawPowerIcon(g, bounds, Color.White);
+            }
+            else
+            {
+                float size = 16f;
+                var bounds = new RectangleF(14, (btn.Height - size) / 2f, size, size);
+                DrawPowerIcon(g, bounds, Color.White);
+
+                using var font = new Font("Segoe UI", 9.25f, FontStyle.Bold);
+                using var brush = new SolidBrush(Color.White);
+                using var sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+                var textRect = new RectangleF(14 + size + 10, 0, Math.Max(10, btn.Width - (14 + size + 10)), btn.Height);
+                g.DrawString("Logout", font, brush, textRect, sf);
+            }
+        }
+
         private static void DrawPowerIcon(Graphics g, RectangleF bounds, Color color)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -4480,6 +4641,35 @@ namespace Inventory_Management_System
 
             float tickX = circleRect.X + circleRect.Width / 2f;
             g.DrawLine(pen, tickX, bounds.Y, tickX, bounds.Y + d * 0.5f);
+        }
+
+        private static void DrawSunIcon(Graphics g, RectangleF bounds, Color color)
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            float cx = bounds.X + bounds.Width / 2f;
+            float cy = bounds.Y + bounds.Height / 2f;
+            float r = Math.Min(bounds.Width, bounds.Height) * 0.18f;
+
+            using var fillBrush = new SolidBrush(color);
+            g.FillEllipse(fillBrush, cx - r, cy - r, r * 2f, r * 2f);
+
+            using var rayPen = new Pen(color, 1.8f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            float rayInner = r + 3f;
+            float rayOuter = r + 7.5f;
+
+            for (int i = 0; i < 8; i++)
+            {
+                double angle = i * Math.PI / 4.0;
+                float cos = MathF.Cos((float)angle);
+                float sin = MathF.Sin((float)angle);
+
+                float x1 = cx + rayInner * cos;
+                float y1 = cy + rayInner * sin;
+                float x2 = cx + rayOuter * cos;
+                float y2 = cy + rayOuter * sin;
+
+                g.DrawLine(rayPen, x1, y1, x2, y2);
+            }
         }
 
         private static GraphicsPath RoundedRectF(RectangleF r, float radius)
@@ -4642,7 +4832,13 @@ namespace Inventory_Management_System
         private void OpenAllocationAvailable()
         {
             AnimateTitleTo("📋 Allocation");
-            OpenChildForm(new AllocationForm("Available"), btnAllocation);
+            OpenChildForm(new AllocationForm("In Store"), btnAllocation);
+        }
+
+        private void OpenAllocationAllocated()
+        {
+            AnimateTitleTo("📋 Allocation");
+            OpenChildForm(new AllocationForm("Allocated"), btnAllocation);
         }
 
         private void OpenEquipmentByStatus(string status)

@@ -350,7 +350,7 @@ namespace Inventory_Management_System.Forms
             var ids = GetSelectedIds();
             if (ids.Count == 0)
             {
-                ToastHelper.Show(this, "Please select at least one item to restore.", ToastType.Info);
+                ToastHelper.Show(this, "Please select at least one item to restore.", ToastType.Info, customBgColor: Color.FromArgb(0, 150, 136));
 
                 return;
             }
@@ -362,7 +362,8 @@ namespace Inventory_Management_System.Forms
             int successCount = ids.Count(id => _equipmentService.Restore(id).Success);
 
             LoadDeletedItems();
-           ToastHelper.Show(this, $"{successCount} of {ids.Count} item(s) restored.", ToastType.Success);
+           ToastHelper.Show(this, $"{successCount} of {ids.Count} item(s) restored.", ToastType.Success,
+               customBgColor: Color.FromArgb(0, 150, 136));
 
         }
 
@@ -371,7 +372,7 @@ namespace Inventory_Management_System.Forms
             var ids = GetSelectedIds();
             if (ids.Count == 0)
             {
-                ToastHelper.Show(this, "Please select at least one item to permanently delete.", ToastType.Info);
+                ToastHelper.Show(this, "Please select at least one item to permanently delete.", ToastType.Info, customBgColor: Color.FromArgb(211, 47, 47));
 
                 return;
             }
@@ -384,7 +385,8 @@ namespace Inventory_Management_System.Forms
             int successCount = ids.Count(id => _equipmentService.HardDelete(id).Success);
 
             LoadDeletedItems();
-          ToastHelper.Show(this, $"{successCount} of {ids.Count} item(s) permanently deleted.", ToastType.Success);
+          ToastHelper.Show(this, $"{successCount} of {ids.Count} item(s) permanently deleted.", ToastType.Success,
+              customBgColor: Color.FromArgb(211, 47, 47));
 
         }
 
@@ -438,6 +440,8 @@ namespace Inventory_Management_System.Forms
             {
                 _equipmentService.Restore(id);
                 LoadDeletedItems();
+                ToastHelper.Show(this, $"'{name}' restored.", ToastType.Success,
+                    customBgColor: Color.FromArgb(0, 150, 136));
             }
             else if (dlg.Tag?.ToString() == "delete")
             {
@@ -446,6 +450,8 @@ namespace Inventory_Management_System.Forms
                 {
                     _equipmentService.HardDelete(id);
                     LoadDeletedItems();
+                    ToastHelper.Show(this, $"'{name}' permanently deleted.", ToastType.Success,
+                        customBgColor: Color.FromArgb(211, 47, 47));
                 }
             }
         }

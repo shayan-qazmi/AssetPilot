@@ -28,15 +28,17 @@ namespace Inventory_Management_System.Helpers
         private readonly Action<Equipment> _onSelected;
         private readonly ListBox _listBox;
         private readonly PopupForm _popup;
+        private readonly Color? _accentColor;
         private List<Equipment> _allEquipment = new();
         private bool _suppressTextChanged;
 
         // ── Constructor ────────────────────────────────────────────────────
-        public EquipmentSuggestHelper(TextBox textBox, Form hostForm, Action<Equipment> onSelected)
+        public EquipmentSuggestHelper(TextBox textBox, Form hostForm, Action<Equipment> onSelected, Color? accentColor = null)
         {
             _textBox = textBox;
             _hostForm = hostForm;
             _onSelected = onSelected;
+            _accentColor = accentColor;
 
             // ── Build the floating ListBox ─────────────────────────────────
             _listBox = new SuggestionListBox
@@ -226,17 +228,20 @@ namespace Inventory_Management_System.Helpers
 
             bool selected = (e.State & DrawItemState.Selected) != 0;
 
+            Color activeAccent = _accentColor ?? ThemeHelper.Accent;
+            Color selectedBg = _accentColor.HasValue
+                ? (ThemeHelper.IsDarkMode ? Color.FromArgb(25, 45, 65) : Color.FromArgb(227, 242, 253))
+                : (ThemeHelper.IsDarkMode ? Color.FromArgb(40, 60, 42) : Color.FromArgb(232, 245, 233));
+
             // Background
-            Color bgColor = selected
-     ? (ThemeHelper.IsDarkMode ? Color.FromArgb(40, 60, 42) : Color.FromArgb(232, 245, 233))
-     : ThemeHelper.CardBg;
+            Color bgColor = selected ? selectedBg : ThemeHelper.CardBg;
             using var bgBrush = new SolidBrush(bgColor);
             e.Graphics.FillRectangle(bgBrush, e.Bounds);
 
             // Left accent bar when selected
             if (selected)
             {
-                using var accentBrush = new SolidBrush(ThemeHelper.Accent);
+                using var accentBrush = new SolidBrush(activeAccent);
                 e.Graphics.FillRectangle(accentBrush, e.Bounds.X, e.Bounds.Y, 3, e.Bounds.Height);
             }
 
@@ -245,7 +250,7 @@ namespace Inventory_Management_System.Helpers
             int codeY = e.Bounds.Y + 3;
             int nameY = e.Bounds.Y + 20;
 
-            using var codeBrush = new SolidBrush(ThemeHelper.Accent);
+            using var codeBrush = new SolidBrush(activeAccent);
             using var nameBrush = new SolidBrush(ThemeHelper.TextSecondary);
 
             e.Graphics.DrawString(

@@ -61,11 +61,16 @@ namespace Inventory_Management_System.Forms
             };
         }
 
+        private void ShowToast(string message, ToastType type = ToastType.Success)
+        {
+            ToastHelper.Show(this, message, type, 3000, Color.FromArgb(33, 150, 243));
+        }
+
         public void ApplyTheme()
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);
-            ThemeHelper.StyleButton(btnSearch);
+            ThemeHelper.StyleButton(btnSearch, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnClear);
 
             btnHistory = new Button
@@ -86,7 +91,7 @@ namespace Inventory_Management_System.Forms
             PositionHistoryButton();
 
             panelTop.Resize += (s, e) => PositionHistoryButton();
-            ThemeHelper.StyleDataGridView(dgvRecentTransactions);
+            ThemeHelper.StyleDataGridView(dgvRecentTransactions, Color.FromArgb(33, 150, 243));
             panelBottom.BackColor = ThemeHelper.DashboardBg;
             pnlEmptyState.BackColor = ThemeHelper.CardBg;
 
@@ -97,11 +102,11 @@ namespace Inventory_Management_System.Forms
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
                 using var path = RoundedRect(new Rectangle(0, 0, pnlQrIcon.Width - 1, pnlQrIcon.Height - 1), 8);
-                using var bg = new SolidBrush(Color.FromArgb(224, 242, 224));
+                using var bg = new SolidBrush(ThemeHelper.IsDarkMode ? Color.FromArgb(25, 45, 65) : Color.FromArgb(227, 242, 253));
                 g.FillPath(bg, path);
 
                 int pad = (int)(pnlQrIcon.Width * 0.2f);
-                DrawQrIcon(g, new Rectangle(pad, pad, pnlQrIcon.Width - pad * 2, pnlQrIcon.Height - pad * 2), ThemeHelper.Accent);
+                DrawQrIcon(g, new Rectangle(pad, pad, pnlQrIcon.Width - pad * 2, pnlQrIcon.Height - pad * 2), Color.FromArgb(33, 150, 243));
             };
 
             // Left panel (details card) styling
@@ -176,8 +181,8 @@ namespace Inventory_Management_System.Forms
             foreach (var lbl in new[] { lblCurrentlyIssuedTo, lblOperatorIn, lblConditionAfter, lblRemarksIn })
                 ThemeHelper.StyleLabel(lbl, bold: true);
 
-            ThemeHelper.StyleButton(btnConfirmCheckOut);
-            ThemeHelper.StyleButton(btnConfirmCheckIn);
+            ThemeHelper.StyleButton(btnConfirmCheckOut, Color.FromArgb(33, 150, 243));
+            ThemeHelper.StyleButton(btnConfirmCheckIn, Color.FromArgb(33, 150, 243));
 
             // Apply rounded corners to confirm buttons — re-apply on resize so the
             // region always matches the actual button size after layout.
@@ -319,7 +324,8 @@ namespace Inventory_Management_System.Forms
                         _scanTimer?.Stop();
                         _lastText = eq.EquipmentCode;
                         Search();
-                    });
+                    },
+                    accentColor: Color.FromArgb(33, 150, 243));
                 _suggest.LoadEquipment(allEquipment);
             }
             catch { /* fail silently */ }
@@ -456,7 +462,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Search failed: " + ex.Message, ToastType.Error);
+                ShowToast("Search failed: " + ex.Message, ToastType.Error);
             }
         }
 
@@ -603,9 +609,9 @@ namespace Inventory_Management_System.Forms
 
         private void SwitchTab(bool toCheckOut)
         {
-            btnTabCheckOut.BackColor = toCheckOut ? ThemeHelper.Accent : Color.FromArgb(243, 244, 246);
+            btnTabCheckOut.BackColor = toCheckOut ? Color.FromArgb(33, 150, 243) : Color.FromArgb(243, 244, 246);
             btnTabCheckOut.ForeColor = toCheckOut ? Color.White : ThemeHelper.TextSecondary;
-            btnTabCheckIn.BackColor = !toCheckOut ? ThemeHelper.Accent : Color.FromArgb(243, 244, 246);
+            btnTabCheckIn.BackColor = !toCheckOut ? Color.FromArgb(33, 150, 243) : Color.FromArgb(243, 244, 246);
             btnTabCheckIn.ForeColor = !toCheckOut ? Color.White : ThemeHelper.TextSecondary;
 
             bool firstRun = !panelCheckOut.Visible && !panelCheckIn.Visible;
@@ -684,7 +690,7 @@ namespace Inventory_Management_System.Forms
 
             if (_scannedEquipment.CurrentStatus != "in_store")
             {
-                ToastHelper.Show(this, $"This equipment is currently not in store (status: {_scannedEquipment.CurrentStatus}) and cannot be checked out.", ToastType.Warning);
+                ShowToast($"This equipment is currently not in store (status: {_scannedEquipment.CurrentStatus}) and cannot be checked out.", ToastType.Warning);
                 return;
             }
 
@@ -696,19 +702,19 @@ namespace Inventory_Management_System.Forms
 
                 if (hasPendingAllocation)
                 {
-                    ToastHelper.Show(this, "This equipment has a pending or approved formal Allocation and cannot be checked out here until that is resolved.", ToastType.Warning);
+                    ShowToast("This equipment has a pending or approved formal Allocation and cannot be checked out here until that is resolved.", ToastType.Warning);
                     return;
                 }
             }
 
             if (string.IsNullOrWhiteSpace(txtIssuedTo.Text))
             {
-                ToastHelper.Show(this, "Please enter the name of the person this item is being issued to.", ToastType.Warning);
+                ShowToast("Please enter the name of the person this item is being issued to.", ToastType.Warning);
                 return;
             }
             if (string.IsNullOrEmpty(cmbLocationOut.SelectedValue as string))
             {
-                ToastHelper.Show(this, "Please select a location for this check-out.", ToastType.Warning);
+                ShowToast("Please select a location for this check-out.", ToastType.Warning);
                 return;
             }
 
@@ -725,9 +731,9 @@ namespace Inventory_Management_System.Forms
 
             var res = _transactionService.CheckOut(tx);
             if (res.Success)
-                ToastHelper.Show(this, "Check-Out transaction completed successfully!", ToastType.Success);
+                ShowToast("Check-Out transaction completed successfully!", ToastType.Success);
             else
-                ToastHelper.Show(this, res.ErrorMessage, ToastType.Error);
+                ShowToast(res.ErrorMessage, ToastType.Error);
         }
 
         private void btnConfirmCheckIn_Click(object sender, EventArgs e)
@@ -736,7 +742,7 @@ namespace Inventory_Management_System.Forms
 
             if (_activeTransaction == null)
             {
-                ToastHelper.Show(this, "No active pending check-out transaction was found for this equipment.", ToastType.Warning);
+                ShowToast("No active pending check-out transaction was found for this equipment.", ToastType.Warning);
                 return;
             }
 
@@ -746,12 +752,12 @@ namespace Inventory_Management_System.Forms
             var res = _transactionService.CheckIn(_activeTransaction.TransactionId, condAfter, remarks);
             if (res.Success)
             {
-                ToastHelper.Show(this, "Check-In transaction completed successfully!", ToastType.Success);
+                ShowToast("Check-In transaction completed successfully!", ToastType.Success);
                 Search();
             }
             else
             {
-                ToastHelper.Show(this, res.ErrorMessage, ToastType.Error);
+                ShowToast(res.ErrorMessage, ToastType.Error);
             }
         }
 

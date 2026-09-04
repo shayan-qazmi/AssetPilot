@@ -117,6 +117,47 @@ namespace Inventory_Management_System.Forms
             Load += (s, e) => AnimateSidebarIn();
         }
 
+        // ── Centralised toast helper for Settings — delete=red, edit=yellow, general=glassy grey ──
+        private enum SettingsToastIntent { General, AddUser, Edit, Delete, Toggle }
+
+        private void ShowSettingsToast(string message, ToastType type = ToastType.Success, SettingsToastIntent intent = SettingsToastIntent.General)
+        {
+            Color? col = intent switch
+            {
+                SettingsToastIntent.Delete  => Color.FromArgb(211, 47, 47),   // red
+                SettingsToastIntent.Edit    => Color.FromArgb(180, 120, 10),  // yellow-amber
+                SettingsToastIntent.AddUser => Color.FromArgb(56, 142, 60),   // green
+                SettingsToastIntent.Toggle  => Color.FromArgb(33, 150, 243),  // blue
+                _                           => Color.FromArgb(70, 75, 85)     // dark glassy grey
+            };
+            ToastHelper.Show(this, message, type, 3000, col);
+        }
+
+        // Writes a permanent, non-deletable audit record into EquipmentLog that
+        // is marked in red in the LogsForm. Uses the first available equipment as
+        // the FK anchor; if there are no equipment records, falls back to security log only.
+        private static void WriteSettingsDeletionAuditLog(string action, string details)
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                var firstEq = db.Equipment.OrderBy(e => e.Id).FirstOrDefault();
+                if (firstEq == null) return;  // nothing to anchor to; SecurityAuditLogger already has it
+
+                db.EquipmentLogs.Add(new EquipmentLog
+                {
+                    EquipmentId      = firstEq.Id,
+                    ActionType       = "settings_data_delete",
+                    ChangedByUserId  = AuthService.CurrentUserId,
+                    OldValue         = action,
+                    NewValue         = details,
+                    CreatedAt        = DateTime.UtcNow
+                });
+                db.SaveChanges();
+            }
+            catch { /* non-critical — primary security log already written */ }
+        }
+
         // Rebuilds the whole form fresh — simplest reliable fix since every
         // control here is created in code (BuildUI) with colors baked in at
         // creation time, rather than read live from ThemeHelper on each paint.
@@ -896,18 +937,18 @@ namespace Inventory_Management_System.Forms
                 {
                     File.WriteAllText(sfd.FileName, output);
                     SaveLastBackupTimeNow();
-                    ToastHelper.Show(this, "Backup completed successfully.", ToastType.Success);
+                    ShowSettingsToast("Backup completed successfully.");
 
                 }
                 else
                 {
-                    ToastHelper.Show(this, "mysqldump did not complete successfully:\n\n" + errors, ToastType.Error);
+                    ShowSettingsToast("mysqldump did not complete successfully:\n\n" + errors, ToastType.Error);
 
                 }
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Backup failed: " + ex.Message + "\n\nMake sure mysqldump.exe is installed and available on your system PATH (it ships with MySQL Server / XAMPP under the bin folder).", ToastType.Error);
+                ShowSettingsToast("Backup failed: " + ex.Message + "\n\nMake sure mysqldump.exe is installed and available on your system PATH (it ships with MySQL Server / XAMPP under the bin folder).", ToastType.Error);
 
             }
         }
@@ -948,18 +989,18 @@ namespace Inventory_Management_System.Forms
 
                 if (proc.ExitCode == 0)
                 {
-                    ToastHelper.Show(this, "Database restored successfully. Please restart the application.", ToastType.Success);
+                    ShowSettingsToast("Database restored successfully. Please restart the application.");
 
                 }
                 else
                 {
-                    ToastHelper.Show(this, "Restore did not complete successfully:\n\n" + errors, ToastType.Error);
+                    ShowSettingsToast("Restore did not complete successfully:\n\n" + errors, ToastType.Error);
 
                 }
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Restore failed: " + ex.Message + "\n\nMake sure mysql.exe is installed and available on your system PATH.", ToastType.Error);
+                ShowSettingsToast("Restore failed: " + ex.Message + "\n\nMake sure mysql.exe is installed and available on your system PATH.", ToastType.Error);
 
             }
         }
@@ -977,17 +1018,26 @@ namespace Inventory_Management_System.Forms
 
             try
             {
-                using var db = new InventoryDbContext();
-                var logs = db.EquipmentLogs.ToList();
-                db.EquipmentLogs.RemoveRange(logs);
-                db.SaveChanges();
+                int deletedCount;
+                using (var db = new InventoryDbContext())
+                {
+                    var logs = db.EquipmentLogs.ToList();
+                    deletedCount = logs.Count;
+                    db.EquipmentLogs.RemoveRange(logs);
+                    db.SaveChanges();
+                }
 
-                SecurityAuditLogger.Log("Cleared all activity logs", $"{logs.Count} entries deleted");
-                ToastHelper.Show(this, $"{logs.Count} log entries deleted.", ToastType.Success);
+                SecurityAuditLogger.Log("Cleared all activity logs", $"{deletedCount} entries deleted");
+
+                // Write permanent, non-deletable red-highlighted audit entry AFTER the bulk delete
+                string auditDetails = $"Performed by: {AuthService.CurrentUsername} • {deletedCount} log entries permanently deleted • {DateTime.Now:dd MMM yyyy HH:mm}";
+                WriteSettingsDeletionAuditLog("SETTINGS: All Activity Logs Cleared", auditDetails);
+
+                ShowSettingsToast($"{deletedCount} log entries deleted.", ToastType.Success, SettingsToastIntent.Delete);
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Could not clear logs: " + ex.Message, ToastType.Error);
+                ShowSettingsToast("Could not clear logs: " + ex.Message, ToastType.Error, SettingsToastIntent.Delete);
             }
         }
 
@@ -1108,8 +1158,13 @@ namespace Inventory_Management_System.Forms
     string.Join(", ", counts.Select(kv => $"{kv.Key}: {kv.Value}")) +
     (errors.Count > 0 ? $" | Errors: {errors.Count}" : ""));
 
-            ToastHelper.Show(this, summary, errors.Count > 0 ? ToastType.Warning : ToastType.Success);
-            ToastHelper.Show(this, summary, errors.Count > 0 ? ToastType.Warning : ToastType.Success);
+            // Write permanent red-highlighted audit entry for this catastrophic delete
+            string resetDetails = $"Performed by: {AuthService.CurrentUsername} • " +
+                string.Join(", ", counts.Select(kv => $"{kv.Key}: {kv.Value} deleted")) +
+                $" • {DateTime.Now:dd MMM yyyy HH:mm}";
+            WriteSettingsDeletionAuditLog("SETTINGS: Full Application Data Reset", resetDetails);
+
+            ShowSettingsToast(summary, errors.Count > 0 ? ToastType.Warning : ToastType.Success, SettingsToastIntent.Delete);
         }
 
         /// Small modal requiring the user to type an exact confirmation word before proceeding.
@@ -1316,7 +1371,7 @@ namespace Inventory_Management_System.Forms
             if (form.ShowDialog() == DialogResult.OK)
             {
                 LoadUsers();
-                ToastHelper.Show(this, "User added successfully.", ToastType.Success);
+                ShowSettingsToast("User added successfully.", ToastType.Success, SettingsToastIntent.AddUser);
             }
         }
 
@@ -1348,7 +1403,7 @@ namespace Inventory_Management_System.Forms
         {
             if (dgvUsers.SelectedRows.Count == 0)
             {
-                ToastHelper.Show(this, "Please select a user to edit.", ToastType.Info);
+                ShowSettingsToast("Please select a user to edit.", ToastType.Info, SettingsToastIntent.Edit);
 
                 return;
             }
@@ -1359,7 +1414,7 @@ namespace Inventory_Management_System.Forms
             if (form.ShowDialog() == DialogResult.OK)
             {
                 LoadUsers();
-                ToastHelper.Show(this, "User updated successfully.", ToastType.Success);
+                ShowSettingsToast("User updated successfully.", ToastType.Success, SettingsToastIntent.Edit);
             }
         }
 
@@ -1367,7 +1422,7 @@ namespace Inventory_Management_System.Forms
         {
             if (dgvUsers.SelectedRows.Count == 0)
             {
-                ToastHelper.Show(this, "Please select a user.", ToastType.Info);
+                ShowSettingsToast("Please select a user.", ToastType.Info, SettingsToastIntent.Toggle);
                 return;
             }
             int id = Convert.ToInt32(dgvUsers.SelectedRows[0].Cells["ID"].Value);
@@ -1398,13 +1453,13 @@ namespace Inventory_Management_System.Forms
                     entity.IsActive == true ? "Activated user" : "Deactivated user",
                     $"Target: {user.Username} (ID {id})");
 
-                ToastHelper.Show(this,
+                ShowSettingsToast(
                     $"'{user.Username}' {(entity.IsActive == true ? "activated" : "deactivated")} successfully.",
-                    ToastType.Success);
+                    ToastType.Success, SettingsToastIntent.Toggle);
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Error: " + ex.Message, ToastType.Error);
+                ShowSettingsToast("Error: " + ex.Message, ToastType.Error, SettingsToastIntent.Toggle);
             }
         }
 
@@ -1412,7 +1467,7 @@ namespace Inventory_Management_System.Forms
         {
             if (dgvUsers.SelectedRows.Count == 0)
             {
-                ToastHelper.Show(this, "Please select a user to delete.", ToastType.Info);
+                ShowSettingsToast("Please select a user to delete.", ToastType.Info, SettingsToastIntent.Delete);
                 return;
             }
 
@@ -1448,11 +1503,11 @@ namespace Inventory_Management_System.Forms
 
                 SecurityAuditLogger.Log("Deleted user", $"Target: {user.Username} (ID {id})");
 
-                ToastHelper.Show(this, $"'{user.Username}' was deleted.", ToastType.Success);
+                ShowSettingsToast($"'{user.Username}' was deleted.", ToastType.Success, SettingsToastIntent.Delete);
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(this, "Could not delete this user — they may still be referenced elsewhere " + ex.Message, ToastType.Error);
+                ShowSettingsToast("Could not delete this user — they may still be referenced elsewhere " + ex.Message, ToastType.Error, SettingsToastIntent.Delete);
             }
         }
 
