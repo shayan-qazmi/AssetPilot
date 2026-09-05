@@ -75,7 +75,7 @@ namespace Inventory_Management_System
             // ── lblAppBrand — fallback text logo shown when logo.png is missing ─
             lblAppBrand.Dock      = System.Windows.Forms.DockStyle.Top;
             lblAppBrand.Height    = 150;
-            lblAppBrand.Text      = "Q-Inventory";
+            lblAppBrand.Text      = "AssetPilot";
             lblAppBrand.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             lblAppBrand.Name      = "lblAppBrand";
             lblAppBrand.Visible   = false;  // hidden by default; shown only when logo.png not found
@@ -159,7 +159,7 @@ namespace Inventory_Management_System
             btnSettings.Click   += btnSettings_Click;
 
             btnLogout.Dock       = System.Windows.Forms.DockStyle.Bottom;
-            btnLogout.Height     = 50; btnLogout.Text = "   ⏻   Logout";
+            btnLogout.Height     = 50; btnLogout.Text = "";
             btnLogout.Name       = "btnLogout";
             btnLogout.UseVisualStyleBackColor              = false;
             btnLogout.FlatStyle                           = System.Windows.Forms.FlatStyle.Flat;
@@ -176,7 +176,7 @@ namespace Inventory_Management_System
             panelTop.Name   = "panelTop";
             panelTop.Controls.Add(lblTitle);
 
-            lblTitle.Text      = "Q-Inventory";
+            lblTitle.Text      = "AssetPilot";
             lblTitle.AutoSize  = false;
             lblTitle.Dock      = System.Windows.Forms.DockStyle.Fill;
             lblTitle.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
@@ -208,7 +208,7 @@ namespace Inventory_Management_System
             Controls.Add(panelTop);
             Controls.Add(panelMenu);
             Name        = "DashboardForm";
-            Text        = "Q-Inventory";
+            Text        = "AssetPilot";
             WindowState = System.Windows.Forms.FormWindowState.Maximized;
 
             panelMenu.ResumeLayout(false);

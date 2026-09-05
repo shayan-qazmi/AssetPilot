@@ -65,11 +65,11 @@ namespace Inventory_Management_System.Forms
 
         private (Color bg, Color fg) StatusColors(string status) => status switch
         {
-            "approved" => (Color.FromArgb(220, 252, 231), Color.FromArgb(21, 128, 61)),
+            "Approved" or "approved" => (Color.FromArgb(255, 224, 178), Color.FromArgb(230, 81, 0)),
             "pending" or "Pending" => (Color.FromArgb(255, 249, 196), Color.FromArgb(130, 100, 0)),
             "rejected" => (Color.FromArgb(255, 205, 210), Color.FromArgb(183, 28, 28)),
             "returned" => (Color.FromArgb(224, 224, 224), Color.FromArgb(66, 66, 66)),
-            "Overdue" => (Color.FromArgb(255, 205, 210), Color.FromArgb(183, 28, 28)),
+            "Overdue" => (Color.FromArgb(255, 243, 224), Color.FromArgb(255, 160, 0)),
             "available" => (Color.FromArgb(224, 231, 255), Color.FromArgb(63, 81, 181)),
             _ => (Color.FromArgb(229, 231, 235), Color.FromArgb(107, 114, 128))
         };
@@ -87,8 +87,7 @@ namespace Inventory_Management_System.Forms
             var header = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 56,
-                BackColor = ThemeHelper.Header,
+                BackColor = Color.FromArgb(245, 124, 0),
             };
 
             var lblHeaderIcon = new Label
@@ -97,20 +96,26 @@ namespace Inventory_Management_System.Forms
                 Font = new Font("Segoe UI Emoji", 13f),
                 ForeColor = Color.White,
                 AutoSize = true,
-                Location = new Point(18, 15),
                 BackColor = Color.Transparent
             };
-            header.Controls.Add(lblHeaderIcon);
 
             var lblTitle = new Label
             {
                 Text = "Allocation Details",
-                Location = new Point(54, 15),
                 AutoSize = true,
                 Font = new Font("Segoe UI Semibold", 12.5f, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = Color.White,
                 BackColor = Color.Transparent
             };
+
+            // Size the header to whichever label is tallest (emoji glyphs render
+            // taller than their point size), then center both vertically — this
+            // stops the icon/title from being clipped along the strip's bottom edge.
+            header.Height = Math.Max(lblHeaderIcon.Height, lblTitle.Height) + 24;
+            lblHeaderIcon.Location = new Point(18, (header.Height - lblHeaderIcon.Height) / 2);
+            lblTitle.Location = new Point(lblHeaderIcon.Right + 12, (header.Height - lblTitle.Height) / 2);
+
+            header.Controls.Add(lblHeaderIcon);
             header.Controls.Add(lblTitle);
             Controls.Add(header);
 
@@ -244,8 +249,9 @@ namespace Inventory_Management_System.Forms
                     Font = new Font("Segoe UI Emoji", 9.5f),
                     ForeColor = ThemeHelper.TextSecondary,
                     AutoSize = false,
-                    Size = new Size(22, 18),
-                    Location = new Point(14, rowY),
+                    Size = new Size(22, 26),   // taller box — emoji glyphs were
+                                               // getting clipped at the bottom
+                    Location = new Point(14, rowY - 4),
                     TextAlign = ContentAlignment.MiddleCenter
                 };
                 detailBlock.Controls.Add(iconLbl);
@@ -364,13 +370,14 @@ namespace Inventory_Management_System.Forms
                 Location = new Point((DialogWidth - 120) / 2, btnY),
                 Font = ThemeHelper.FontBold,
                 FlatStyle = FlatStyle.Flat,
-                BackColor = ThemeHelper.Accent,
+                BackColor = Color.FromArgb(245, 124, 0),
                 ForeColor = Color.White,
                 Cursor = Cursors.Hand,
                 UseVisualStyleBackColor = false
             };
             btnClose.FlatAppearance.BorderSize = 0;
-            btnClose.FlatAppearance.MouseOverBackColor = ThemeHelper.Header;
+            btnClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(230, 81, 0);
+      
 
             void RoundButton(object? s, EventArgs e)
             {

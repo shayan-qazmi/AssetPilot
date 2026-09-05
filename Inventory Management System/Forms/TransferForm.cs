@@ -161,7 +161,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
             ThemeHelper.StyleSecondaryButton(btnNextPage);
-            ThemeHelper.StyleDataGridView(dgvTransfer);
+            ThemeHelper.StyleDataGridView(dgvTransfer, Color.FromArgb(123, 31, 162));
             panelBottom.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
             lblRowCount.Font = ThemeHelper.FontSmall;
@@ -252,8 +252,8 @@ namespace Inventory_Management_System.Forms
                 var statusCell = dgvTransfer.Rows[rowIdx].Cells["Status"];
                 if (status == "Overdue")
                 {
-                    statusCell.Style.BackColor = Color.FromArgb(255, 205, 210);
-                    statusCell.Style.ForeColor = Color.FromArgb(183, 28, 28);
+                    statusCell.Style.BackColor = Color.FromArgb(255, 243, 224);
+                    statusCell.Style.ForeColor = Color.FromArgb(255, 160, 0);
                 }
                 else
                 {

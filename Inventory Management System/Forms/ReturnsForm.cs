@@ -144,7 +144,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
             ThemeHelper.StyleSecondaryButton(btnNextPage);
-            ThemeHelper.StyleDataGridView(dgvReturns);
+            ThemeHelper.StyleDataGridView(dgvReturns, Color.FromArgb(99, 102, 241));
             panelBottom.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
             lblRowCount.Font = ThemeHelper.FontSmall;
@@ -591,10 +591,24 @@ namespace Inventory_Management_System.Forms
 
         private void BtnEdit_Click(object? sender, EventArgs e)
         {
+            if (dgvReturns.SelectedRows.Count == 0)
+            {
+                ShowToast("Please select a return to edit.", ToastType.Warning, isEdit: true);
+                return;
+            }
+
+            if (int.TryParse(dgvReturns.SelectedRows[0].Cells["ReturnID"].Value?.ToString(), out int selectedReturnId)
+                && selectedReturnId < 0)
+            {
+                ShowToast("Check In/Out returns can't be edited.",
+                    ToastType.Warning, isEdit: true);
+                return;
+            }
+
             var ret = GetSelectedReturn();
             if (ret == null)
             {
-                ShowToast("Please select a return to edit.", ToastType.Warning);
+                ShowToast("Please select a return to edit.", ToastType.Warning, isEdit: true);
                 return;
             }
 
@@ -625,6 +639,20 @@ namespace Inventory_Management_System.Forms
 
         private void BtnDelete_Click(object? sender, EventArgs e)
         {
+            if (dgvReturns.SelectedRows.Count == 0)
+            {
+                ShowToast("Please select a return to Undo.", ToastType.Warning);
+                return;
+            }
+
+            if (int.TryParse(dgvReturns.SelectedRows[0].Cells["ReturnID"].Value?.ToString(), out int selectedReturnId)
+                && selectedReturnId < 0)
+            {
+                ShowToast("Check In/Out returns can't be undone.",
+                    ToastType.Warning);
+                return;
+            }
+
             var ret = GetSelectedReturn();
             if (ret == null)
             {

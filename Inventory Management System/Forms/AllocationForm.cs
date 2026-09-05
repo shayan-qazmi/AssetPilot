@@ -666,7 +666,7 @@ namespace Inventory_Management_System.Forms
                         SortDate = DateTime.MinValue,
                         DateAllocated = "—",
                         ExpectedReturn = "—",
-                        Status = "in_store",
+                        Status = "In Store",
                         AllocationRef = null,
                         TransactionId = null
                     })
@@ -731,8 +731,8 @@ namespace Inventory_Management_System.Forms
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);
-            ThemeHelper.StyleButton(btnAdd);
-            ThemeHelper.StyleButton(btnApprove, Color.FromArgb(25, 118, 210));
+            ThemeHelper.StyleButton(btnAdd, Color.FromArgb(245, 124, 0));
+            ThemeHelper.StyleButton(btnApprove, ThemeHelper.Accent);
             ThemeHelper.StyleButton(btnReturn, Color.FromArgb(99, 102, 241)); // indigo — matches Undo Return in Returns screen
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnExport);
@@ -741,7 +741,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
             ThemeHelper.StyleSecondaryButton(btnNextPage);
-            ThemeHelper.StyleDataGridView(dgvAllocation);
+            ThemeHelper.StyleDataGridView(dgvAllocation, Color.FromArgb(245, 124, 0));
             panelBottom.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
             lblRowCount.Font = ThemeHelper.FontSmall;
@@ -819,10 +819,9 @@ namespace Inventory_Management_System.Forms
             switch (item.Status)
             {
                 case "approved":
-                    statusCell.Style.BackColor = Color.FromArgb(200, 230, 201);
-                    statusCell.Style.ForeColor = Color.FromArgb(27, 94, 32);
+                    statusCell.Style.BackColor = Color.FromArgb(255, 224, 178);
+                    statusCell.Style.ForeColor = Color.FromArgb(230, 81, 0);
                     break;
-                case "pending":
                 case "Pending":
                     statusCell.Style.BackColor = Color.FromArgb(255, 249, 196);
                     statusCell.Style.ForeColor = Color.FromArgb(130, 100, 0);
@@ -836,10 +835,11 @@ namespace Inventory_Management_System.Forms
                     statusCell.Style.ForeColor = Color.FromArgb(66, 66, 66);
                     break;
                 case "Overdue":
-                    statusCell.Style.BackColor = Color.FromArgb(255, 205, 210);
-                    statusCell.Style.ForeColor = Color.FromArgb(183, 28, 28);
+                    statusCell.Style.BackColor = Color.FromArgb(255, 243, 224);
+                    statusCell.Style.ForeColor = Color.FromArgb(255, 160, 0);
                     break;
                 case "in_store":
+                case "In Store":
                     statusCell.Style.BackColor = Color.FromArgb(200, 230, 201);
                     statusCell.Style.ForeColor = Color.FromArgb(27, 94, 32);
                     break;
@@ -952,7 +952,7 @@ namespace Inventory_Management_System.Forms
                     ExpectedReturn = a.ExpectedReturnDate?.ToString("yyyy-MM-dd") ?? "—",
                     Status = (a.Status == "approved" && a.ExpectedReturnDate.HasValue &&
                        a.ExpectedReturnDate.Value < DateOnly.FromDateTime(DateTime.Today))
-                       ? "Overdue" : a.Status,
+                       ? "Overdue" : (a.Status == "approved" ? "Approved" : a.Status),
                     AllocationRef = a,
                     TransactionId = null,
                     EmployeeId = a.EmployeeId,
@@ -1074,14 +1074,14 @@ namespace Inventory_Management_System.Forms
                 var statusCell = dgvAllocation.Rows[rowIdx].Cells["Status"];
                 switch (item.Status)
                 {
-                    case "approved":
-                        statusCell.Style.BackColor = Color.FromArgb(200, 230, 201);
-                        statusCell.Style.ForeColor = Color.FromArgb(27, 94, 32);
+                    case "Approved":
+                        statusCell.Style.BackColor = Color.FromArgb(255, 224, 178);
+                        statusCell.Style.ForeColor = Color.FromArgb(230, 81, 0);
                         break;
                     case "pending":
                     case "Pending":
-                        statusCell.Style.BackColor = Color.FromArgb(255, 249, 196);
-                        statusCell.Style.ForeColor = Color.FromArgb(130, 100, 0);
+                        statusCell.Style.BackColor = Color.FromArgb(46, 125, 50); // dark green — distinct from In Store's pale green
+                        statusCell.Style.ForeColor = Color.White;
                         break;
                     case "rejected":
                         statusCell.Style.BackColor = Color.FromArgb(255, 205, 210);
@@ -1092,10 +1092,10 @@ namespace Inventory_Management_System.Forms
                         statusCell.Style.ForeColor = Color.FromArgb(66, 66, 66);
                         break;
                     case "Overdue":
-                        statusCell.Style.BackColor = Color.FromArgb(255, 205, 210);
-                        statusCell.Style.ForeColor = Color.FromArgb(183, 28, 28);
+                        statusCell.Style.BackColor = Color.FromArgb(255, 243, 224);
+                        statusCell.Style.ForeColor = Color.FromArgb(255, 160, 0);
                         break;
-                    case "in_store":
+                    case "In Store":
                         statusCell.Style.BackColor = Color.FromArgb(200, 230, 201);
                         statusCell.Style.ForeColor = Color.FromArgb(27, 94, 32);
                         break;
@@ -1197,24 +1197,26 @@ namespace Inventory_Management_System.Forms
                     ? Color.FromArgb(99, 102, 241)
                     : isEdit
                         ? Color.FromArgb(245, 158, 11) // Yellow for edit
-                        : isApprove
-                            ? Color.FromArgb(25, 118, 210) // Blue for approve
-                            : Color.FromArgb(76, 175, 80);
+                                         : isApprove
+                            ? ThemeHelper.Accent // Dark green — matches Approve/Filters button
+                            : Color.FromArgb(245, 124, 0); // Orange — matches Allocate button
             ToastHelper.Show(form, message, type, 3000, color);
         }
 
         private void btnEditReturn_Click(object? sender, EventArgs e)
         {
+            var allSelected = GetSelectedRows();
+            if (allSelected.Count > 1)
+            {
+                ShowToast(this, "Multiple allocations can't be edited at once — please select only one.", ToastType.Warning, isEdit: true);
+                return;
+            }
+
             var selectedRow = GetSelectedRow();
             var alloc = selectedRow?.AllocationRef;
             if (alloc == null)
             {
                 ShowToast(this, "Select an allocation record first.", ToastType.Info, isEdit: true);
-                return;
-            }
-            if (alloc.Status == "returned")
-            {
-                ShowToast(this, "Cannot edit the return date of a returned allocation.", ToastType.Warning, isEdit: true);
                 return;
             }
 
@@ -1783,7 +1785,7 @@ namespace Inventory_Management_System.Forms
             int rightX = margin + colWidth + colGap;
 
             // ── Header ──
-            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = ThemeHelper.Header };
+            var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = Color.FromArgb(245, 124, 0) };
             Controls.Add(pnlHeader);
 
             var lblTitle = new Label
@@ -1826,7 +1828,7 @@ namespace Inventory_Management_System.Forms
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
 
             btnSave = new Button { Text = "✓  Allocate", Size = new Size(190, 42) };
-            ThemeHelper.StyleButton(btnSave);
+            ThemeHelper.StyleButton(btnSave, Color.FromArgb(245, 124, 0));
             btnSave.Click += BtnSave_Click;
 
             int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;
@@ -1841,7 +1843,7 @@ namespace Inventory_Management_System.Forms
             // ── Local layout helpers ──
             void SectionHeader(int x, int width, ref int y, string title, string? description)
             {
-                body.Controls.Add(new Panel { BackColor = ThemeHelper.Header, Size = new Size(4, 22), Location = new Point(x, y) });
+                body.Controls.Add(new Panel { BackColor = Color.FromArgb(245, 124, 0), Size = new Size(4, 22), Location = new Point(x, y) });
                 body.Controls.Add(new Label
                 {
                     Text = title,
@@ -2029,7 +2031,7 @@ namespace Inventory_Management_System.Forms
                 lblExpectedHint.Text = chkExpected.Checked
                     ? "Click the field or its dropdown arrow to open the calendar"
                     : "Check the box above to enable this field";
-                lblExpectedHint.ForeColor = chkExpected.Checked ? ThemeHelper.Header : MutedText;
+                lblExpectedHint.ForeColor = chkExpected.Checked ? Color.FromArgb(245, 124, 0) : MutedText;
                 if (chkExpected.Checked) dtpExpected.Focus();
             };
 
@@ -2199,7 +2201,7 @@ namespace Inventory_Management_System.Forms
 
             if (_selectedEquipmentId == null)
             {
-                ToastHelper.Show(this, "Please select an equipment item.", ToastType.Warning, 3000, Color.FromArgb(76, 175, 80));
+                ToastHelper.Show(this, "Please select an equipment item.", ToastType.Warning, 3000, Color.FromArgb(245, 124, 0));
                 return;
             }
 
@@ -2209,7 +2211,7 @@ namespace Inventory_Management_System.Forms
             // employee / location must be set — not both, not neither.
             if (_selectedEmployeeId == null && locationId == null)
             {
-                ToastHelper.Show(this, "Please choose an employee, a location, or both — at least one is required.", ToastType.Warning, 3000, Color.FromArgb(76, 175, 80));
+                ToastHelper.Show(this, "Please choose an employee, a location, or both — at least one is required.", ToastType.Warning, 3000, Color.FromArgb(245, 124, 0));
                 return;
             }
 

@@ -45,11 +45,14 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Timer? _loginBtnSpinTimer;
         private float _loginBtnSpinAngle = 0f;
 
-        // ── Create-account button hover/press state ───────────────────────
-        private enum CreateBtnState { Normal, Hover, Pressed }
+        // ── Create-account button hover/press/loading state ───────────────
+        private enum CreateBtnState { Normal, Hover, Pressed, Loading }
         private CreateBtnState _createBtnState = CreateBtnState.Normal;
         private float _createBtnHoverT = 0f;
         private System.Windows.Forms.Timer? _createBtnAnimTimer;
+        private System.Windows.Forms.Timer? _createBtnSpinTimer;
+        private float _createBtnSpinAngle = 0f;
+        private Button? _btnCreate;
 
         // ── Slide-up animation state ─────────────────────────────────────
         private float _slideProgress = 0f;
@@ -168,6 +171,36 @@ namespace Inventory_Management_System.Forms
             _createBtnAnimTimer.Start();
         }
 
+        private void SetCreateBtnLoading(bool loading)
+        {
+            if (_btnCreate == null) return;
+
+            if (loading)
+            {
+                _createBtnState = CreateBtnState.Loading;
+                _btnCreate.Enabled = false;
+                _createBtnSpinTimer?.Stop();
+                _createBtnSpinTimer?.Dispose();
+                _createBtnSpinTimer = new System.Windows.Forms.Timer { Interval = 16 };
+                _createBtnSpinTimer.Tick += (s, e) =>
+                {
+                    _createBtnSpinAngle = (_createBtnSpinAngle + 8f) % 360f;
+                    _btnCreate.Invalidate();
+                };
+                _createBtnSpinTimer.Start();
+            }
+            else
+            {
+                _createBtnSpinTimer?.Stop();
+                _createBtnSpinTimer?.Dispose();
+                _createBtnSpinTimer = null;
+                _btnCreate.Enabled = true;
+                _createBtnState = CreateBtnState.Normal;
+                _createBtnHoverT = 0f;
+                _btnCreate.Invalidate();
+            }
+        }
+
         private void SetLoginBtnLoading(bool loading)
         {
             if (loading)
@@ -265,7 +298,7 @@ namespace Inventory_Management_System.Forms
             RecenterSignUpPanel();
             _signUpPanel.BringToFront();
             _signUpPanel.Visible = true;
-            this.Text = "Q-Inventory — Create account";
+            this.Text = "AssetPilot — Create account";
             AnimateSignUpPanelIn(_signUpPanel);
         }
 
@@ -303,16 +336,106 @@ namespace Inventory_Management_System.Forms
 
             if (_signUpPanel != null)
                 _signUpPanel.Visible = false;
-            this.Text = "Q-Inventory — Login";
+            this.Text = "AssetPilot — Login";
             StartSlideUpAnimation();
+        }
+
+        private enum SignUpFieldIcon { None, Person, Mail, Key }
+
+        private int AddSignUpField(Panel parent, string labelText, int left, int width, int y,
+            out TextBox textBox, out Helpers.RoundedPanel fieldPanel, bool isPassword, SignUpFieldIcon icon = SignUpFieldIcon.None)
+        {
+            var lbl = new Label
+            {
+                Text = labelText,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(17, 24, 39),
+                AutoSize = true,
+                Left = left,
+                Top = y
+            };
+            parent.Controls.Add(lbl);
+            y += lbl.PreferredHeight + 6;
+
+            var field = new Helpers.RoundedPanel
+            {
+                Left = left,
+                Top = y,
+                Width = width,
+                Height = panelUsername.Height,
+                BackColor = Color.FromArgb(243, 244, 246),
+                BorderColor = Color.FromArgb(209, 213, 219),
+                BorderWidth = 1,
+                CornerRadius = (panelUsername is Helpers.RoundedPanel rp) ? rp.CornerRadius : 10
+            };
+            parent.Controls.Add(field);
+
+            int iconGutter = icon == SignUpFieldIcon.None ? 0 : 32;
+            if (icon != SignUpFieldIcon.None)
+            {
+                string glyph = icon switch
+                {
+                    SignUpFieldIcon.Person => "👤",
+                    SignUpFieldIcon.Mail => "✉",
+                    SignUpFieldIcon.Key => "🔑",
+                    _ => ""
+                };
+                var lblIcon = new Label
+                {
+                    Text = glyph,
+                    Font = new Font("Segoe UI", 11.5f),
+                    ForeColor = Color.FromArgb(156, 163, 175),
+                    AutoSize = true,
+                    BackColor = Color.Transparent
+                };
+                lblIcon.Location = new Point(12, (field.Height - lblIcon.PreferredHeight) / 2);
+                field.Controls.Add(lblIcon);
+                iconGutter = Math.Max(iconGutter, lblIcon.PreferredWidth + 20);
+            }
+
+            var tb = new TextBox
+            {
+                BorderStyle = BorderStyle.None,
+                Font = new Font("Segoe UI", 10.5f),
+                ForeColor = Color.FromArgb(17, 24, 39),
+                BackColor = field.BackColor,
+                Left = 16 + iconGutter,
+                Width = width - (isPassword ? 46 : 32) - iconGutter,
+                UseSystemPasswordChar = isPassword
+            };
+            tb.Top = (field.Height - tb.Height) / 2;
+            field.Controls.Add(tb);
+
+            if (isPassword)
+            {
+                var lblEye = new Label
+                {
+                    Text = "👁",
+                    Font = new Font("Segoe UI", 11.5f),
+                    ForeColor = Color.FromArgb(156, 163, 175),
+                    AutoSize = false,
+                    Size = new Size(24, 22),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Location = new Point(field.Width - 32, 11),
+                    Cursor = Cursors.Hand,
+                    BackColor = Color.Transparent
+                };
+                lblEye.Click += (s, e) =>
+                {
+                    tb.UseSystemPasswordChar = !tb.UseSystemPasswordChar;
+                    lblEye.Text = tb.UseSystemPasswordChar ? "👁" : "🚫";
+                };
+                field.Controls.Add(lblEye);
+            }
+
+            textBox = tb;
+            fieldPanel = field;
+            return y + field.Height + 18;
         }
 
         private Panel BuildSignUpPanel()
         {
             panelRight.Resize += (s, e) => { if (_signUpPanel != null && _signUpPanel.Visible) RecenterSignUpPanel(); };
-            // Fully covers panelRight (title, fields, everything) so we don't
-            // need to know the exact names/positions of the login controls —
-            // it just sits on top of them and swaps back out on demand.
             var panel = new Panel
             {
                 BackColor = Color.White,
@@ -342,7 +465,7 @@ namespace Inventory_Management_System.Forms
 
             var lblSubtitle = new Label
             {
-                Text = "Set up Q-Inventory in a couple of minutes",
+                Text = "Set up AssetPilot in a couple of minutes",
                 Font = new Font("Segoe UI", 9.5f),
                 ForeColor = Color.FromArgb(107, 114, 128),
                 AutoSize = true,
@@ -353,13 +476,13 @@ namespace Inventory_Management_System.Forms
             y += lblSubtitle.PreferredHeight + 32;
 
             // ── Full name ────────────────────────────────────────────
-            y = AddSignUpField(panel, "Full name", contentLeft, contentWidth, y, out var txtFullName, isPassword: false, icon: SignUpFieldIcon.Person);
+            y = AddSignUpField(panel, "Full name", contentLeft, contentWidth, y, out var txtFullName, out var fieldFullName, isPassword: false, icon: SignUpFieldIcon.Person);
 
             // ── Work email ───────────────────────────────────────────
-            y = AddSignUpField(panel, "Work email", contentLeft, contentWidth, y, out var txtEmail, isPassword: false, icon: SignUpFieldIcon.Mail);
+            y = AddSignUpField(panel, "Work email", contentLeft, contentWidth, y, out var txtEmail, out var fieldEmail, isPassword: false, icon: SignUpFieldIcon.Mail);
 
             // ── Password ─────────────────────────────────────────────
-            y = AddSignUpField(panel, "Password", contentLeft, contentWidth, y, out var txtPassword, isPassword: true, icon: SignUpFieldIcon.Key);
+            y = AddSignUpField(panel, "Password", contentLeft, contentWidth, y, out var txtPassword, out var fieldPassword, isPassword: true, icon: SignUpFieldIcon.Key);
             y += 8;
 
             // ── Strength bars ────────────────────────────────────────
@@ -449,6 +572,8 @@ namespace Inventory_Management_System.Forms
             btnCreate.FlatAppearance.BorderSize = 0;
             btnCreate.Region = MakeRoundedRegion(btnCreate.Width, btnCreate.Height, fieldRadius);
             btnCreate.Cursor = Cursors.Hand;
+            _btnCreate = btnCreate;
+
             btnCreate.Paint += (s, e) =>
             {
                 var g = e.Graphics;
@@ -457,6 +582,7 @@ namespace Inventory_Management_System.Forms
 
                 float t = _createBtnHoverT;
                 bool pressed = _createBtnState == CreateBtnState.Pressed;
+                bool loading = _createBtnState == CreateBtnState.Loading;
 
                 float scale = pressed ? 0.97f : 1f;
                 int sw = (int)(btnCreate.Width * scale);
@@ -487,7 +613,7 @@ namespace Inventory_Management_System.Forms
                 using var glossPath = RoundRect(new Rectangle((int)glossRect.X, (int)glossRect.Y, (int)glossRect.Width, (int)glossRect.Height), (int)(glossRect.Height / 2f));
                 g.FillPath(glossBrush, glossPath);
 
-                if (t > 0.01f && !pressed)
+                if (t > 0.01f && !pressed && !loading)
                 {
                     using var ringPen = new Pen(Color.FromArgb((int)(70 * t), GreenLight), 2f);
                     var ringRect = new RectangleF(rect.X - 3, rect.Y - 3, rect.Width + 6, rect.Height + 6);
@@ -495,21 +621,110 @@ namespace Inventory_Management_System.Forms
                     g.DrawPath(ringPen, ringPath);
                 }
 
-                float nudge = t * 3f;
-                DrawLabelWithIcon(g, rect, (gg, r) => DrawPersonPlusIcon(gg, r, Color.White), "Create account", nudge);
+                if (loading)
+                {
+                    float spinR = sh * 0.16f;
+                    float spinCx = rect.X + rect.Width * 0.36f;
+                    float spinCy = rect.Y + rect.Height / 2f;
+
+                    using var spinPen = new Pen(Color.FromArgb(90, 255, 255, 255), spinR * 0.28f)
+                    { StartCap = LineCap.Round, EndCap = LineCap.Round };
+                    g.DrawArc(spinPen, spinCx - spinR, spinCy - spinR, spinR * 2, spinR * 2, 0, 360);
+
+                    using var spinPenActive = new Pen(Color.White, spinR * 0.28f)
+                    { StartCap = LineCap.Round, EndCap = LineCap.Round };
+                    g.DrawArc(spinPenActive, spinCx - spinR, spinCy - spinR, spinR * 2, spinR * 2, _createBtnSpinAngle, 110);
+
+                    using var loadFont = new Font("Segoe UI", 19f, FontStyle.Bold, GraphicsUnit.Pixel);
+                    using var loadBrush = new SolidBrush(Color.White);
+                    using var sfLoad = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center };
+                    g.DrawString("Creating account", loadFont, loadBrush,
+                        new RectangleF(spinCx + spinR + 10, rect.Y, rect.Width, rect.Height), sfLoad);
+                }
+                else
+                {
+                    float nudge = t * 3f;
+                    DrawLabelWithIcon(g, rect, (gg, r) => DrawPersonPlusIcon(gg, r, Color.White), "Create account", nudge);
+                }
             };
-            btnCreate.MouseEnter += (s, e) => AnimateCreateBtnTo(btnCreate, CreateBtnState.Hover);
-            btnCreate.MouseLeave += (s, e) => AnimateCreateBtnTo(btnCreate, CreateBtnState.Normal);
+
+            btnCreate.MouseEnter += (s, e) =>
+            {
+                if (_createBtnState != CreateBtnState.Loading)
+                    AnimateCreateBtnTo(btnCreate, CreateBtnState.Hover);
+            };
+            btnCreate.MouseLeave += (s, e) =>
+            {
+                if (_createBtnState != CreateBtnState.Loading)
+                    AnimateCreateBtnTo(btnCreate, CreateBtnState.Normal);
+            };
             btnCreate.MouseDown += (s, e) =>
             {
-                _createBtnState = CreateBtnState.Pressed;
-                btnCreate.Invalidate();
+                if (_createBtnState != CreateBtnState.Loading)
+                {
+                    _createBtnState = CreateBtnState.Pressed;
+                    btnCreate.Invalidate();
+                }
             };
             btnCreate.MouseUp += (s, e) =>
             {
-                _createBtnState = CreateBtnState.Hover;
-                btnCreate.Invalidate();
+                if (_createBtnState != CreateBtnState.Loading)
+                {
+                    _createBtnState = CreateBtnState.Hover;
+                    btnCreate.Invalidate();
+                }
             };
+
+            // ── Validation + loading + "coming soon" toast ────────────
+            btnCreate.Click += async (s, e) =>
+            {
+                if (_createBtnState == CreateBtnState.Loading) return;
+
+                string fullName = txtFullName.Text.Trim();
+                string email = txtEmail.Text.Trim();
+                string pass = txtPassword.Text;
+
+                if (string.IsNullOrWhiteSpace(fullName))
+                {
+                    ShowToast("Please enter your full name.");
+                    ShakeControl(fieldFullName);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(email))
+                {
+                    ShowToast("Please enter your work email.");
+                    ShakeControl(fieldEmail);
+                    return;
+                }
+
+                if (!System.Text.RegularExpressions.Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+                {
+                    ShowToast("Please enter a valid email address.");
+                    ShakeControl(fieldEmail);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(pass))
+                {
+                    ShowToast("Please enter a password.");
+                    ShakeControl(fieldPassword);
+                    return;
+                }
+
+                if (pass.Length < 6)
+                {
+                    ShowToast("Password must be at least 6 characters.");
+                    ShakeControl(fieldPassword);
+                    return;
+                }
+
+                SetCreateBtnLoading(true);
+                await System.Threading.Tasks.Task.Delay(1200);
+                SetCreateBtnLoading(false);
+                ShowToast("This feature is coming soon in the next update!", isError: false);
+            };
+
             panel.Controls.Add(btnCreate);
             y += btnCreate.Height + 24;
 
@@ -630,100 +845,6 @@ namespace Inventory_Management_System.Forms
             _signUpPanel.PerformLayout();
             _signUpPanel.Invalidate(true);
             _signUpPanel.Update();
-        }
-
-        private enum SignUpFieldIcon { None, Person, Mail, Key }
-
-       
-
-        private int AddSignUpField(Panel parent, string labelText, int left, int width, int y,
-            out TextBox textBox, bool isPassword, SignUpFieldIcon icon = SignUpFieldIcon.None)
-        {
-            var lbl = new Label
-            {
-                Text = labelText,
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(17, 24, 39),
-                AutoSize = true,
-                Left = left,
-                Top = y
-            };
-            parent.Controls.Add(lbl);
-            y += lbl.PreferredHeight + 6;
-
-            var field = new Helpers.RoundedPanel
-            {
-                Left = left,
-                Top = y,
-                Width = width,
-                Height = panelUsername.Height,
-                BackColor = Color.FromArgb(243, 244, 246),
-                BorderColor = Color.FromArgb(209, 213, 219),
-                BorderWidth = 1,
-                CornerRadius = (panelUsername is Helpers.RoundedPanel rp) ? rp.CornerRadius : 10
-            };
-            parent.Controls.Add(field);
-
-            int iconGutter = icon == SignUpFieldIcon.None ? 0 : 32;
-            if (icon != SignUpFieldIcon.None)
-            {
-                string glyph = icon switch
-                {
-                    SignUpFieldIcon.Person => "👤",
-                    SignUpFieldIcon.Mail => "✉",
-                    SignUpFieldIcon.Key => "🔑",
-                    _ => ""
-                };
-                var lblIcon = new Label
-                {
-                    Text = glyph,
-                    Font = new Font("Segoe UI", 11.5f),
-                    ForeColor = Color.FromArgb(156, 163, 175),
-                    AutoSize = true,
-                    BackColor = Color.Transparent
-                };
-                lblIcon.Location = new Point(12, (field.Height - lblIcon.PreferredHeight) / 2);
-                field.Controls.Add(lblIcon);
-                iconGutter = Math.Max(iconGutter, lblIcon.PreferredWidth + 20);
-            }
-
-            var tb = new TextBox
-            {
-                BorderStyle = BorderStyle.None,
-                Font = new Font("Segoe UI", 10.5f),
-                ForeColor = Color.FromArgb(17, 24, 39),
-                BackColor = field.BackColor,
-                Left = 16 + iconGutter,
-                Width = width - (isPassword ? 46 : 32) - iconGutter,
-                UseSystemPasswordChar = isPassword
-            };
-            tb.Top = (field.Height - tb.Height) / 2;
-            field.Controls.Add(tb);
-
-            if (isPassword)
-            {
-                var lblEye = new Label
-                {
-                    Text = "👁",
-                    Font = new Font("Segoe UI", 11.5f),
-                    ForeColor = Color.FromArgb(156, 163, 175),
-                    AutoSize = false,
-                    Size = new Size(24, 22),
-                    TextAlign = ContentAlignment.MiddleCenter,
-                    Location = new Point(field.Width - 32, 11),
-                    Cursor = Cursors.Hand,
-                    BackColor = Color.Transparent
-                };
-                lblEye.Click += (s, e) =>
-                {
-                    tb.UseSystemPasswordChar = !tb.UseSystemPasswordChar;
-                    lblEye.Text = tb.UseSystemPasswordChar ? "👁" : "🚫";
-                };
-                field.Controls.Add(lblEye);
-            }
-
-            textBox = tb;
-            return y + field.Height + 18;
         }
 
         private Button MakeSsoButtonLocal(string label, int left, int top, int width, int radius)
@@ -1059,8 +1180,6 @@ namespace Inventory_Management_System.Forms
             g.DrawLine(pen, tipX, cy, tipX - headW, cy - headH / 2f);
             g.DrawLine(pen, tipX, cy, tipX - headW, cy + headH / 2f);
         }
-
-
 
         // ── Slide-up entrance animation ───────────────────────────────────
         private void StartSlideUpAnimation()

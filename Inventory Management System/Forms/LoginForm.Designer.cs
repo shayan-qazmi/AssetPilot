@@ -75,7 +75,7 @@ namespace Inventory_Management_System.Forms
             picLogo.Name      = "picLogo";
 
             // ── lblBrand ──────────────────────────────────────────────────
-            lblBrand.Text      = "Q-Inventory";
+            lblBrand.Text      = "AssetPilot";
             lblBrand.AutoSize  = false;
             lblBrand.Size      = new System.Drawing.Size(400, 40);
             lblBrand.Location  = new System.Drawing.Point(10, 138);
@@ -304,7 +304,7 @@ namespace Inventory_Management_System.Forms
             FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             MaximizeBox     = false;
             Name            = "LoginForm";
-            Text            = "Q-Inventory — Login";
+            Text            = "AssetPilot — Login";
             StartPosition   = System.Windows.Forms.FormStartPosition.CenterScreen;
 
             ((System.ComponentModel.ISupportInitialize)picLogo).EndInit();

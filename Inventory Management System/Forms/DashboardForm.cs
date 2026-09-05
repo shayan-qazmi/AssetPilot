@@ -399,7 +399,7 @@ namespace Inventory_Management_System
             lblTitle.ForeColor = ThemeHelper.TitleForeColor;
             lblTitle.BackColor = Color.Transparent;
             lblTitle.Visible = true;
-            this.Text = "Q-Inventory";
+            this.Text = "AssetPilot";
             if (!_titleInitialized)
             {
                 _titleInitialized = true;
@@ -444,8 +444,6 @@ namespace Inventory_Management_System
                 panelMenu.Controls.Remove(strayDivider);
                 strayDivider.Dispose();
             }
-
-            const int LogoSize = 55; // match this to whatever size the lower logo actually is (see note below)
 
             try
             {
@@ -789,6 +787,19 @@ namespace Inventory_Management_System
             };
 
             _pnlThemeToggle.Click += (s, e) => ToggleThemeAnimated();
+
+            bool _themeHovered = false;
+            _pnlThemeToggle.MouseEnter += (s, e) => { _themeHovered = true; _pnlThemeToggle.Invalidate(); };
+            _pnlThemeToggle.MouseLeave += (s, e) => { _themeHovered = false; _pnlThemeToggle.Invalidate(); };
+            // overlay a subtle translucent circle on hover
+            _pnlThemeToggle.Paint += (s, e) =>
+            {
+                if (!_themeHovered) return;
+                var g = e.Graphics;
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                using var hoverBrush = new SolidBrush(Color.FromArgb(40, 255, 255, 255));
+                g.FillEllipse(hoverBrush, 2, 2, d - 4, d - 4);
+            };
 
             panelTop.Controls.Add(_pnlThemeToggle);
             _pnlThemeToggle.BringToFront();
@@ -1266,7 +1277,7 @@ namespace Inventory_Management_System
             _btnSidebarToggle = new Button
             {
                 Name = "btnSidebarToggle",
-                Text = "\u25EB", 
+                Text = "", 
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = Color.White,
                 BackColor = Color.Transparent,
@@ -1277,6 +1288,22 @@ namespace Inventory_Management_System
             _btnSidebarToggle.FlatAppearance.BorderSize = 0;
             _btnSidebarToggle.FlatAppearance.MouseOverBackColor = Color.FromArgb(35, 255, 255, 255);
             _btnSidebarToggle.Click += (s, e) => ToggleSidebar();
+
+            _btnSidebarToggle.Paint += (s, e) =>
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                float fontSize = _sidebarCollapsed ? 15f : 12f;
+                using var font = new Font("Segoe UI Symbol", fontSize, FontStyle.Bold);
+                using var brush = new SolidBrush(_btnSidebarToggle.ForeColor);
+                using var sf = new StringFormat
+                {
+                    Alignment = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center
+                };
+                g.DrawString("\u25EB", font, brush, new RectangleF(0, 0, _btnSidebarToggle.Width, _btnSidebarToggle.Height), sf);
+            };
 
             _pnlSidebarHeader.Controls.Add(_btnSidebarToggle);
             _btnSidebarToggle.BringToFront();
@@ -1297,8 +1324,7 @@ namespace Inventory_Management_System
                 if (logoPic != null) logoPic.Visible = false;
                 lblAppBrand.Visible = false;
 
-                _btnSidebarToggle!.Text = "\u25EB"; // ◫
-                _btnSidebarToggle.Font = new Font("Segoe UI", 18f, FontStyle.Bold);
+                _btnSidebarToggle!.Text = "";
                 _btnSidebarToggle.Size = new Size(SidebarCollapsedWidth, _pnlSidebarHeader.Height);
                 _btnSidebarToggle.Location = new Point(0, 0);
             }
@@ -1314,10 +1340,9 @@ namespace Inventory_Management_System
                 }
                 lblAppBrand.Visible = logoPic == null;
 
-                _btnSidebarToggle!.Text = "\u25EB"; // ◫
-                _btnSidebarToggle.Font = new Font("Segoe UI", 15f, FontStyle.Bold); // was 11f — bumped up per your ask
-                _btnSidebarToggle.Size = new Size(34, 34); // was 26x26
-                _btnSidebarToggle.Location = new Point(10, (_pnlSidebarHeader.Height - 34) / 2); // vertically centered in the taller header, doesn't overlap the centered logo since it sits at x=10
+                _btnSidebarToggle!.Text = "";
+                _btnSidebarToggle.Size = new Size(34, 34);
+                _btnSidebarToggle.Location = new Point(10, (_pnlSidebarHeader.Height - 34) / 2);
             }
 
             _btnSidebarToggle.BringToFront();
@@ -1414,8 +1439,8 @@ namespace Inventory_Management_System
                     }
                 }
 
-                btnLogout.Text = _sidebarCollapsed ? "⏻" : "⏻  Logout";
-                btnLogout.TextAlign = _sidebarCollapsed ? ContentAlignment.MiddleCenter : ContentAlignment.MiddleLeft;
+                btnLogout.Text = "";
+                btnLogout.TextAlign = ContentAlignment.MiddleCenter;
 
                 footer.Height = _sidebarCollapsed
                     ? avatarSize + 16 + btnLogout.Height
@@ -3436,9 +3461,27 @@ namespace Inventory_Management_System
             }
         }
 
+        private static readonly Color[] EmpBarPalette = new[]
+        {
+            Color.FromArgb(127, 119, 221), // 1st – purple
+            Color.FromArgb(59,  130, 246), // 2nd – blue
+            Color.FromArgb(16,  185, 129), // 3rd – emerald
+            Color.FromArgb(245, 158,  11), // 4th – amber
+            Color.FromArgb(239,  68,  68), // 5th – red
+            Color.FromArgb(236,  72, 153), // 6th – pink
+            Color.FromArgb(20,  184, 166), // 7th – teal
+            Color.FromArgb(168, 85,  247), // 8th – violet
+        };
+
         private static Panel BuildEmployeeRow(int rank, string? name, int count, string? dept, string? email, string? code, int maxVal, bool showBar, int width, ToolTip tooltip)
         {
-            var row = new Panel { Size = new Size(width, 34), BackColor = ThemeHelper.ContentBg };
+            // Bar height scales proportionally: minimum 6px, maximum 14px
+            int barH = showBar && maxVal > 0
+                ? (int)Math.Clamp(6f + (count / (float)maxVal) * 8f, 6f, 14f)
+                : 8;
+            int rowH = Math.Max(34, barH + 22);
+
+            var row = new Panel { Size = new Size(width, rowH), BackColor = ThemeHelper.ContentBg };
 
             string safeName = string.IsNullOrWhiteSpace(name) ? "Unknown" : name.Trim();
             string safeCode = string.IsNullOrWhiteSpace(code) ? "—" : code;
@@ -3447,15 +3490,17 @@ namespace Inventory_Management_System
                 ? $"{safeName} ({safeCode})\n{count} allocation{(count == 1 ? "" : "s")}"
                 : $"{safeName} ({safeCode})\nNo allocations";
 
+            Color barColor = EmpBarPalette[(rank - 1) % EmpBarPalette.Length];
+
             const int avatarD = 24;
             string initial = safeName.Length > 0 ? safeName.Substring(0, 1).ToUpper() : "?";
-            Color avatarColor = count > 0 ? Color.FromArgb(127, 119, 221) : ThemeHelper.ChartTrackBg;
+            Color avatarColor = count > 0 ? barColor : ThemeHelper.ChartTrackBg;
             Color avatarFg = count > 0 ? Color.White : ThemeHelper.ChartSecText;
 
             var avatarPanel = new Panel
             {
                 Size = new Size(avatarD, avatarD),
-                Location = new Point(8, 5),
+                Location = new Point(8, (rowH - avatarD) / 2),
                 BackColor = Color.Transparent
             };
             avatarPanel.Paint += (s, e) =>
@@ -3472,12 +3517,21 @@ namespace Inventory_Management_System
             row.Controls.Add(avatarPanel);
 
             int nameX = avatarPanel.Right + 8;
+
+            // Count label on LEFT side of the bar
+            const int countLblW = 24;
+            const int barTrackW = 60;
+            const int rightPad  = 10;
+            int barAreaRight = width - rightPad;
+            int barAreaLeft  = barAreaRight - barTrackW;
+            int countLblLeft = barAreaLeft - countLblW - 4;
+
             var lblName = new Label
             {
                 Text = name,
                 Font = ChartCatLabelFont,
                 ForeColor = ThemeHelper.ChartBodyText,
-                Size = new Size(showBar ? width - nameX - 106 : width - nameX - 10, 34),
+                Size = new Size(showBar ? countLblLeft - nameX - 4 : width - nameX - 10, rowH),
                 Location = new Point(nameX, 0),
                 TextAlign = ContentAlignment.MiddleLeft,
                 AutoEllipsis = true
@@ -3489,10 +3543,23 @@ namespace Inventory_Management_System
 
             if (showBar)
             {
+                // Count number LEFT of the bar
+                var lblCount = new Label
+                {
+                    Text = count.ToString(),
+                    Font = ChartLabelFont,
+                    ForeColor = count > 0 ? barColor : ThemeHelper.ChartTrackBg,
+                    Size = new Size(countLblW, rowH),
+                    Location = new Point(countLblLeft, 0),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                    TextAlign = ContentAlignment.MiddleRight
+                };
+                row.Controls.Add(lblCount);
+
                 var barTrack = new Panel
                 {
-                    Size = new Size(70, 8),
-                    Location = new Point(row.Width - 106, 13),
+                    Size = new Size(barTrackW, barH),
+                    Location = new Point(barAreaLeft, (rowH - barH) / 2),
                     Anchor = AnchorStyles.Top | AnchorStyles.Right,
                     BackColor = Color.Transparent
                 };
@@ -3504,27 +3571,15 @@ namespace Inventory_Management_System
                     using var trackBrush = new SolidBrush(ThemeHelper.ChartTrackBg);
                     g.FillPath(trackBrush, trackPath);
 
-                    float fillW = (float)count / maxVal * barTrack.Width;
+                    float fillW = maxVal > 0 ? (float)count / maxVal * barTrack.Width : 0;
                     if (fillW > 1)
                     {
                         using var fillPath = RoundedRectF(new RectangleF(0, 0, fillW, barTrack.Height), 4f);
-                        using var fillBrush = new SolidBrush(Color.FromArgb(127, 119, 221));
+                        using var fillBrush = new SolidBrush(barColor);
                         g.FillPath(fillBrush, fillPath);
                     }
                 };
                 row.Controls.Add(barTrack);
-
-                var lblCount = new Label
-                {
-                    Text = count.ToString(),
-                    Font = ChartLabelFont,
-                    ForeColor = count > 0 ? ThemeHelper.ChartSecText : ThemeHelper.ChartTrackBg,
-                    Size = new Size(30, 34),
-                    Location = new Point(row.Width - 30, 0),
-                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                    TextAlign = ContentAlignment.MiddleRight
-                };
-                row.Controls.Add(lblCount);
 
                 tooltip.SetToolTip(barTrack, tooltipText);
                 tooltip.SetToolTip(lblCount, tooltipText);
@@ -4201,7 +4256,7 @@ namespace Inventory_Management_System
         Color.FromArgb(190, 24, 93), Color.FromArgb(2, 132, 199),
     };
 
-            int top = 54, bottomLabels = 70, padOuter = 20;
+            int top = 72, bottomLabels = 70, padOuter = 20;
             int chartH = Math.Max(20, p.Height - top - bottomLabels);
             int maxTotal = Math.Max(1, _locationBreakdown.Max(l => l.InStock + l.Allocated + l.Repair));
             int count = _locationBreakdown.Count;

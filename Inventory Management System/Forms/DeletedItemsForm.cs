@@ -263,7 +263,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnRestore, Color.FromArgb(0, 150, 136));
             ThemeHelper.StyleDangerButton(btnDelete);
             ThemeHelper.StyleSecondaryButton(btnRefresh);
-            ThemeHelper.StyleDataGridView(dgv);
+            ThemeHelper.StyleDataGridView(dgv, Color.FromArgb(211, 47, 47));
             ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
             ThemeHelper.StyleSecondaryButton(btnNextPage);

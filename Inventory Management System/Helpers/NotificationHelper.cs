@@ -1,4 +1,4 @@
-﻿// Helpers/NotificationHelper.cs
+// Helpers/NotificationHelper.cs
 using Inventory_Management_System.Models;
 using Microsoft.EntityFrameworkCore;
 using System;
@@ -91,6 +91,18 @@ namespace Inventory_Management_System.Helpers
             hostTopPanel.Controls.Add(_badgeLabel);
             _badgeLabel.BringToFront();
             PositionBadge();
+
+            bool _bellHovered = false;
+            _bellLabel.MouseEnter += (s, e) => { _bellHovered = true; _bellLabel.Invalidate(); };
+            _bellLabel.MouseLeave += (s, e) => { _bellHovered = false; _bellLabel.Invalidate(); };
+            _bellLabel.Paint += (s2, e2) =>
+            {
+                if (!_bellHovered) return;
+                var g2 = e2.Graphics;
+                g2.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                using var hoverBrush = new SolidBrush(Color.FromArgb(40, 255, 255, 255));
+                g2.FillEllipse(hoverBrush, 2, 2, d - 4, d - 4);
+            };
 
             _bellLabel.Click += (s, e) => ToggleDropdown(ownerForm);
 

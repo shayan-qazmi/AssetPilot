@@ -106,7 +106,13 @@ namespace Inventory_Management_System.Forms
         // after a plain Yes/No confirmation. Replaces the old Edit-dialog flow. ──
         private void BuildRestoreButton()
         {
-            btnRestoreDecomm = new Button { Text = "↩ Restore", Size = new Size(130, 32), Margin = new Padding(4, 4, 0, 0) };
+            btnRestoreDecomm = new Button
+            {
+                Text = "↩ Restore",
+                Size = btnRefresh.Size,       // match existing toolbar buttons exactly
+                Margin = btnRefresh.Margin,
+                Font = btnRefresh.Font
+            };
             ThemeHelper.StyleButton(btnRestoreDecomm, Color.FromArgb(0, 150, 136));
             btnRestoreDecomm.Click += BtnRestoreDecomm_Click;
 
@@ -182,7 +188,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
             ThemeHelper.StyleSecondaryButton(btnNextPage);
             ApplyRoundedSearchStyle(txtSearch);
-            ThemeHelper.StyleDataGridView(dgvDecommission);
+            ThemeHelper.StyleDataGridView(dgvDecommission, Color.FromArgb(211, 47, 47));
             panelBottom.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
             lblRowCount.Font = ThemeHelper.FontSmall;

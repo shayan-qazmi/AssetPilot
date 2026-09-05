@@ -39,7 +39,8 @@ namespace Inventory_Management_System.Services
 
                 var equipment = db.Equipment.FirstOrDefault(e => e.Id == allocation.EquipmentId);
                 if (equipment == null) return ServiceResult<Allocation>.Fail("Equipment not found.");
-                if (equipment.CurrentStatus != "in_store" && equipment.CurrentStatus != "allocated")
+                string eqStatus = (equipment.CurrentStatus ?? "").Trim().ToLowerInvariant();
+                if (eqStatus != "in_store" && eqStatus != "in store" && eqStatus != "" && eqStatus != "allocated")
                     return ServiceResult<Allocation>.Fail("Equipment is not available.");
 
                 if (allocation.EmployeeId.HasValue)

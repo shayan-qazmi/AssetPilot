@@ -63,7 +63,7 @@ INSERT INTO `allocations` (`id`, `equipment_id`, `employee_id`, `location_id`, `
 DROP TABLE IF EXISTS `app_settings`;
 CREATE TABLE IF NOT EXISTS `app_settings` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `company_name` varchar(150) NOT NULL DEFAULT 'Q-Inventory',
+  `company_name` varchar(150) NOT NULL DEFAULT 'AssetPilot',
   `theme` varchar(20) NOT NULL DEFAULT 'Light',
   `db_server` varchar(150) NOT NULL DEFAULT 'localhost',
   `db_name` varchar(150) NOT NULL DEFAULT 'inventory_management',

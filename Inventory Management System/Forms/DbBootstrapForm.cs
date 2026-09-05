@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Windows.Forms;
 using Inventory_Management_System.Models;
@@ -13,7 +13,7 @@ namespace Inventory_Management_System.Forms
 
         public DbBootstrapForm()
         {
-            Text = "Q-Inventory — Database Connection";
+            Text = "AssetPilot — Database Connection";
             Size = new Size(400, 420);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false; MinimizeBox = false;

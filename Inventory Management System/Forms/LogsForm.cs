@@ -339,9 +339,21 @@ namespace Inventory_Management_System.Forms
                         actionCell.Style.ForeColor = Color.FromArgb(0, 150, 136); // Teal to match restore button
                         break;
 
-                    // ── Allocation (created/approved/requested) → light green ──
+                    // ── Allocation approved → dark orange (distinct from
+                    // Overdue's light amber and Edit's yellow) ──────────────────
                     case "allocation_approved":
+                        actionCell.Style.BackColor = Color.FromArgb(255, 204, 128);
+                        actionCell.Style.ForeColor = Color.FromArgb(230, 81, 0);
+                        break;
+
+                    // ── Allocation requested (pending) → dark green, matches the
+                    // Pending status pill/Approve button ────────────────────────
                     case "allocation_requested":
+                        actionCell.Style.BackColor = Color.FromArgb(46, 125, 50);
+                        actionCell.Style.ForeColor = Color.White;
+                        break;
+
+                    // ── Employee/Location created → light green ──
                     case "employee_created":
                     case "location_created":
                         actionCell.Style.BackColor = Color.FromArgb(220, 237, 200);
@@ -377,6 +389,11 @@ namespace Inventory_Management_System.Forms
                             row.DefaultCellStyle.BackColor = Color.FromArgb(255, 235, 238);
                             row.DefaultCellStyle.ForeColor = Color.FromArgb(183, 28, 28);
                         }
+                        break;
+
+                    case "allocation_overdue":
+                        actionCell.Style.BackColor = Color.FromArgb(255, 243, 224);
+                        actionCell.Style.ForeColor = Color.FromArgb(255, 160, 0);
                         break;
 
                     // ── Transfer → purple ─────────────────────────────────
@@ -427,6 +444,7 @@ namespace Inventory_Management_System.Forms
             "allocation_approved"  => "Allocation Approved",
             "allocation_rejected"  => "Allocation Rejected",
             "allocation_returned"  => "Returned to Store",
+            "allocation_overdue"   => "Allocation Overdue",
             "decommission_requested" => "Decommission Requested",
             "decommission_approved"  => "Decommission Approved",
             "decommission_undone"    => "Decommission Undone",

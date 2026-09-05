@@ -1,4 +1,4 @@
-﻿using Inventory_Management_System.Models;
+using Inventory_Management_System.Models;
 using Inventory_Management_System.Services;
 using System;
 using System.IO;
@@ -13,7 +13,7 @@ namespace Inventory_Management_System.Helpers
     {
         private static readonly string LogPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "QInventory", "security_audit.log");
+            "AssetPilot", "security_audit.log");
 
         public static void Log(string action, string details = "")
         {

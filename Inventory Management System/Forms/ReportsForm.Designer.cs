@@ -21,6 +21,7 @@ namespace Inventory_Management_System.Forms
             btnEmployeeReport = new System.Windows.Forms.Button();
             btnAllocationReport = new System.Windows.Forms.Button();
             btnReturnReport = new System.Windows.Forms.Button();
+            btnCheckInOutReport = new System.Windows.Forms.Button();
             btnExportPDF = new System.Windows.Forms.Button();
             btnExportExcel = new System.Windows.Forms.Button();
            
@@ -59,6 +60,7 @@ namespace Inventory_Management_System.Forms
             flowToolbar.Controls.Add(btnEmployeeReport);
             flowToolbar.Controls.Add(btnAllocationReport);
             flowToolbar.Controls.Add(btnReturnReport);
+            flowToolbar.Controls.Add(btnCheckInOutReport);
             flowToolbar.Controls.Add(btnExportPDF);
             flowToolbar.Controls.Add(btnExportExcel);
 
@@ -88,11 +90,15 @@ namespace Inventory_Management_System.Forms
             SetupBtn(btnAllocationReport, "📋 Allocation",
                 new System.Windows.Forms.Padding(4, 0, 0, 4), btnAllocationReport_Click);
 
-            btnReturnReport.Name     = "btnReturnReport";
-            SetupBtn(btnReturnReport, "↩ Return",
+            btnReturnReport.Name = "btnReturnReport";
+            SetupBtn(btnReturnReport, "↩ Returns",
                 new System.Windows.Forms.Padding(4, 0, 0, 4), btnReturnReport_Click);
 
-            btnExportPDF.Name        = "btnExportPDF";
+            btnCheckInOutReport.Name = "btnCheckInOutReport";
+            SetupBtn(btnCheckInOutReport, "☑ Check In/Out",
+                new System.Windows.Forms.Padding(4, 0, 0, 4), btnCheckInOutReport_Click);
+
+            btnExportPDF.Name = "btnExportPDF";
             SetupBtn(btnExportPDF, "📄 Export PDF",
                 new System.Windows.Forms.Padding(16, 0, 0, 4), btnExportPDF_Click);
 
@@ -125,9 +131,12 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Button btnEmployeeReport;
         private System.Windows.Forms.Button btnAllocationReport;
         private System.Windows.Forms.Button btnReturnReport;
+        private System.Windows.Forms.Button btnCheckInOutReport;
         private System.Windows.Forms.Button btnExportPDF;
         private System.Windows.Forms.Button btnExportExcel;
         private System.Windows.Forms.Label lblReportType;
      
     }
 }
+
+

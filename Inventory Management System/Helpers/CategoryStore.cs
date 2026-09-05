@@ -15,9 +15,16 @@ namespace Inventory_Management_System.Helpers
     /// </summary>
     public static class CategoryStore
     {
-        private static readonly string FilePath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "QInventory", "categories.json");
+        private static string FilePath
+        {
+            get
+            {
+                string primary = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AssetPilot", "categories.json");
+                string legacy = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "QInventory", "categories.json");
+                if (!File.Exists(primary) && File.Exists(legacy)) return legacy;
+                return primary;
+            }
+        }
 
         private static readonly List<string> Defaults = new()
         {

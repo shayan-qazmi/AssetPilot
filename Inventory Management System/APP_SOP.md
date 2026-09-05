@@ -1,12 +1,12 @@
-# Q-Inventory — Application Standard Operating Procedure (SOP)
+# AssetPilot — Application Standard Operating Procedure (SOP)
 
 > **Ground-truth document** — every claim is traced from source code:
 > UI form event handler → service method → EF Core / DbContext → database table + column.
 > No assumption-based descriptions. Source file + method cited per section.
-> Last updated: 2026-08-17
+> Last updated: 2026-09-05
 
-**Tech Stack:** WinForms · C# · .NET 8 · Entity Framework Core · MariaDB
-**Database:** `inventory_management` @ `192.168.18.240`
+**Tech Stack:** WinForms · C# · .NET 8 · Entity Framework Core · MariaDB / MySQL
+**Database:** `inventory_management` @ `localhost` (or server IP)
 
 ---
 
@@ -33,25 +33,26 @@
 19. [Known Issues & Observations](#19-known-issues--observations)
 20. [New Features & Recent Changes (2026-08-10)](#20-new-features--recent-changes-2026-08-10)
 21. [New Features & Recent Changes (2026-08-17)](#21-new-features--recent-changes-2026-08-17)
+22. [New Features & Recent Changes (2026-09-05)](#22-new-features--recent-changes-2026-09-05)
 
 ---
 
 ## 1. Overview & Roles
 
-**Q-Inventory** is a Windows desktop application for tracking physical IT/office equipment across a company. It covers the full equipment lifecycle: procurement → storage → allocation → return / transfer → decommission.
+**AssetPilot** is a Windows desktop application for tracking physical IT/office equipment across an organization. It covers the full equipment lifecycle: procurement → storage → allocation → return / transfer → decommission.
 
-Routine success confirmations across the app (save, restore, delete) now render as auto-dismissing toast notifications rather than blocking `MessageBox` dialogs. Destructive-action confirmations ("Are you sure?") still use `MessageBox`.
+Routine success confirmations across the app (save, restore, delete, approve, edit) render as auto-dismissing toast notifications styled to match their respective action buttons (e.g. green for Approve, yellow for Edit, purple for Undo/Restore, red for Delete/Decommission) rather than blocking `MessageBox` dialogs. Destructive-action confirmations ("Are you sure?") still use `MessageBox`.
 
-### Roles
+### Roles & Access Control
 
 Roles are stored in the `roles` table and linked via `user_roles`. Session identity is cached in `AuthService` (static) for the duration of the session. All forms read `AuthService.CurrentRole` and `AuthService.CurrentUserId`.
 
 | Role | Access |
 |------|--------|
-| **Admin** | All screens and all actions including delete, Settings, user management |
-| **Operator** | All screens **except** Settings. Delete Equipment button is hidden. |
+| **Admin** | All screens and all actions including delete, Settings, user management, decommission |
+| **Operator** | All screens **except** Settings, Decommission, and Deleted Items. Delete Equipment button is hidden. |
 
-`AdminOnlyButtons` in `DashboardForm` = `{ btnDecommission, btnSettings, btnDeletedItems }` — these are hidden for non-admin roles via `ApplyRolePermissions()`.
+`AdminOnlyButtons` in `DashboardForm` = `{ btnDecommission, btnSettings, btnDeletedItems }` — these are hidden for non-admin roles via `ApplyRolePermissions()`. If non-admin users attempt to access restricted forms, access is denied and a warning toast notification is displayed.
 
 ---
 
@@ -96,15 +97,15 @@ Roles are stored in the `roles` table and linked via `user_roles`. Session ident
 
 ### Summary Cards — `LoadStats()`
 
-| Card | DB Query |
-|------|----------|
-| Total Equipment | `COUNT(*) FROM equipment WHERE IsDeleted = false` |
-| In Store | `WHERE CurrentStatus = "in_store"` |
-| Allocated | `WHERE CurrentStatus = "allocated"` |
-| Under Repair | `WHERE CurrentStatus = "under_repair"` |
-| Decommissioned | `WHERE CurrentStatus = "decommissioned"` |
-| Employees | `COUNT(*) FROM employees` |
-| Overdue | Allocations where `Status == "approved"` and `ExpectedReturnDate < today` (in-memory) |
+| Card | DB Query / Source | Behaviour |
+|------|-------------------|-----------|
+| Total Equipment | `COUNT(*) FROM equipment WHERE IsDeleted = false` | Stat summary |
+| In Store | `WHERE CurrentStatus = "in_store"` | Stat summary |
+| Allocated | `WHERE CurrentStatus = "allocated"` | Stat summary |
+| Under Repair | `WHERE CurrentStatus = "under_repair"` | Stat summary |
+| Decommissioned | `WHERE CurrentStatus = "decommissioned"` | Stat summary |
+| Employees | `COUNT(*) FROM employees` | Stat summary |
+| Currently Overdue | Allocations where `Status == "approved"` and `ExpectedReturnDate < today` | Dark amber (`#FFA000`). Clicking opens Allocation screen pre-filtered to overdue items. |
 
 Cards entrance with a bounce animation (`CardAnimState`, driven by `_animTimer` at 15 ms ticks).
 
@@ -116,15 +117,30 @@ Cards entrance with a bounce animation (`CardAnimState`, driven by `_animTimer` 
 | Category Breakdown | Horizontal Bar | Distinct `Category` grouped counts from `equipment` |
 | 6-Month Allocation Trend | Line | `allocations` grouped by `AllocationDate` month, last 6 months |
 
-### Navigation
+### Top Employees by Holdings Card
 
-Each sidebar button calls `OpenChildForm(new XxxForm())` which docks the form inside `panelContent`. The title bar label is animated character-by-character via `AnimateTitleTo()`.
+Displays top employees with active equipment holdings.
+- **Rank-based multi-colored progress bars** representing allocation volume.
+- **Allocation count label** displayed on the left side of each bar.
+- **Hover tooltip:** Moving the cursor over any employee name or bar displays detailed employee information and a complete breakdown of their held allocations.
+
+### Sidebar Collapse & Animation
+
+- **Sidebar Toggle Button (`_btnSidebarToggle`):** Located at the top of the sidebar.
+- Clicking the toggle smoothly collapses or expands the navigation sidebar using `_sidebarCollapseTimer`.
+- In collapsed mode, navigation items display icon-only view while preserving full form loading functionality.
+
+### Global Search (Ctrl + K)
+
+- **Keyboard Shortcut:** `Ctrl + K` opens the Global Search dialog (`EntitySuggestHelper`).
+- Performs real-time fuzzy search across Equipment, Allocations, Employees, and Locations.
+- Direct selection jumps directly to the target record or screen.
 
 ### 3.1 Dark Mode Toggle Switch
 
 **Source:** `DashboardForm.BuildThemeToggle()`, `ThemeHelper.ToggleTheme()`, `ThemeHelper.LoadTheme()`
 
-A pill-shaped animated toggle switch is embedded in the **top bar**, to the left of the notification bell. It renders as a 60×28 GDI+ custom panel:
+A pill-shaped animated toggle switch is embedded in the **top bar**, to the left of the notification bell. Hovering over the theme change emoji displays a visual hover highlight.
 
 - **Light side (left):** ☀️ sun icon in amber.
 - **Dark side (right):** 🌙 moon icon in slate-blue.
@@ -153,11 +169,11 @@ A pill-shaped animated toggle switch is embedded in the **top bar**, to the left
 
 **Source:** top bar, all screens.
 
-Shows a live count badge for:
-- Overdue allocations (`Allocations WHERE Status == "approved" AND ExpectedReturnDate < today`)
-- Open maintenance records (`MaintenanceRecords WHERE Status != "resolved"`)
+- Displays a live notification bell with hover visual effect.
+- Shows a live count badge for overdue allocations (`Allocations WHERE Status == "approved" AND ExpectedReturnDate < today`), open maintenance records (`MaintenanceRecords WHERE Status != "resolved"`), and low stock items.
+- Dropdown popup (`NotificationHelper.ShowNotificationPopup`) lists all alerts with direct click navigation.
 
-Dropdown lists both categories with quick links to the relevant equipment.
+---
 
 ---
 
@@ -191,6 +207,7 @@ Dropdown lists both categories with quick links to the relevant equipment.
 | Delete | `EquipmentService.Delete(id)` → sets `IsDeleted = true`, `DeletedAt = DateTime.UtcNow`. Soft delete. **No audit log.** |
 | Refresh | Clears search, resets page 1, reloads. |
 | Export | Iterates visible grid rows → CSV. |
+| Import | Imports equipment from a CSV file. **Hover tooltip:** "Make sure the category of the equipment you are about to import is already added in the Category screen in Settings." |
 | Select Mode | "Select ✔" shows per-row checkbox; "Select All" calls `SelectAll()`. |
 
 ### 4.2 Add / Edit — `AddEditEquipmentForm` + `EquipmentService`
@@ -788,14 +805,14 @@ Entirely code-built; no Designer layout. Left sidebar slides in on load via a ti
 
 ### 16.1 General — Company Information
 
-**Load (`LoadSettings`):** `db.AppSettings.FirstOrDefault()`. If none → inserts default row (`CompanyName = "Q-Inventory"`, `Theme = "Light"`, `LabelWidthMm = 62`, `LabelHeightMm = 29`).
+**Load (`LoadSettings`):** `db.AppSettings.FirstOrDefault()`. If none → inserts default row (`CompanyName = "AssetPilot"`, `Theme = "Light"`, `LabelWidthMm = 62`, `LabelHeightMm = 29`).
 
 **Save (`btnSave_Click`):**
 - Validates `CompanyName` non-empty; `LabelWidthMm` and `LabelHeightMm` positive integers.
 - Upserts `AppSetting`. Sets `Theme = "Light"` (**hardcoded**, no theme switching implemented).
 - `SaveChanges`. On General panel: shows inline `"✓ Saved"` pill (Save button disabled until Company Name is changed — dirty-check via `_originalCompanyName`). On Printing panel: shows `MessageBox`.
 
-**System card:** App version from `Assembly.GetName().Version`. Last backup from `%AppData%\QInventory\lastbackup.txt`. Database name from loaded `AppSetting.DbName + " · " + DbServer`.
+**System card:** App version from `Assembly.GetName().Version`. Last backup from `%AppData%\AssetPilot\lastbackup.txt`. Database name from loaded `AppSetting.DbName + " · " + DbServer`.
 
 **Danger Zone:**
 
@@ -806,7 +823,7 @@ Entirely code-built; no Designer layout. Left sidebar slides in on load via a ti
 
 ### 16.2 Backup / Restore
 
-**Backup:** Prompts for credentials (Host, Database, Username, Password dialog) → spawns `mysqldump.exe -h {host} -u {user} [-p{pass}] {db}` as a process. Reads `StandardOutput` to `.sql` file. Writes timestamp to `%AppData%\QInventory\lastbackup.txt`. Locates `mysqldump.exe` via: cached path in `%AppData%\QInventory\mysqltools.txt` → common dirs (`C:\xampp\mysql\bin`, MySQL 8.0/8.4, WAMP64) → `OpenFileDialog` prompt. **Password passed as CLI argument — visible in process listings.** Success/failure shown as toast notification.
+**Backup:** Prompts for credentials (Host, Database, Username, Password dialog) → spawns `mysqldump.exe -h {host} -u {user} [-p{pass}] {db}` as a process. Reads `StandardOutput` to `.sql` file. Writes timestamp to `%AppData%\AssetPilot\lastbackup.txt`. Locates `mysqldump.exe` via: cached path in `%AppData%\AssetPilot\mysqltools.txt` → common dirs (`C:\xampp\mysql\bin`, MySQL 8.0/8.4, WAMP64) → `OpenFileDialog` prompt. **Password passed as CLI argument — visible in process listings.** Success/failure shown as toast notification.
 
 **Restore:** Selects `.sql` file → confirms destructive overwrite with MessageBox → spawns `mysql.exe`, pipes file to `StandardInput`. Success/failure shown as toast. Recommends app restart after.
 
@@ -888,7 +905,7 @@ Visible only when `AuthService.IsAdmin` is true. Manages the database connection
 | Button | Behaviour |
 |--------|-----------|
 | ✔ Test Connection | Builds a connection string from the form values, creates a temporary `InventoryDbContext` with those options, calls `db.Database.CanConnect()`. Shows ✅ or ❌ in inline label. Enables "Save Connection" only on success. |
-| 💾 Save Connection | Calls `DbConnectionSettingsService.Save(settings, plainPassword)`. Password is **DPAPI-encrypted** (`ProtectedData.Protect` with `DataProtectionScope.CurrentUser`) before writing to `%AppData%\QInventory\dbconnection.json`. Shows toast on success. |
+| 💾 Save Connection | Calls `DbConnectionSettingsService.Save(settings, plainPassword)`. Password is **DPAPI-encrypted** (`ProtectedData.Protect` with `DataProtectionScope.CurrentUser`) before writing to `%AppData%\AssetPilot\dbconnection.json`. Shows toast on success. |
 
 **Connection Status card:** Displays `Current Status` (🟢 Connected / 🔴 Disconnected), `Active Server` (database · host), `Last Successful Connection` (timestamp). Values are populated by `RefreshFromSaved()` which loads the saved settings and tests the connection on panel load.
 
@@ -899,7 +916,7 @@ Visible only when `AuthService.IsAdmin` is true. Manages the database connection
 - `TestConnection(settings, plainPassword, out error)`: Uses EF Core `Database.CanConnect()` — no extra NuGet dependency.
 - `SeedIfMissing(...)`: One-time migration — if no settings file exists, seeds from the previously hardcoded connection string so existing installs don't break on upgrade.
 
-**File storage:** `%AppData%\QInventory\dbconnection.json`
+**File storage:** `%AppData%\AssetPilot\dbconnection.json`
 
 ---
 
@@ -1043,7 +1060,7 @@ This section summarizes all significant features and improvements added as of th
 A new sixth Settings tab — **System Configuration** — is available exclusively to Admin users. It provides a live database connection management UI:
 - Fields for `Database Server (IP)`, `Database Name`, `Database Username`, `Database Password` (with eye-toggle).
 - **Test Connection** button that validates connectivity without saving.
-- **Save Connection** button (enabled only after a successful test) that DPAPI-encrypts the password and writes to `%AppData%\QInventory\dbconnection.json`.
+- **Save Connection** button (enabled only after a successful test) that DPAPI-encrypts the password and writes to `%AppData%\AssetPilot\dbconnection.json`.
 - **Connection Status** card showing live status (🟢/🔴), active server, and last successful connection time.
 
 ### 20.2 Profile Pictures — Users & Employees
@@ -1229,3 +1246,118 @@ The Check-Out tab now features linked **Location** and **Room** dropdowns:
 |--------|--------|----------------|------------|
 | Clear Maintenance History | Equipment Detail Popup | `maintenance_records` (range delete) | ✅ `Maintenance History Cleared` |
 | View Logs (from detail popup) | Equipment / Allocation Detail | *(navigation only, no write)* | ❌ |
+
+---
+
+## 22. New Features & Recent Changes (2026-09-05)
+
+This section documents all significant features and improvements added as of the **2026-09-05** update.
+
+### 22.1 Application Rebrand — AssetPilot
+
+All user-visible text, window titles, metadata, and hardcoded strings previously reading "Q-Inventory", "QInventory", or "Q Inventory" have been replaced with "AssetPilot" throughout:
+
+- Login screen title, splash/loading animation branding.
+- Dashboard header, sidebar logo/branding label.
+- About dialog and all footers.
+- `AppSetting` default `CompanyName` seed value (`"AssetPilot"`).
+- `app_settings` table default row.
+- Assembly metadata: `Product`, `Title`, `Description`, `Company` (in `AssetPilot.csproj`).
+- Settings panel System card, and all log/notification/exception messages.
+- File system paths: `%AppData%\AssetPilot\` (previously `%AppData%\QInventory\`).
+
+> **Note:** Namespaces, class names, folder names, and database schema/table names were intentionally left unchanged.
+
+### 22.2 Local Picture Storage — Localhost / XAMPP Support
+
+**Source:** `Helpers/NetworkPaths.cs`, `Helpers/NetworkShareHelper.cs`, `Helpers/PictureStorageHelper.cs`
+
+Previous versions stored equipment, employee, and user profile pictures exclusively on a remote network share (`\\192.168.18.240\Qinventorydata`). The system has been updated to support local picture storage when the app is running on localhost (XAMPP/MySQL).
+
+**Fallback directory resolution (`NetworkPaths.cs`):**
+
+| Picture Type | Remote Path | Local Fallback |
+|---|---|---|
+| Equipment pictures | `\\{server}\AssetPilotData\equipment_pictures\` | `%AppData%\AssetPilot\equipment_pictures\` |
+| Employee pictures | `\\{server}\AssetPilotData\employee_pictures\` | `%AppData%\AssetPilot\employee_pictures\` |
+| User pictures | `\\{server}\AssetPilotData\user_pictures\` | `%AppData%\AssetPilot\user_pictures\` |
+
+**`PictureStorageHelper`:** Abstracts save/load operations. Attempts the network share first; falls back to local `%AppData%\AssetPilot\` directories if the share is unreachable or not configured.
+
+**`NetworkShareHelper.EnsureConnected()`:** Attempts to establish the network share connection. On failure (e.g. `localhost` deployments), silently continues and allows the local fallback path to be used.
+
+**Upload behaviour (Add/Edit forms):** The Upload button opens an `OpenFileDialog` (JPG/PNG/BMP/GIF). The selected file is copied to the resolved pictures directory (network or local fallback) as `{code}_{GUID}{ext}`. The resolved path is stored in `picture_path` on save.
+
+### 22.3 Toast Notification Color System
+
+Toast notifications across all screens are now styled to match the color of their corresponding action buttons for consistent visual feedback:
+
+| Action | Toast Color |
+|--------|-------------|
+| Approve / Save / Success | Green |
+| Edit / Warning / Info | Yellow/Amber |
+| Delete / Decommission / Error | Red |
+| Restore / Undo | Purple |
+| Check-In/Out | Blue |
+
+**Specific screen alignment:**
+
+- **Decommission screen:** Decommission action toast uses the same red as the Decommission button.
+- **Deleted Items screen:** Restore toast = purple (matches Restore button); Delete toast = red.
+- **Settings → User Management:** Edit toast = yellow (matches Edit button); Toggle/Delete toasts match respective button colors.
+- **Allocation screen:** Approve toast = green (matches Approve button).
+
+### 22.4 Allocation Screen — Status Column Formatting
+
+The `Status` column in the Allocation grid now displays human-readable text with proper capitalization and no underscores:
+
+| DB / Internal Value | Displayed as |
+|---|---|
+| `in_store` | `In Store` |
+| `allocated` | `Allocated` |
+| `pending` | `Pending` |
+| `Overdue` (UI-computed) | `Overdue` |
+
+The `Source` column similarly displays properly cased values (e.g. `Allocation`, `Check-In/Out`).
+
+### 22.5 Overdue Highlighting — Allocations & Logs
+
+**Allocation screen:** Rows where the allocation is overdue (i.e. `Status == "approved"` and `ExpectedReturnDate < today`) are highlighted with dark yellow/amber (`Color.FromArgb(255, 160, 0)`) background — the same amber used on the Currently Overdue dashboard card — instead of the previously used red.
+
+**Logs screen:** The `"Allocation Overdue"` action badge is displayed in dark yellow/amber (matching `#FFA000`) and with spaces between words (no underscore). `LogsForm.FormatAction()` handles this mapping.
+
+### 22.6 Check-In / Out Bug Fixes
+
+**Source:** `Forms/CheckInOutForm.cs`, `Services/TransactionService.cs`
+
+Two bugs were resolved:
+
+1. **Check-Out of In-Store equipment was blocked:** The Check-In/Out form was incorrectly preventing Check-Out of equipment with `CurrentStatus = "in_store"`. The `btnCheckOut_Click` validation logic was corrected so that equipment already `in_store` with no active transaction can be checked out without error.
+
+2. **Allocation screen — cannot allocate some equipment:** The `AllocationService.Allocate()` method was silently rejecting equipment that had a previously completed (returned) allocation. The guard condition was tightened to only block when an `"approved"` or `"pending"` allocation already exists, allowing equipment with only historical `"returned"` allocations to be re-allocated.
+
+### 22.7 Equipment Import Tooltip
+
+**Source:** `Forms/EquipmentForm.cs`
+
+The **Import** button in the Equipment form toolbar now displays a tooltip when hovered:
+
+> *"Make sure the category of the equipment you are about to import is already added in the Category screen in Settings."*
+
+This reminds users to pre-create categories before bulk importing, preventing orphaned category strings.
+
+### 22.8 Dashboard — Sidebar Navigation
+
+- **Navigation:** Each sidebar button calls `OpenChildForm(new XxxForm())` which docks the form inside `panelContent`. The title bar label is animated character-by-character via `AnimateTitleTo()`.
+- **Sidebar collapse toggle (`_btnSidebarToggle`):** Fully visible and not clipped at any window height. Uses `_sidebarCollapseTimer` for smooth slide animation.
+- **Hover effects:** Both the theme toggle emoji (☀️/🌙) and the notification bell (🔔) display visual hover highlights when the cursor moves over them.
+
+### 22.9 Cross-Module Effects — 2026-09-05 Changes
+
+| Action | Module | Tables Written | Audit Log? |
+|--------|--------|----------------|------------|
+| Upload Equipment Picture (localhost) | Equipment Add/Edit | `equipment` (`picture_path`) | ✅ `equipment_updated` (diff) |
+| Upload Employee Picture (localhost) | Employee Add/Edit | `employees` (`picture_path`) | ✅ `employee_updated` |
+| Upload User Picture (localhost) | Settings → Users | `users` (`picture_path`) | ❌ |
+| Check-Out (corrected) | Check In/Out | `transactions`, `equipment` | ✅ `checked_out` |
+| Allocate (guard fixed) | Allocation | `allocations`, `equipment` | ✅ `allocation_requested` |

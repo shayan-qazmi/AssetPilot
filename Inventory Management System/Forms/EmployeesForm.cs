@@ -479,6 +479,13 @@ namespace Inventory_Management_System.Forms
 
         private void btnEdit_Click(object sender, EventArgs e)
         {
+            var selectedCodes = GetSelectedEmployeeCodes();
+            if (selectedCodes.Count > 1)
+            {
+                ShowToast("Multiple employees can't be edited at once — please select only one.", ToastType.Warning, ToastIntent.Edit);
+                return;
+            }
+
             if (dgvEmployees.SelectedRows.Count == 0)
             {
                 ToastHelper.Show(this, "Please select an employee to edit.", ToastType.Info);

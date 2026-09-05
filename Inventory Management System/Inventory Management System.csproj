@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
@@ -8,8 +8,11 @@
 		<UseWindowsForms>true</UseWindowsForms>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<ApplicationIcon>Assets\logo.ico</ApplicationIcon>
-		<AssemblyName>Q-Inventory</AssemblyName>
-		<AssemblyTitle>Q-Inventory</AssemblyTitle>
+		<AssemblyName>AssetPilot</AssemblyName>
+		<AssemblyTitle>AssetPilot</AssemblyTitle>
+		<Product>AssetPilot</Product>
+		<Company>AssetPilot</Company>
+		<Description>AssetPilot Inventory Management System</Description>
 
 	</PropertyGroup>
 

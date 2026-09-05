@@ -79,8 +79,9 @@ namespace Inventory_Management_System.Helpers
                 string fullPath = NetworkPaths.GetUserPictureFullPath(storedPicturePath);
                 if (!File.Exists(fullPath)) return null;
 
-                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
-                return Image.FromStream(stream);
+                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var img = Image.FromStream(stream);
+                return new Bitmap(img);
             }
             catch (Exception ex)
             {
@@ -89,10 +90,6 @@ namespace Inventory_Management_System.Helpers
             }
         }
 
-        /// Attempts to load an employee's picture from the shared network folder.
-        /// Never throws — returns null (caller falls back to the default
-        /// placeholder silhouette) if the share is unreachable or the file
-        /// is missing.
         public static Image? TryLoadEmployeeImage(string? storedPicturePath)
         {
             if (string.IsNullOrWhiteSpace(storedPicturePath)) return null;
@@ -103,8 +100,9 @@ namespace Inventory_Management_System.Helpers
                 string fullPath = NetworkPaths.GetEmployeePictureFullPath(storedPicturePath);
                 if (!File.Exists(fullPath)) return null;
 
-                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
-                return Image.FromStream(stream);
+                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var img = Image.FromStream(stream);
+                return new Bitmap(img);
             }
             catch (Exception ex)
             {
@@ -112,10 +110,7 @@ namespace Inventory_Management_System.Helpers
                 return null;
             }
         }
-        /// Attempts to load an equipment picture from the shared network folder.
-        /// Never throws — returns null (caller falls back to the default
-        /// placeholder silhouette) if the share is unreachable or the file
-        /// is missing.
+
         public static Image? TryLoadEquipmentImage(string? storedPicturePath)
         {
             if (string.IsNullOrWhiteSpace(storedPicturePath)) return null;
@@ -126,8 +121,9 @@ namespace Inventory_Management_System.Helpers
                 string fullPath = NetworkPaths.GetEquipmentPictureFullPath(storedPicturePath);
                 if (!File.Exists(fullPath)) return null;
 
-                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
-                return Image.FromStream(stream);
+                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var img = Image.FromStream(stream);
+                return new Bitmap(img);
             }
             catch (Exception ex)
             {

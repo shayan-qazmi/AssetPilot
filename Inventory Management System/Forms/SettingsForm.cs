@@ -89,11 +89,11 @@ namespace Inventory_Management_System.Forms
 
         private static readonly string BackupInfoPath = Path.Combine(
       Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-      "QInventory", "lastbackup.txt");
+      "AssetPilot", "lastbackup.txt");
 
         private static readonly string MysqlToolsConfigPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "QInventory", "mysqltools.txt");
+            "AssetPilot", "mysqltools.txt");
 
         private string? _mysqldumpPath;
         private string? _mysqlPath;
@@ -908,7 +908,7 @@ namespace Inventory_Management_System.Forms
             {
                 Filter = "SQL Files|*.sql",
                 Title = "Save Database Backup",
-                FileName = $"qinventory_backup_{DateTime.Now:yyyyMMdd_HHmm}.sql"
+                FileName = $"assetpilot_backup_{DateTime.Now:yyyyMMdd_HHmm}.sql"
             };
             if (sfd.ShowDialog() != DialogResult.OK) return;
 
@@ -2483,7 +2483,7 @@ namespace Inventory_Management_System.Forms
                 {
                     _current = new AppSetting
                     {
-                        CompanyName = "Q-Inventory",
+                        CompanyName = "AssetPilot",
                         Theme = "Light",
                         DbServer = "localhost",
                         DbName = "inventory_management",
@@ -2594,7 +2594,7 @@ namespace Inventory_Management_System.Forms
 
             string printerName = txtPrinterName.Text.Trim();
             string companyName = txtCompany.Text.Trim().Length > 0
-                ? txtCompany.Text.Trim() : "Q-Inventory";
+                ? txtCompany.Text.Trim() : "AssetPilot";
 
             try
             {

@@ -242,6 +242,13 @@ namespace Inventory_Management_System.Forms
 
         private void btnEdit_Click(object sender, EventArgs e)
         {
+            var selectedIds = GetSelectedLocationIds();
+            if (selectedIds.Count > 1)
+            {
+                ShowToast("Multiple locations can't be edited at once — please select only one.", ToastType.Warning, ToastIntent.Edit);
+                return;
+            }
+
             if (dgvLocations.SelectedRows.Count == 0)
             {
                 ToastHelper.Show(this, "Please select a location to edit.", ToastType.Info);

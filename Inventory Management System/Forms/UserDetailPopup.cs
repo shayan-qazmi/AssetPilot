@@ -17,7 +17,7 @@ namespace Inventory_Management_System.Forms
         private readonly string _roleName;
         private Image? _avatarImage;
 
-        private const int DialogWidth = 520;
+        private const int DialogWidth = 580;
         private const int PaddingOuter = 20;
         private const int AvatarSize = 140;
 
@@ -46,7 +46,6 @@ namespace Inventory_Management_System.Forms
             var header = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 56,
                 BackColor = ThemeHelper.Header,
             };
 
@@ -56,20 +55,26 @@ namespace Inventory_Management_System.Forms
                 Font = new Font("Segoe UI Emoji", 13f),
                 ForeColor = Color.White,
                 AutoSize = true,
-                Location = new Point(20, 16),
                 BackColor = Color.Transparent
             };
-            header.Controls.Add(lblHeaderIcon);
 
             var lblTitle = new Label
             {
                 Text = "User Details",
-                Location = new Point(50, 15),
                 AutoSize = true,
                 Font = new Font("Segoe UI Semibold", 12.5f, FontStyle.Bold, GraphicsUnit.Point),
                 ForeColor = Color.White,
                 BackColor = Color.Transparent
             };
+
+            // Size the header to whichever label is tallest (emoji glyphs render
+            // taller than their point size), then center both vertically — this
+            // stops the icon/title from being clipped along the strip's bottom edge.
+            header.Height = Math.Max(lblHeaderIcon.Height, lblTitle.Height) + 24;
+            lblHeaderIcon.Location = new Point(20, (header.Height - lblHeaderIcon.Height) / 2);
+            lblTitle.Location = new Point(lblHeaderIcon.Right + 12, (header.Height - lblTitle.Height) / 2);
+
+            header.Controls.Add(lblHeaderIcon);
             header.Controls.Add(lblTitle);
             Controls.Add(header);
 
@@ -158,8 +163,9 @@ namespace Inventory_Management_System.Forms
                     Font = new Font("Segoe UI Emoji", 9.5f),
                     ForeColor = ThemeHelper.TextSecondary,
                     AutoSize = false,
-                    Size = new Size(22, 18),
-                    Location = new Point(14, rowY),
+                    Size = new Size(22, 26),   // taller box — emoji glyphs were
+                                               // getting clipped at the bottom
+                    Location = new Point(14, rowY - 4),
                     TextAlign = ContentAlignment.MiddleCenter
                 };
                 detailBlock.Controls.Add(iconLbl);
@@ -174,19 +180,29 @@ namespace Inventory_Management_System.Forms
                 };
                 detailBlock.Controls.Add(labelLbl);
 
+                string displayValue = string.IsNullOrWhiteSpace(value) ? "—" : value;
+                using var valueFont = new Font("Segoe UI Semibold", 9.25f);
+                int valueWidth = detailW - 50;
+                var measured = TextRenderer.MeasureText(displayValue, valueFont,
+                    new Size(valueWidth, int.MaxValue), TextFormatFlags.WordBreak);
+                int valueHeight = Math.Max(18, measured.Height);
+
+
+
+
                 var valueLbl = new Label
                 {
-                    Text = string.IsNullOrWhiteSpace(value) ? "—" : value,
-                    Font = new Font("Segoe UI Semibold", 9.25f),
+                    Text = displayValue,
+                    Font = new Font(valueFont, valueFont.Style),
                     ForeColor = ThemeHelper.TextPrimary,
                     AutoSize = false,
-                    Size = new Size(detailW - 50, 18),
+                    Size = new Size(valueWidth, valueHeight),
                     Location = new Point(40, rowY + 15),
-                    AutoEllipsis = true
+                    AutoEllipsis = false
                 };
                 detailBlock.Controls.Add(valueLbl);
 
-                rowY += 46;
+                rowY += 30 + valueHeight;
 
                 if (label != "Role") // no divider after the last row
                 {

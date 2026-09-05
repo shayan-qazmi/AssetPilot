@@ -43,6 +43,7 @@ namespace Inventory_Management_System.Forms
         private TextBox txtModel = null!;
         private TextBox txtSerialNumber = null!;
         private ComboBox cmbStatus = null!;
+        private CheckBox chkPurchaseDate = null!;
         private DateTimePicker dtpPurchaseDate = null!;
         private ComboBox cmbCategory = null!;
         private TextBox txtDescription = null!;
@@ -219,7 +220,7 @@ namespace Inventory_Management_System.Forms
                 cmbStatus.Enabled = false;
             }
 
-            dtpPurchaseDate = AddDateRow(card, "Purchase Date", ColLeft, ref yL, ref altL);
+            AddOptionalPurchaseDateRow(card, ColLeft, ref yL, ref altL);
             txtPrice = AddFieldRow(card, "Purchase Price", ColLeft, ref yL, ref altL);
 
             cmbCategory = AddComboRow(card, "Category", ColLeft, ref yL, ref altL,
@@ -998,6 +999,41 @@ namespace Inventory_Management_System.Forms
                 dtpWarrantyExpiry.Enabled = chkWarrantyExpiry.Checked;
         }
 
+        /// Purchase Date row: checkbox + DateTimePicker, mirroring the Warranty
+        /// Expiry row — Purchase Date must be optional since equipment can
+        /// legitimately have none, and a plain DateTimePicker always carries
+        /// SOME value (defaulting to today), which was silently getting saved
+        /// even when the user never touched the field.
+        private void AddOptionalPurchaseDateRow(Panel card, int x, ref int y, ref bool isAlt)
+        {
+            var pnl = MakeRowPanel(card, "", x, RowH, ref y, ref isAlt, hideLabel: true);
+
+            chkPurchaseDate = new CheckBox
+            {
+                Text = "Purchase Date:",
+                Location = new Point(8, 9),
+                AutoSize = true,
+                Checked = false,
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextSecondary,
+                BackColor = Color.Transparent,
+            };
+            pnl.Controls.Add(chkPurchaseDate);
+
+            dtpPurchaseDate = new DateTimePicker
+            {
+                Location = new Point(FieldX, 7),
+                Width = InputW,
+                Format = DateTimePickerFormat.Short,
+                Enabled = false,
+            };
+            StyleDatePicker(dtpPurchaseDate);
+            pnl.Controls.Add(dtpPurchaseDate);
+
+            chkPurchaseDate.CheckedChanged += (_, __) =>
+                dtpPurchaseDate.Enabled = chkPurchaseDate.Checked;
+        }
+
         /// Core panel factory — creates a styled row with label and bottom separator
         private Panel MakeRowPanel(Panel card, string labelText, int x, int h,
             ref int y, ref bool isAlt, bool hideLabel = false)
@@ -1146,10 +1182,19 @@ namespace Inventory_Management_System.Forms
             cmbStatus.SelectedItem = formattedInitialStatus;
             _suppressStatusEvent = false;
 
-            if (_equipment.PurchaseDate.HasValue)
+                     if (_equipment.PurchaseDate.HasValue)
+            {
+                chkPurchaseDate.Checked = true;
+                dtpPurchaseDate.Enabled = true;
                 dtpPurchaseDate.Value =
                     _equipment.PurchaseDate.Value.ToDateTime(TimeOnly.MinValue);
-            txtPrice.Text = _equipment.Price.HasValue ? _equipment.Price.Value.ToString("0.##") : "";
+            }
+            else
+            {
+                chkPurchaseDate.Checked = false;
+                dtpPurchaseDate.Enabled = false;
+            }
+            txtPrice.Text = _equipment.Price.HasValue ? _equipment.Price.Value.ToString("0.##") : ""; 
 
             cmbCategory.SelectedItem = _equipment.Category ?? "";
             txtDescription.Text = _equipment.Description ?? "";
@@ -1222,7 +1267,9 @@ namespace Inventory_Management_System.Forms
             _equipment.Model = txtModel.Text.Trim();
             _equipment.SerialNumber = txtSerialNumber.Text.Trim();
             _equipment.CurrentStatus = UnformatStatus(cmbStatus.SelectedItem?.ToString() ?? "In Store");
-            _equipment.PurchaseDate = DateOnly.FromDateTime(dtpPurchaseDate.Value);
+            _equipment.PurchaseDate = chkPurchaseDate.Checked
+                ? DateOnly.FromDateTime(dtpPurchaseDate.Value)
+                : null;
             if (!string.IsNullOrWhiteSpace(txtPrice.Text))
             {
                 if (!decimal.TryParse(txtPrice.Text, out var price))

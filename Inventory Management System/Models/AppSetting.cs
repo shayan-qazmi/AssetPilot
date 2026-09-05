@@ -6,7 +6,7 @@ namespace Inventory_Management_System.Models;
 public partial class AppSetting
 {
     public int Id { get; set; }
-    public string CompanyName { get; set; } = "Q-Inventory";
+    public string CompanyName { get; set; } = "AssetPilot";
     public string Theme { get; set; } = "Light";
     public string DbServer { get; set; } = "localhost";
     public string DbName { get; set; } = "inventory_management";

@@ -11,13 +11,19 @@ namespace Inventory_Management_System.Services
 {
     public static class DbConnectionSettingsService
     {
-        private static readonly string FolderPath = Path.Combine(
+        private static readonly string PrimaryFolder = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "AssetPilot");
+
+        private static readonly string LegacyFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "QInventory");
 
-        private static readonly string FilePath = Path.Combine(FolderPath, "dbconnection.json");
+        private static string FolderPath => Directory.Exists(PrimaryFolder) || !Directory.Exists(LegacyFolder) ? PrimaryFolder : LegacyFolder;
 
-        public static bool SettingsExist() => File.Exists(FilePath);
+        private static string FilePath => Path.Combine(FolderPath, "dbconnection.json");
+
+        public static bool SettingsExist() => File.Exists(FilePath) || File.Exists(Path.Combine(PrimaryFolder, "dbconnection.json"));
 
         public static DbConnectionSettings Load()
         {

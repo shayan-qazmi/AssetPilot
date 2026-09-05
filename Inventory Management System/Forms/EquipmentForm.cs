@@ -57,6 +57,9 @@ namespace Inventory_Management_System.Forms
             flowToolbar.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             panelTop.Height = flowToolbar.Height;
 
+            var importToolTip = new ToolTip();
+            importToolTip.SetToolTip(btnImportExcel, "Make sure the category of the equipment you are about to import is added in the Categories screen in Settings.");
+
             LoadEquipment();
             SetupSearchSuggestions();
 
@@ -960,6 +963,13 @@ namespace Inventory_Management_System.Forms
 
         private void btnEdit_Click(object sender, EventArgs e)
         {
+            var selectedList = GetSelectedEquipmentList();
+            if (selectedList.Count > 1)
+            {
+                ShowToast("Multiple items can't be edited at once — please select only one.", ToastType.Warning, ToastIntent.Edit);
+                return;
+            }
+
             var eq = GetSelectedEquipment();
             if (eq == null)
             {
@@ -1155,11 +1165,11 @@ namespace Inventory_Management_System.Forms
                 var g = pe.Graphics!;
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 
-                string companyName = "Q-Inventory";
+                string companyName = "AssetPilot";
                 try
                 {
                     using var db = new InventoryDbContext();
-                    companyName = db.AppSettings.FirstOrDefault()?.CompanyName ?? "Q-Inventory";
+                    companyName = db.AppSettings.FirstOrDefault()?.CompanyName ?? "AssetPilot";
                 }
                 catch (Exception ex)
                 {
@@ -1268,11 +1278,11 @@ namespace Inventory_Management_System.Forms
             }
 
             // Fetch company name once, used for the details block below the QR.
-            string companyName = "Q-Inventory";
+            string companyName = "AssetPilot";
             try
             {
                 using var db0 = new InventoryDbContext();
-                companyName = db0.AppSettings.FirstOrDefault()?.CompanyName ?? "Q-Inventory";
+                companyName = db0.AppSettings.FirstOrDefault()?.CompanyName ?? "AssetPilot";
             }
             catch (Exception ex)
             {

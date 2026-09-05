@@ -688,7 +688,8 @@ namespace Inventory_Management_System.Forms
         {
             if (_scannedEquipment == null) return;
 
-            if (_scannedEquipment.CurrentStatus != "in_store")
+            string eqStatus = (_scannedEquipment.CurrentStatus ?? "").Trim().ToLowerInvariant();
+            if (eqStatus != "in_store" && eqStatus != "in store" && eqStatus != "")
             {
                 ShowToast($"This equipment is currently not in store (status: {_scannedEquipment.CurrentStatus}) and cannot be checked out.", ToastType.Warning);
                 return;

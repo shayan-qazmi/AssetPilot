@@ -29,12 +29,13 @@ namespace Inventory_Management_System.Forms
         // and what gets exported when PDF/Excel buttons are clicked.
         private string _currentReport = "";
         private string _activeEquipmentCategory = "All Categories";
+        private Color? _previewHeaderColor = null; // null = default theme header color
         private DataGridView _preview = null!;
         private ContextMenuStrip? _equipmentMenu;
         private System.Windows.Forms.Timer? _equipmentMenuCloseTimer;
         private Label _previewTitle = null!;
         private Label _lblWatermark = null!;
-        private string _companyName = "Q-Inventory";
+        private string _companyName = "AssetPilot";
 
         // ── Pagination — built once, only shown once a report is selected ──
         private Panel _pnlPagination = null!;
@@ -54,6 +55,7 @@ namespace Inventory_Management_System.Forms
         public ReportsForm()
         {
             InitializeComponent();
+            btnCheckInOutReport.Click += btnCheckInOutReport_Click;
             ApplyTheme();
             BuildPreviewArea();
             LoadCompanyName();
@@ -65,7 +67,7 @@ namespace Inventory_Management_System.Forms
             try
             {
                 using var db = new InventoryDbContext();
-                _companyName = db.AppSettings.FirstOrDefault()?.CompanyName ?? "Q-Inventory";
+                _companyName = db.AppSettings.FirstOrDefault()?.CompanyName ?? "AssetPilot";
             }
             catch { /* fall back to default already set */ }
         }
@@ -79,7 +81,8 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnEquipmentReport, Color.FromArgb(94, 53, 177));
             ThemeHelper.StyleButton(btnEmployeeReport, Color.FromArgb(123, 31, 162));
             ThemeHelper.StyleButton(btnAllocationReport, Color.FromArgb(245, 124, 0));
-            ThemeHelper.StyleButton(btnReturnReport, Color.FromArgb(255, 160, 0));
+            ThemeHelper.StyleButton(btnReturnReport, Color.FromArgb(99, 102, 241));
+            ThemeHelper.StyleButton(btnCheckInOutReport, Color.FromArgb(33, 150, 243));
 
             ThemeHelper.StyleSecondaryButton(btnExportPDF);
             ThemeHelper.StyleSecondaryButton(btnExportExcel);
@@ -89,7 +92,10 @@ namespace Inventory_Management_System.Forms
             // new theme immediately instead of staying stuck on the old colors.
             if (_preview != null)
             {
-                ThemeHelper.StyleDataGridView(_preview);
+                if (_previewHeaderColor.HasValue)
+                    ThemeHelper.StyleDataGridView(_preview, _previewHeaderColor.Value);
+                else
+                    ThemeHelper.StyleDataGridView(_preview);
                 // Rebuild the current page's rows so per-cell colors (Status,
                 // Overdue, Source) get reapplied for the new theme — Invalidate()
                 // alone just repaints with the old cell-level Style values,
@@ -403,6 +409,7 @@ namespace Inventory_Management_System.Forms
         private void LoadEquipmentReport(string category)
         {
             _currentReport = "Equipment";
+            _previewHeaderColor = null;
             _activeEquipmentCategory = category;
             _previewTitle.Text = category == "All Categories"
              ? $"Equipment Inventory Report — {_companyName}"
@@ -464,6 +471,7 @@ namespace Inventory_Management_System.Forms
         private void btnEmployeeReport_Click(object sender, EventArgs e)
         {
             _currentReport = "Employee";
+            _previewHeaderColor = null;
             _previewTitle.Text = $"Employee Allocation Summary — {_companyName}";
 
             var empResult = _employeeService.GetAll();
@@ -512,6 +520,7 @@ namespace Inventory_Management_System.Forms
         private void btnAllocationReport_Click(object sender, EventArgs e)
         {
             _currentReport = "Allocation";
+            _previewHeaderColor = ThemeHelper.Header;
             _previewTitle.Text = $"Active Allocations Report — {_companyName}";
 
             var result = _allocationService.GetAll();
@@ -565,6 +574,7 @@ namespace Inventory_Management_System.Forms
         private void btnReturnReport_Click(object sender, EventArgs e)
         {
             _currentReport = "Return";
+            _previewHeaderColor = Color.FromArgb(99, 102, 241);
             _previewTitle.Text = $"Returns History Report — {_companyName}";
 
             try
@@ -720,7 +730,111 @@ namespace Inventory_Management_System.Forms
         }
 
 
+        private void btnCheckInOutReport_Click(object sender, EventArgs e)
+        {
+            _currentReport = "CheckInOut";
+            _previewHeaderColor = Color.FromArgb(33, 150, 243);
+            _previewTitle.Text = $"Check In/Out History Report — {_companyName}";
 
+            try
+            {
+                _preview.Columns.Clear();
+                _preview.Rows.Clear();
+                _preview.Columns.Add("EquipmentCode", "Equipment Code");
+                _preview.Columns.Add("EquipmentName", "Equipment Name");
+                _preview.Columns.Add("Type", "Type");
+                _preview.Columns.Add("IssuedTo", "Issued To");
+                _preview.Columns.Add("Department", "Department");
+                _preview.Columns.Add("Operator", "Operator");
+                _preview.Columns.Add("ExpectedReturn", "Expected Return");
+                _preview.Columns.Add("Status", "Status");
+                _preview.Columns.Add("ConditionBefore", "Condition Before");
+                _preview.Columns.Add("ConditionAfter", "Condition After");
+                _preview.Columns.Add("Date", "Date");
+                _preview.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+
+                using var db = new InventoryDbContext();
+                var transactions = db.Transactions
+                    .Include(t => t.Equipment)
+                    .OrderByDescending(t => t.TransactionDate)
+                    .ToList();
+
+                var checkInTxEquipmentIds = transactions
+                    .Where(t => string.Equals(t.TransactionType, "Check-In", StringComparison.OrdinalIgnoreCase))
+                    .Select(t => t.EquipmentId)
+                    .ToHashSet();
+
+                var entries = new List<(Transaction Tx, bool IsCheckIn)>();
+                foreach (var t in transactions)
+                {
+                    if (string.Equals(t.TransactionType, "Check-In", StringComparison.OrdinalIgnoreCase))
+                    {
+                        entries.Add((t, true));
+                    }
+                    else
+                    {
+                        entries.Add((t, false));
+                        if (t.ActualReturn.HasValue && !checkInTxEquipmentIds.Contains(t.EquipmentId))
+                            entries.Add((t, true));
+                    }
+                }
+
+                entries = entries
+                    .OrderByDescending(en => en.IsCheckIn
+                        ? (en.Tx.ReturnProcessedAt ?? en.Tx.ActualReturn!.Value.ToDateTime(TimeOnly.MinValue))
+                        : en.Tx.TransactionDate)
+                    .ToList();
+
+                _reportRowBuilders = entries.Select(en => (Action)(() =>
+                {
+                    var t = en.Tx;
+                    string typeLabel = en.IsCheckIn ? "Check-In" : (t.TransactionType ?? "—");
+                    string dateStr = en.IsCheckIn
+                        ? t.ActualReturn!.Value.ToDateTime(TimeOnly.MinValue).ToString("yyyy-MM-dd")
+                        : t.TransactionDate.ToString("yyyy-MM-dd HH:mm");
+                    string statusStr = en.IsCheckIn ? "Completed" : (t.Status ?? "—");
+
+                    int rowIdx = _preview.Rows.Add(
+                        t.Equipment?.EquipmentCode ?? "—",
+                        t.Equipment?.Name ?? "—",
+                        typeLabel,
+                        t.IssuedTo ?? "—",
+                        t.Department ?? "—",
+                        t.OperatorName ?? "—",
+                        t.ExpectedReturn?.ToString("yyyy-MM-dd") ?? "—",
+                        statusStr,
+                        t.ConditionBefore ?? "—",
+                        t.ConditionAfter ?? "—",
+                        dateStr);
+
+                    var typeCell = _preview.Rows[rowIdx].Cells["Type"];
+                    typeCell.Style.Font = ThemeHelper.FontBold;
+                    typeCell.Style.ForeColor = typeLabel switch
+                    {
+                        "Check-Out" => Color.FromArgb(25, 118, 210),
+                        "Check-In" => ThemeHelper.Success,
+                        _ => ThemeHelper.TextPrimary
+                    };
+
+                    var statusCell = _preview.Rows[rowIdx].Cells["Status"];
+                    statusCell.Style.Font = ThemeHelper.FontBold;
+                    statusCell.Style.ForeColor = statusStr switch
+                    {
+                        "Pending" => ThemeHelper.Warning,
+                        "Completed" => ThemeHelper.Success,
+                        "Overdue" => ThemeHelper.Danger,
+                        _ => ThemeHelper.TextPrimary
+                    };
+                })).ToList();
+
+                _currentPage = 1;
+                RenderReportPage();
+            }
+            catch (Exception ex)
+            {
+                ToastHelper.Show(this, "Error loading check in/out report: " + ex.Message, ToastType.Error);
+            }
+        }
 
 
         private void btnExportPDF_Click(object sender, EventArgs e)
