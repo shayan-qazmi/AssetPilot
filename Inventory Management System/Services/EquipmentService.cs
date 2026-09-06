@@ -453,7 +453,11 @@ namespace Inventory_Management_System.Services
             }
         }
 
-        public ServiceResult<int> AddRange(IEnumerable<Equipment> items)
+        // Changed from ServiceResult<int> to a tuple so per-item failure reasons
+        // are never discarded, even on partial success. Previously, once even one
+        // item succeeded, the whole error list was thrown away — which is why a
+        // partial import (e.g. 123 of 355) showed no explanation at all.
+        public (int SuccessCount, List<string> Errors) AddRange(IEnumerable<Equipment> items)
         {
             int successCount = 0;
             var errors = new List<string>();
@@ -462,15 +466,19 @@ namespace Inventory_Management_System.Services
             {
                 var result = Add(item);
                 if (result.Success)
+                {
                     successCount++;
+                }
                 else
-                    errors.Add($"{item.EquipmentCode}: {result.ErrorMessage}");
+                {
+                    string label = !string.IsNullOrWhiteSpace(item.EquipmentCode)
+                        ? item.EquipmentCode
+                        : (!string.IsNullOrWhiteSpace(item.Name) ? item.Name : "(unnamed row)");
+                    errors.Add($"{label}: {result.ErrorMessage}");
+                }
             }
 
-            if (successCount == 0 && errors.Count > 0)
-                return ServiceResult<int>.Fail(string.Join("\n", errors));
-
-            return ServiceResult<int>.Ok(successCount);
+            return (successCount, errors);
         }
     }
 }

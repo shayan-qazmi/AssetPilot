@@ -681,7 +681,7 @@ namespace Inventory_Management_System.Forms
                     displayText = "Allocated";
                     break;
                 case "under_repair":
-                    badgeBg = Color.FromArgb(220, 85, 40);
+                    badgeBg = Color.FromArgb(33, 150, 243); // blue — matches Log Maintenance Issue's OK button
                     displayText = "Under Repair";
                     break;
                 case "decommissioned":

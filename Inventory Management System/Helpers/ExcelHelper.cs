@@ -467,6 +467,8 @@ namespace Inventory_Management_System.Helpers
         {
             var items = new List<Equipment>();
             var errors = new List<string>();
+            var skippedNoNameRows = new List<int>();          // NEW
+    
 
             if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
             {
@@ -543,8 +545,11 @@ namespace Inventory_Management_System.Helpers
                     {
                         var row = worksheet.Row(r);
                         string eqName = nameCol > 0 ? GetCellText(row.Cell(nameCol)) : "";
-                        if (string.IsNullOrWhiteSpace(eqName)) continue;
-
+                        if (string.IsNullOrWhiteSpace(eqName))
+                        {
+                            skippedNoNameRows.Add(r);
+                            continue;
+                        }
                         string eqCode = codeCol > 0 ? GetCellText(row.Cell(codeCol)) : "";
                         // Leave blank if the sheet has no code — EquipmentService.Add()
                         // will generate one that continues the real DB sequence
@@ -583,29 +588,19 @@ namespace Inventory_Management_System.Helpers
                         SetProp(eq, "Category", cat);
                         SetProp(eq, "CategoryName", cat);
 
-                        // Location
-                        string loc = locCol > 0 ? CleanNa(GetCellText(row.Cell(locCol))) : "";
-                        SetProp(eq, "Location", loc);
-                        SetProp(eq, "LocationName", loc);
+                        // Location column is intentionally ignored on import — a location is
+                        // only meaningful once tied to a real Allocation record, which the
+                        // Excel import doesn't create. Set it via the Allocation screen.
 
-                        // Status — default to "in_store" if missing
-                        string status = statusCol > 0 ? CleanNa(GetCellText(row.Cell(statusCol))) : "";
-                        if (string.IsNullOrWhiteSpace(status)) status = "in_store";
-                        // Normalise common display values to DB snake_case
-                        if (status.Equals("In Store", StringComparison.OrdinalIgnoreCase) ||
-                            status.Equals("In-Store", StringComparison.OrdinalIgnoreCase) ||
-                            status.Equals("Available", StringComparison.OrdinalIgnoreCase))
-                            status = "in_store";
-                        else if (status.Equals("Allocated", StringComparison.OrdinalIgnoreCase))
-                            status = "allocated";
-                        else if (status.Equals("Under Repair", StringComparison.OrdinalIgnoreCase))
-                            status = "under_repair";
-                        else if (status.Equals("Decommissioned", StringComparison.OrdinalIgnoreCase))
-                            status = "decommissioned";
-                        SetProp(eq, "CurrentStatus", status);
+                        // Status column is intentionally ignored on import. "Allocated" in
+                        // this app means a real row in the Allocations table linking the
+                        // equipment to an employee/location — the Excel sheet has no way to
+                        // supply that, so every imported item starts as "in_store" and gets
+                        // allocated properly afterward through the Allocation screen.
+                        SetProp(eq, "CurrentStatus", "in_store");
 
-                        string cond = condCol > 0 ? CleanNa(GetCellText(row.Cell(condCol))) : "";
-                        eq.ConditionGrade = NormalizeConditionGrade(cond);   // set directly — keep true null, don't let SetProp coerce it to ""
+                        // Condition column is intentionally ignored on import — left null.
+                        eq.ConditionGrade = null;
 
                         // Purchase Date
                         if (purchDateCol > 0)
@@ -655,6 +650,15 @@ namespace Inventory_Management_System.Helpers
                 {
                     errors.Add("Could not find header row containing 'Equipment Code', 'Name', or 'Equipment Name'.");
                 }
+
+                if (skippedNoNameRows.Count > 0)
+                {
+                    string rowList = string.Join(", ", skippedNoNameRows.Take(30));
+                    string suffix = skippedNoNameRows.Count > 30 ? $", and {skippedNoNameRows.Count - 30} more" : "";
+                    errors.Add($"Skipped {skippedNoNameRows.Count} row(s) with a blank Name cell (rows: {rowList}{suffix}). If these should have imported, check whether the sheet uses merged cells that leave the Name blank on later rows.");
+                }
+
+              
             }
             catch (Exception ex)
             {
@@ -698,6 +702,61 @@ namespace Inventory_Management_System.Helpers
 
             // Unknown value — don't let it crash the whole import; leave blank instead
             return null;
+        }
+
+        private static readonly string[] ValidEquipmentStatuses = { "in_store", "allocated", "under_repair", "decommissioned" };
+
+        /// <summary>
+        /// Normalizes a free-text Status cell to one of the DB's valid enum values.
+        /// Never returns anything outside ValidEquipmentStatuses — an unrecognized
+        /// value falls back to "in_store" (and is reported via wasUnrecognized)
+        /// instead of being passed through to MySQL, which throws a "Data truncated"
+        /// error for any value outside the column's ENUM definition.
+        /// </summary>
+        private static string NormalizeEquipmentStatus(string raw, out bool wasUnrecognized)
+        {
+            wasUnrecognized = false;
+            if (string.IsNullOrWhiteSpace(raw)) return "in_store";
+
+            string key = raw.Trim().ToLowerInvariant().Replace('-', ' ').Replace('_', ' ');
+            key = string.Join(" ", key.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+
+            switch (key)
+            {
+                case "in store":
+                case "instore":
+                case "available":
+                case "stock":
+                case "in stock":
+                    return "in_store";
+
+                case "allocated":
+                case "assigned":
+                case "issued":
+                case "checked out":
+                case "checkout":
+                case "in use":
+                    return "allocated";
+
+                case "under repair":
+                case "repair":
+                case "maintenance":
+                case "being repaired":
+                case "in repair":
+                    return "under_repair";
+
+                case "decommissioned":
+                case "retired":
+                case "disposed":
+                case "scrapped":
+                case "broken":
+                case "written off":
+                    return "decommissioned";
+
+                default:
+                    wasUnrecognized = true;
+                    return "in_store"; // safe default — never lets an invalid value reach the DB
+            }
         }
 
         public static bool ExportEquipment(string filePath, IEnumerable<Equipment> equipments)

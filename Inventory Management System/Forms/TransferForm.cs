@@ -334,13 +334,19 @@ namespace Inventory_Management_System.Forms
                 db.SaveChanges();
 
                 string oldEmpName = oldAlloc.EmployeeId.HasValue ? db.Employees.FirstOrDefault(x => x.Id == oldAlloc.EmployeeId)?.FullName ?? "Unknown" : "—";
-                string oldLocName = oldAlloc.LocationId.HasValue ? db.Locations.FirstOrDefault(x => x.Id == oldAlloc.LocationId)?.LocationName ?? "Unknown" : "—";
                 string newEmpName = newAlloc.EmployeeId.HasValue ? db.Employees.FirstOrDefault(x => x.Id == newAlloc.EmployeeId)?.FullName ?? "Unknown" : "—";
-                string newLocName = newAlloc.LocationId.HasValue ? db.Locations.FirstOrDefault(x => x.Id == newAlloc.LocationId)?.LocationName ?? "Unknown" : "—";
+
+                var oldLocation = oldAlloc.LocationId.HasValue ? db.Locations.FirstOrDefault(x => x.Id == oldAlloc.LocationId) : null;
+                var newLocation = newAlloc.LocationId.HasValue ? db.Locations.FirstOrDefault(x => x.Id == newAlloc.LocationId) : null;
+
+                string oldLocDisplay = oldLocation == null ? "—" :
+                    (FormatRoom(oldLocation) == "—" ? oldLocation.LocationName : $"{oldLocation.LocationName} - {FormatRoom(oldLocation)}");
+                string newLocDisplay = newLocation == null ? "—" :
+                    (FormatRoom(newLocation) == "—" ? newLocation.LocationName : $"{newLocation.LocationName} - {FormatRoom(newLocation)}");
 
                 _audit.Log(oldAlloc.EquipmentId, AuditService.ActionTransferred,
-                    $"Employee: {oldEmpName} | Location: {oldLocName}",
-                    $"Employee: {newEmpName} | Location: {newLocName}");
+                    $"Employee: {oldEmpName} | Location: {oldLocDisplay}",
+                    $"Employee: {newEmpName} | Location: {newLocDisplay}");
 
                 LoadAllocatedEquipment();
                 ShowToast("Equipment transferred successfully.", ToastType.Success);

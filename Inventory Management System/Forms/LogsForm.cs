@@ -18,12 +18,15 @@ namespace Inventory_Management_System.Forms
         private List<EquipmentLog> _allLogs = new();
 
         private int _currentPage = 1;
-        private int _pageSize = 25;
+        private int _pageSize = 100;
         private int _totalPages = 1;
         private int _totalMatchingCount = 0;
 
         private string _sortColumn = "CreatedAt";
         private bool _sortAscending = false;
+
+        private readonly Dictionary<string, string> _baseHeaderText = new();
+        private System.Windows.Forms.Timer _searchDebounceTimer = null!;
 
         public LogsForm()
         {
@@ -31,6 +34,18 @@ namespace Inventory_Management_System.Forms
             SetupPageSizeOptions();
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
+
+            foreach (DataGridViewColumn col in dgvLogs.Columns)
+                _baseHeaderText[col.Name] = col.HeaderText;
+
+            _searchDebounceTimer = new System.Windows.Forms.Timer { Interval = 300 };
+            _searchDebounceTimer.Tick += (s, e) =>
+            {
+                _searchDebounceTimer.Stop();
+                _currentPage = 1;
+                LoadLogs(txtSearch.Text.Trim());
+            };
+
             LoadLogs();
 
             this.Shown += (s, e) =>
@@ -136,10 +151,10 @@ namespace Inventory_Management_System.Forms
 
         private void SetupPageSizeOptions()
         {
-            string current = cmbPageSize.SelectedItem?.ToString() ?? "25";
+            string current = cmbPageSize.SelectedItem?.ToString() ?? "100";
             cmbPageSize.Items.Clear();
-            cmbPageSize.Items.AddRange(new object[] { "25", "50", "100", "250", "500", "1000" });
-            cmbPageSize.SelectedItem = cmbPageSize.Items.Contains(current) ? current : "25";
+            cmbPageSize.Items.AddRange(new object[] { "100", "250", "500", "1000" });
+            cmbPageSize.SelectedItem = cmbPageSize.Items.Contains(current) ? current : "100";
         }
 
 
@@ -173,6 +188,8 @@ namespace Inventory_Management_System.Forms
             {
                 "ID" => "Id",
                 "Equipment" => "EquipmentCode",
+                "Name" => "EquipmentName",
+                "Make" => "EquipmentMake",
                 "QRCode" => "QrCode",
                 "Action" => "ActionType",
                 "User" => "ChangedBy",
@@ -197,6 +214,31 @@ namespace Inventory_Management_System.Forms
                 RefreshGrid(txtSearch.Text.Trim());
         }
 
+        private void UpdateSortIndicators()
+        {
+            string sortedColumnName = _sortColumn switch
+            {
+                "Id" => "ID",
+                "EquipmentCode" => "Equipment",
+                "EquipmentName" => "Name",
+                "EquipmentMake" => "Make",
+                "QrCode" => "QRCode",
+                "ActionType" => "Action",
+                "ChangedBy" => "User",
+                "OldValue" => "OldValue",
+                "NewValue" => "NewValue",
+                _ => "Date"
+            };
+
+            foreach (DataGridViewColumn col in dgvLogs.Columns)
+            {
+                if (!_baseHeaderText.TryGetValue(col.Name, out var baseText)) continue;
+                col.HeaderText = col.Name == sortedColumnName
+                    ? baseText + (_sortAscending ? " ▲" : " ▼")
+                    : baseText;
+            }
+        }
+
         private void LoadLogs(string filter = "")
         {
             try
@@ -211,6 +253,8 @@ namespace Inventory_Management_System.Forms
                 {
                     "Id" => q => _sortAscending ? q.OrderBy(l => l.Id) : q.OrderByDescending(l => l.Id),
                     "EquipmentCode" => q => _sortAscending ? q.OrderBy(l => l.Equipment!.EquipmentCode) : q.OrderByDescending(l => l.Equipment!.EquipmentCode),
+                    "EquipmentName" => q => _sortAscending ? q.OrderBy(l => l.Equipment!.Name) : q.OrderByDescending(l => l.Equipment!.Name),
+                    "EquipmentMake" => q => _sortAscending ? q.OrderBy(l => l.Equipment!.Make) : q.OrderByDescending(l => l.Equipment!.Make),
                     "QrCode" => q => _sortAscending ? q.OrderBy(l => l.Equipment!.QrCode) : q.OrderByDescending(l => l.Equipment!.QrCode),
                     "ActionType" => q => _sortAscending ? q.OrderBy(l => l.ActionType) : q.OrderByDescending(l => l.ActionType),
                     "ChangedBy" => q => _sortAscending ? q.OrderBy(l => l.ChangedByUser!.FullName) : q.OrderByDescending(l => l.ChangedByUser!.FullName),
@@ -249,6 +293,7 @@ namespace Inventory_Management_System.Forms
 
         private void RefreshGrid(string filter = "")
         {
+            dgvLogs.SuspendLayout();
             dgvLogs.Rows.Clear();
 
             List<EquipmentLog> filtered;
@@ -317,8 +362,10 @@ namespace Inventory_Management_System.Forms
 
                 switch (item.ActionType)
                 {
-                    // ── Equipment add → green ──────────────────────────────
+                    // ── Created (Equipment/Employee/Location) → unified green ──
                     case "equipment_created":
+                    case "employee_created":
+                    case "location_created":
                         actionCell.Style.BackColor = Color.FromArgb(200, 230, 201);
                         actionCell.Style.ForeColor = Color.FromArgb(27, 94, 32);
                         break;
@@ -334,9 +381,15 @@ namespace Inventory_Management_System.Forms
 
                     // ── Equipment Restore ──
                     case "equipment_restored":
-                    case "decommission_undone":
                         actionCell.Style.BackColor = Color.FromArgb(204, 243, 239);
                         actionCell.Style.ForeColor = Color.FromArgb(0, 150, 136); // Teal to match restore button
+                        break;
+
+                    // ── Restored from Decommission → lighter teal, distinct
+                    // from the general Equipment Restored teal above ─────────
+                    case "decommission_undone":
+                        actionCell.Style.BackColor = Color.FromArgb(224, 247, 244);
+                        actionCell.Style.ForeColor = Color.FromArgb(38, 166, 154);
                         break;
 
                     // ── Allocation approved → dark orange (distinct from
@@ -346,6 +399,12 @@ namespace Inventory_Management_System.Forms
                         actionCell.Style.ForeColor = Color.FromArgb(230, 81, 0);
                         break;
 
+                    // ── Return Undone → same orange family as Approved, lighter shade ──
+                    case "return_undone":
+                        actionCell.Style.BackColor = Color.FromArgb(255, 224, 178);
+                        actionCell.Style.ForeColor = Color.FromArgb(239, 108, 0);
+                        break;
+
                     // ── Allocation requested (pending) → dark green, matches the
                     // Pending status pill/Approve button ────────────────────────
                     case "allocation_requested":
@@ -353,12 +412,7 @@ namespace Inventory_Management_System.Forms
                         actionCell.Style.ForeColor = Color.White;
                         break;
 
-                    // ── Employee/Location created → light green ──
-                    case "employee_created":
-                    case "location_created":
-                        actionCell.Style.BackColor = Color.FromArgb(220, 237, 200);
-                        actionCell.Style.ForeColor = Color.FromArgb(39, 100, 30);
-                        break;
+              
 
                     // ── Return → indigo (matches Return/Undo Return buttons) ─
                     case "allocation_returned":
@@ -366,17 +420,20 @@ namespace Inventory_Management_System.Forms
                         actionCell.Style.ForeColor = Color.FromArgb(57, 60, 180);
                         break;
 
-                    // ── Check In/Out → light blue ─────────────────────────
+                    // ── Checked Out → blue ─────────────────────────────────
                     case "checked_out":
-                    case "checked_in":
                         actionCell.Style.BackColor = Color.FromArgb(179, 229, 252);
                         actionCell.Style.ForeColor = Color.FromArgb(1, 87, 155);
                         break;
 
+                    // ── Checked In → same blue family, lighter shade ───────
+                    case "checked_in":
+                        actionCell.Style.BackColor = Color.FromArgb(209, 240, 253);
+                        actionCell.Style.ForeColor = Color.FromArgb(2, 119, 189);
+                        break;
+
                     // ── Decommission / Delete / Settings wipe → red ───────
                     case "allocation_rejected":
-                    case "decommission_requested":
-                    case "decommission_approved":
                     case "equipment_deleted":
                     case "employee_deleted":
                     case "location_deleted":
@@ -391,9 +448,17 @@ namespace Inventory_Management_System.Forms
                         }
                         break;
 
+                    // ── Decommission requested/approved → lighter, warmer red,
+                    // distinct from the deep delete-red above ──────────────────
+                    case "decommission_requested":
+                    case "decommission_approved":
+                        actionCell.Style.BackColor = Color.FromArgb(255, 224, 220);
+                        actionCell.Style.ForeColor = Color.FromArgb(211, 47, 47);
+                        break;
+
                     case "allocation_overdue":
-                        actionCell.Style.BackColor = Color.FromArgb(255, 243, 224);
-                        actionCell.Style.ForeColor = Color.FromArgb(255, 160, 0);
+                        actionCell.Style.BackColor = Color.FromArgb(255, 224, 178); // slightly stronger amber tint
+                        actionCell.Style.ForeColor = Color.FromArgb(255, 160, 0);   // exact Dashboard Overdue color — unchanged
                         break;
 
                     // ── Transfer → purple ─────────────────────────────────
@@ -409,22 +474,42 @@ namespace Inventory_Management_System.Forms
                         break;
 
                     case "maintenance_opened":
-                        actionCell.Style.BackColor = Color.FromArgb(255, 224, 130);
-                        actionCell.Style.ForeColor = Color.FromArgb(130, 90, 0);
+                        actionCell.Style.BackColor = Color.FromArgb(187, 222, 251); // distinct light-blue tint, separate from Check In/Out's blue
+                        actionCell.Style.ForeColor = Color.FromArgb(33, 150, 243);  // matches Dashboard's Under Repair blue exactly
                         break;
 
                     case "maintenance_resolved":
-                        actionCell.Style.BackColor = Color.FromArgb(197, 225, 165);
-                        actionCell.Style.ForeColor = Color.FromArgb(51, 105, 30);
+                        actionCell.Style.BackColor = Color.FromArgb(178, 235, 242); // unique cyan — distinct from all other greens/teals/blues
+                        actionCell.Style.ForeColor = Color.FromArgb(0, 131, 143);
+                        break;
+
+                    // ── Maintenance history cleared → unique pinkish-red,
+                    // distinct from the reds used for delete/reject/decommission ──
+                    case "Maintenance History Cleared":
+                        actionCell.Style.BackColor = Color.FromArgb(252, 228, 236);
+                        actionCell.Style.ForeColor = Color.FromArgb(194, 24, 91);
+                        break;
+
+                    // ── Fallback for any unmapped action type → neutral gray,
+                    // so it reads as "uncolored" rather than a rendering bug ──
+                    default:
+                        actionCell.Style.BackColor = Color.FromArgb(224, 224, 224);
+                        actionCell.Style.ForeColor = Color.FromArgb(97, 97, 97);
                         break;
                 }
                 actionCell.Style.Font = ThemeHelper.FontBold;
             }
 
+            dgvLogs.ClearSelection();
+            dgvLogs.CurrentCell = null;
+
             lblRowCount.Text = $"Showing {filtered.Count} of {totalMatching} records";
             lblPageIndicator.Text = $"Page {_currentPage} of {Math.Max(1, _totalPages)}";
             btnPrevPage.Enabled = _currentPage > 1;
             btnNextPage.Enabled = _currentPage < _totalPages;
+
+            UpdateSortIndicators();
+            dgvLogs.ResumeLayout();
         }
 
         private static string FormatAction(string? raw) => raw switch
@@ -447,7 +532,8 @@ namespace Inventory_Management_System.Forms
             "allocation_overdue"   => "Allocation Overdue",
             "decommission_requested" => "Decommission Requested",
             "decommission_approved"  => "Decommission Approved",
-            "decommission_undone"    => "Decommission Undone",
+            "decommission_undone" => "Restored from Decommission",
+            "return_undone" => "Returned to Active Allocation",
             "decommission_rejected"  => "Decommission Rejected",
             "transferred"            => "Transferred",
             "checked_out"            => "Checked Out",
@@ -468,8 +554,8 @@ namespace Inventory_Management_System.Forms
 
         private void txtSearch_TextChanged(object sender, EventArgs e)
         {
-            _currentPage = 1;
-            LoadLogs(txtSearch.Text.Trim());
+            _searchDebounceTimer.Stop();
+            _searchDebounceTimer.Start();
         }
 
         private void dgvLogs_CellDoubleClick(object sender, DataGridViewCellEventArgs e)

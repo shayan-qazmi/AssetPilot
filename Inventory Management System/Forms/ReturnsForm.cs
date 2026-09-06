@@ -125,9 +125,13 @@ namespace Inventory_Management_System.Forms
             cmbPageSize.SelectedItem = cmbPageSize.Items.Contains(current) ? current : "25";
         }
 
-        private void ShowToast(string message, ToastType type = ToastType.Success, bool isEdit = false)
+        private void ShowToast(string message, ToastType type = ToastType.Success, bool isEdit = false, bool isUndo = false)
         {
-            Color color = isEdit ? Color.FromArgb(245, 158, 11) : Color.FromArgb(99, 102, 241);
+            Color color = isEdit
+                ? Color.FromArgb(245, 158, 11)
+                : isUndo
+                    ? Color.FromArgb(245, 124, 0)   // orange — matches Allocation screen
+                    : Color.FromArgb(99, 102, 241);
             ToastHelper.Show(this, message, type, 3000, color);
         }
 
@@ -135,9 +139,9 @@ namespace Inventory_Management_System.Forms
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);
-            ThemeHelper.StyleButton(btnAdd);
+            ThemeHelper.StyleButton(btnAdd, Color.FromArgb(99, 102, 241)); // blue — matches Process Return dialog
             ThemeHelper.StyleButton(btnEdit, Color.FromArgb(245, 158, 11));
-            ThemeHelper.StyleButton(btnDelete, Color.FromArgb(99, 102, 241)); // indigo — distinct from Edit/Process/Refresh
+            ThemeHelper.StyleButton(btnDelete, Color.FromArgb(245, 124, 0)); // orange — matches Allocation screen
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ApplyRoundedSearchStyle(txtSearch);
@@ -399,7 +403,7 @@ namespace Inventory_Management_System.Forms
                         SortDate = returnDate,
                         AllocatedDate = item.AllocationDate.ToString("yyyy-MM-dd"),
                         ReturnDate = item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
-                        Timestamp = item.ReturnProcessedAt,
+                        Timestamp = item.ReturnProcessedAt ?? returnDate,
                         Condition = item.Equipment?.ConditionGrade ?? "—",
                         DurationDays = (returnDate - item.AllocationDate).Days,
                         IsOverdue = item.ExpectedReturnDate.HasValue && item.ActualReturnDate.HasValue &&
@@ -434,7 +438,7 @@ namespace Inventory_Management_System.Forms
                         // NOTE: requires a ReturnProcessedAt (DateTime?) column added to Transaction,
                         // stamped when the check-in/out record is marked Completed. Until that's
                         // wired up, these rows will show "—" here (same as before this change).
-                        Timestamp = t.ReturnProcessedAt,
+                        Timestamp = t.ReturnProcessedAt ?? returnDate,
                         Condition = t.ConditionAfter ?? "—",
                         DurationDays = (returnDate - t.TransactionDate).Days,
                         IsOverdue = t.ExpectedReturn.HasValue && t.ActualReturn.HasValue &&
@@ -641,7 +645,7 @@ namespace Inventory_Management_System.Forms
         {
             if (dgvReturns.SelectedRows.Count == 0)
             {
-                ShowToast("Please select a return to Undo.", ToastType.Warning);
+                ShowToast("Please select a return to Undo.", ToastType.Warning, isUndo: true);
                 return;
             }
 
@@ -649,14 +653,14 @@ namespace Inventory_Management_System.Forms
                 && selectedReturnId < 0)
             {
                 ShowToast("Check In/Out returns can't be undone.",
-                    ToastType.Warning);
+                    ToastType.Warning, isUndo: true);
                 return;
             }
 
             var ret = GetSelectedReturn();
             if (ret == null)
             {
-                ShowToast("Please select a return to Undo.", ToastType.Warning);
+                ShowToast("Please select a return to Undo.", ToastType.Warning, isUndo: true);
                 return;
             }
 
@@ -666,7 +670,7 @@ namespace Inventory_Management_System.Forms
                 var alloc = db.Allocations.Include(a => a.Equipment).FirstOrDefault(a => a.Id == ret.Id);
                 if (alloc == null)
                 {
-                    ShowToast("Return record not found.", ToastType.Error);
+                    ShowToast("Return record not found.", ToastType.Error, isUndo: true);
                     return;
                 }
 
@@ -678,10 +682,10 @@ namespace Inventory_Management_System.Forms
 
                 if (activeAlloc != null)
                 {
-                    ToastHelper.Show(this,
+                    ShowToast(
                         $"Can't undo — '{alloc.Equipment?.EquipmentCode}' is currently allocated to " +
                         $"{activeAlloc.Employee?.FullName ?? "someone"}. Undo that allocation first.",
-                        ToastType.Warning);
+                        ToastType.Warning, isUndo: true);
                     return;
                 }
 
@@ -695,14 +699,14 @@ namespace Inventory_Management_System.Forms
                 alloc.ReturnProcessedAt = null; // no longer a "return" — clear the processed-at stamp
                 if (alloc.Equipment != null) alloc.Equipment.CurrentStatus = "allocated";
                 db.SaveChanges();
-                _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationReturned,
-                    oldValue, $"{alloc.Equipment?.EquipmentCode} - approved (return undone)");
-                ShowToast($"Return undone — '{alloc.Equipment?.EquipmentCode}' is active again.", ToastType.Success);
+                _audit.Log(alloc.EquipmentId, AuditService.ActionReturnUndone,
+          oldValue, $"{alloc.Equipment?.EquipmentCode} - approved (return undone)");
+                ShowToast($"Return undone — '{alloc.Equipment?.EquipmentCode}' is active again.", ToastType.Success, isUndo: true);
                 LoadReturns();
             }
             catch (Exception ex)
             {
-                ShowToast("Failed to undo return: " + ex.Message, ToastType.Error);
+                ShowToast("Failed to undo return: " + ex.Message, ToastType.Error, isUndo: true);
             }
         }
 
@@ -837,7 +841,7 @@ namespace Inventory_Management_System.Forms
 
             // Edit uses the same amber accent as every other edit dialog;
             // Process (add) keeps the green accent.
-            Color modeAccent = _isEdit ? Color.FromArgb(245, 158, 11) : ThemeHelper.Header;
+            Color modeAccent = _isEdit ? Color.FromArgb(245, 158, 11) : Color.FromArgb(99, 102, 241);
 
             // ── Header ──
             var pnlHeader = new Panel { Location = new Point(0, 0), Size = new Size(formWidth, 10), BackColor = modeAccent };
@@ -885,10 +889,7 @@ namespace Inventory_Management_System.Forms
             btnCancel.Click += (s, e) => DialogResult = DialogResult.Cancel;
 
             btnSave = new Button { Text = _isEdit ? "✓  Save" : "✓  Process Return", Size = new Size(_isEdit ? 150 : 210, 42) };
-            if (_isEdit)
-                ThemeHelper.StyleButton(btnSave, modeAccent);
-            else
-                ThemeHelper.StyleButton(btnSave);
+            ThemeHelper.StyleButton(btnSave, modeAccent);
             btnSave.Click += BtnSave_Click;
 
             int totalButtonsWidth = btnCancel.Width + 12 + btnSave.Width;

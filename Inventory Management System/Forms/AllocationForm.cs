@@ -206,11 +206,20 @@ namespace Inventory_Management_System.Forms
             dgvAllocation.CellDoubleClick += dgvAllocation_CellDoubleClick;
             this.Shown += (s, e) =>
             {
-                dgvAllocation.ClearSelection();
-                dgvAllocation.CurrentCell = null;
+                if (!string.IsNullOrEmpty(_pendingSelectEquipmentCode) && dgvAllocation.Rows.Count > 0)
+                {
+                    dgvAllocation.ClearSelection();
+                    dgvAllocation.Rows[0].Selected = true;
+                    dgvAllocation.CurrentCell = dgvAllocation.Rows[0].Cells["ColSelect"];
+                }
+                else
+                {
+                    dgvAllocation.ClearSelection();
+                    dgvAllocation.CurrentCell = null;
+                }
             };
         }
-
+        private string? _pendingSelectEquipmentCode;
         public AllocationForm(string initialFilter = null) : this()
         {
             if (!string.IsNullOrEmpty(initialFilter))
@@ -218,7 +227,16 @@ namespace Inventory_Management_System.Forms
                 if (string.Equals(initialFilter, "Available", StringComparison.OrdinalIgnoreCase))
                     initialFilter = "In Store";
                 int idx = cmbEquipmentFilter.Items.IndexOf($"Equipment: {initialFilter}");
-                if (idx >= 0) cmbEquipmentFilter.SelectedIndex = idx;
+                if (idx >= 0)
+                {
+                    cmbEquipmentFilter.SelectedIndex = idx;
+                }
+                else
+                {
+                    // Not a known filter label — treat it as an equipment/QR code to jump to.
+                    _pendingSelectEquipmentCode = initialFilter;
+                    txtSearch.Text = initialFilter;
+                }
             }
         }
 
@@ -786,7 +804,7 @@ namespace Inventory_Management_System.Forms
                 {
                     dgvAllocation.ClearSelection();
                     row.Selected = true;
-                    dgvAllocation.CurrentCell = row.Cells[0];
+                    dgvAllocation.CurrentCell = row.Cells["ColSelect"];
                     dgvAllocation.FirstDisplayedScrollingRowIndex = row.Index;
                     break;
                 }
@@ -1265,8 +1283,12 @@ namespace Inventory_Management_System.Forms
             var result = _allocationService.Allocate(frm.Result!);
             if (result.Success)
             {
+                var emp1 = frm.Result.EmployeeId.HasValue
+          ? _employeeService.GetAll().Data?.FirstOrDefault(x => x.Id == frm.Result.EmployeeId.Value)
+          : null;
+                string empDisplay1 = emp1 != null ? $"{emp1.EmployeeCode} - {emp1.FullName}" : "—";
                 _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
-      null, $"Allocated to Employee ID {frm.Result.EmployeeId} | Source Screen: Allocation Screen");
+                      null, $"Allocated to Employee {empDisplay1} | Source Screen: Allocation Screen");
                 ShowToast(this, "Allocation request created.", ToastType.Success);
                 LoadAllocations();
             }
@@ -1305,8 +1327,12 @@ namespace Inventory_Management_System.Forms
             var result = _allocationService.Allocate(frm.Result!);
             if (result.Success)
             {
+                var emp2 = frm.Result.EmployeeId.HasValue
+      ? _employeeService.GetAll().Data?.FirstOrDefault(x => x.Id == frm.Result.EmployeeId.Value)
+      : null;
+                string empDisplay2 = emp2 != null ? $"{emp2.EmployeeCode} - {emp2.FullName}" : "—";
                 _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
-                    null, $"Allocated to Employee ID {frm.Result.EmployeeId}");
+                    null, $"Allocated to Employee {empDisplay2}");
                 ToastHelper.Show(this, "Allocation request created.", ToastType.Success);
                 LoadAllocations();
             }

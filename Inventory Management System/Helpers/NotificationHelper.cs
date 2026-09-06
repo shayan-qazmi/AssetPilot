@@ -19,6 +19,8 @@ namespace Inventory_Management_System.Helpers
         public string Icon { get; set; } = "⚠";
         public Color AccentColor { get; set; } = Color.FromArgb(239, 68, 68);
         public NotificationSection Section { get; set; } = NotificationSection.Urgent;
+        public string? EquipmentCode { get; set; }
+        public bool NavigateToAllocation { get; set; }
     }
 
     public static class NotificationHelper
@@ -27,6 +29,14 @@ namespace Inventory_Management_System.Helpers
         private static Label _badgeLabel = null!;
         private static System.Windows.Forms.Timer? _refreshTimer;
         private static Form? _popup;
+
+        private static List<(Panel Row, string? EquipmentCode, bool ToAllocation)> _notifRows = new();
+        private static int _notifSelectedIndex = -1;
+
+        /// Set once by DashboardForm — invoked with an equipment code (and
+        /// whether to open Allocation instead of Equipment) when a
+        /// notification is clicked or Enter-selected.
+        public static Action<string, bool>? NavigateToItem;
 
         private const int RefreshIntervalMs = 60000; // 1 minute
 
@@ -169,8 +179,10 @@ namespace Inventory_Management_System.Helpers
                         Title = $"{a.Equipment?.EquipmentCode} overdue",
                         Subtitle = $"With {a.Employee?.FullName ?? "—"} • {daysLate} day(s) late",
                         Icon = "⏰",
-                        AccentColor = Color.FromArgb(239, 68, 68),
-                        Section = NotificationSection.Urgent
+                        AccentColor = Color.FromArgb(255, 160, 0),
+                        Section = NotificationSection.Urgent,
+                        EquipmentCode = a.Equipment?.EquipmentCode,
+                        NavigateToAllocation = true
                     });
                 }
 
@@ -192,8 +204,10 @@ namespace Inventory_Management_System.Helpers
                         Title = $"{t.Equipment?.EquipmentCode} checked out — overdue",
                         Subtitle = $"With {(string.IsNullOrWhiteSpace(t.IssuedTo) ? "—" : t.IssuedTo)} • {daysLate}",
                         Icon = "⏰",
-                        AccentColor = Color.FromArgb(239, 68, 68),
-                        Section = NotificationSection.Urgent
+                        AccentColor = Color.FromArgb(255, 160, 0),
+                        Section = NotificationSection.Urgent,
+                        EquipmentCode = t.Equipment?.EquipmentCode,
+                        NavigateToAllocation = true
                     });
                 }
 
@@ -218,7 +232,8 @@ namespace Inventory_Management_System.Helpers
                         Subtitle = $"Requested for {a.Employee?.FullName ?? "—"} • {waitStr}",
                         Icon = "📋",
                         AccentColor = Color.FromArgb(245, 158, 11),
-                        Section = NotificationSection.Urgent
+                        Section = NotificationSection.Urgent,
+                        EquipmentCode = a.Equipment?.EquipmentCode
                     });
                 }
 
@@ -251,8 +266,9 @@ namespace Inventory_Management_System.Helpers
                             Title = $"{eq.EquipmentCode} under repair",
                             Subtitle = subtitle,
                             Icon = "🔧",
-                            AccentColor = Color.FromArgb(255, 160, 0),
-                            Section = NotificationSection.Info
+                            AccentColor = Color.FromArgb(33, 150, 243),
+                            Section = NotificationSection.Info,
+                            EquipmentCode = eq.EquipmentCode
                         });
                     }
                 }
@@ -283,8 +299,9 @@ namespace Inventory_Management_System.Helpers
                             Title = $"{eq.EquipmentCode} decommissioned",
                             Subtitle = log.CreatedAt.HasValue ? $"{(int)(now - log.CreatedAt.Value).TotalHours} hr(s) ago" : "Recently",
                             Icon = "🚫",
-                            AccentColor = Color.FromArgb(107, 114, 128),
-                            Section = NotificationSection.Info
+                            AccentColor = Color.FromArgb(239, 68, 68),
+                            Section = NotificationSection.Info,
+                            EquipmentCode = eq.EquipmentCode
                         });
 
                         if (results.Count(r => r.Section == NotificationSection.Info) >= 8) break;
@@ -319,6 +336,9 @@ namespace Inventory_Management_System.Helpers
 
         private static void BuildDropdown(List<NotificationItem> items, Form ownerForm)
         {
+            _notifRows.Clear();
+            _notifSelectedIndex = -1;
+
             var popup = new Form
             {
                 FormBorderStyle = FormBorderStyle.None,
@@ -396,7 +416,8 @@ namespace Inventory_Management_System.Helpers
                     {
                         Location = new Point(0, y),
                         Size = new Size(listPanel.Width - 18, 58),
-                        BackColor = ThemeHelper.PopupBg
+                        BackColor = ThemeHelper.PopupBg,
+                        Cursor = item.EquipmentCode != null ? Cursors.Hand : Cursors.Default
                     };
 
                     var lblIcon = new Label
@@ -406,7 +427,8 @@ namespace Inventory_Management_System.Helpers
                         ForeColor = item.AccentColor,
                         Location = new Point(12, 10),
                         Size = new Size(30, 30),
-                        TextAlign = ContentAlignment.MiddleCenter
+                        TextAlign = ContentAlignment.MiddleCenter,
+                        BackColor = Color.Transparent
                     };
                     row.Controls.Add(lblIcon);
 
@@ -417,7 +439,8 @@ namespace Inventory_Management_System.Helpers
                         ForeColor = ThemeHelper.TextPrimary,
                         Location = new Point(50, 8),
                         Size = new Size(270, 20),
-                        AutoEllipsis = true
+                        AutoEllipsis = true,
+                        BackColor = Color.Transparent
                     };
                     row.Controls.Add(lblTitle);
 
@@ -428,7 +451,8 @@ namespace Inventory_Management_System.Helpers
                         ForeColor = ThemeHelper.TextSecondary,
                         Location = new Point(50, 28),
                         Size = new Size(270, 20),
-                        AutoEllipsis = true
+                        AutoEllipsis = true,
+                        BackColor = Color.Transparent
                     };
                     row.Controls.Add(lblSubtitle);
 
@@ -437,6 +461,21 @@ namespace Inventory_Management_System.Helpers
                         using var pen = new Pen(ThemeHelper.PopupBorder, 1);
                         e.Graphics.DrawLine(pen, 12, row.Height - 1, row.Width - 12, row.Height - 1);
                     };
+
+                    int myIndex = _notifRows.Count;
+                    _notifRows.Add((row, item.EquipmentCode, item.NavigateToAllocation));
+
+                    if (item.EquipmentCode != null)
+                    {
+                        void Go() => ActivateNotification(item.EquipmentCode!, item.NavigateToAllocation);
+                        row.Click += (s, e) => Go();
+                        lblIcon.Click += (s, e) => Go();
+                        lblTitle.Click += (s, e) => Go();
+                        lblSubtitle.Click += (s, e) => Go();
+
+                        row.MouseEnter += (s, e) => row.BackColor = ThemeHelper.PopupHoverBg;
+                        row.MouseLeave += (s, e) => row.BackColor = (myIndex == _notifSelectedIndex) ? ThemeHelper.PopupHoverBg : ThemeHelper.PopupBg;
+                    }
 
                     listPanel.Controls.Add(row);
                     y += 58;
@@ -457,11 +496,54 @@ namespace Inventory_Management_System.Helpers
                 }
             }
 
+            popup.KeyPreview = true;
+            popup.KeyDown += (s, e) =>
+            {
+                if (_notifRows.Count == 0) return;
+                if (e.KeyCode == Keys.Down) { MoveNotifSelection(1); e.Handled = true; }
+                else if (e.KeyCode == Keys.Up) { MoveNotifSelection(-1); e.Handled = true; }
+                else if (e.KeyCode == Keys.Enter)
+                {
+                    if (_notifSelectedIndex >= 0 && _notifSelectedIndex < _notifRows.Count)
+                    {
+                        var row = _notifRows[_notifSelectedIndex];
+                        if (row.EquipmentCode != null) ActivateNotification(row.EquipmentCode, row.ToAllocation);
+                    }
+                    e.Handled = true;
+                }
+                else if (e.KeyCode == Keys.Escape) { popup.Close(); e.Handled = true; }
+            };
+
             popup.Deactivate += (s, e) => { popup.Close(); };
-            popup.FormClosed += (s, e) => { _popup = null; };
+            popup.FormClosed += (s, e) => { _popup = null; _notifRows.Clear(); _notifSelectedIndex = -1; };
 
             _popup = popup;
             popup.Show(ownerForm);
+        }
+
+        private static void MoveNotifSelection(int delta)
+        {
+            if (_notifRows.Count == 0) return;
+            if (_notifSelectedIndex == -1)
+                _notifSelectedIndex = delta > 0 ? 0 : _notifRows.Count - 1;
+            else
+                _notifSelectedIndex = (_notifSelectedIndex + delta + _notifRows.Count) % _notifRows.Count;
+
+            for (int i = 0; i < _notifRows.Count; i++)
+                _notifRows[i].Row.BackColor = (i == _notifSelectedIndex) ? ThemeHelper.PopupHoverBg : ThemeHelper.PopupBg;
+
+            (_notifRows[_notifSelectedIndex].Row.Parent as ScrollableControl)?.ScrollControlIntoView(_notifRows[_notifSelectedIndex].Row);
+        }
+
+        private static void ActivateNotification(string equipmentCode, bool toAllocation)
+        {
+            if (_popup != null && !_popup.IsDisposed)
+            {
+                var p = _popup;
+                _popup = null;
+                p.Close();
+            }
+            NavigateToItem?.Invoke(equipmentCode, toAllocation);
         }
     }
 }

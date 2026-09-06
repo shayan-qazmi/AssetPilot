@@ -285,7 +285,9 @@ namespace Inventory_Management_System.Forms
                 string dateStr = en.IsCheckIn
                     ? t.ActualReturn!.Value.ToDateTime(TimeOnly.MinValue).ToString("yyyy-MM-dd")
                     : t.TransactionDate.ToString("yyyy-MM-dd HH:mm");
-                string timestampStr = en.IsCheckIn ? PktTimeHelper.Format(t.ReturnProcessedAt) : "—";
+                string timestampStr = en.IsCheckIn
+       ? PktTimeHelper.Format(t.ReturnProcessedAt ?? t.ActualReturn?.ToDateTime(TimeOnly.MinValue))
+       : "—";
                 string statusStr = en.IsCheckIn ? "Completed" : (t.Status ?? "—");
 
                 int idx = dgv.Rows.Add(

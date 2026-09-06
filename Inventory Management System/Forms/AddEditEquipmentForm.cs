@@ -563,7 +563,7 @@ namespace Inventory_Management_System.Forms
             };
 
             var btnOk = new Button { Text = "OK", Location = new Point(220, 310), Size = new Size(85, 32) };
-            ThemeHelper.StyleButton(btnOk);
+            ThemeHelper.StyleButton(btnOk, Color.FromArgb(33, 150, 243)); // blue — matches Under Repair status badge
             var btnCancelDlg = new Button { Text = "Cancel", Location = new Point(315, 310), Size = new Size(85, 32) };
             ThemeHelper.StyleSecondaryButton(btnCancelDlg);
 
@@ -623,6 +623,8 @@ namespace Inventory_Management_System.Forms
             if (confirmed)
             {
                 _originalStatus = "under_repair";
+                ToastHelper.Show(this, "Equipment marked as Under Repair.", ToastType.Info, 3000, Color.FromArgb(33, 150, 243));
+                NotificationHelper.RefreshNow();
             }
             else
             {
@@ -698,6 +700,8 @@ namespace Inventory_Management_System.Forms
                 _audit.Log(_equipment.Id, AuditService.ActionDecommissionApproved,
                     $"Status: {FormatStatus(_originalStatus!)}", $"Status: Decommissioned | Reason: {_decommissionReason} | Source Screen: Edit Equipment");
                 _originalStatus = "decommissioned";
+                ToastHelper.Show(this, "Equipment marked as Decommissioned.", ToastType.Warning, 3000, ThemeHelper.Danger);
+                NotificationHelper.RefreshNow();
             }
             else
             {
@@ -710,6 +714,12 @@ namespace Inventory_Management_System.Forms
             _audit.Log(_equipment.Id, AuditService.ActionDecommissionUndone,
                 "Status: Decommissioned", $"Status: {FormatStatus(newStatus)} | Source Screen: Edit Equipment");
             _originalStatus = newStatus;
+
+            if (string.Equals(newStatus, "in_store", StringComparison.OrdinalIgnoreCase))
+                ToastHelper.Show(this, "Equipment returned to In Store.", ToastType.Success, 3000, ThemeHelper.Success);
+            else if (string.Equals(newStatus, "under_repair", StringComparison.OrdinalIgnoreCase))
+                ToastHelper.Show(this, "Equipment marked as Under Repair.", ToastType.Info, 3000, Color.FromArgb(33, 150, 243));
+            NotificationHelper.RefreshNow();
         }
 
         private void ShowResolveMaintenanceDialog()
@@ -775,9 +785,8 @@ namespace Inventory_Management_System.Forms
                 ForeColor = ThemeHelper.Danger,
                 Font = ThemeHelper.FontSmall
             };
-
             var btnOk = new Button { Text = "OK", Location = new Point(160, 156), Size = new Size(85, 32) };
-            ThemeHelper.StyleButton(btnOk);
+            ThemeHelper.StyleButton(btnOk, Color.FromArgb(0, 131, 143)); // cyan — matches Maintenance Resolved log color
             var btnCancelDlg = new Button { Text = "Cancel", Location = new Point(255, 156), Size = new Size(85, 32) };
             ThemeHelper.StyleSecondaryButton(btnCancelDlg);
 
@@ -827,6 +836,11 @@ namespace Inventory_Management_System.Forms
             if (confirmed)
             {
                 _originalStatus = UnformatStatus(cmbStatus.SelectedItem?.ToString() ?? "");
+                if (string.Equals(_originalStatus, "in_store", StringComparison.OrdinalIgnoreCase))
+                    ToastHelper.Show(this, "Equipment returned to In Store.", ToastType.Success, 3000, ThemeHelper.Success);
+                else if (string.Equals(_originalStatus, "decommissioned", StringComparison.OrdinalIgnoreCase))
+                    ToastHelper.Show(this, "Equipment marked as Decommissioned.", ToastType.Warning, 3000, ThemeHelper.Danger);
+                NotificationHelper.RefreshNow();
             }
             else
             {
@@ -1194,7 +1208,7 @@ namespace Inventory_Management_System.Forms
                 chkPurchaseDate.Checked = false;
                 dtpPurchaseDate.Enabled = false;
             }
-            txtPrice.Text = _equipment.Price.HasValue ? _equipment.Price.Value.ToString("0.##") : ""; 
+           txtPrice.Text = _equipment.Price.HasValue ? _equipment.Price.Value.ToString("0.##") : ""; 
 
             cmbCategory.SelectedItem = _equipment.Category ?? "";
             txtDescription.Text = _equipment.Description ?? "";

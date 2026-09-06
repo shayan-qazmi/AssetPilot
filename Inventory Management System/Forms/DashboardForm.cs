@@ -378,6 +378,19 @@ namespace Inventory_Management_System
             panelTop.Paint -= PaintTopBarDiagonal;
             panelTop.Paint += PaintTopBarDiagonal;
             NotificationHelper.AttachBell(panelTop, this, rightOffset: BellRightOffset);
+            NotificationHelper.NavigateToItem = (code, toAllocation) =>
+            {
+                if (toAllocation)
+                {
+                    AnimateTitleTo("📋 Allocation");
+                    OpenChildForm(new AllocationForm(code), btnAllocation);
+                }
+                else
+                {
+                    AnimateTitleTo("🖥️ Equipment");
+                    OpenChildForm(new EquipmentForm(code), btnEquipment);
+                }
+            };
             BuildThemeToggle();
             BuildTopSearchBar();
             BuildTopProfileWidget();

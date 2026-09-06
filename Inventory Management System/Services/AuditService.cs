@@ -17,6 +17,7 @@ namespace Inventory_Management_System.Services
         public const string ActionAllocationApproved = "allocation_approved";
         public const string ActionAllocationRejected = "allocation_rejected";
         public const string ActionAllocationReturned = "allocation_returned";
+        public const string ActionReturnUndone = "return_undone";
         public const string ActionDecommissionRequested = "decommission_requested";
         public const string ActionDecommissionApproved = "decommission_approved";
         public const string ActionDecommissionUndone = "decommission_undone";

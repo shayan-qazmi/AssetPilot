@@ -26,6 +26,7 @@ namespace Inventory_Management_System.Forms
         private int _currentPage = 1;
         private int _pageSize = 25;
         private int _totalPages = 1;
+        private int _totalMatchingCount = 0;
 
         // ── Gmail-style checkbox header controls ──
         private Panel _chkHeaderPanel = null!;
@@ -600,6 +601,7 @@ namespace Inventory_Management_System.Forms
                         .ToList();
                 }
 
+                _totalMatchingCount = filtered.Count;
                 _totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)_pageSize));
                 if (_currentPage > _totalPages) _currentPage = _totalPages;
 
@@ -622,7 +624,8 @@ namespace Inventory_Management_System.Forms
                     return;
                 }
 
-                _totalPages = Math.Max(1, result.Data!.TotalPages);
+                _totalMatchingCount = result.Data!.TotalCount;
+                _totalPages = Math.Max(1, result.Data.TotalPages);
                 if (_currentPage > _totalPages) _currentPage = _totalPages;
 
                 _allEquipment = result.Data.Items;
@@ -655,6 +658,7 @@ namespace Inventory_Management_System.Forms
                       .Select(x => x.Equipment)
                       .ToList();
 
+                _totalMatchingCount = fullMatches.Count;
                 _totalPages = Math.Max(1, (int)Math.Ceiling(fullMatches.Count / (double)_pageSize));
                 if (_currentPage > _totalPages) _currentPage = _totalPages;
 
@@ -827,7 +831,7 @@ namespace Inventory_Management_System.Forms
                         statusCell.Style.BackColor = ThemeHelper.Warning;
                         break;
                     case "Under Repair":
-                        statusCell.Style.BackColor = Color.FromArgb(255, 112, 67);
+                        statusCell.Style.BackColor = Color.FromArgb(33, 150, 243);
                         break;
                     case "Decommissioned":
                         statusCell.Style.BackColor = ThemeHelper.Danger;
@@ -853,7 +857,20 @@ namespace Inventory_Management_System.Forms
                 }
                 _pendingSelectCode = null;
             }
-            lblRowCount.Text = $"Showing {dgvEquipment.Rows.Count} records";
+            else
+            {
+                dgvEquipment.ClearSelection();
+                dgvEquipment.CurrentCell = null;
+                if (IsHandleCreated)
+                {
+                    BeginInvoke(new Action(() =>
+                    {
+                        dgvEquipment.ClearSelection();
+                        dgvEquipment.CurrentCell = null;
+                    }));
+                }
+            }
+            lblRowCount.Text = $"Showing {dgvEquipment.Rows.Count} of {_totalMatchingCount} records";
             SyncHeaderCheckbox();
         }
 
@@ -1066,9 +1083,17 @@ namespace Inventory_Management_System.Forms
             if (_chkHeaderBox != null) _chkHeaderBox.Checked = false;
 
             dgvEquipment.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-            dgvEquipment.ClearSelection();
 
             LoadEquipment();
+
+            dgvEquipment.ClearSelection();
+            dgvEquipment.CurrentCell = null;
+
+            BeginInvoke(new Action(() =>
+            {
+                dgvEquipment.ClearSelection();
+                dgvEquipment.CurrentCell = null;
+            }));
         }
 
         private void btnExport_Click(object sender, EventArgs e)
@@ -1457,22 +1482,20 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            var result = _equipmentService.AddRange(items);
+            var (successCount, addErrors) = _equipmentService.AddRange(items);   // CHANGED
 
-            // Combine service-level error text with any Excel parse warnings
             var allErrors = new List<string>();
-            if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
-                allErrors.Add(result.ErrorMessage);
             allErrors.AddRange(parseErrors);
+            allErrors.AddRange(addErrors);                                       // CHANGED — always included now
 
             if (allErrors.Count == 0)
             {
-                ShowToast($"✅ {result.Data} of {items.Count} records imported successfully.");
+                ShowToast($"✅ {successCount} of {items.Count} records imported successfully.");
             }
             else
             {
                 ToastHelper.Show(this,
-                    $"{result.Data} of {items.Count} records imported. Details: " +
+                    $"{successCount} of {items.Count} records imported. Details: " +
                     string.Join("; ", allErrors.Take(20)),
                     ToastType.Warning);
             }
