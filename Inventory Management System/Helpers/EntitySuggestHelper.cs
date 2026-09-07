@@ -34,18 +34,20 @@ namespace Inventory_Management_System.Helpers
         private readonly Func<T, string> _line2;
         private readonly ListBox _listBox;
         private readonly PopupForm _popup;
+        private readonly Color _accentColor;
         private List<T> _allItems = new();
         private bool _suppressTextChanged;
         private bool _suppressHide;   // true while a listbox mouse-down is in progress
         private int _highlightedIndex = -1; // keyboard-navigation cursor (not focus)
 
         public EntitySuggestHelper(
-            TextBox textBox,
-            Form hostForm,
-            Action<T> onSelected,
-            Func<T, string, int> scoreFn,
-            Func<T, string> line1Selector,
-            Func<T, string> line2Selector)
+       TextBox textBox,
+       Form hostForm,
+       Action<T> onSelected,
+       Func<T, string, int> scoreFn,
+       Func<T, string> line1Selector,
+       Func<T, string> line2Selector,
+       Color? accentColor = null)
         {
             _textBox = textBox;
             _hostForm = hostForm;
@@ -53,6 +55,7 @@ namespace Inventory_Management_System.Helpers
             _scoreFn = scoreFn;
             _line1 = line1Selector;
             _line2 = line2Selector;
+            _accentColor = accentColor ?? ThemeHelper.Accent;
 
             _listBox = new SuggestionListBox
             {
@@ -237,19 +240,19 @@ namespace Inventory_Management_System.Helpers
             bool selected = (e.State & DrawItemState.Selected) != 0;
 
             Color bgColor = selected
-                ? (ThemeHelper.IsDarkMode ? Color.FromArgb(40, 60, 42) : Color.FromArgb(232, 245, 233))
-                : ThemeHelper.CardBg;
+          ? TintColor(ThemeHelper.CardBg, _accentColor, ThemeHelper.IsDarkMode ? 22 : 14)
+          : ThemeHelper.CardBg;
             using var bgBrush = new SolidBrush(bgColor);
             e.Graphics.FillRectangle(bgBrush, e.Bounds);
 
             if (selected)
             {
-                using var accentBrush = new SolidBrush(ThemeHelper.Accent);
+                using var accentBrush = new SolidBrush(_accentColor);
                 e.Graphics.FillRectangle(accentBrush, e.Bounds.X, e.Bounds.Y, 3, e.Bounds.Height);
             }
 
             int textX = e.Bounds.X + 10;
-            using var line1Brush = new SolidBrush(ThemeHelper.Accent);
+            using var line1Brush = new SolidBrush(_accentColor);
             using var line2Brush = new SolidBrush(ThemeHelper.TextSecondary);
 
             e.Graphics.DrawString(_line1(item) ?? "—", ThemeHelper.FontBold, line1Brush, textX, e.Bounds.Y + 3);
@@ -257,6 +260,15 @@ namespace Inventory_Management_System.Helpers
 
             using var sepPen = new Pen(ThemeHelper.CardBorder, 1f);
             e.Graphics.DrawLine(sepPen, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+        }
+
+        private static Color TintColor(Color baseColor, Color accent, int percent)
+        {
+            double a = percent / 100.0;
+            int r = (int)(accent.R * a + baseColor.R * (1 - a));
+            int g = (int)(accent.G * a + baseColor.G * (1 - a));
+            int b = (int)(accent.B * a + baseColor.B * (1 - a));
+            return Color.FromArgb(r, g, b);
         }
 
         private void UpdateSuggestions()

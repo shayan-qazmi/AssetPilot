@@ -265,8 +265,9 @@ namespace Inventory_Management_System.Forms
                                 Math.Max(
                                     FuzzySearchHelper.FuzzyScore(a.Employee?.FullName, term),
                                     FuzzySearchHelper.FuzzyScore(a.ActualReturnDate?.ToString("yyyy-MM-dd"), term))))),
-                    line1Selector: a => $"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name}",
-                    line2Selector: a => $"{a.Employee?.FullName ?? "—"} • {a.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—"}");
+                                 line1Selector: a => $"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name}",
+                    line2Selector: a => $"{a.Employee?.FullName ?? "—"} • {a.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—"}",
+                    accentColor: Color.FromArgb(99, 102, 241));
                 _suggest.LoadItems(_allReturns);
             }
             catch { /* non-critical UI enhancement, fail silently */ }
@@ -1025,10 +1026,11 @@ namespace Inventory_Management_System.Forms
                             Math.Max(
                                 FuzzySearchHelper.FuzzyScore(alloc.Equipment?.Name, term),
                                 FuzzySearchHelper.FuzzyScoreCode(alloc.Equipment?.SerialNumber, term)))),
-                    line1Selector: alloc => $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}",
+                                line1Selector: alloc => $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}",
                     line2Selector: alloc => string.IsNullOrWhiteSpace(alloc.Equipment?.SerialNumber)
                         ? $"With: {alloc.Employee?.FullName ?? "—"}"
-                        : $"S/N: {alloc.Equipment.SerialNumber} | With: {alloc.Employee?.FullName ?? "—"}");
+                        : $"S/N: {alloc.Equipment.SerialNumber} | With: {alloc.Employee?.FullName ?? "—"}",
+                    accentColor: Color.FromArgb(99, 102, 241));
                 _equipmentSuggest.LoadItems(_allocations);
             }
 

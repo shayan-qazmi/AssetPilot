@@ -36,8 +36,32 @@ namespace Inventory_Management_System.Forms
         private ComboBox cmbAllocCategoryFilter = null!;
         private string _activeCategoryFilter = "";       // empty = All Categories
         private Button btnEditReturn = null!;
+        private ToolTip? _toolbarTooltip;
+        private Button _btnFilters = null!;
+        private Button _btnCheckArrow = null!;
         private string _activeStatusFilter = "All";
         private List<AllocationRow> _lastRenderedRows = new();
+
+        private string _sortColumn = "QrCode";
+        private bool _sortAscending = true;
+        private readonly Dictionary<string, string> _baseHeaderText = new();
+
+        private static readonly Dictionary<string, string> SortKeyToColumnName = new()
+        {
+            ["QrCode"] = "QRCode",
+            ["EquipmentCode"] = "EquipmentCode",
+            ["EquipmentName"] = "EquipmentName",
+            ["SerialNumber"] = "SerialNumber",
+            ["Make"] = "Make",
+            ["Model"] = "Model",
+            ["Employee"] = "Employee",
+            ["Location"] = "Location",
+            ["SortDate"] = "DateAllocated",
+            ["ExpectedReturn"] = "ExpectedReturn",
+            ["Status"] = "Status",
+            ["Source"] = "Source",
+            ["AllocatedBy"] = "AllocatedBy",
+        };
 
         private EntitySuggestHelper<Allocation>? _suggest;
 
@@ -192,6 +216,7 @@ namespace Inventory_Management_System.Forms
             SetupCombinedFiltersButton();
             SetupEditReturnButton();
             SetupPageSizeOptions();
+            SetupToolbarTooltips();
 
             // Same fix as EquipmentForm — sync panelTop's height explicitly once
             // all toolbar controls exist, instead of relying only on SizeChanged.
@@ -204,6 +229,7 @@ namespace Inventory_Management_System.Forms
 
             dgvAllocation.SelectionChanged += (s, e) => UpdateActionButtonsForSelection();
             dgvAllocation.CellDoubleClick += dgvAllocation_CellDoubleClick;
+            dgvAllocation.ColumnHeaderMouseClick += dgvAllocation_ColumnHeaderMouseClick;
             this.Shown += (s, e) =>
             {
                 if (!string.IsNullOrEmpty(_pendingSelectEquipmentCode) && dgvAllocation.Rows.Count > 0)
@@ -226,7 +252,20 @@ namespace Inventory_Management_System.Forms
             {
                 if (string.Equals(initialFilter, "Available", StringComparison.OrdinalIgnoreCase))
                     initialFilter = "In Store";
-                int idx = cmbEquipmentFilter.Items.IndexOf($"Equipment: {initialFilter}");
+
+                // Case-insensitive lookup — a caller passing "in store" or "OVERDUE"
+                // (differently cased than the combo's exact label text) shouldn't
+                // silently fall through to "treat as equipment/QR code" below.
+                string targetLabel = $"Equipment: {initialFilter}";
+                int idx = -1;
+                for (int i = 0; i < cmbEquipmentFilter.Items.Count; i++)
+                {
+                    if (string.Equals(cmbEquipmentFilter.Items[i]?.ToString(), targetLabel, StringComparison.OrdinalIgnoreCase))
+                    {
+                        idx = i;
+                        break;
+                    }
+                }
                 if (idx >= 0)
                 {
                     cmbEquipmentFilter.SelectedIndex = idx;
@@ -291,6 +330,7 @@ namespace Inventory_Management_System.Forms
                     _ => "All"
                 };
                 _currentPage = 1;
+                UpdateFiltersButtonLabel();
                 RefreshGrid(txtSearch.Text.Trim());
             };
 
@@ -338,6 +378,7 @@ namespace Inventory_Management_System.Forms
                 var selected = cmbAllocCategoryFilter.SelectedItem?.ToString() ?? "All Categories";
                 _activeCategoryFilter = selected == "All Categories" ? "" : selected;
                 _currentPage = 1;
+                UpdateFiltersButtonLabel();
                 RefreshGrid(txtSearch.Text.Trim());
             };
 
@@ -370,6 +411,30 @@ namespace Inventory_Management_System.Forms
             var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
             flow.Controls.Add(btnFilters);
             flow.Controls.SetChildIndex(btnFilters, flow.Controls.IndexOf(btnExport) + 1);
+
+            _btnFilters = btnFilters;
+            UpdateFiltersButtonLabel();
+        }
+
+        // Shows which filters are currently active directly on the button label,
+        // instead of leaving it as a generic "Filters" with no indication that
+        // the grid isn't showing everything.
+        private void UpdateFiltersButtonLabel()
+        {
+            if (_btnFilters == null) return;
+            bool hasStatus = !string.Equals(_activeStatusFilter, "All", StringComparison.OrdinalIgnoreCase);
+            bool hasCategory = !string.IsNullOrEmpty(_activeCategoryFilter);
+
+            if (!hasStatus && !hasCategory)
+            {
+                _btnFilters.Text = "🔽 Filters";
+                return;
+            }
+
+            var parts = new List<string>();
+            if (hasStatus) parts.Add(_activeStatusFilter);
+            if (hasCategory) parts.Add(_activeCategoryFilter);
+            _btnFilters.Text = $"🔽 Filters ({string.Join(", ", parts)})";
         }
 
         private void ShowAllocFiltersMenu(Button anchor)
@@ -380,20 +445,20 @@ namespace Inventory_Management_System.Forms
             foreach (var (label, value) in new[] { ("All", "All"), ("In Store", "In Store"), ("Allocated", "Allocated"), ("Pending", "Pending"), ("Overdue", "Overdue") })
             {
                 var item = new ToolStripMenuItem(label) { Checked = _activeStatusFilter == value };
-                item.Click += (s, e) => { _activeStatusFilter = value; _currentPage = 1; RefreshGrid(txtSearch.Text.Trim()); };
+                item.Click += (s, e) => { _activeStatusFilter = value; _currentPage = 1; UpdateFiltersButtonLabel(); RefreshGrid(txtSearch.Text.Trim()); };
                 statusSub.DropDownItems.Add(item);
             }
             allocFiltersMenu.Items.Add(statusSub);
 
             var categorySub = new ToolStripMenuItem("Category");
             var allCat = new ToolStripMenuItem("All Categories") { Checked = string.IsNullOrEmpty(_activeCategoryFilter) };
-            allCat.Click += (s, e) => { _activeCategoryFilter = ""; _currentPage = 1; RefreshGrid(txtSearch.Text.Trim()); };
+            allCat.Click += (s, e) => { _activeCategoryFilter = ""; _currentPage = 1; UpdateFiltersButtonLabel(); RefreshGrid(txtSearch.Text.Trim()); };
             categorySub.DropDownItems.Add(allCat);
             categorySub.DropDownItems.Add(new ToolStripSeparator());
             foreach (var cat in cmbAllocCategoryFilter?.Items.OfType<string>().Where(c => c != "All Categories") ?? Enumerable.Empty<string>())
             {
                 var item = new ToolStripMenuItem(cat) { Checked = _activeCategoryFilter == cat };
-                item.Click += (s, e) => { _activeCategoryFilter = cat; _currentPage = 1; RefreshGrid(txtSearch.Text.Trim()); };
+                item.Click += (s, e) => { _activeCategoryFilter = cat; _currentPage = 1; UpdateFiltersButtonLabel(); RefreshGrid(txtSearch.Text.Trim()); };
                 categorySub.DropDownItems.Add(item);
             }
             allocFiltersMenu.Items.Add(categorySub);
@@ -607,11 +672,43 @@ namespace Inventory_Management_System.Forms
 
             _chkHeaderPanel.Controls.Add(_chkHeaderBox);
             _chkHeaderPanel.Controls.Add(btnArrow);
+            _btnCheckArrow = btnArrow;
 
             // ── 3. Insert the panel BEFORE btnAdd in the toolbar ──
             var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
             flow.Controls.Add(_chkHeaderPanel);
             flow.Controls.SetChildIndex(_chkHeaderPanel, flow.Controls.IndexOf(btnAdd));
+        }
+
+        // Re-applies theme colors to the header checkbox pill — SetupCheckboxSelectHeader()
+        // only runs once in the constructor, so without this the panel/box/arrow stay
+        // frozen on whatever theme was active at startup and never update on toggle.
+        private void RefreshCheckboxHeaderTheme()
+        {
+            if (_chkHeaderPanel == null || _chkHeaderPanel.IsDisposed) return;
+
+            _chkHeaderPanel.BackColor = ThemeHelper.IsDarkMode
+                ? Color.FromArgb(40, 44, 52)
+                : Color.FromArgb(241, 243, 244);
+
+            if (_chkHeaderBox != null)
+            {
+                _chkHeaderBox.ForeColor = ThemeHelper.TextPrimary;
+                _chkHeaderBox.BackColor = Color.Transparent;
+            }
+
+            if (_btnCheckArrow != null)
+            {
+                _btnCheckArrow.ForeColor = ThemeHelper.TextPrimary;
+                _btnCheckArrow.FlatAppearance.MouseOverBackColor = ThemeHelper.IsDarkMode
+                    ? Color.FromArgb(55, 60, 70)
+                    : Color.FromArgb(218, 220, 224);
+            }
+
+            _chkHeaderPanel.Invalidate(true);
+            _chkHeaderBox?.Invalidate();
+            _chkHeaderBox?.Update();
+            _btnCheckArrow?.Invalidate();
         }
 
         /// <summary>Check or uncheck every row in ColSelect.</summary>
@@ -641,6 +738,17 @@ namespace Inventory_Management_System.Forms
         // Equipment with no active Allocation and no active Check-Out —
         // queried fresh each call rather than cached, so it's always current.
 
+        private void SetupToolbarTooltips()
+        {
+            _toolbarTooltip = new ToolTip { AutoPopDelay = 6000, InitialDelay = 400, ReshowDelay = 100, ShowAlways = true };
+
+            _toolbarTooltip.SetToolTip(btnDelete,
+      "Removes a pending or rejected allocation request and keeps the equipment In Store. Approved allocations must be returned first.");
+
+            _toolbarTooltip.SetToolTip(btnExport,
+                "Exports only the rows on the current page — check your page size before exporting.");
+        }
+
         private void SetupEditReturnButton()
         {
             btnEditReturn = new Button
@@ -663,11 +771,21 @@ namespace Inventory_Management_System.Forms
             {
                 using var db = new InventoryDbContext();
 
+                // Exclude anything that already has an active (pending or approved)
+                // allocation — otherwise a just-allocated item still shows as
+                // "In Store" until the page is refreshed, even though it's really
+                // sitting under the Pending filter now.
+                var activeCodes = new HashSet<string>(
+                    _allSourceRows.Where(r => r.AllocationRef != null &&
+                        (r.AllocationRef.Status == "approved" || r.AllocationRef.Status == "pending"))
+                        .Select(r => r.EquipmentCode), StringComparer.OrdinalIgnoreCase);
+
                 return db.Equipment
                     .Where(e => !e.IsDeleted && e.CurrentStatus != "allocated" && e.CurrentStatus != "under_repair" && e.CurrentStatus != "decommissioned")
                     .OrderBy(e => e.QrCode)
                     .ThenBy(e => e.EquipmentCode)
                     .ToList()
+                    .Where(e => !activeCodes.Contains(e.EquipmentCode))
                     .Select(e => new AllocationRow
                     {
                         Id = -(2_000_000 + e.Id),
@@ -749,12 +867,14 @@ namespace Inventory_Management_System.Forms
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);
+            RefreshCheckboxHeaderTheme();
             ThemeHelper.StyleButton(btnAdd, Color.FromArgb(245, 124, 0));
             ThemeHelper.StyleButton(btnApprove, ThemeHelper.Accent);
             ThemeHelper.StyleButton(btnReturn, Color.FromArgb(99, 102, 241)); // indigo — matches Undo Return in Returns screen
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleDangerButton(btnDelete);
+            btnDelete.Text = "🗑  Delete Request";
             ApplyRoundedSearchStyle(txtSearch);
             ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
@@ -788,8 +908,9 @@ namespace Inventory_Management_System.Forms
                                     Math.Max(
                                         FuzzySearchHelper.FuzzyScore(a.Location?.LocationName, term),
                                         FuzzySearchHelper.FuzzyScore(a.Status, term)))))),
-                    line1Selector: a => $"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name}",
-                    line2Selector: a => $"{a.Employee?.FullName ?? "—"} • {a.Status}");
+                                     line1Selector: a => $"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name}",
+                    line2Selector: a => $"{a.Employee?.FullName ?? "—"} • {a.Status}",
+                    accentColor: Color.FromArgb(245, 124, 0));
                 _suggest.LoadItems(_suggestSourceAllocations);
             }
             catch { /* non-critical UI enhancement, fail silently */ }
@@ -993,6 +1114,7 @@ namespace Inventory_Management_System.Forms
 
         private void RefreshGrid(string filter = "")
         {
+            dgvAllocation.SuspendLayout();
             dgvAllocation.Rows.Clear();
 
             bool hasSearch = !string.IsNullOrWhiteSpace(filter);
@@ -1023,10 +1145,7 @@ namespace Inventory_Management_System.Forms
                     string.Equals(r.Category, _activeCategoryFilter, StringComparison.OrdinalIgnoreCase)).ToList();
             }
 
-            baseline = baseline
-                .OrderBy(r => r.QrCode)
-                .ThenBy(r => r.EquipmentCode)
-                .ToList();
+            baseline = SortRows(baseline);
 
             List<AllocationRow> matched;
             if (hasSearch)
@@ -1148,6 +1267,80 @@ namespace Inventory_Management_System.Forms
 
             SyncHeaderCheckbox();
             UpdateActionButtonsForSelection();
+            UpdateSortIndicators();
+            dgvAllocation.ResumeLayout();
+        }
+
+        private void dgvAllocation_ColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.ColumnIndex < 0) return;
+            string columnName = dgvAllocation.Columns[e.ColumnIndex].Name;
+
+            string? sortKey = columnName switch
+            {
+                "QRCode" => "QrCode",
+                "EquipmentCode" => "EquipmentCode",
+                "EquipmentName" => "EquipmentName",
+                "SerialNumber" => "SerialNumber",
+                "Make" => "Make",
+                "Model" => "Model",
+                "Employee" => "Employee",
+                "Location" => "Location",
+                "DateAllocated" => "SortDate",
+                "ExpectedReturn" => "ExpectedReturn",
+                "Status" => "Status",
+                "Source" => "Source",
+                "AllocatedBy" => "AllocatedBy",
+                _ => null // ColSelect, AllocationID — not sortable
+            };
+            if (sortKey == null) return;
+
+            if (_sortColumn == sortKey) _sortAscending = !_sortAscending;
+            else { _sortColumn = sortKey; _sortAscending = true; }
+
+            _currentPage = 1;
+            RefreshGrid(txtSearch.Text.Trim());
+        }
+
+        // Applies the current column sort — used for the browse (non-search) view.
+        // Search results keep their relevance-based ordering instead, since a
+        // manual column sort would fight with "best match first."
+        private List<AllocationRow> SortRows(List<AllocationRow> rows)
+        {
+            Func<AllocationRow, object> keySelector = _sortColumn switch
+            {
+                "EquipmentCode" => r => r.EquipmentCode,
+                "EquipmentName" => r => r.EquipmentName,
+                "SerialNumber" => r => r.SerialNumber,
+                "Make" => r => r.Make,
+                "Model" => r => r.Model,
+                "Employee" => r => r.Employee,
+                "Location" => r => r.Location,
+                "SortDate" => r => r.SortDate,
+                "ExpectedReturn" => r => r.ExpectedReturn,
+                "Status" => r => r.Status,
+                "Source" => r => r.Source,
+                "AllocatedBy" => r => r.AllocatedBy,
+                _ => r => r.QrCode
+            };
+            return _sortAscending ? rows.OrderBy(keySelector).ToList() : rows.OrderByDescending(keySelector).ToList();
+        }
+
+        private void UpdateSortIndicators()
+        {
+            foreach (DataGridViewColumn col in dgvAllocation.Columns)
+            {
+                if (col.Name == "ColSelect") continue;
+
+                if (!_baseHeaderText.TryGetValue(col.Name, out var baseText))
+                {
+                    baseText = col.HeaderText;
+                    _baseHeaderText[col.Name] = baseText;
+                }
+
+                bool isSorted = SortKeyToColumnName.TryGetValue(_sortColumn, out var sortedCol) && sortedCol == col.Name;
+                col.HeaderText = isSorted ? baseText + (_sortAscending ? " ▲" : " ▼") : baseText;
+            }
         }
 
         // ── Selection helpers ───────────────────────────────────────────────
@@ -1539,23 +1732,34 @@ namespace Inventory_Management_System.Forms
             var allSelected = GetSelectedRows();
             if (allSelected.Count == 0)
             {
-                ShowToast(this, "Please select at least one allocation to delete.", ToastType.Info, isDelete: true);
+                ShowToast(this, "Please select at least one allocation request to delete.", ToastType.Info, isDelete: true);
                 return;
             }
 
             var allocRows = allSelected
-                .Where(r => r.AllocationRef != null)
-                .ToList();
+      .Where(r => r.AllocationRef != null)
+      .ToList();
 
             if (allocRows.Count == 0)
             {
-                ShowToast(this, "The selected row(s) are available equipment items, not allocation records.", ToastType.Warning);
+                ShowToast(this, "The selected row(s) are available equipment items, not allocation requests.", ToastType.Warning);
+                return;
+            }
+
+            // Deleting an active (approved) allocation would hard-delete the record,
+            // silently revert the equipment to "in_store", and leave no return history
+            // and no Returns-screen entry. Just like Equipment screen requires an item
+            // be returned before it can be deleted, block this and point to Return instead.
+            bool hasActive = allocRows.Any(r => string.Equals(r.AllocationRef!.Status, "approved", StringComparison.OrdinalIgnoreCase));
+            if (hasActive)
+            {
+                ShowToast(this, "One or more selected allocations are already approved and active. Please return the item(s) first — this button only removes pending or rejected requests.", ToastType.Warning, isDelete: true);
                 return;
             }
 
             string msg = allocRows.Count == 1
-                ? "Are you sure you want to delete this allocation record?"
-                : $"Are you sure you want to delete these {allocRows.Count} allocation records?";
+       ? "Are you sure you want to delete this allocation request? The equipment will remain In Store."
+       : $"Are you sure you want to delete these {allocRows.Count} allocation requests? The equipment will remain In Store.";
 
             if (MessageBox.Show(msg, "Confirm Delete",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
@@ -1576,7 +1780,7 @@ namespace Inventory_Management_System.Forms
                         }
                         db.Allocations.Remove(a);
                         db.SaveChanges();
-                        _audit.Log(a.EquipmentId, "Allocation Deleted", a.Status, "Deleted | Source Screen: Allocation Screen");
+                        _audit.Log(a.EquipmentId, "Allocation Request Deleted", a.Status, "Deleted | Source Screen: Allocation Screen");
                         ok++;
                     }
                     else fail++;
@@ -1587,7 +1791,7 @@ namespace Inventory_Management_System.Forms
             if (fail > 0)
                 ShowToast(this, $"{ok} deleted, {fail} failed.", ToastType.Warning, isDelete: true);
             else if (ok > 0)
-                ShowToast(this, ok == 1 ? "Allocation record deleted successfully." : $"{ok} allocation records deleted successfully.", ToastType.Success, isDelete: true);
+                ShowToast(this, ok == 1 ? "Allocation request deleted successfully." : $"{ok} allocation requests deleted successfully.", ToastType.Success, isDelete: true);
 
             LoadAllocations();
         }
@@ -1596,6 +1800,14 @@ namespace Inventory_Management_System.Forms
         {
             txtSearch.Text = string.Empty;
             _currentPage = 1;
+
+            // Reset all active filters back to "All" — Refresh should return to
+            // the unfiltered view, not just re-run the currently applied ones.
+            _activeStatusFilter = "All";
+            _activeCategoryFilter = "";
+            if (cmbEquipmentFilter != null) cmbEquipmentFilter.SelectedIndex = 0;
+            if (cmbAllocCategoryFilter != null) cmbAllocCategoryFilter.SelectedIndex = 0;
+            UpdateFiltersButtonLabel();
 
             // Uncheck all rows and reset the header checkbox.
             SetAllCheckboxes(false);
@@ -1987,8 +2199,9 @@ namespace Inventory_Management_System.Forms
                         Math.Max(
                             FuzzySearchHelper.FuzzyScore(eq.Name, term),
                             FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, term)))),
-                line1Selector: eq => $"{eq.EquipmentCode} — {eq.Name}",
-                line2Selector: eq => string.IsNullOrWhiteSpace(eq.SerialNumber) ? (eq.Category ?? "—") : $"S/N: {eq.SerialNumber}");
+                             line1Selector: eq => $"{eq.EquipmentCode} — {eq.Name}",
+                line2Selector: eq => string.IsNullOrWhiteSpace(eq.SerialNumber) ? (eq.Category ?? "—") : $"S/N: {eq.SerialNumber}",
+                accentColor: Color.FromArgb(245, 124, 0));
             _equipmentSuggest.LoadItems(_equipment);
 
             txtEquipmentSearch.TextChanged += (s, e) => { if (string.IsNullOrWhiteSpace(txtEquipmentSearch.Text)) _selectedEquipmentId = null; };
@@ -2080,9 +2293,10 @@ namespace Inventory_Management_System.Forms
                     txtEmployeeSearch.Text = $"{emp.EmployeeCode} — {emp.FullName}";
                     txtEmployeeSearch.SelectionStart = txtEmployeeSearch.Text.Length;
                 },
-                scoreFn: (emp, term) => Math.Max(FuzzySearchHelper.FuzzyScoreCode(emp.EmployeeCode, term), FuzzySearchHelper.FuzzyScore(emp.FullName, term)),
+                              scoreFn: (emp, term) => Math.Max(FuzzySearchHelper.FuzzyScoreCode(emp.EmployeeCode, term), FuzzySearchHelper.FuzzyScore(emp.FullName, term)),
                 line1Selector: emp => $"{emp.EmployeeCode} — {emp.FullName}",
-                line2Selector: emp => emp.Department ?? "—");
+                line2Selector: emp => emp.Department ?? "—",
+                accentColor: Color.FromArgb(245, 124, 0));
             _employeeSuggest.LoadItems(_employees);
 
             txtEmployeeSearch.TextChanged += (s, e) =>

@@ -87,7 +87,7 @@ namespace Inventory_Management_System.Forms
                 new System.Windows.Forms.Padding(4, 0, 0, 4), btnEmployeeReport_Click);
 
             btnAllocationReport.Name = "btnAllocationReport";
-            SetupBtn(btnAllocationReport, "📋 Allocation",
+            SetupBtn(btnAllocationReport, "✍ Allocation",
                 new System.Windows.Forms.Padding(4, 0, 0, 4), btnAllocationReport_Click);
 
             btnReturnReport.Name = "btnReturnReport";

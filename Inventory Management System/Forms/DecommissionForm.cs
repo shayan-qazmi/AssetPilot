@@ -26,6 +26,7 @@ namespace Inventory_Management_System.Forms
         private Button btnNextPage = null!;
         private ComboBox cmbPageSize = null!;
         private Button btnRestoreDecomm = null!;
+        private EntitySuggestHelper<Equipment>? _suggest;
 
 
         public DecommissionForm()
@@ -36,6 +37,7 @@ namespace Inventory_Management_System.Forms
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
             LoadDecommissioned();
+            SetupSuggestions();
 
             this.Shown += (s, e) =>
             {
@@ -44,6 +46,33 @@ namespace Inventory_Management_System.Forms
                 BeginInvoke(new Action(RepositionPagination));
             };
             dgvDecommission.CellDoubleClick += DgvDecommission_CellDoubleClick;
+        }
+
+        private void SetupSuggestions()
+        {
+            try
+            {
+                _suggest = new EntitySuggestHelper<Equipment>(
+                    textBox: txtSearch,
+                    hostForm: this,
+                    onSelected: eq => { txtSearch.Text = eq.EquipmentCode; },
+                    scoreFn: (eq, term) => Math.Max(
+                        FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, term),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, term),
+                            FuzzySearchHelper.FuzzyScore(eq.Name, term))),
+                    line1Selector: eq => $"{eq.EquipmentCode} — {eq.Name}",
+                    line2Selector: eq => string.IsNullOrWhiteSpace(eq.SerialNumber) ? (eq.Make ?? "—") : $"S/N: {eq.SerialNumber}",
+                    accentColor: Color.FromArgb(211, 47, 47));
+                _suggest.LoadItems(_allItems);
+            }
+            catch { /* non-critical UI enhancement, fail silently */ }
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _suggest?.Dispose();
+            base.OnFormClosed(e);
         }
 
         private void DgvDecommission_CellDoubleClick(object? sender, DataGridViewCellEventArgs e)
@@ -317,7 +346,9 @@ namespace Inventory_Management_System.Forms
                 return;
             }
             _allItems = result.Data?.Where(e =>
-                string.Equals(e.CurrentStatus, "decommissioned", StringComparison.OrdinalIgnoreCase)).ToList() ?? new(); RefreshGrid(filter);
+        string.Equals(e.CurrentStatus, "decommissioned", StringComparison.OrdinalIgnoreCase)).ToList() ?? new();
+            _suggest?.LoadItems(_allItems);
+            RefreshGrid(filter);
         }
 
         private void RefreshGrid(string filter = "")
@@ -738,8 +769,9 @@ namespace Inventory_Management_System.Forms
                         Math.Max(
                             FuzzySearchHelper.FuzzyScore(eq.Name, term),
                             FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, term)))),
-                line1Selector: eq => $"{eq.EquipmentCode} — {eq.Name}",
-                line2Selector: eq => string.IsNullOrWhiteSpace(eq.SerialNumber) ? (eq.Category ?? "—") : $"S/N: {eq.SerialNumber}");
+                              line1Selector: eq => $"{eq.EquipmentCode} — {eq.Name}",
+                line2Selector: eq => string.IsNullOrWhiteSpace(eq.SerialNumber) ? (eq.Category ?? "—") : $"S/N: {eq.SerialNumber}",
+                accentColor: Color.FromArgb(211, 47, 47));
 
             RefreshEquipmentDropdown();
             // Ensure no equipment is pre-selected

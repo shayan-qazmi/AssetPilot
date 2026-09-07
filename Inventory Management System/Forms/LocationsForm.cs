@@ -1,8 +1,12 @@
 // Forms/LocationsForm.cs
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Linq;
 using System.Windows.Forms;
 using Inventory_Management_System.Helpers;
+using Inventory_Management_System.Models;
 using Inventory_Management_System.Services;
 
 namespace Inventory_Management_System.Forms
@@ -14,6 +18,9 @@ namespace Inventory_Management_System.Forms
         private Panel _chkHeaderPanel = null!;
         private CheckBox _chkHeaderBox = null!;
         private bool _suppressHeaderSync;
+        private TextBox txtSearch = null!;
+        private EntitySuggestHelper<Location>? _suggest;
+        private List<Location> _allLocationsForSuggest = new();
 
         public LocationsForm()
         {
@@ -23,6 +30,8 @@ namespace Inventory_Management_System.Forms
             _locationService = new LocationService();
             ApplyTheme();
             SetupCheckboxSelectHeader();
+            SetupSearchBar();
+            SetupSuggestions();
             LoadLocations();
 
             this.Shown += (s, e) =>
@@ -54,6 +63,105 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleSecondaryButton(btnImport);
             ThemeHelper.StyleDataGridView(dgvLocations);
             ResetRowStyleOverrides(dgvLocations);
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+        private const int GWL_EXSTYLE = -20;
+        private const int WS_EX_CLIENTEDGE = 0x200;
+
+        private static GraphicsPath RoundedRectPath(RectangleF r, float radius)
+        {
+            var path = new GraphicsPath();
+            float d = radius * 2f;
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
+        // Builds the same rounded, white, magnifier-icon search pill used on
+        // EmployeesForm / EquipmentForm, from scratch (Locations has no
+        // designer-placed search TextBox to wrap).
+        private void SetupSearchBar()
+        {
+            const int boxHeight = 32;
+            const int boxWidth = 280;
+
+            var wrapper = new Panel
+            {
+                Name = "pnlSearchBox",
+                Size = new Size(boxWidth, boxHeight),
+                Margin = new Padding(16, 4, 0, 0),
+                BackColor = Color.White
+            };
+
+            Color inputBorder = Color.FromArgb(209, 213, 219);
+            Color focusBorder = Color.FromArgb(0x52, 0xA2, 0x3F);
+            Color currentBorder = inputBorder;
+
+            void RoundInput(object? s, EventArgs e)
+            {
+                if (wrapper.Width <= 0 || wrapper.Height <= 0) return;
+                using var path = RoundedRectPath(new RectangleF(0, 0, wrapper.Width, wrapper.Height), 8f);
+                wrapper.Region = new Region(path);
+            }
+            wrapper.Resize += RoundInput;
+
+            wrapper.Paint += (s, e) =>
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using var path = RoundedRectPath(new RectangleF(0.5f, 0.5f, wrapper.Width - 1, wrapper.Height - 1), 8f);
+                using var pen = new Pen(currentBorder, 1f);
+                e.Graphics.DrawPath(pen, path);
+            };
+
+            var searchIcon = new Label
+            {
+                Text = "🔍",
+                Font = new Font("Segoe UI Emoji", 8.5f),
+                ForeColor = ThemeHelper.TextSecondary,
+                AutoSize = false,
+                Size = new Size(24, boxHeight),
+                Location = new Point(6, 0),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = Color.Transparent
+            };
+
+            txtSearch = new TextBox
+            {
+                Name = "txtSearch",
+                BorderStyle = BorderStyle.None,
+                Font = new Font("Segoe UI", 9f),
+                BackColor = Color.White,
+                Location = new Point(30, (boxHeight - 18) / 2),
+                Size = new Size(boxWidth - 38, 18),
+                PlaceholderText = "Search location, room..."
+            };
+
+            int exStyle = GetWindowLong(txtSearch.Handle, GWL_EXSTYLE);
+            SetWindowLong(txtSearch.Handle, GWL_EXSTYLE, exStyle & ~WS_EX_CLIENTEDGE);
+
+            txtSearch.TextChanged += txtSearch_TextChanged;
+            txtSearch.Enter += (s, e) => { currentBorder = focusBorder; wrapper.Invalidate(); };
+            txtSearch.Leave += (s, e) => { currentBorder = inputBorder; wrapper.Invalidate(); };
+
+            wrapper.Controls.Add(searchIcon);
+            wrapper.Controls.Add(txtSearch);
+            flowToolbar.Controls.Add(wrapper);
+
+            RoundInput(null, EventArgs.Empty);
+        }
+
+        private void txtSearch_TextChanged(object? sender, EventArgs e)
+        {
+            LoadLocations(txtSearch.Text.Trim());
         }
 
         private void SetupCheckboxSelectHeader()
@@ -193,7 +301,34 @@ namespace Inventory_Management_System.Forms
             _suppressHeaderSync = false;
         }
 
-        private void LoadLocations()
+        private void SetupSuggestions()
+        {
+            try
+            {
+                _suggest = new EntitySuggestHelper<Location>(
+                    textBox: txtSearch,
+                    hostForm: this,
+                    onSelected: loc => { txtSearch.Text = loc.LocationName; },
+                    scoreFn: (loc, term) => Math.Max(
+                        FuzzySearchHelper.FuzzyScore(loc.LocationName, term),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScore(loc.Building, term),
+                            Math.Max(
+                                FuzzySearchHelper.FuzzyScoreCode(loc.RoomNumber, term),
+                                FuzzySearchHelper.FuzzyScore(loc.RoomName, term)))),
+                    line1Selector: loc => loc.LocationName,
+                    line2Selector: loc => string.IsNullOrWhiteSpace(loc.RoomNumber) ? (loc.RoomName ?? "—") : $"Room {loc.RoomNumber}");
+            }
+            catch { /* non-critical UI enhancement, fail silently */ }
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _suggest?.Dispose();
+            base.OnFormClosed(e);
+        }
+
+        private void LoadLocations(string searchTerm = "")
         {
             dgvLocations.Rows.Clear();
 
@@ -204,7 +339,36 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            foreach (var item in result.Data!)
+            var allLocations = result.Data ?? new List<Location>();
+            _allLocationsForSuggest = allLocations;
+            _suggest?.LoadItems(_allLocationsForSuggest);
+
+            List<Location> items;
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                items = allLocations
+                    .Select(loc => new
+                    {
+                        Location = loc,
+                        Score = Math.Max(
+                            FuzzySearchHelper.FuzzyScore(loc.LocationName, searchTerm),
+                            Math.Max(
+                                FuzzySearchHelper.FuzzyScore(loc.Building, searchTerm),
+                                Math.Max(
+                                    FuzzySearchHelper.FuzzyScoreCode(loc.RoomNumber, searchTerm),
+                                    FuzzySearchHelper.FuzzyScore(loc.RoomName, searchTerm))))
+                    })
+                    .Where(x => x.Score >= 5000)
+                    .OrderByDescending(x => x.Score)
+                    .Select(x => x.Location)
+                    .ToList();
+            }
+            else
+            {
+                items = allLocations;
+            }
+
+            foreach (var item in items)
             {
                 dgvLocations.Rows.Add(
                     item.Id,
@@ -235,7 +399,7 @@ namespace Inventory_Management_System.Forms
             using var form = new AddEditLocationForm();
             if (form.ShowDialog() == DialogResult.OK)
             {
-                LoadLocations();
+                LoadLocations(txtSearch.Text.Trim());
                 ShowToast("Location added successfully.");
             }
         }
@@ -261,7 +425,7 @@ namespace Inventory_Management_System.Forms
                 using var form = new AddEditLocationForm(result.Data);
                 if (form.ShowDialog() == DialogResult.OK)
                 {
-                    LoadLocations();
+                    LoadLocations(txtSearch.Text.Trim());
                     ShowToast("Location updated successfully.", ToastType.Success, ToastIntent.Edit);
                 }
             }
@@ -330,7 +494,7 @@ namespace Inventory_Management_System.Forms
 
             if (deletedCount > 0)
             {
-                LoadLocations();
+                LoadLocations(txtSearch.Text.Trim());
                 ShowToast($"{deletedCount} location(s) deleted successfully.", ToastType.Success, ToastIntent.Delete);
             }
             else if (firstError != null)
@@ -369,6 +533,7 @@ namespace Inventory_Management_System.Forms
                     }
 
                     ShowToast($"Successfully imported {importedCount} locations.");
+                    txtSearch.Text = string.Empty;
                     LoadLocations();
                 }
                 else if (errors.Count == 0)
@@ -384,6 +549,7 @@ namespace Inventory_Management_System.Forms
 
         private void btnRefresh_Click(object sender, EventArgs e)
         {
+            if (txtSearch != null) txtSearch.Text = string.Empty;
             SetAllCheckboxes(false);
             if (_chkHeaderBox != null) _chkHeaderBox.Checked = false;
             LoadLocations();

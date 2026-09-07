@@ -31,6 +31,7 @@ namespace Inventory_Management_System.Forms
         // ── Gmail-style checkbox header controls ──
         private Panel _chkHeaderPanel = null!;
         private CheckBox _chkHeaderBox = null!;
+        private Button _btnCheckArrow = null!;
         private bool _suppressHeaderSync;
 
         // ── Category filter dropdown ───────────────────────────────────────
@@ -39,6 +40,11 @@ namespace Inventory_Management_System.Forms
         private string? _pendingSelectCode;
         private bool _hasPendingSelection = false;
 
+        private Button _btnFilters = null!;
+
+        private string _sortColumn = "EquipmentCode";
+        private bool _sortAscending = true;
+        private readonly Dictionary<string, string> _baseHeaderText = new();
 
         private string? _statusFilter = null;
         private Func<Equipment, bool>? _customFilter = null;
@@ -63,6 +69,8 @@ namespace Inventory_Management_System.Forms
 
             LoadEquipment();
             SetupSearchSuggestions();
+
+            dgvEquipment.ColumnHeaderMouseClick += dgvEquipment_ColumnHeaderMouseClick;
 
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
 
@@ -106,6 +114,7 @@ namespace Inventory_Management_System.Forms
             _statusFilter = status;
             _customFilter = null;
             _currentPage = 1;
+            UpdateFiltersButtonLabel();
             LoadEquipment();
         }
 
@@ -114,6 +123,7 @@ namespace Inventory_Management_System.Forms
             _customFilter = filter;
             _statusFilter = null;
             _currentPage = 1;
+            UpdateFiltersButtonLabel();
             LoadEquipment();
         }
         private void ApplyRoundedSearchStyle(TextBox txt)
@@ -319,6 +329,7 @@ namespace Inventory_Management_System.Forms
 
             _chkHeaderPanel.Controls.Add(_chkHeaderBox);
             _chkHeaderPanel.Controls.Add(btnArrow);
+            _btnCheckArrow = btnArrow;
 
             // ── 3. Insert the panel BEFORE btnAdd in the toolbar ──
             var flow = panelTop.Controls.OfType<FlowLayoutPanel>().First();
@@ -353,9 +364,33 @@ namespace Inventory_Management_System.Forms
             flow.Controls.Add(btnFilters);
             flow.Controls.SetChildIndex(btnFilters, flow.Controls.IndexOf(btnGenerateQRSheet) + 1);
 
+            _btnFilters = btnFilters;
+            UpdateFiltersButtonLabel();
+
             // Re-apply QR button styling after SetupToolbarLayout (ensures correct order)
             StyleQrButton(btnShowQR, "◼️ Show QR");
             StyleQrButton(btnGenerateQRSheet, "📄 QR Sheet");
+        }
+
+        private static string StatusFilterDisplayLabel(string? value) => value switch
+        {
+            "in_store" => "In store",
+            "allocated" => "Allocated",
+            "decommissioned" => "Decommission",
+            "under_repair" => "Under repair",
+            _ => value ?? ""
+        };
+
+        // Shows which filters are currently active directly on the button label.
+        private void UpdateFiltersButtonLabel()
+        {
+            if (_btnFilters == null) return;
+            var parts = new List<string>();
+            if (_customFilter != null) parts.Add("Custom");
+            else if (!string.IsNullOrEmpty(_statusFilter)) parts.Add(StatusFilterDisplayLabel(_statusFilter));
+            if (!string.IsNullOrEmpty(_activeCategory)) parts.Add(_activeCategory);
+
+            _btnFilters.Text = parts.Count == 0 ? "🔽 Filters" : $"🔽 Filters ({string.Join(", ", parts)})";
         }
 
         private void SetAllCheckboxes(bool check)
@@ -375,6 +410,37 @@ namespace Inventory_Management_System.Forms
                 .Count(r => Convert.ToBoolean(r.Cells["ColSelect"].Value));
             _chkHeaderBox.Checked = total > 0 && checked_ == total;
             _suppressHeaderSync = false;
+        }
+
+        // Re-applies theme colors to the header checkbox pill — SetupToolbarLayout()
+        // only runs once in the constructor, so without this it stays frozen on
+        // whatever theme was active at startup and never updates on toggle.
+        private void RefreshCheckboxHeaderTheme()
+        {
+            if (_chkHeaderPanel == null || _chkHeaderPanel.IsDisposed) return;
+
+            _chkHeaderPanel.BackColor = ThemeHelper.IsDarkMode
+                ? Color.FromArgb(40, 44, 52)
+                : Color.FromArgb(241, 243, 244);
+
+            if (_chkHeaderBox != null)
+            {
+                _chkHeaderBox.ForeColor = ThemeHelper.TextPrimary;
+                _chkHeaderBox.BackColor = Color.Transparent;
+            }
+
+            if (_btnCheckArrow != null)
+            {
+                _btnCheckArrow.ForeColor = ThemeHelper.TextPrimary;
+                _btnCheckArrow.FlatAppearance.MouseOverBackColor = ThemeHelper.IsDarkMode
+                    ? Color.FromArgb(55, 60, 70)
+                    : Color.FromArgb(218, 220, 224);
+            }
+
+            _chkHeaderPanel.Invalidate(true);
+            _chkHeaderBox?.Invalidate();
+            _chkHeaderBox?.Update();
+            _btnCheckArrow?.Invalidate();
         }
 
         private void ShowFiltersMenu(Button anchor)
@@ -455,6 +521,7 @@ namespace Inventory_Management_System.Forms
                     _statusFilter = value;
                     _customFilter = null;
                     _currentPage = 1;
+                    UpdateFiltersButtonLabel();
                     LoadEquipment(txtSearch.Text.Trim());
                 };
                 parent.DropDownItems.Add(item);
@@ -466,14 +533,14 @@ namespace Inventory_Management_System.Forms
             parent.DropDownItems.Clear();
 
             var allItem = new ToolStripMenuItem("All Categories") { Checked = string.IsNullOrEmpty(_activeCategory) };
-            allItem.Click += (s, e) => { _activeCategory = ""; _currentPage = 1; LoadEquipment(txtSearch.Text.Trim()); };
+            allItem.Click += (s, e) => { _activeCategory = ""; _currentPage = 1; UpdateFiltersButtonLabel(); LoadEquipment(txtSearch.Text.Trim()); };
             parent.DropDownItems.Add(allItem);
             parent.DropDownItems.Add(new ToolStripSeparator());
 
             foreach (var cat in cmbCategory?.Items.OfType<string>().Where(c => c != "All Categories") ?? Enumerable.Empty<string>())
             {
                 var item = new ToolStripMenuItem(cat) { Checked = _activeCategory == cat };
-                item.Click += (s, e) => { _activeCategory = cat; _currentPage = 1; LoadEquipment(txtSearch.Text.Trim()); };
+                item.Click += (s, e) => { _activeCategory = cat; _currentPage = 1; UpdateFiltersButtonLabel(); LoadEquipment(txtSearch.Text.Trim()); };
                 parent.DropDownItems.Add(item);
             }
 
@@ -494,6 +561,7 @@ namespace Inventory_Management_System.Forms
         {
             ThemeHelper.ApplyFormBackground(this);
             ThemeHelper.StyleToolbarPanel(panelTop);
+            RefreshCheckboxHeaderTheme();
             ThemeHelper.StyleButton(btnAdd);
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleDangerButton(btnDelete);
@@ -564,114 +632,101 @@ namespace Inventory_Management_System.Forms
             };
         }
 
-        private void LoadEquipment(string searchTerm = "")
+        // Positional map matching the Designer's column order (confirmed against
+        // the on-screen headers: Equipment Code, QR Code, Procurement Type,
+        // Equipment Name, Make, Model, Serial Number, Category, Status,
+        // Condition, Location, Purchase Date, Price). ColSelect sits outside
+        // this range and is simply ignored by the bounds check below.
+        private static readonly string[] EquipmentColumnSortKeys =
         {
-            if (_statusFilter != null || _customFilter != null)
-            {
-                if (_fullEquipmentCache.Count == 0)
-                    RefreshEquipmentCache();
+            "EquipmentCode", "QrCode", "ProcurementType", "Name", "Make", "Model",
+            "SerialNumber", "Category", "Status", "Condition", "Location", "PurchaseDate", "Price"
+        };
 
-                Func<Equipment, bool> predicate = _customFilter
-                    ?? MatchesStatusFilter;
+        private void dgvEquipment_ColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.ColumnIndex < 0 || e.ColumnIndex >= EquipmentColumnSortKeys.Length) return; // ColSelect or out of range
 
-                var filtered = _fullEquipmentCache.Where(predicate).ToList();
+            string sortKey = EquipmentColumnSortKeys[e.ColumnIndex];
+            if (_sortColumn == sortKey) _sortAscending = !_sortAscending;
+            else { _sortColumn = sortKey; _sortAscending = true; }
 
-                if (!string.IsNullOrEmpty(_activeCategory))
-                    filtered = filtered.Where(eq => string.Equals(eq.Category, _activeCategory, StringComparison.OrdinalIgnoreCase)).ToList();
-
-                if (!string.IsNullOrWhiteSpace(searchTerm))
-                {
-                    filtered = filtered
-                        .Select(eq => new
-                        {
-                            Equipment = eq,
-                            Score = Math.Max(
-                                FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, searchTerm),
-                                Math.Max(
-                                    FuzzySearchHelper.FuzzyScoreCode(eq.QrCode, searchTerm),
-                                    Math.Max(
-                                        FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, searchTerm),
-                                        Math.Max(
-                                            FuzzySearchHelper.FuzzyScore(eq.Name, searchTerm),
-                                            FuzzySearchHelper.FuzzyScore(eq.Make, searchTerm)))))
-                        })
-                        .Where(x => x.Score >= 5000)
-                        .OrderByDescending(x => x.Score)
-                        .Select(x => x.Equipment)
-                        .ToList();
-                }
-
-                _totalMatchingCount = filtered.Count;
-                _totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)_pageSize));
-                if (_currentPage > _totalPages) _currentPage = _totalPages;
-
-                _allEquipment = filtered
-                    .Skip((_currentPage - 1) * _pageSize)
-                    .Take(_pageSize)
-                    .ToList();
-
-                UpdatePaginationControls();
-                ApplyFilters();
-                return;
-            }
-
-            if (string.IsNullOrWhiteSpace(searchTerm))
-            {
-                var result = _equipmentService.GetPage(_currentPage, _pageSize, _activeCategory);
-                if (!result.Success)
-                {
-                    ToastHelper.Show(this, result.ErrorMessage, ToastType.Error);
-                    return;
-                }
-
-                _totalMatchingCount = result.Data!.TotalCount;
-                _totalPages = Math.Max(1, result.Data.TotalPages);
-                if (_currentPage > _totalPages) _currentPage = _totalPages;
-
-                _allEquipment = result.Data.Items;
-            }
-            else
-            {
-                if (_fullEquipmentCache.Count == 0)
-                    RefreshEquipmentCache();
-
-                var candidates = string.IsNullOrEmpty(_activeCategory)
-                    ? _fullEquipmentCache
-                    : _fullEquipmentCache.Where(eq => string.Equals(eq.Category, _activeCategory, StringComparison.OrdinalIgnoreCase)).ToList();
-
-                var fullMatches = candidates
-                      .Select(eq => new
-                      {
-                          Equipment = eq,
-                          Score = Math.Max(
-                              FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, searchTerm),
-                              Math.Max(
-                                  FuzzySearchHelper.FuzzyScoreCode(eq.QrCode, searchTerm),
-                                  Math.Max(
-                                      FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, searchTerm),
-                                      Math.Max(
-                                          FuzzySearchHelper.FuzzyScore(eq.Name, searchTerm),
-                                          FuzzySearchHelper.FuzzyScore(eq.Make, searchTerm)))))
-                      })
-                      .Where(x => x.Score >= 5000)
-                      .OrderByDescending(x => x.Score)
-                      .Select(x => x.Equipment)
-                      .ToList();
-
-                _totalMatchingCount = fullMatches.Count;
-                _totalPages = Math.Max(1, (int)Math.Ceiling(fullMatches.Count / (double)_pageSize));
-                if (_currentPage > _totalPages) _currentPage = _totalPages;
-
-                _allEquipment = fullMatches
-                           .Skip((_currentPage - 1) * _pageSize)
-                           .Take(_pageSize)
-                           .ToList();
-            }
-
-            UpdatePaginationControls();
-            ApplyFilters();
+            _currentPage = 1;
+            LoadEquipment(txtSearch.Text.Trim());
         }
 
+        private List<Equipment> SortEquipmentList(List<Equipment> items)
+        {
+            Func<Equipment, IComparable> keySelector = _sortColumn switch
+            {
+                "QrCode" => eq => eq.QrCode ?? "",
+                "ProcurementType" => eq => eq.ProcurementType?.TypeName ?? "",
+                "Name" => eq => eq.Name ?? "",
+                "Make" => eq => eq.Make ?? "",
+                "Model" => eq => eq.Model ?? "",
+                "SerialNumber" => eq => eq.SerialNumber ?? "",
+                "Category" => eq => eq.Category ?? "",
+                "Status" => eq => GetEffectiveStatusLabel(eq),
+                "Condition" => eq => eq.ConditionGrade ?? "",
+                "Location" => eq => GetEffectiveLocationLabel(eq),
+                "PurchaseDate" => eq => eq.PurchaseDate ?? DateOnly.MinValue,
+                "Price" => eq => eq.Price ?? 0m,
+                _ => eq => eq.EquipmentCode ?? ""
+            };
+            return _sortAscending ? items.OrderBy(keySelector).ToList() : items.OrderByDescending(keySelector).ToList();
+        }
+
+        // Mirrors the status-label logic in RefreshGrid, so sorting the Status column
+        // matches what's actually displayed — an approved allocation always shows as
+        // "Allocated" regardless of the equipment's raw CurrentStatus field.
+        private static string GetEffectiveStatusLabel(Equipment item)
+        {
+            var activeAlloc = item.Allocations?
+                .Where(a => a.Status != null && a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(a => a.EmployeeId.HasValue)
+                .ThenByDescending(a => a.Id)
+                .FirstOrDefault();
+
+            if (activeAlloc != null) return "Allocated";
+
+            return (item.CurrentStatus ?? "").Trim().ToLowerInvariant() switch
+            {
+                "in_store" => "In Store",
+                "allocated" => "Allocated",
+                "decommissioned" => "Decommissioned",
+                "under_repair" => "Under Repair",
+                _ => "In Store"
+            };
+        }
+
+        // Mirrors the location-label logic in RefreshGrid.
+        private static string GetEffectiveLocationLabel(Equipment item)
+        {
+            var activeAlloc = item.Allocations?
+                .Where(a => a.Status != null && a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(a => a.EmployeeId.HasValue)
+                .ThenByDescending(a => a.Id)
+                .FirstOrDefault();
+            return FormatLocationDisplay(activeAlloc?.Location);
+        }
+
+        private void UpdateSortIndicators()
+        {
+            foreach (DataGridViewColumn col in dgvEquipment.Columns)
+            {
+                if (col.Name == "ColSelect") continue;
+                if (col.Index < 0 || col.Index >= EquipmentColumnSortKeys.Length) continue;
+
+                if (!_baseHeaderText.TryGetValue(col.Name, out var baseText))
+                {
+                    baseText = col.HeaderText;
+                    _baseHeaderText[col.Name] = baseText;
+                }
+
+                bool isSorted = EquipmentColumnSortKeys[col.Index] == _sortColumn;
+                col.HeaderText = isSorted ? baseText + (_sortAscending ? " ▲" : " ▼") : baseText;
+            }
+        }
 
         private void UpdatePaginationControls()
         {
@@ -773,6 +828,7 @@ namespace Inventory_Management_System.Forms
 
         private void RefreshGrid(List<Equipment> items)
         {
+            dgvEquipment.SuspendLayout();
             dgvEquipment.Rows.Clear();
 
             foreach (var item in items)
@@ -872,6 +928,8 @@ namespace Inventory_Management_System.Forms
             }
             lblRowCount.Text = $"Showing {dgvEquipment.Rows.Count} of {_totalMatchingCount} records";
             SyncHeaderCheckbox();
+            UpdateSortIndicators();
+            dgvEquipment.ResumeLayout();
         }
 
         private static string FormatLocationDisplay(Location? loc)
@@ -941,11 +999,68 @@ namespace Inventory_Management_System.Forms
             popup.ShowDialog();
         }
 
+        private void LoadEquipment(string searchTerm = "")
+        {
+            if (_fullEquipmentCache.Count == 0)
+                RefreshEquipmentCache();
+
+            IEnumerable<Equipment> source = _fullEquipmentCache;
+
+            if (_customFilter != null)
+                source = source.Where(_customFilter);
+            else if (_statusFilter != null)
+                source = source.Where(MatchesStatusFilter);
+
+            if (!string.IsNullOrEmpty(_activeCategory))
+                source = source.Where(eq => string.Equals(eq.Category, _activeCategory, StringComparison.OrdinalIgnoreCase));
+
+            List<Equipment> filtered;
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                filtered = source
+                    .Select(eq => new
+                    {
+                        Equipment = eq,
+                        Score = Math.Max(
+                            FuzzySearchHelper.FuzzyScoreCode(eq.EquipmentCode, searchTerm),
+                            Math.Max(
+                                FuzzySearchHelper.FuzzyScoreCode(eq.QrCode, searchTerm),
+                                Math.Max(
+                                    FuzzySearchHelper.FuzzyScoreCode(eq.SerialNumber, searchTerm),
+                                    Math.Max(
+                                        FuzzySearchHelper.FuzzyScore(eq.Name, searchTerm),
+                                        FuzzySearchHelper.FuzzyScore(eq.Make, searchTerm)))))
+                    })
+                    .Where(x => x.Score >= 5000)
+                    .OrderByDescending(x => x.Score)
+                    .Select(x => x.Equipment)
+                    .ToList();
+            }
+            else
+            {
+                filtered = SortEquipmentList(source.ToList());
+            }
+
+            _totalMatchingCount = filtered.Count;
+            _totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)_pageSize));
+            if (_currentPage > _totalPages) _currentPage = _totalPages;
+
+            _allEquipment = filtered
+                .Skip((_currentPage - 1) * _pageSize)
+                .Take(_pageSize)
+                .ToList();
+
+            UpdatePaginationControls();
+            ApplyFilters();
+        }
+
         private void RefreshAfterDataChange(string? reselectCode = null)
         {
-            bool cacheInUse = !string.IsNullOrWhiteSpace(txtSearch.Text) || _statusFilter != null || _customFilter != null;
-            if (cacheInUse)
-                RefreshEquipmentCache();
+            // LoadEquipment always reads from _fullEquipmentCache now, so this must
+            // refresh unconditionally — otherwise an add/edit/delete with no active
+            // search or filter would leave stale rows showing until something else
+            // happened to trigger a cache refresh.
+            RefreshEquipmentCache();
 
             if (!string.IsNullOrWhiteSpace(reselectCode))
                 _pendingSelectCode = reselectCode;
@@ -1078,6 +1193,9 @@ namespace Inventory_Management_System.Forms
             _currentPage = 1;
             _statusFilter = null;
             _customFilter = null;
+            _activeCategory = "";
+            if (cmbCategory != null) cmbCategory.SelectedIndex = 0;
+            UpdateFiltersButtonLabel();
 
             SetAllCheckboxes(false);
             if (_chkHeaderBox != null) _chkHeaderBox.Checked = false;

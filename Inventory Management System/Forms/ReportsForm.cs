@@ -4,7 +4,10 @@ using Inventory_Management_System.Helpers;
 using Inventory_Management_System.Models;
 using Inventory_Management_System.Services;
 using Microsoft.EntityFrameworkCore;
-using QuestPDF.Fluent;using System;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
+using System;
 using System.Collections.Generic;
 
 using System.Drawing;
@@ -837,94 +840,103 @@ namespace Inventory_Management_System.Forms
         }
 
 
+        // Writes an actual .pdf file to disk via QuestPDF, matching the behavior
+        // of "Export Excel" (which really does save an .xlsx) instead of only
+        // opening a print preview dialog.
         private void btnExportPDF_Click(object sender, EventArgs e)
         {
             if (string.IsNullOrEmpty(_currentReport) || _preview.Columns.Count == 0)
             {
                 ToastHelper.Show(this, "Please select a report first.", ToastType.Info);
-
                 return;
             }
 
+            using var sfd = new SaveFileDialog
+            {
+                Filter = "PDF Files|*.pdf",
+                FileName = $"{_currentReport}_Report_{DateTime.Now:yyyyMMdd_HHmm}.pdf"
+            };
+            if (sfd.ShowDialog() != DialogResult.OK) return;
+
             try
             {
-                var pd = new PrintDocument();
-                int currentRow = 0;
+                QuestPDF.Settings.License = LicenseType.Community;
 
-                pd.BeginPrint += (s, ev) => { currentRow = 0; };
+                int colCount = _preview.Columns.Count;
+                var headers = _preview.Columns.Cast<DataGridViewColumn>().Select(c => c.HeaderText).ToList();
+                var rows = _preview.Rows.Cast<DataGridViewRow>()
+                    .Select(r => r.Cells.Cast<DataGridViewCell>().Select(c => c.Value?.ToString() ?? "").ToList())
+                    .ToList();
+                string reportTitle = _currentReport;
+                string company = _companyName;
+                string generatedOn = DateTime.Now.ToString("yyyy-MM-dd HH:mm");
 
-                pd.PrintPage += (s, ev) =>
+                Document.Create(container =>
                 {
-                    var g = ev.Graphics!;
-                    float y = 40f;
-                    float leftMargin = 40f;
-                    int colCount = _preview.Columns.Count;
-                    float pageWidth = ev.PageBounds.Width - 80f;
-                    float colWidth = pageWidth / colCount;
-
-                    using var titleFont = new Font("Segoe UI", 16, FontStyle.Bold);
-                    using var headerFont = new Font("Segoe UI", 9, FontStyle.Bold);
-                    using var rowFont = new Font("Segoe UI", 9, FontStyle.Regular);
-
-                    g.DrawString($"{_currentReport} Report", titleFont, Brushes.Black, leftMargin, y);
-                    y += 22;
-                    g.DrawString(_companyName, headerFont, Brushes.DimGray, leftMargin, y);
-                    y += 22;
-                    g.DrawString($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm}", rowFont, Brushes.Gray, leftMargin, y);
-                    y += 28;
-
-                    float x = leftMargin;
-                    for (int c = 0; c < colCount; c++)
+                    container.Page(page =>
                     {
-                        g.DrawString(_preview.Columns[c].HeaderText, headerFont, Brushes.Black,
-                            new RectangleF(x, y, colWidth - 4, 20));
-                        x += colWidth;
-                    }
-                    y += 22;
-                    g.DrawLine(Pens.Black, leftMargin, y, leftMargin + pageWidth, y);
-                    y += 6;
+                        page.Size(PageSizes.A4.Landscape());
+                        page.Margin(30);
+                        page.DefaultTextStyle(x => x.FontSize(9));
 
-                    while (currentRow < _preview.Rows.Count)
-                    {
-                        if (y > ev.PageBounds.Height - 60)
+                        page.Header().Column(col =>
                         {
-                            ev.HasMorePages = true;
-                            return;
-                        }
+                            col.Item().Text($"{reportTitle} Report").FontSize(16).Bold();
+                            col.Item().Text(company).FontSize(10).FontColor(QuestPDF.Helpers.Colors.Grey.Darken1);
+                            col.Item().PaddingBottom(8).Text($"Generated: {generatedOn}").FontSize(8).FontColor(QuestPDF.Helpers.Colors.Grey.Medium);
+                        });
 
-                        x = leftMargin;
-                        var row = _preview.Rows[currentRow];
-                        for (int c = 0; c < colCount; c++)
+                        page.Content().Table(table =>
                         {
-                            string val = row.Cells[c].Value?.ToString() ?? "";
-                            g.DrawString(val, rowFont, Brushes.Black,
-                                new RectangleF(x, y, colWidth - 4, 18));
-                            x += colWidth;
-                        }
-                        y += 20;
-                        currentRow++;
-                    }
+                            table.ColumnsDefinition(cols =>
+                            {
+                                for (int c = 0; c < colCount; c++)
+                                    cols.RelativeColumn();
+                            });
 
-                    ev.HasMorePages = false;
-                };
+                            table.Header(header =>
+                            {
+                                foreach (var h in headers)
+                                {
+                                    header.Cell().Background(QuestPDF.Helpers.Colors.Green.Darken2)
+                                        .Padding(4)
+                                        .Text(h).FontColor(QuestPDF.Helpers.Colors.White).Bold();
+                                }
+                                header.Cell().ColumnSpan((uint)colCount).PaddingTop(1).BorderBottom(1)
+                                    .BorderColor(QuestPDF.Helpers.Colors.Grey.Lighten1);
+                            });
 
-                using var ppd = new PrintPreviewDialog
-                {
-                    Document = pd,
-                    Width = 900,
-                    Height = 700,
-                    StartPosition = FormStartPosition.CenterParent
-                };
-                ppd.ShowDialog();
+                            bool alt = false;
+                            foreach (var row in rows)
+                            {
+                                var bg = alt ? QuestPDF.Helpers.Colors.Grey.Lighten4 : QuestPDF.Helpers.Colors.White;
+                                foreach (var cell in row)
+                                {
+                                    table.Cell().Background(bg).Padding(4).Text(cell);
+                                }
+                                alt = !alt;
+                            }
+                        });
+
+                        page.Footer().AlignCenter().Text(x =>
+                        {
+                            x.CurrentPageNumber();
+                            x.Span(" / ");
+                            x.TotalPages();
+                        });
+                    });
+                }).GeneratePdf(sfd.FileName);
+
+                ToastHelper.Show(this, "Report exported successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
-               ToastHelper.Show(this, "Could not generate print preview: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(this, "Export failed: " + ex.Message, ToastType.Error);
             }
         }
 
         // ── Actual printer step — errors ONLY here if no printer is connected,
         // exactly matching the original QR-sheet printer-missing behavior.
-       
+
     }
     }

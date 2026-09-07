@@ -212,7 +212,7 @@ namespace Inventory_Management_System
         private const int AccentBarHeight = 30;
         private float _donutAnimProgress = 1f;
         private const int AnimTickIntervalMs = 15;
-        private const float CardAnimStepPerTick = 0.030f; // ~600ms entrance — a bit snappier, still paced to match the charts
+        private const float CardAnimStepPerTick = 0.010f; // ~1.5s entrance — paced to land alongside the 1.8s chart animations instead of finishing ~1.1s early
         private const int CenterCardIndex = 3; // "Under Repair"
 
         // Elapsed-time-based chart animation — replaces the old feedback-loop
@@ -304,6 +304,75 @@ namespace Inventory_Management_System
 
 
         private ToolTip? _employeeTooltip;
+        private ToolTip? _headerTooltip;
+        private Form? _empHoverPopup;
+
+        private void EnsureEmployeeTooltip()
+        {
+            _employeeTooltip ??= new ToolTip
+            {
+                AutoPopDelay = 4000,
+                InitialDelay = 200,
+                ReshowDelay = 100,
+                ShowAlways = true
+            };
+        }
+
+        private void ShowEmployeeHoverPopup(Control anchor, string title, string subtitle, Color accent)
+        {
+            HideEmployeeHoverPopup();
+
+            using var measureBmp = new Bitmap(1, 1);
+            using var mg = Graphics.FromImage(measureBmp);
+            var titleSz = mg.MeasureString(title, TooltipTitleFont);
+            var subSz = mg.MeasureString(subtitle, TooltipSubFont);
+            int boxW = (int)Math.Max(titleSz.Width, subSz.Width) + 20;
+            int boxH = (int)(titleSz.Height + subSz.Height) + 16;
+
+            var popup = new NoActivatePopup
+            {
+                FormBorderStyle = FormBorderStyle.None,
+                StartPosition = FormStartPosition.Manual,
+                ShowInTaskbar = false,
+                Size = new Size(boxW, boxH),
+                BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(45, 48, 55) : Color.White
+            };
+
+            popup.Paint += (s, e) =>
+            {
+                var pg = e.Graphics;
+                pg.SmoothingMode = SmoothingMode.AntiAlias;
+                var rect = new RectangleF(0, 0, popup.Width - 1, popup.Height - 1);
+                using var path = RoundedRectF(rect, 6f);
+                popup.Region = new Region(path);
+                using var bg = new SolidBrush(ThemeHelper.IsDarkMode ? Color.FromArgb(45, 48, 55) : Color.White);
+                pg.FillPath(bg, path);
+                using var border = new Pen(accent, 1.4f);
+                pg.DrawPath(border, path);
+                using var accentBrush = new SolidBrush(accent);
+                pg.FillRectangle(accentBrush, rect.X, rect.Y + 4, 3, rect.Height - 8);
+                using var titleBrush = new SolidBrush(ThemeHelper.ChartTitleText);
+                using var subBrush = new SolidBrush(ThemeHelper.ChartSecText);
+                pg.DrawString(title, TooltipTitleFont, titleBrush, rect.X + 10, rect.Y + 6);
+                pg.DrawString(subtitle, TooltipSubFont, subBrush, rect.X + 10, rect.Y + 6 + titleSz.Height + 2);
+            };
+
+            var screenPoint = anchor.PointToScreen(new Point(anchor.Width + 10, (anchor.Height - boxH) / 2));
+            popup.Location = screenPoint;
+
+            _empHoverPopup = popup;
+            popup.Show(this);
+        }
+
+        private void HideEmployeeHoverPopup()
+        {
+            if (_empHoverPopup != null && !_empHoverPopup.IsDisposed)
+            {
+                var p = _empHoverPopup;
+                _empHoverPopup = null;
+                p.Close();
+            }
+        }
         private string _barPeriod = "This Year"; 
         private Dictionary<string, int>? _periodOverrideCounts; // null = show live/all-time counts
         private Dictionary<string, float[]> _trendCache = new();
@@ -382,7 +451,7 @@ namespace Inventory_Management_System
             {
                 if (toAllocation)
                 {
-                    AnimateTitleTo("📋 Allocation");
+                    AnimateTitleTo("✍ Allocation");
                     OpenChildForm(new AllocationForm(code), btnAllocation);
                 }
                 else
@@ -2850,7 +2919,7 @@ namespace Inventory_Management_System
                 int x      = padL;
                 int cardIndex = 0;
 
-                float staggerStepMs = instant ? 0f : 70f;
+                float staggerStepMs = instant ? 0f : 90f;
                 // How long the slide/bounce itself takes once it starts, derived from the
                 // same step size AnimTimer_Tick uses — kept in sync automatically if that ever changes.
                 int cardEntranceMs = (int)Math.Ceiling(1f / CardAnimStepPerTick) * AnimTickIntervalMs;
@@ -3214,16 +3283,33 @@ namespace Inventory_Management_System
             lnkViewAllEquipment.BringToFront();
 
             // Employees card — spans both rows
-            _panelEmployees = MakeChartCard("Top Employees by Holdings", 20); // no right-side control
+            _panelEmployees = MakeChartCard("Top Employees by Holdings", 50); // now has the small "›" link
 
             BuildEmployeesList(_panelEmployees);
 
-            _panelActivities = MakeChartCard("Recent Activities", 50);       // has only the small "›" link
+            var lnkViewAllEmployees = new Label
+            {
+                Text = "›",
+                Font = new Font("Segoe UI", 15f),
+                ForeColor = ThemeHelper.ChartBodyText,
+                AutoSize = true,
+                Cursor = Cursors.Hand,
+                BackColor = Color.Transparent,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            lnkViewAllEmployees.Click += btnEmployees_Click;
+            lnkViewAllEmployees.MouseEnter += (s, e) => lnkViewAllEmployees.ForeColor = ThemeHelper.ChartTitleText;
+            lnkViewAllEmployees.MouseLeave += (s, e) => lnkViewAllEmployees.ForeColor = ThemeHelper.ChartBodyText;
+            _panelEmployees.Controls.Add(lnkViewAllEmployees);
+            _panelEmployees.Resize += (s, e) => lnkViewAllEmployees.Location = new Point(_panelEmployees.Width - lnkViewAllEmployees.PreferredWidth - 16, 10);
+            lnkViewAllEmployees.Location = new Point(_panelEmployees.Width - lnkViewAllEmployees.PreferredWidth - 16, 10);
+            lnkViewAllEmployees.BringToFront();
 
+            _panelActivities = MakeChartCard("Recent Activities", 50);       // has only the small "›" link
             BuildActivitiesList(_panelActivities);
 
             // Row 2
-            _panelLine = MakeChartCard("Equipment by Category", 20);         // no right-side control
+            _panelLine = MakeChartCard("Equipment by Category", 50);         // now has the small "›" link
 
             _panelLine.Paint += PaintCategoryBreakdownChart;
             _panelLine.MouseMove += (s, e) =>
@@ -3236,7 +3322,30 @@ namespace Inventory_Management_System
             };
             _panelLine.MouseLeave += (s, e) => { if (_catHoverIndex != -1) { _catHoverIndex = -1; _panelLine.Invalidate(); } };
 
-            _panelLocation = MakeChartCard("Equipment Allocation by Location", 20); // no right-side control
+            var lnkViewAllCategories = new Label
+            {
+                Text = "›",
+                Font = new Font("Segoe UI", 15f),
+                ForeColor = ThemeHelper.ChartBodyText,
+                AutoSize = true,
+                Cursor = Cursors.Hand,
+                BackColor = Color.Transparent,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            lnkViewAllCategories.Click += (s, e) =>
+            {
+                if (!EnsureAdminToast("Settings")) return;
+                AnimateTitleTo("⚙️ Settings");
+                OpenChildForm(new SettingsForm(SettingsForm.InitialSection.Categories), btnSettings);
+            };
+            lnkViewAllCategories.MouseEnter += (s, e) => lnkViewAllCategories.ForeColor = ThemeHelper.ChartTitleText;
+            lnkViewAllCategories.MouseLeave += (s, e) => lnkViewAllCategories.ForeColor = ThemeHelper.ChartBodyText;
+            _panelLine.Controls.Add(lnkViewAllCategories);
+            _panelLine.Resize += (s, e) => lnkViewAllCategories.Location = new Point(_panelLine.Width - lnkViewAllCategories.PreferredWidth - 16, 10);
+            lnkViewAllCategories.Location = new Point(_panelLine.Width - lnkViewAllCategories.PreferredWidth - 16, 10);
+            lnkViewAllCategories.BringToFront();
+
+            _panelLocation = MakeChartCard("Equipment Allocation by Location", 50); // now has the small "›" link
 
             _panelLocation.Paint += PaintLocationChart;
             _panelLocation.MouseMove += (s, e) =>
@@ -3248,6 +3357,24 @@ namespace Inventory_Management_System
                 if (changed || idx >= 0) _panelLocation.Invalidate();
             };
             _panelLocation.MouseLeave += (s, e) => { if (_locHoverIndex != -1) { _locHoverIndex = -1; _panelLocation.Invalidate(); } };
+
+            var lnkViewAllLocations = new Label
+            {
+                Text = "›",
+                Font = new Font("Segoe UI", 15f),
+                ForeColor = ThemeHelper.ChartBodyText,
+                AutoSize = true,
+                Cursor = Cursors.Hand,
+                BackColor = Color.Transparent,
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            lnkViewAllLocations.Click += btnLocations_Click;
+            lnkViewAllLocations.MouseEnter += (s, e) => lnkViewAllLocations.ForeColor = ThemeHelper.ChartTitleText;
+            lnkViewAllLocations.MouseLeave += (s, e) => lnkViewAllLocations.ForeColor = ThemeHelper.ChartBodyText;
+            _panelLocation.Controls.Add(lnkViewAllLocations);
+            _panelLocation.Resize += (s, e) => lnkViewAllLocations.Location = new Point(_panelLocation.Width - lnkViewAllLocations.PreferredWidth - 16, 10);
+            lnkViewAllLocations.Location = new Point(_panelLocation.Width - lnkViewAllLocations.PreferredWidth - 16, 10);
+            lnkViewAllLocations.BringToFront();
 
             _panelTrend = MakeChartCard("Asset Allocation and Usage Trend", 140);   // has the period-selector dropdown
             _panelTrend.Paint += PaintTrendChart;
@@ -3433,7 +3560,7 @@ namespace Inventory_Management_System
                 _isLoadingEmployeeRows = true;
                 listHost.SuspendLayout();
                 listHost.Controls.Clear();
-                _employeeTooltip ??= new ToolTip { AutoPopDelay = 4000, InitialDelay = 200, ReshowDelay = 100, ShowAlways = true };
+                EnsureEmployeeTooltip();
 
                 if (_topEmployees == null || _topEmployees.Count == 0)
                 {
@@ -3455,7 +3582,8 @@ namespace Inventory_Management_System
                 for (int i = 0; i < _topEmployees.Count; i++)
                 {
                     var emp = _topEmployees[i];
-                    var row = BuildEmployeeRow(i + 1, emp.Name, emp.Count, emp.Dept, emp.Email, emp.Code, maxVal, showBars, Math.Max(100, listHost.Width - 20), _employeeTooltip);
+                    int rowWidth = Math.Max(100, listHost.ClientSize.Width - 20);
+                    var row = BuildEmployeeRow(i + 1, emp.Name, emp.Count, emp.Dept, emp.Email, emp.Code, maxVal, showBars, rowWidth, _employeeTooltip!);
                     row.Location = new Point(10, y);
                     row.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
                     listHost.Controls.Add(row);
@@ -3486,7 +3614,7 @@ namespace Inventory_Management_System
             Color.FromArgb(168, 85,  247), // 8th – violet
         };
 
-        private static Panel BuildEmployeeRow(int rank, string? name, int count, string? dept, string? email, string? code, int maxVal, bool showBar, int width, ToolTip tooltip)
+        private Panel BuildEmployeeRow(int rank, string? name, int count, string? dept, string? email, string? code, int maxVal, bool showBar, int width, ToolTip tooltip)
         {
             // Bar height scales proportionally: minimum 6px, maximum 14px
             int barH = showBar && maxVal > 0
@@ -3502,6 +3630,9 @@ namespace Inventory_Management_System
             string tooltipText = count > 0
                 ? $"{safeName} ({safeCode})\n{count} allocation{(count == 1 ? "" : "s")}"
                 : $"{safeName} ({safeCode})\nNo allocations";
+
+            string hoverTitle = $"{safeName} ({safeCode})";
+            string hoverSubtitle = count > 0 ? $"{count} allocation{(count == 1 ? "" : "s")}" : "No allocations";
 
             Color barColor = EmpBarPalette[(rank - 1) % EmpBarPalette.Length];
 
@@ -3594,13 +3725,18 @@ namespace Inventory_Management_System
                 };
                 row.Controls.Add(barTrack);
 
-                tooltip.SetToolTip(barTrack, tooltipText);
-                tooltip.SetToolTip(lblCount, tooltipText);
+                barTrack.MouseEnter += (s, e) => ShowEmployeeHoverPopup(barTrack, hoverTitle, hoverSubtitle, barColor);
+                barTrack.MouseLeave += (s, e) => HideEmployeeHoverPopup();
+                lblCount.MouseEnter += (s, e) => ShowEmployeeHoverPopup(lblCount, hoverTitle, hoverSubtitle, barColor);
+                lblCount.MouseLeave += (s, e) => HideEmployeeHoverPopup();
             }
 
-            tooltip.SetToolTip(row, tooltipText);
-            tooltip.SetToolTip(avatarPanel, tooltipText);
-            tooltip.SetToolTip(lblName, tooltipText);
+            row.MouseEnter += (s, e) => ShowEmployeeHoverPopup(row, hoverTitle, hoverSubtitle, barColor);
+            row.MouseLeave += (s, e) => HideEmployeeHoverPopup();
+            avatarPanel.MouseEnter += (s, e) => ShowEmployeeHoverPopup(avatarPanel, hoverTitle, hoverSubtitle, barColor);
+            avatarPanel.MouseLeave += (s, e) => HideEmployeeHoverPopup();
+            lblName.MouseEnter += (s, e) => ShowEmployeeHoverPopup(lblName, hoverTitle, hoverSubtitle, barColor);
+            lblName.MouseLeave += (s, e) => HideEmployeeHoverPopup();
 
             return row;
         }
@@ -3714,7 +3850,7 @@ namespace Inventory_Management_System
                         timeLine = $"{FormatTimeAgo(log.CreatedAt.Value)} at {local:hh:mm tt}, {local:dd MMM yyyy}";
                     }
 
-                    var row = BuildActivityRow(icon, message, timeLine, listHost.Width - 20);
+                    var row = BuildActivityRow(icon, message, timeLine, listHost.ClientSize.Width - 20);
                     row.Location = new Point(10, y);
                     row.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
                     listHost.Controls.Add(row);
@@ -3791,9 +3927,10 @@ namespace Inventory_Management_System
         // ════════════════════════════════════════════════════════════════
         //  CHART CARD FACTORY
         // ════════════════════════════════════════════════════════════════
-      
-        private static Panel MakeChartCard(string title, int reservedRight = 40)
+
+        private Panel MakeChartCard(string title, int reservedRight = 40)
         {
+            _headerTooltip ??= new ToolTip { AutoPopDelay = 4000, InitialDelay = 200, ReshowDelay = 100, ShowAlways = true };
             var card = new DoubleBufferedPanel { BackColor = ThemeHelper.ChartCardBg };
 
             card.Paint += (s, e) =>
@@ -3839,10 +3976,7 @@ namespace Inventory_Management_System
                 }
                 var remainingRect = new RectangleF(textX, titleRect.Y, Math.Max(10, titleRect.Right - textX), titleRect.Height);
 
-                // Auto-shrink long headings instead of ellipsis-truncating them — steps
-                // the font down in 0.5pt increments until the full title fits, with a
-                // floor so it never gets illegibly small. Falls back to ellipsis only
-                // if even the smallest size doesn't fit.
+                // Auto-shrink long headings instead of ellipsis-truncating them.
                 Font fitFont = ChartTitleFont;
                 bool ownsFitFont = false;
                 if (g.MeasureString(textPart, fitFont).Width > remainingRect.Width)
@@ -3867,7 +4001,20 @@ namespace Inventory_Management_System
             };
 
             card.Tag = title;
+
+            // Hovering over the header band (top 44px, where the title is drawn)
+            // shows the card's full name as a tooltip.
+            card.MouseMove += (s, e) =>
+            {
+                bool overHeader = e.Y >= 0 && e.Y <= 44;
+                string desired = overHeader ? title : "";
+                if (_headerTooltip!.GetToolTip(card) != desired)
+                    _headerTooltip.SetToolTip(card, desired);
+            };
+            card.MouseLeave += (s, e) => _headerTooltip!.SetToolTip(card, "");
+
             return card;
+        
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -4899,13 +5046,13 @@ namespace Inventory_Management_System
 
         private void OpenAllocationAvailable()
         {
-            AnimateTitleTo("📋 Allocation");
+            AnimateTitleTo("✍ Allocation");
             OpenChildForm(new AllocationForm("In Store"), btnAllocation);
         }
 
         private void OpenAllocationAllocated()
         {
-            AnimateTitleTo("📋 Allocation");
+            AnimateTitleTo("✍ Allocation");
             OpenChildForm(new AllocationForm("Allocated"), btnAllocation);
         }
 
@@ -4919,7 +5066,7 @@ namespace Inventory_Management_System
 
         private void OpenOverdueEquipment()
         {
-            AnimateTitleTo("📋 Allocation");
+            AnimateTitleTo("✍ Allocation");
             var frm = new AllocationForm("Overdue");
             OpenChildForm(frm, btnAllocation);
         }
@@ -4958,7 +5105,7 @@ namespace Inventory_Management_System
 
         private void btnAllocation_Click(object? sender, EventArgs e)
         {
-            AnimateTitleTo("📋 Allocation");
+            AnimateTitleTo("✍ Allocation");
             OpenChildForm(new AllocationForm(), btnAllocation);
         }
 

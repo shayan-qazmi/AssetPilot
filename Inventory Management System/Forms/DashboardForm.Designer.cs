@@ -108,9 +108,9 @@ namespace Inventory_Management_System
             btnLocations.Name    = "btnLocations";
             btnLocations.Click  += btnLocations_Click;
 
-            btnAllocation.Dock   = System.Windows.Forms.DockStyle.Top;
-            btnAllocation.Height = 46; btnAllocation.Text = "📦  Allocation";
-            btnAllocation.Name   = "btnAllocation";
+            btnAllocation.Dock = System.Windows.Forms.DockStyle.Top;
+            btnAllocation.Height = 46; btnAllocation.Text = "✍  Allocation";
+            btnAllocation.Name = "btnAllocation";
             btnAllocation.Click += btnAllocation_Click;
 
             btnReturns.Dock      = System.Windows.Forms.DockStyle.Top;
@@ -133,10 +133,10 @@ namespace Inventory_Management_System
             btnDeletedItems.Name   = "btnDeletedItems";
             btnDeletedItems.Click += btnDeletedItems_Click;
 
-            btnLogs.Dock         = System.Windows.Forms.DockStyle.Top;
-            btnLogs.Height       = 46; btnLogs.Text = "📋  Logs";
-            btnLogs.Name         = "btnLogs";
-            btnLogs.Click       += btnLogs_Click;
+            btnLogs.Dock = System.Windows.Forms.DockStyle.Top;
+            btnLogs.Height = 46; btnLogs.Text = "📜  Logs";
+            btnLogs.Name = "btnLogs";
+            btnLogs.Click += btnLogs_Click;
 
             btnQRScanner.Dock    = System.Windows.Forms.DockStyle.Top;
             btnQRScanner.Height  = 46; btnQRScanner.Text = "📷  QR Scanner";
@@ -191,9 +191,10 @@ namespace Inventory_Management_System
             panelDesktop.Controls.Add(panelStats);
 
             // ── panelStats — compact single row ─────────────────────────────
-            panelStats.Dock    = System.Windows.Forms.DockStyle.Top;
-            panelStats.Height  = 110;
-            panelStats.Name    = "panelStats";
+            panelStats.Dock = System.Windows.Forms.DockStyle.Top;
+            panelStats.Height = 210; // matches the height LoadStats() sets once cards load,
+                                     // avoiding a visible resize snap on startup
+            panelStats.Name = "panelStats";
             panelStats.Padding = new System.Windows.Forms.Padding(12, 8, 12, 8);
 
             // ── panelContent ────────────────────────────────────────────────

@@ -399,6 +399,14 @@ namespace Inventory_Management_System.Forms
                         actionCell.Style.ForeColor = Color.FromArgb(230, 81, 0);
                         break;
 
+                    // ── Allocation request deleted → unique orange-red, distinct
+                    // from both the deep delete-red (equipment/employee/location)
+                    // and the warmer decommission red ───────────────────────────
+                    case "Allocation Request Deleted":
+                        actionCell.Style.BackColor = Color.FromArgb(255, 171, 145);
+                        actionCell.Style.ForeColor = Color.FromArgb(191, 54, 12);
+                        break;
+
                     // ── Return Undone → same orange family as Approved, lighter shade ──
                     case "return_undone":
                         actionCell.Style.BackColor = Color.FromArgb(255, 224, 178);
@@ -528,7 +536,8 @@ namespace Inventory_Management_System.Forms
             "allocation_requested" => "Allocation Requested",
             "allocation_approved"  => "Allocation Approved",
             "allocation_rejected"  => "Allocation Rejected",
-            "allocation_returned"  => "Returned to Store",
+            "allocation_returned" => "Returned to Store",
+            "Allocation Request Deleted" => "Allocation Request Deleted",
             "allocation_overdue"   => "Allocation Overdue",
             "decommission_requested" => "Decommission Requested",
             "decommission_approved"  => "Decommission Approved",

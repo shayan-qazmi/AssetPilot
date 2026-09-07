@@ -27,6 +27,7 @@ namespace Inventory_Management_System.Forms
         private int _pageSize = 25;
         private int _totalPages = 1;
         private int _totalMatchingCount = 0;
+        private EntitySuggestHelper<Allocation>? _suggest;
 
         public TransferForm()
         {
@@ -35,12 +36,42 @@ namespace Inventory_Management_System.Forms
             flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
             ApplyTheme();
             LoadAllocatedEquipment();
+            SetupSuggestions();
 
             this.Shown += (s, e) =>
             {
                 dgvTransfer.ClearSelection();
                 dgvTransfer.CurrentCell = null;
             };
+        }
+
+        private void SetupSuggestions()
+        {
+            try
+            {
+                _suggest = new EntitySuggestHelper<Allocation>(
+                    textBox: txtSearch,
+                    hostForm: this,
+                    onSelected: a => { txtSearch.Text = a.Equipment?.EquipmentCode ?? ""; },
+                    scoreFn: (a, term) => Math.Max(
+                        FuzzySearchHelper.FuzzyScoreCode(a.Equipment?.EquipmentCode, term),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScoreCode(a.Equipment?.QrCode, term),
+                            Math.Max(
+                                FuzzySearchHelper.FuzzyScore(a.Equipment?.Name, term),
+                                FuzzySearchHelper.FuzzyScore(a.Employee?.FullName, term)))),
+                    line1Selector: a => $"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name}",
+                    line2Selector: a => $"With: {a.Employee?.FullName ?? "—"}",
+                    accentColor: Color.FromArgb(123, 31, 162));
+                _suggest.LoadItems(_allAllocations);
+            }
+            catch { /* non-critical UI enhancement, fail silently */ }
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _suggest?.Dispose();
+            base.OnFormClosed(e);
         }
 
 
@@ -173,13 +204,14 @@ namespace Inventory_Management_System.Forms
             {
                 using var db = new InventoryDbContext();
                 _allAllocations = db.Allocations
-                    .Where(a => a.Status == "approved")
-                    .Include(a => a.Equipment)
-                    .Include(a => a.Employee)
-                    .Include(a => a.Location)
-                    .OrderBy(a => a.Equipment!.EquipmentCode)
-                    .ToList();
+              .Where(a => a.Status == "approved")
+              .Include(a => a.Equipment)
+              .Include(a => a.Employee)
+              .Include(a => a.Location)
+              .OrderBy(a => a.Equipment!.EquipmentCode)
+              .ToList();
 
+                _suggest?.LoadItems(_allAllocations);
                 RefreshGrid();
             }
             catch (Exception ex)
@@ -731,10 +763,11 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
                             Math.Max(
                                 FuzzySearchHelper.FuzzyScore(alloc.Equipment?.Name, term),
                                 FuzzySearchHelper.FuzzyScoreCode(alloc.Equipment?.SerialNumber, term)))),
-                    line1Selector: alloc => $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}",
+                                line1Selector: alloc => $"{alloc.Equipment?.EquipmentCode} — {alloc.Equipment?.Name}",
                     line2Selector: alloc => string.IsNullOrWhiteSpace(alloc.Equipment?.SerialNumber)
                         ? $"With: {alloc.Employee?.FullName ?? "—"}"
-                        : $"S/N: {alloc.Equipment.SerialNumber} | With: {alloc.Employee?.FullName ?? "—"}");
+                        : $"S/N: {alloc.Equipment.SerialNumber} | With: {alloc.Employee?.FullName ?? "—"}",
+                    accentColor: Color.FromArgb(123, 31, 162));
 
                 _equipmentSuggest.LoadItems(_allocations);
             }

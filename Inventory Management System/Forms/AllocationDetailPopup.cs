@@ -431,30 +431,6 @@ namespace Inventory_Management_System.Forms
             viewer.ShowDialog(this);
         }
 
-        /// Attempts to load an equipment item's picture from the shared network folder.
-        /// Never throws — returns null (caller falls back to the default
-        /// placeholder/no-picture state) if the share is unreachable or the file
-        /// is missing.
-        public static Image? TryLoadEquipmentImage(string? storedPicturePath)
-        {
-            if (string.IsNullOrWhiteSpace(storedPicturePath)) return null;
-
-            try
-            {
-                NetworkShareHelper.EnsureConnected();
-                string fullPath = NetworkPaths.GetEquipmentPictureFullPath(storedPicturePath);
-                if (!File.Exists(fullPath)) return null;
-
-                using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
-                return Image.FromStream(stream);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "AvatarHelper.TryLoadEquipmentImage");
-                return null;
-            }
-        }
-
         private void DrawEquipmentIcon(Graphics g, Rectangle bounds)
         {
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;

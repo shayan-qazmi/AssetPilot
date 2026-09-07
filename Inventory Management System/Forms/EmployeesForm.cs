@@ -27,6 +27,8 @@ namespace Inventory_Management_System.Forms
 
         private string? _pendingSelectCode;
         private bool _hasPendingSelection = false;
+        private EntitySuggestHelper<Employee>? _suggest;
+        private List<Employee> _allEmployeesForSuggest = new();
 
         public EmployeesForm()
         {
@@ -37,6 +39,7 @@ namespace Inventory_Management_System.Forms
             ApplyTheme();
             SetupCheckboxSelectHeader();
             dgvEmployees.CellDoubleClick += DgvEmployees_CellDoubleClick;
+            SetupSuggestions();
             LoadEmployees();
 
             this.Shown += (s, e) =>
@@ -47,6 +50,32 @@ namespace Inventory_Management_System.Forms
                     dgvEmployees.CurrentCell = null;
                 }
             };
+        }
+
+        private void SetupSuggestions()
+        {
+            try
+            {
+                var all = _employeeService.GetAll();
+                _allEmployeesForSuggest = all.Success ? (all.Data ?? new()) : new();
+                _suggest = new EntitySuggestHelper<Employee>(
+                    textBox: txtSearch,
+                    hostForm: this,
+                    onSelected: emp => { txtSearch.Text = emp.EmployeeCode; },
+                    scoreFn: (emp, term) => Math.Max(
+                        FuzzySearchHelper.FuzzyScoreCode(emp.EmployeeCode, term),
+                        FuzzySearchHelper.FuzzyScore(emp.FullName, term)),
+                    line1Selector: emp => $"{emp.EmployeeCode} — {emp.FullName}",
+                    line2Selector: emp => emp.Department ?? "—");
+                _suggest.LoadItems(_allEmployeesForSuggest);
+            }
+            catch { /* non-critical UI enhancement, fail silently */ }
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _suggest?.Dispose();
+            base.OnFormClosed(e);
         }
 
         private void SetupPageSizeOptions()
@@ -359,24 +388,24 @@ namespace Inventory_Management_System.Forms
 
                     var allEmployees = result.Data ?? new List<Employee>();
 
-                    var codeMatches = allEmployees.Where(e =>
-                        (!string.IsNullOrEmpty(e.EmployeeCode) && e.EmployeeCode.Contains(searchTerm, StringComparison.OrdinalIgnoreCase)))
-                        .ToList();
-
-                    var fullMatches = codeMatches.Count > 0
-                        ? codeMatches
-                        : allEmployees.Where(e => FuzzySearchHelper.IsFuzzyMatch(e.FullName, searchTerm)
-                                                || FuzzySearchHelper.IsFuzzyMatch(e.Department, searchTerm)
-                                                || FuzzySearchHelper.IsFuzzyMatch(e.Email, searchTerm)
-                                                || FuzzySearchHelper.IsFuzzyMatch(e.Phone, searchTerm))
-                            .OrderByDescending(e => Math.Max(
-                                FuzzySearchHelper.FuzzyScore(e.FullName, searchTerm),
+                    var fullMatches = allEmployees
+                        .Select(emp => new
+                        {
+                            Employee = emp,
+                            Score = Math.Max(
+                                FuzzySearchHelper.FuzzyScoreCode(emp.EmployeeCode, searchTerm),
                                 Math.Max(
-                                    FuzzySearchHelper.FuzzyScore(e.Department, searchTerm),
+                                    FuzzySearchHelper.FuzzyScore(emp.FullName, searchTerm),
                                     Math.Max(
-                                        FuzzySearchHelper.FuzzyScore(e.Email, searchTerm),
-                                        FuzzySearchHelper.FuzzyScore(e.Phone, searchTerm)))))
-                            .ToList();
+                                        FuzzySearchHelper.FuzzyScore(emp.Department, searchTerm),
+                                        Math.Max(
+                                            FuzzySearchHelper.FuzzyScore(emp.Email, searchTerm),
+                                            FuzzySearchHelper.FuzzyScore(emp.Phone, searchTerm)))))
+                        })
+                        .Where(x => x.Score >= 5000)
+                        .OrderByDescending(x => x.Score)
+                        .Select(x => x.Employee)
+                        .ToList();
 
                     _totalPages = Math.Max(1, (int)Math.Ceiling(fullMatches.Count / (double)_pageSize));
                     if (_currentPage > _totalPages) _currentPage = _totalPages;
@@ -411,6 +440,13 @@ namespace Inventory_Management_System.Forms
 
                 dgvEmployees.AutoResizeColumns();
                 SyncHeaderCheckbox();
+
+                var allForSuggest = _employeeService.GetAll();
+                if (allForSuggest.Success)
+                {
+                    _allEmployeesForSuggest = allForSuggest.Data ?? new();
+                    _suggest?.LoadItems(_allEmployeesForSuggest);
+                }
             }
             catch (Exception ex)
             {
