@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using Microsoft.EntityFrameworkCore;
 using Inventory_Management_System.Models;
 using Inventory_Management_System.Helpers;
+using Inventory_Management_System.Services;
 
 namespace Inventory_Management_System.Forms
 {
@@ -31,6 +32,8 @@ namespace Inventory_Management_System.Forms
         private Button btnNextPage = null!;
 
         private List<Transaction> _all = new();
+        private EquipmentSuggestHelper? _suggest;
+        private readonly EquipmentService _suggestEquipmentService = new();
         private int _currentPage = 1;
         private int _pageSize = 25;
         private int _totalPages = 1;
@@ -42,6 +45,28 @@ namespace Inventory_Management_System.Forms
             BackColor = ThemeHelper.DashboardBg;
             BuildUI();
         }
+
+        private void EnsureSuggestSetup()
+        {
+            if (_suggest != null) return;
+            try
+            {
+                var allEquipment = _suggestEquipmentService.GetAll().Data ?? new List<Equipment>();
+                _suggest = new EquipmentSuggestHelper(
+                    textBox: txtSearch,
+                    hostForm: FindForm(),
+                    onSelected: eq =>
+                    {
+                        _currentPage = 1;
+                        _suggest?.SetTextWithoutSuggesting(eq.EquipmentCode);
+                        Refresh_();
+                    },
+                    accentColor: Color.FromArgb(33, 150, 243));
+                _suggest.LoadEquipment(allEquipment);
+            }
+            catch { /* suggestions are non-critical — fail silently */ }
+        }
+
         private class HistoryEntry
         {
             public Transaction Tx = null!;
@@ -188,7 +213,25 @@ namespace Inventory_Management_System.Forms
             Invalidate(true);
         }
 
-        public void RefreshData() => LoadData();
+        public void RefreshData()
+        {
+            EnsureSuggestSetup();
+            LoadData();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) _suggest?.Dispose();
+            base.Dispose(disposing);
+        }
+
+        public void FilterByEquipmentCode(string code)
+        {
+            if (string.IsNullOrWhiteSpace(code)) return;
+            EnsureSuggestSetup();
+            if (_suggest != null) _suggest.SetTextWithoutSuggesting(code);
+            else txtSearch.Text = code;
+        }
 
         private void LoadData()
         {
@@ -202,7 +245,7 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(FindForm(), "Could not load history: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(FindForm()!, "Could not load history: " + ex.Message, ToastType.Error);
                 _all = new List<Transaction>();
             }
             Refresh_();
@@ -357,11 +400,11 @@ namespace Inventory_Management_System.Forms
                         E(row.Cells["Date"].Value), E(row.Cells["Timestamp"].Value)));
                 }
                 System.IO.File.WriteAllText(sfd.FileName, sb.ToString());
-                ToastHelper.Show(FindForm(), "Exported successfully.", ToastType.Success);
+                ToastHelper.Show(FindForm()!, "Exported successfully.", ToastType.Success);
             }
             catch (Exception ex)
             {
-                ToastHelper.Show(FindForm(), "Export failed: " + ex.Message, ToastType.Error);
+                ToastHelper.Show(FindForm()!, "Export failed: " + ex.Message, ToastType.Error);
             }
         }
     }

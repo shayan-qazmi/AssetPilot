@@ -875,6 +875,8 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleDangerButton(btnDelete);
             btnDelete.Text = "🗑  Delete Request";
+            btnDelete.AutoSize = false;
+            btnDelete.Width = TextRenderer.MeasureText(btnDelete.Text, btnDelete.Font).Width + 40;
             ApplyRoundedSearchStyle(txtSearch);
             ThemeHelper.StyleComboBox(cmbPageSize);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
@@ -1476,12 +1478,6 @@ namespace Inventory_Management_System.Forms
             var result = _allocationService.Allocate(frm.Result!);
             if (result.Success)
             {
-                var emp1 = frm.Result.EmployeeId.HasValue
-          ? _employeeService.GetAll().Data?.FirstOrDefault(x => x.Id == frm.Result.EmployeeId.Value)
-          : null;
-                string empDisplay1 = emp1 != null ? $"{emp1.EmployeeCode} - {emp1.FullName}" : "—";
-                _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
-                      null, $"Allocated to Employee {empDisplay1} | Source Screen: Allocation Screen");
                 ShowToast(this, "Allocation request created.", ToastType.Success);
                 LoadAllocations();
             }
@@ -1520,12 +1516,6 @@ namespace Inventory_Management_System.Forms
             var result = _allocationService.Allocate(frm.Result!);
             if (result.Success)
             {
-                var emp2 = frm.Result.EmployeeId.HasValue
-      ? _employeeService.GetAll().Data?.FirstOrDefault(x => x.Id == frm.Result.EmployeeId.Value)
-      : null;
-                string empDisplay2 = emp2 != null ? $"{emp2.EmployeeCode} - {emp2.FullName}" : "—";
-                _audit.Log(frm.Result!.EquipmentId, AuditService.ActionAllocationRequested,
-                    null, $"Allocated to Employee {empDisplay2}");
                 ToastHelper.Show(this, "Allocation request created.", ToastType.Success);
                 LoadAllocations();
             }

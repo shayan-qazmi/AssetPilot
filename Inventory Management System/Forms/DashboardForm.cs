@@ -212,7 +212,7 @@ namespace Inventory_Management_System
         private const int AccentBarHeight = 30;
         private float _donutAnimProgress = 1f;
         private const int AnimTickIntervalMs = 15;
-        private const float CardAnimStepPerTick = 0.010f; // ~1.5s entrance — paced to land alongside the 1.8s chart animations instead of finishing ~1.1s early
+        private const float CardAnimStepPerTick = 0.030f; // ~800ms entrance — matches how fast the charts below visually settle
         private const int CenterCardIndex = 3; // "Under Repair"
 
         // Elapsed-time-based chart animation — replaces the old feedback-loop
@@ -2919,7 +2919,7 @@ namespace Inventory_Management_System
                 int x      = padL;
                 int cardIndex = 0;
 
-                float staggerStepMs = instant ? 0f : 90f;
+                float staggerStepMs = instant ? 0f : 20f;
                 // How long the slide/bounce itself takes once it starts, derived from the
                 // same step size AnimTimer_Tick uses — kept in sync automatically if that ever changes.
                 int cardEntranceMs = (int)Math.Ceiling(1f / CardAnimStepPerTick) * AnimTickIntervalMs;
@@ -5094,6 +5094,14 @@ namespace Inventory_Management_System
         {
             AnimateTitleTo("📜 Logs");
             OpenChildForm(new LogsForm(equipmentCode), btnLogs);
+        }
+
+        public void NavigateToCheckInOut(string equipmentCode)
+        {
+            AnimateTitleTo("✅ Check In/Out");
+            var frm = new CheckInOutForm();
+            OpenChildForm(frm, btnCheckInOut);
+            frm.ShowHistoryFilteredByCode(equipmentCode);
         }
 
 

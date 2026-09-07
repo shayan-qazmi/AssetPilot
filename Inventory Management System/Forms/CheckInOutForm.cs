@@ -275,6 +275,13 @@ namespace Inventory_Management_System.Forms
         }
 
         private CheckInOutHistoryPanel? _historyPanel;
+        private string? _pendingHistoryFilterCode;
+
+        public void ShowHistoryFilteredByCode(string equipmentCode)
+        {
+            _pendingHistoryFilterCode = equipmentCode;
+            ShowHistoryView();
+        }
 
         private void ShowHistoryView()
         {
@@ -287,6 +294,12 @@ namespace Inventory_Management_System.Forms
             _historyPanel.Visible = true;
             _historyPanel.BringToFront();
             _historyPanel.RefreshData();
+
+            if (_pendingHistoryFilterCode != null)
+            {
+                _historyPanel.FilterByEquipmentCode(_pendingHistoryFilterCode);
+                _pendingHistoryFilterCode = null;
+            }
 
             panelTop.Visible = false;       // scan bar goes away completely
             panelMainContent.Visible = false;
