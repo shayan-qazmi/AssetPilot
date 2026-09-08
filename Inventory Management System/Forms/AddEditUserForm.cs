@@ -8,6 +8,7 @@ using System.Linq;
 using System.Windows.Forms;
 using Inventory_Management_System.Helpers;
 using Inventory_Management_System.Models;
+using Inventory_Management_System.Services;
 
 namespace Inventory_Management_System.Forms
 {
@@ -16,7 +17,7 @@ namespace Inventory_Management_System.Forms
         private readonly User _user;
         private readonly bool _isEditMode;
         private List<Role> _roles = new();
-
+        public bool NavigateToChangePassword { get; private set; }
         private TextBox txtUsername = null!;
         private TextBox txtFullName = null!;
         private TextBox txtEmail = null!;
@@ -213,12 +214,36 @@ namespace Inventory_Management_System.Forms
             PlaceControl(txtEmail);
             Hint("Contact email for system notifications and password recovery");
 
-            txtPassword = new TextBox { UseSystemPasswordChar = true };
-            ThemeHelper.StyleTextBox(txtPassword);
-            FieldLabel(_isEditMode ? "New Password" : "Password", required: !_isEditMode);
-            PlaceControl(txtPassword);
-            if (_isEditMode)
-                Hint("Leave blank to keep existing password");
+            bool editingSelf = _isEditMode && _user.Id == AuthService.CurrentUserId;
+
+            if (editingSelf)
+            {
+                FieldLabel("Password");
+
+                var btnGoToChangePassword = new Button
+                {
+                    Text = "🔒  Change Password...",
+                    Height = 36
+                };
+                ThemeHelper.StyleSecondaryButton(btnGoToChangePassword);
+                btnGoToChangePassword.Click += (s, e) =>
+                {
+                    NavigateToChangePassword = true;
+                    DialogResult = DialogResult.Cancel; // closes this dialog; caller reacts to the flag
+                };
+                PlaceControl(btnGoToChangePassword, height: 36);
+                Hint("For security, use the Change Password screen in Settings to update your own password.");
+            }
+            else
+            {
+                // Admin editing someone else — direct password overwrite stays available.
+                txtPassword = new TextBox { UseSystemPasswordChar = true };
+                ThemeHelper.StyleTextBox(txtPassword);
+                FieldLabel(_isEditMode ? "New Password" : "Password", required: !_isEditMode);
+                PlaceControl(txtPassword);
+                if (_isEditMode)
+                    Hint("Leave blank to keep existing password");
+            }
 
             if (!_isEditMode)
             {
@@ -428,6 +453,18 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
+            bool willSetPassword = txtPassword != null && !string.IsNullOrWhiteSpace(txtPassword.Text);
+
+            if (willSetPassword && _isEditMode)
+            {
+                if (MessageBox.Show(
+                        $"This will immediately replace '{_user.Username}'s password. Continue?",
+                        "Confirm Password Change", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                {
+                    return;
+                }
+            }
+
             try
             {
                 using var db = new InventoryDbContext();
@@ -468,13 +505,18 @@ namespace Inventory_Management_System.Forms
 
                 entity.Username = txtUsername.Text.Trim();
                 entity.FullName = txtFullName.Text.Trim();
-                entity.Email = string.IsNullOrWhiteSpace(txtEmail.Text) ? null : txtEmail.Text.Trim();
+                entity.Email = newEmail;
                 entity.IsActive = chkActive.Checked;
 
-                if (!string.IsNullOrWhiteSpace(txtPassword.Text))
-                    entity.PasswordHash = txtPassword.Text;
+                if (willSetPassword)
+                {
+                    entity.PasswordHash = PasswordHelper.Hash(txtPassword!.Text);
+                    entity.PasswordChangedAt = DateTime.UtcNow;
 
-                // ── Profile picture ──────────────────────────────────────
+                    if (_isEditMode)
+                        SecurityAuditLogger.Log("Changed user's password (admin)", $"Target: {entity.Username} (ID {entity.Id})");
+                }
+
                 if (_removePicture)
                 {
                     entity.PicturePath = null;
@@ -494,15 +536,6 @@ namespace Inventory_Management_System.Forms
 
                 db.SaveChanges();
 
-                // ── Update role ──────────────────────────────────────────
-                // UserRole has a composite primary key of (UserId, RoleId).
-                // EF Core does not allow modifying a property that is part
-                // of an entity's primary key on a tracked row — attempting
-                // `existingUR.RoleId = selectedRole.Id` throws:
-                // "The property 'UserRole.RoleId' is part of a key and so
-                // cannot be modified or marked as modified."
-                // Fix: remove the old assignment row and insert a new one
-                // instead of mutating RoleId in place.
                 var selectedRole = _roles[cmbRole.SelectedIndex];
                 var existingUR = db.UserRoles.FirstOrDefault(ur => ur.UserId == entity.Id);
 
@@ -519,7 +552,6 @@ namespace Inventory_Management_System.Forms
                     db.UserRoles.Add(new UserRole { UserId = entity.Id, RoleId = selectedRole.Id });
                     db.SaveChanges();
                 }
-                // else: role unchanged — nothing to do
 
                 DialogResult = DialogResult.OK;
             }

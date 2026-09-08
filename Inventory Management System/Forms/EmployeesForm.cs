@@ -592,10 +592,28 @@ namespace Inventory_Management_System.Forms
             }
 
             var selectedEmployees = resultAll.Data
-                .Where(emp => selectedCodes.Any(c => string.Equals(c, emp.EmployeeCode, StringComparison.OrdinalIgnoreCase)))
-                .ToList();
+     .Where(emp => selectedCodes.Any(c => string.Equals(c, emp.EmployeeCode, StringComparison.OrdinalIgnoreCase)))
+     .ToList();
 
             if (selectedEmployees.Count == 0) return;
+
+            using (var db = new InventoryDbContext())
+            {
+                var employeeIds = selectedEmployees.Select(x => x.Id).ToList();
+                var blockedIds = db.Allocations
+                    .Where(a => a.EmployeeId != null && employeeIds.Contains(a.EmployeeId.Value) &&
+                                (a.Status == "pending" || a.Status == "approved"))
+                    .Select(a => a.EmployeeId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                if (blockedIds.Count > 0)
+                {
+                    var blockedNames = selectedEmployees.Where(x => blockedIds.Contains(x.Id)).Select(x => x.FullName);
+                    ShowToast($"'{string.Join(", ", blockedNames)}' has equipment allocated — return it before deleting.", ToastType.Warning, ToastIntent.Delete);
+                    return;
+                }
+            }
 
             string confirmMsg = selectedEmployees.Count == 1
                 ? $"Are you sure you want to delete employee '{selectedEmployees[0].FullName}' ({selectedEmployees[0].EmployeeCode})?"

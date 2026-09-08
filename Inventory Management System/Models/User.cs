@@ -7,7 +7,7 @@ namespace Inventory_Management_System.Models;
 public partial class User
 {
     public int Id { get; set; }
-
+    public DateTime? PasswordChangedAt { get; set; }
     public string Username { get; set; } = null!;
 
     public string PasswordHash { get; set; } = null!;

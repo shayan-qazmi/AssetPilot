@@ -435,6 +435,9 @@ namespace Inventory_Management_System.Forms
             }
         }
 
+        private IEnumerable<Location> _dgvLocationsAllRows() =>
+      _locationService.GetAll().Data ?? new List<Location>();
+
         private List<int> GetSelectedLocationIds()
         {
             var ids = new List<int>();
@@ -471,6 +474,25 @@ namespace Inventory_Management_System.Forms
             {
                 ShowToast("Please select at least one location to delete.", ToastType.Info, ToastIntent.Delete);
                 return;
+            }
+
+            using (var db = new InventoryDbContext())
+            {
+                var blockedIds = db.Allocations
+                    .Where(a => a.LocationId != null && selectedIds.Contains(a.LocationId.Value) &&
+                                (a.Status == "pending" || a.Status == "approved"))
+                    .Select(a => a.LocationId!.Value)
+                    .Distinct()
+                    .ToList();
+
+                if (blockedIds.Count > 0)
+                {
+                    var blockedNames = _dgvLocationsAllRows()
+                        .Where(l => blockedIds.Contains(l.Id))
+                        .Select(l => l.LocationName);
+                    ShowToast($"'{string.Join(", ", blockedNames)}' has equipment allocated — return it before deleting.", ToastType.Warning, ToastIntent.Delete);
+                    return;
+                }
             }
 
             string confirmMsg = selectedIds.Count == 1

@@ -103,7 +103,7 @@ namespace Inventory_Management_System.Forms
         private readonly InitialSection _initialSection;
 
         public SettingsForm() : this(InitialSection.General) { }
-
+        private List<Button> _navButtons = new();
         public SettingsForm(InitialSection initialSection)
         {
             _initialSection = initialSection;
@@ -296,7 +296,7 @@ namespace Inventory_Management_System.Forms
 
                 navBtns.Add(btn);
             }
-
+            _navButtons = navBtns;
             // Add nav buttons in reverse for DockStyle.Top stacking
             for (int i = navBtns.Count - 1; i >= 0; i--)
                 sidebar.Controls.Add(navBtns[i]);
@@ -335,6 +335,24 @@ namespace Inventory_Management_System.Forms
             ShowSection(initialPanel, navBtns[initialIndex], navBtns);
         }
 
+        public void NavigateToSection(InitialSection section)
+        {
+            int idx = section switch
+            {
+                InitialSection.General => 0,
+                InitialSection.Users => 1,
+                InitialSection.Password => 2,
+                InitialSection.Printing => 3,
+                InitialSection.Categories => 4,
+                InitialSection.SystemConfiguration => 5,
+                _ => 0
+            };
+            if (idx >= _navButtons.Count) idx = 0;
+
+            var allPanelsInOrder = new[]
+                { _panelGeneral, _panelUsers, _panelPassword, _panelPrinting, _panelCategories, _panelSystemConfig };
+            ShowSection(allPanelsInOrder[idx], _navButtons[idx], _navButtons);
+        }
         private static void ApplyNavPillRegion(Button btn)
         {
             if (btn.Width <= 0 || btn.Height <= 0) return;
@@ -1317,6 +1335,9 @@ namespace Inventory_Management_System.Forms
             dgvUsers.Columns.Add("Email", "Email");
             dgvUsers.Columns.Add("Role", "Role");
             dgvUsers.Columns.Add("Status", "Status");
+            dgvUsers.Columns.Add("PasswordChanged", "Password Changed");
+            dgvUsers.Columns["PasswordChanged"].FillWeight = 130;
+            dgvUsers.Columns["PasswordChanged"].MinimumWidth = 150;
             dgvUsers.Columns["ID"].FillWeight = 30;
             dgvUsers.Columns["Status"].FillWeight = 90;
             dgvUsers.Columns["Status"].MinimumWidth = 110;
@@ -1344,15 +1365,27 @@ namespace Inventory_Management_System.Forms
                     bool active = u.IsActive == true;
 
                     int idx = dgvUsers.Rows.Add(
-                        u.Id, u.Username, u.FullName,
-                        u.Email ?? "—", roleName,
-                        active ? "🟢 Active" : "🔴 Inactive");
+    u.Id, u.Username, u.FullName,
+    u.Email ?? "—", roleName,
+    active ? "🟢 Active" : "🔴 Inactive",
+        u.PasswordChangedAt.HasValue
+        ? TimeHelper.ToPakistanTime(u.PasswordChangedAt.Value).ToString("dd MMM yyyy")
+        : "Never");
 
                     var row = dgvUsers.Rows[idx];
+
+                    // Mute non-status columns for inactive users, but keep Status itself
+                    // always clearly colored (green = active, red = inactive) regardless.
+                    if (!active)
+                    {
+                        row.DefaultCellStyle.ForeColor = ThemeHelper.IsDarkMode
+                            ? Color.FromArgb(120, 128, 140)
+                            : Color.FromArgb(180, 180, 180);
+                    }
+
                     row.Cells["Status"].Style.ForeColor = active ? ThemeHelper.Success : ThemeHelper.Danger;
                     row.Cells["Status"].Style.Font = ThemeHelper.FontBold;
-                    if (!active)
-                        row.DefaultCellStyle.ForeColor = ThemeHelper.IsDarkMode ? Color.FromArgb(120, 128, 140) : Color.FromArgb(180, 180, 180);
+                    row.Cells["Status"].Style.SelectionForeColor = active ? ThemeHelper.Success : ThemeHelper.Danger;
                 }
 
                 dgvUsers.ClearSelection();     // ← add these two lines
@@ -1404,17 +1437,23 @@ namespace Inventory_Management_System.Forms
             if (dgvUsers.SelectedRows.Count == 0)
             {
                 ShowSettingsToast("Please select a user to edit.", ToastType.Info, SettingsToastIntent.Edit);
-
                 return;
             }
             int id = Convert.ToInt32(dgvUsers.SelectedRows[0].Cells["ID"].Value);
             var user = _users.FirstOrDefault(u => u.Id == id);
             if (user == null) return;
+
             using var form = new AddEditUserForm(user);
-            if (form.ShowDialog() == DialogResult.OK)
+            var result = form.ShowDialog();
+
+            if (result == DialogResult.OK)
             {
                 LoadUsers();
                 ShowSettingsToast("User updated successfully.", ToastType.Success, SettingsToastIntent.Edit);
+            }
+            else if (form.NavigateToChangePassword)
+            {
+                NavigateToSection(InitialSection.Password);
             }
         }
 
@@ -1929,24 +1968,34 @@ namespace Inventory_Management_System.Forms
             string nw = txtNewPwd.Text;
             string conf = txtConfirmPwd.Text;
 
-            if (string.IsNullOrWhiteSpace(cur) || string.IsNullOrWhiteSpace(nw) || string.IsNullOrWhiteSpace(conf))
+            if (IsShowingPlaceholder(txtCurrentPwd) || IsShowingPlaceholder(txtNewPwd) || IsShowingPlaceholder(txtConfirmPwd) ||
+                string.IsNullOrWhiteSpace(cur) || string.IsNullOrWhiteSpace(nw) || string.IsNullOrWhiteSpace(conf))
             { lblPwdStatus.Text = "All fields are required."; return; }
 
             if (nw != conf)
             { lblPwdStatus.Text = "New password and confirmation do not match."; return; }
 
-            if (nw.Length < 4)
-            { lblPwdStatus.Text = "Password must be at least 4 characters."; return; }
+            string? strengthError = ValidatePasswordStrength(nw);
+            if (strengthError != null)
+            { lblPwdStatus.Text = strengthError; return; }
 
             try
             {
                 using var db = new InventoryDbContext();
                 var user = db.Users.FirstOrDefault(u => u.Id == AuthService.CurrentUserId);
                 if (user == null) { lblPwdStatus.Text = "User not found."; return; }
-                if (user.PasswordHash != cur) { lblPwdStatus.Text = "Current password is incorrect."; return; }
 
-                user.PasswordHash = nw;
+                if (!PasswordHelper.Verify(cur, user.PasswordHash))
+                { lblPwdStatus.Text = "Current password is incorrect."; return; }
+
+                if (PasswordHelper.Verify(nw, user.PasswordHash))
+                { lblPwdStatus.Text = "New password must be different from your current password."; return; }
+
+                user.PasswordHash = PasswordHelper.Hash(nw);
+                user.PasswordChangedAt = DateTime.UtcNow;
                 db.SaveChanges();
+
+                SecurityAuditLogger.Log("Changed own password", $"User: {user.Username} (ID {user.Id})");
 
                 txtCurrentPwd.Text = "";
                 txtNewPwd.Text = "";
@@ -1960,6 +2009,19 @@ namespace Inventory_Management_System.Forms
             {
                 lblPwdStatus.Text = "Error: " + ex.Message;
             }
+        }
+
+        private static string? ValidatePasswordStrength(string pwd)
+        {
+            if (pwd.Length < 8)
+                return "Password must be at least 8 characters long.";
+            if (!pwd.Any(char.IsUpper))
+                return "Password must include at least one uppercase letter.";
+            if (!pwd.Any(char.IsDigit))
+                return "Password must include at least one number.";
+            if (!pwd.Any(c => !char.IsLetterOrDigit(c)))
+                return "Password must include at least one symbol.";
+            return null;
         }
 
         // ══════════════════════════════════════════════════════════════

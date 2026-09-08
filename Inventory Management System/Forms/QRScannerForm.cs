@@ -757,7 +757,7 @@ namespace Inventory_Management_System.Forms
             panelSuggestions.Visible = false;
             panelCard.Visible = false;
             lblNoResult.Visible = true;
-            lblNoResult.Text = "📷  Scan a QR code or enter an equipment code to see details";
+            lblNoResult.Text = "📷  Scan a QR code or enter an Equipment code to see details";
             dgvHistory.Rows.Clear();
             lblHistoryTitle.Text = "📜 Equipment History";
             _lastText = "";

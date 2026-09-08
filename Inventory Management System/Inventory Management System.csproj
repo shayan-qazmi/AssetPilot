@@ -63,4 +63,17 @@
     </EmbeddedResource>
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="bcrypt.net\**\*.cs" />
+    <Compile Remove="Libs\**\*.cs" />
+    <None Remove="bcrypt.net\**" />
+    <EmbeddedResource Remove="bcrypt.net\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="BCrypt-Net-Next">
+      <HintPath>Libs\BCrypt-Net-Next.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>

@@ -27,6 +27,8 @@ namespace Inventory_Management_System.Forms
 
         private readonly Dictionary<string, string> _baseHeaderText = new();
         private System.Windows.Forms.Timer _searchDebounceTimer = null!;
+        private EntitySuggestHelper<EquipmentLog>? _suggest;
+        private List<EquipmentLog> _logSuggestSource = new();
 
         public LogsForm()
         {
@@ -46,6 +48,7 @@ namespace Inventory_Management_System.Forms
                 LoadLogs(txtSearch.Text.Trim());
             };
 
+            SetupSuggestions();
             LoadLogs();
 
             this.Shown += (s, e) =>
@@ -53,6 +56,42 @@ namespace Inventory_Management_System.Forms
                 dgvLogs.ClearSelection();
                 dgvLogs.CurrentCell = null;
             };
+        }
+
+        private void SetupSuggestions()
+        {
+            try
+            {
+                using var db = new InventoryDbContext();
+                _logSuggestSource = db.EquipmentLogs
+                    .Include(l => l.Equipment)
+                    .Include(l => l.ChangedByUser)
+                    .OrderByDescending(l => l.CreatedAt)
+                    .Take(2000)
+                    .ToList();
+
+                _suggest = new EntitySuggestHelper<EquipmentLog>(
+                    textBox: txtSearch,
+                    hostForm: this,
+                    onSelected: log => { txtSearch.Text = log.Equipment?.EquipmentCode ?? FormatAction(log.ActionType); },
+                    scoreFn: (log, term) => Math.Max(
+                        FuzzySearchHelper.FuzzyScoreCode(log.Equipment?.EquipmentCode, term),
+                        Math.Max(
+                            FuzzySearchHelper.FuzzyScoreCode(log.Equipment?.QrCode, term),
+                            Math.Max(
+                                FuzzySearchHelper.FuzzyScore(FormatAction(log.ActionType), term),
+                                FuzzySearchHelper.FuzzyScore(log.ChangedByUser?.FullName, term)))),
+                    line1Selector: log => $"{FormatAction(log.ActionType)} — {log.Equipment?.EquipmentCode ?? "—"}",
+                    line2Selector: log => log.ChangedByUser?.FullName ?? "System");
+                _suggest.LoadItems(_logSuggestSource);
+            }
+            catch { /* non-critical UI enhancement, fail silently */ }
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _suggest?.Dispose();
+            base.OnFormClosed(e);
         }
 
 
@@ -559,6 +598,7 @@ namespace Inventory_Management_System.Forms
             txtSearch.Text = string.Empty;
             _currentPage = 1;
             LoadLogs();
+            SetupSuggestions();
         }
 
         private void txtSearch_TextChanged(object sender, EventArgs e)

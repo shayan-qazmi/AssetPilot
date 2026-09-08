@@ -1,0 +1,631 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>BCrypt-Net-Next</name>
+    </assembly>
+    <members>
+        <member name="T:BCryptNet.BCrypt">
+            <summary>BCrypt implementation.</summary>
+            <remarks>
+             <para>
+                   BCrypt implements OpenBSD-style Blowfish password hashing using the scheme described in
+                   <a href="http://www.usenix.org/event/usenix99/provos/provos_html/index.html">
+                   A Future-Adaptable Password Scheme</a> by Niels Provos and David Mazieres.
+             </para>
+             <para>
+                   This password hashing system tries to thwart off-line password cracking using a
+                   computationally intensive hashing algorithm, based on Bruce Schneier's Blowfish cipher.
+                   The work factor of the algorithm is parameterised, so it can be increased as computers
+                   get faster.
+             </para>
+             <para>
+                   To hash a password using the defaults, call the <see cref="M:BCryptNet.BCrypt.HashPassword(System.String,System.Int32)"/> (which will generate a random salt and hash at default cost), like this:
+             </para>
+             <code>string pw_hash = BCrypt.HashPassword(plain_password);</code>
+             <para>
+                    To hash a password using SHA384 pre-hashing for increased entropy see the <see cref="T:BCryptNet.BCryptExtendedV2"/> class
+             </para>
+             <para>
+                   To check whether a plaintext password matches one that has been hashed previously,
+                   use the <see cref="M:BCryptNet.BCrypt.Verify(System.String,System.String)"/> method:
+            </para>
+             <code>
+                if (BCrypt.Verify(candidate_password, stored_hash))
+                    Console.WriteLine("It matches");
+                else
+                    Console.WriteLine("It does not match");
+              </code>
+              <para>
+                    The <see cref="M:BCryptNet.BCryptCore.GenerateSalt(System.Int32,System.Char)"/> method takes an optional parameter (workFactor) that
+                    determines the computational complexity of the hashing:
+              </para>
+              <code>
+                string strong_salt = BCrypt.GenerateSalt(10);
+                string stronger_salt = BCrypt.GenerateSalt(12);
+              </code>
+              <para>
+                    The amount of work increases exponentially (2^workFactor), so each increment is twice
+                    as much work. The default workFactor is 10, and the valid range is 4 to 31.
+              </para>
+            </remarks>
+        </member>
+        <member name="M:BCryptNet.BCrypt.ValidateAndUpgradeHash(System.String,System.String,System.String,System.Int32,System.Boolean)">
+            <summary>
+            Validate existing hash and password
+            If valid returns a new hash with the set work-factor
+            or simply a new hash (salt replaced)
+            </summary>
+            <param name="currentKey">Current password / string</param>
+            <param name="currentHash">Current hash to validate password against</param>
+            <param name="newKey">New password</param>
+            <param name="workFactor">The log2 of the number of rounds of hashing to apply - the work
+                                     factor therefore increases as 2^workFactor. Default is 11</param>
+            <param name="forceWorkFactor">By default, this method will not accept a work factor lower
+            than the one set in the current hash and will set the new work-factor to match.</param>
+            <exception cref="T:BCryptNet.BcryptAuthenticationException">returned if the users hash and current pass doesn't validate</exception>
+            <exception cref="T:BCryptNet.SaltParseException">returned if the salt is invalid in any way</exception>
+            <exception cref="T:System.ArgumentException">returned if the hash is invalid</exception>
+            <exception cref="T:System.ArgumentNullException">returned if the user hash is null</exception>
+            <returns>New hash of new password</returns>
+        </member>
+        <member name="M:BCryptNet.BCrypt.Verify(System.String,System.String)">
+            <summary>
+             Verifies that the hash of the given <paramref name="text"/> matches the provided
+             <paramref name="hash"/>
+            </summary>
+            <param name="text">The text to verify.</param>
+            <param name="hash"> The previously hashed password.</param>
+            <returns>true if the passwords match, false otherwise.</returns>
+            <exception cref="T:System.ArgumentException">Thrown when one or more arguments have unsupported or illegal values.</exception>
+            <exception cref="T:BCryptNet.SaltParseException">Thrown when the salt could not be parsed.</exception>
+        </member>
+        <member name="M:BCryptNet.BCrypt.HashPassword(System.String,System.Int32)">
+            <summary>
+             Hash a password using the OpenBSD BCrypt scheme and a salt generated by <see cref="M:BCryptNet.BCryptCore.GenerateSalt(System.Int32,System.Char)"/> using the given <paramref name="workFactor"/>.
+            </summary>
+            <param name="inputKey">The password to hash.</param>
+            <param name="workFactor">The log2 of the number of rounds of hashing to apply - the work
+                                     factor therefore increases as 2^workFactor. Default is 11</param>
+            <returns>The hashed password.</returns>
+            <exception cref="T:BCryptNet.SaltParseException">Thrown when the salt could not be parsed.</exception>
+        </member>
+        <member name="M:BCryptNet.BCrypt.HashPassword(System.String,System.String)">
+            <summary>
+             Hash a password using the OpenBSD BCrypt scheme with a manually supplied salt/>.
+            </summary>
+            <remarks>
+             You should generally leave generating salts to the library.
+            </remarks>
+            <param name="inputKey">The password to hash.</param>
+            <param name="salt">the salt to hash with (best generated using <see cref="M:BCryptNet.BCryptCore.GenerateSalt(System.Int32,System.Char)"/>)</param>
+            <returns>The hashed password.</returns>
+            <exception cref="T:BCryptNet.SaltParseException">Thrown when the salt could not be parsed.</exception>
+        </member>
+        <member name="M:BCryptNet.BCrypt.HashPassword(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char})">
+            <summary>
+             Hash a password using the OpenBSD BCrypt scheme with a manually supplied salt/>.
+            </summary>
+            <remarks>
+             You should generally leave generating salts to the library.
+            </remarks>
+            <param name="inputKey">The password to hash.</param>
+            <param name="salt">The log2 of the number of rounds of hashing to apply - the work
+                                     factor therefore increases as 2^workFactor. Default is 11</param>
+            <returns>The hashed password.</returns>
+            <exception cref="T:BCryptNet.SaltParseException">Thrown when the salt could not be parsed.</exception>
+        </member>
+        <member name="M:BCryptNet.BCrypt.HashPassword(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.Span{System.Char},System.Int32@)">
+            <summary>
+             Hash a password using the OpenBSD BCrypt scheme with a manually supplied salt/>.
+            </summary>
+            <remarks>
+             You should generally leave generating salts to the library.
+            </remarks>
+            <param name="inputKey">The password to hash.</param>
+            <param name="salt">The log2 of the number of rounds of hashing to apply - the work
+                                     factor therefore increases as 2^workFactor. Default is 11</param>
+            <param name="outputBuffer"></param>
+            <param name="outputBufferWritten"></param>
+            <returns>The hashed password.</returns>
+            <exception cref="T:BCryptNet.SaltParseException">Thrown when the salt could not be parsed.</exception>
+        </member>
+        <member name="M:BCryptNet.BCrypt.Verify(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char})">
+            <summary>
+             Verifies that the hash of the given <paramref name="text"/> matches the provided
+             <paramref name="hash"/>. Zero-allocation variant for .NET Core.
+            </summary>
+            <param name="text">The text to verify.</param>
+            <param name="hash"> The previously hashed password.</param>
+            <returns>true if the passwords match, false otherwise.</returns>
+            <exception cref="T:System.ArgumentException">Thrown when one or more arguments have unsupported or illegal values.</exception>
+            <exception cref="T:BCryptNet.SaltParseException">Thrown when the salt could not be parsed.</exception>
+        </member>
+        <member name="M:BCryptNet.BCrypt.PasswordNeedsRehash(System.String,System.Int32)">
+            <summary>
+            Based on password_needs_rehash in PHP this method will return true
+            if the work factor (logrounds) set on the hash is lower than the new minimum workload passed in
+            </summary>
+            <param name="hash">full bcrypt hash</param>
+            <param name="newMinimumWorkLoad">target workload</param>
+            <returns>true if new work factor is higher than the one in the hash</returns>
+            <exception cref="T:System.ArgumentException">throws if the current hash workload (logrounds) can not be parsed</exception>
+            <exception cref="T:BCryptNet.HashInformationException"></exception>
+        </member>
+        <member name="M:BCryptNet.BCrypt.InterrogateHash(System.String)">
+            <summary>
+            Takes a valid hash and outputs its component parts
+            </summary>
+            <param name="hash"></param>
+            <exception cref="T:BCryptNet.HashInformationException"></exception>
+        </member>
+        <member name="T:BCryptNet.BcryptAuthenticationException">
+            <summary>Exception for signalling hash validation errors. </summary>
+        </member>
+        <member name="M:BCryptNet.BcryptAuthenticationException.#ctor">
+            <summary>
+                Default Constructor
+            </summary>
+        </member>
+        <member name="M:BCryptNet.BcryptAuthenticationException.#ctor(System.String)">
+            <summary>
+                Initializes a new instance of <see cref="T:BCryptNet.BcryptAuthenticationException" />.
+            </summary>
+            <param name="message"></param>
+        </member>
+        <member name="M:BCryptNet.BcryptAuthenticationException.#ctor(System.String,System.Exception)">
+            <summary>
+                Initializes a new instance of <see cref="T:BCryptNet.BcryptAuthenticationException" />.
+            </summary>
+            <param name="message"></param>
+            <param name="innerException"></param>
+        </member>
+        <member name="T:BCryptNet.BCryptCore">
+            <summary>
+            .Net 5+ implementation
+            </summary>
+            <summary>
+            Base class of the bcrypt api
+            </summary>
+        </member>
+        <member name="M:BCryptNet.BCryptCore.CreatePasswordHash(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},BCryptNet.HashType,BCryptNet.BCryptCore.EnhancedHashDelegate)">
+            <summary>
+            Create Password Hash Base
+            </summary>
+            <param name="inputKey"></param>
+            <param name="salt"></param>
+            <param name="hashType"></param>
+            <param name="enhancedHashKeyGen"></param>
+            <returns></returns>
+            <exception cref="T:System.ArgumentNullException"></exception>
+            <exception cref="T:System.ArgumentException"></exception>
+            <exception cref="T:BCryptNet.SaltParseException"></exception>
+        </member>
+        <member name="M:BCryptNet.BCryptCore.CreatePasswordHash(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.Span{System.Char},System.Int32@,BCryptNet.HashType,BCryptNet.BCryptCore.EnhancedHashDelegate)">
+            <summary>
+            Create Password Hash Base
+            </summary>
+            <param name="inputKey"></param>
+            <param name="salt"></param>
+            <param name="outputBuffer"></param>
+            <param name="outputBufferWritten"></param>
+            <param name="hashType"></param>
+            <param name="enhancedHashKeyGen"></param>
+            <returns></returns>
+            <exception cref="T:System.ArgumentNullException"></exception>
+            <exception cref="T:System.ArgumentException"></exception>
+            <exception cref="T:BCryptNet.SaltParseException"></exception>
+        </member>
+        <member name="M:BCryptNet.BCryptCore.HashBytes(System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Char},System.Char,System.Int32,System.Span{System.Char},System.Int32@)">
+             <summary>
+            
+             </summary>
+             <param name="inputBytes"></param>
+             <param name="extractedSalt"></param>
+             <param name="bcryptMinorRevision"></param>
+             <param name="workFactor"></param>
+             <param name="destination"></param>
+             <param name="charsWritten"></param>
+             <returns></returns>
+        </member>
+        <member name="M:BCryptNet.BCryptCore.DecodeBase64(System.ReadOnlySpan{System.Char},System.Span{System.Byte})">
+            <summary>
+             Decode a string encoded using BCrypt's base64 scheme to a byte array.
+             Note that this is *not* compatible with the standard MIME-base64 encoding.
+            </summary>
+            <exception cref="T:System.ArgumentException">Thrown when one or more arguments have unsupported or
+                                                illegal values.</exception>
+            <param name="encodedSpan">The string to decode.</param>
+            <param name="destination"></param>
+            <returns>The decoded byte array.</returns>
+        </member>
+        <member name="M:BCryptNet.BCryptCore.Encipher(System.Span{System.UInt32},System.Int32)">
+            <summary>Blowfish encipher a single 64-bit block encoded as two 32-bit halves.</summary>
+            <param name="blockArray">An array containing the two 32-bit half-blocks. The plaintext to be encrypted</param>
+            <param name="offset">    The position in the array of the blocks.</param>
+        </member>
+        <member name="M:BCryptNet.BCryptCore.StreamToWord(System.ReadOnlySpan{System.Byte},System.Int32@)">
+            <summary>Cyclically extract a word of key material.</summary>
+            <param name="data">The string to extract the data from.</param>
+            <param name="offset"> [in, out] The current offset.</param>
+            <returns>The next word of material from data.</returns>
+        </member>
+        <member name="M:BCryptNet.BCryptCore.Key(System.ReadOnlySpan{System.Byte})">
+            <summary>Key the Blowfish cipher.</summary>
+            <param name="keyBytes">The key byte array.</param>
+        </member>
+        <member name="M:BCryptNet.BCryptCore.EKSKey(System.ReadOnlySpan{System.Byte},System.ReadOnlySpan{System.Byte})">
+            <summary>
+             Perform the "enhanced key schedule" step described by Provos and Mazieres in
+             "A Future Adaptable Password Scheme" http://www.openbsd.org/papers/bcrypt-paper.ps.
+            </summary>
+            <param name="saltBytes"> Salt byte array.</param>
+            <param name="inputBytes">Input byte array.</param>
+        </member>
+        <member name="F:BCryptNet.BCryptCore.DefaultRounds">
+            <summary>
+            Default Work Factor
+            </summary>
+        </member>
+        <member name="F:BCryptNet.BCryptCore.RngCsp">
+            <summary>
+            RandomNumberGenerator.Create calls RandomNumberGenerator.Create("System.Security.Cryptography.RandomNumberGenerator"), which will create an instance of RNGCryptoServiceProvider.
+            https://msdn.microsoft.com/en-us/library/42ks8fz1
+            </summary>
+        </member>
+        <member name="M:BCryptNet.BCryptCore.Char64(System.Char)">
+            <summary>
+             Look up the 3 bits base64-encoded by the specified character, range-checking against
+             conversion table.
+            </summary>
+            <param name="character">The base64-encoded value.</param>
+            <returns>The decoded value of x.</returns>
+        </member>
+        <member name="M:BCryptNet.BCryptCore.InitializeKey">
+            <summary>Initializes the Blowfish key schedule.</summary>
+        </member>
+        <member name="T:BCryptNet.BCryptExtendedV2">
+            <summary>
+            BCrypt Enhanced (post Bcrypt v3.5)
+            Created to be compatible with other programming-language implementations of pre-hashed keys
+            i.e. passlib in python / php bcrypt and sha
+            </summary>
+             <para>
+                    To hash a password using SHA384 pre-hashing for increased entropy see <see cref="M:BCryptNet.BCryptExtendedV2.HashPassword(System.String,System.Int32,BCryptNet.HashType)"/>
+             </para>
+             <code>string pw_hash = BCryptExtendedV2.HashPassword(plain_password);
+                   (To validate an enhanced hash you can pass true as the last parameter of Verify or use  <see cref="M:BCryptNet.BCryptExtendedV2.Verify(System.String,System.String,BCryptNet.HashType)"/>)
+             </code>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV2.HashPassword(System.String,System.Int32,BCryptNet.HashType)">
+            <summary>
+             Pre-hash a password with SHA384 then using the OpenBSD BCrypt scheme and a salt generated by <see cref="M:BCryptNet.BCryptCore.GenerateSalt(System.Int32,System.Char)"/>.
+            </summary>
+            <param name="inputKey">The password to hash.</param>
+            <param name="workFactor"></param>
+            <param name="hashType"><seealso cref="T:BCryptNet.HashType"/>HashType used (default SHA384)</param>
+            <returns>The hashed password.</returns>
+            <exception cref="T:BCryptNet.SaltParseException">Thrown when the salt could not be parsed.</exception>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV2.HashPassword(System.String,System.String,BCryptNet.HashType)">
+            <summary>
+             Pre-hash a password with SHA384 then using the OpenBSD BCrypt scheme with a manually supplied salt/>.
+            </summary>
+            <remarks>
+             <para>You should generally leave generating salts to the library.</para>
+            </remarks>
+            <param name="inputKey">The password to hash.</param>
+            <param name="salt"></param>
+            <param name="hashType"><seealso cref="T:BCryptNet.HashType"/>HashType used (default SHA384)</param>
+            <returns>The hashed password.</returns>
+            <exception cref="T:BCryptNet.SaltParseException">Thrown when the salt could not be parsed.</exception>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV2.EnhancedHash(System.ReadOnlySpan{System.Char},BCryptNet.HashType,System.Char)">
+            <summary>
+            Hashes key, base64 encodes before returning byte array
+            </summary>
+            <param name="inputString"></param>
+            <param name="bcryptMinorRevision">(Default: 'a')</param>
+            <param name="hashType"><seealso cref="T:BCryptNet.HashType"/>HashType used (default SHA384)</param>
+            <returns></returns>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV2.Verify(System.String,System.String,BCryptNet.HashType)">
+            <summary>
+            Compares the users stored hash with their password
+            in a time-safe manner
+            </summary>
+            <param name="text"></param>
+            <param name="hash"></param>
+            <param name="hashType"><seealso cref="T:BCryptNet.HashType"/>HashType used (default SHA384)</param>
+            <returns></returns>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV2.ValidateAndUpgradeHash(System.String,System.String,System.String,BCryptNet.HashType,System.Int32,System.Boolean)">
+            <summary>
+            Validate and Upgrade Hash
+            </summary>
+            <param name="currentKey"></param>
+            <param name="currentHash"></param>
+            <param name="newKey"></param>
+            <param name="hashType"></param>
+            <param name="workFactor"></param>
+            <param name="forceWorkFactor"></param>
+            <returns></returns>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV2.ValidateAndUpgradeHash(System.String,System.String,BCryptNet.HashType,System.String,BCryptNet.HashType,System.Int32,System.Boolean)">
+            <summary>
+            Validate and Upgrade Hash
+            </summary>
+            <param name="currentKey"></param>
+            <param name="currentHash"></param>
+            <param name="currentKeyHashType"></param>
+            <param name="newKey"></param>
+            <param name="hashType"></param>
+            <param name="workFactor"></param>
+            <param name="forceWorkFactor"></param>
+            <returns></returns>
+            <exception cref="T:System.ArgumentNullException"></exception>
+            <exception cref="T:System.ArgumentException"></exception>
+            <exception cref="T:BCryptNet.BcryptAuthenticationException"></exception>
+            <exception cref="T:BCryptNet.SaltParseException"></exception>
+        </member>
+        <member name="T:BCryptNet.BCryptExtendedV3">
+            <summary>
+            BCrypt Enhanced
+            Created to be compatible with other programming-language implementations of pre-hashed keys
+            i.e. passlib in python / php bcrypt and sha
+            </summary>
+             <para>
+                    To hash a password using SHA384 pre-hashing for increased entropy see <see cref="M:BCryptNet.BCryptExtendedV3.HashPassword(System.String,System.String,System.Int32,BCryptNet.HashType)"/>
+             </para>
+             <c>
+                string pw_hash = BCryptExtendedV3.HashPassword(hmac_key, plain_password);
+                // (To validate an enhanced hash you can pass true as the last parameter of Verify or use  <see cref="M:BCryptNet.BCryptExtendedV3.Verify(System.String,System.String,System.String,BCryptNet.HashType)"/>)
+             </c>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV3.HashPassword(System.String,System.String,System.Int32,BCryptNet.HashType)">
+            <summary>
+             Pre-hash a password with HMAC-SHA3-384 then using the OpenBSD BCrypt scheme and a salt generated by <see cref="M:BCryptNet.BCryptCore.GenerateSalt(System.Int32,System.Char)"/>.
+            <seealso href="https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.hmacsha3_256?view=net-9.0"/>
+            </summary>
+            <param name="hmacKey">Key used in HMAC hashing</param>
+            <param name="inputKey">The password to hash.</param>
+            <param name="workFactor"></param>
+            <param name="hashType"><seealso cref="T:BCryptNet.HashType"/>HashType used (default SHA384)</param>
+            <returns>The hashed password.</returns>
+            <exception cref="T:BCryptNet.SaltParseException">Thrown when the salt could not be parsed.</exception>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV3.HashPassword(System.String,System.String,System.String,BCryptNet.HashType)">
+            <summary>
+             Pre-hash a password with HMAC-SHA3-384 then using the OpenBSD BCrypt scheme and a salt generated by <see cref="M:BCryptNet.BCryptCore.GenerateSalt(System.Int32,System.Char)"/>.
+            <seealso href="https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.hmacsha3_256?view=net-9.0"/>
+            </summary>
+            <remarks>
+             <para>You should generally leave generating salts to the library.</para>
+            </remarks>
+            <param name="hmacKey">Key used in HMAC hashing</param>
+            <param name="inputKey">The password to hash.</param>
+            <param name="salt"></param>
+            <param name="hashType"><seealso cref="T:BCryptNet.HashType"/>HashType used (default SHA384)</param>
+            <returns>The hashed password.</returns>
+            <exception cref="T:BCryptNet.SaltParseException">Thrown when the salt could not be parsed.</exception>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV3.HashPassword(System.String,System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},BCryptNet.HashType)">
+            <summary>
+             Pre-hash a password with HMAC-SHA3-384 then using the OpenBSD BCrypt scheme and a salt generated by <see cref="M:BCryptNet.BCryptCore.GenerateSalt(System.Int32,System.Char)"/>.
+            <seealso href="https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.hmacsha3_256?view=net-9.0"/>
+            </summary>
+            <remarks>
+             <para>You should generally leave generating salts to the library.</para>
+            </remarks>
+            <param name="hmacKey">Key used in HMAC hashing</param>
+            <param name="inputKey">The password to hash.</param>
+            <param name="salt"></param>
+            <param name="hashType"><seealso cref="T:BCryptNet.HashType"/>HashType used (default SHA384)</param>
+            <returns>The hashed password.</returns>
+            <exception cref="T:BCryptNet.SaltParseException">Thrown when the salt could not be parsed.</exception>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV3.EnhancedHash(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},BCryptNet.HashType,System.Span{System.Byte},System.Char)">
+            <summary>
+            HMAC-SHA3 hashes an input key before bcrypt hashing
+            </summary>
+            <param name="hmacKey">Key used in HMAC hashing</param>
+            <param name="inputKey">Input key to be hashed.</param>
+            <param name="hashType"><seealso cref="T:BCryptNet.HashType"/>HashType used (default SHA3 HMAC 384 - https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.hmacsha3_256)</param>
+            <param name="destination">Destination buffer for the hashed output.</param>
+            <param name="bcryptMinorRevision">(Default: 'a')</param>
+            <returns></returns>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV3.Verify(System.String,System.String,System.String,BCryptNet.HashType)">
+            <summary>
+            Compares the users stored hash with their password
+            in a time-safe manner
+            </summary>
+            <param name="hmacKey">Key used in HMAC hashing</param>
+            <param name="inputKey"></param>
+            <param name="hash"></param>
+            <param name="hashType"><seealso cref="T:BCryptNet.HashType"/>HashType used (default SHA384)</param>
+            <returns></returns>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV3.ValidateAndUpgradeHash(System.String,System.String,System.String,System.String,BCryptNet.HashType,System.Int32,System.Boolean)">
+            <summary>
+            Validate and Upgrade Hash
+            </summary>
+            <param name="hmacKey">Key used in HMAC hashing</param>
+            <param name="currentKey"></param>
+            <param name="currentHash"></param>
+            <param name="newKey"></param>
+            <param name="hashType"></param>
+            <param name="workFactor"></param>
+            <param name="forceWorkFactor"></param>
+            <returns></returns>
+        </member>
+        <member name="M:BCryptNet.BCryptExtendedV3.ValidateAndUpgradeHash(System.String,System.String,System.String,BCryptNet.HashType,System.String,BCryptNet.HashType,System.Int32,System.Boolean)">
+            <summary>
+            Validate and Upgrade Hash
+            </summary>
+            <param name="hmacKey">Key used in HMAC hashing</param>
+            <param name="currentKey"></param>
+            <param name="currentHash"></param>
+            <param name="currentKeyHashType"></param>
+            <param name="newKey"></param>
+            <param name="hashType"></param>
+            <param name="workFactor"></param>
+            <param name="forceWorkFactor"></param>
+            <returns></returns>
+            <exception cref="T:System.ArgumentNullException"></exception>
+            <exception cref="T:System.ArgumentException"></exception>
+            <exception cref="T:BCryptNet.BcryptAuthenticationException"></exception>
+            <exception cref="T:BCryptNet.SaltParseException"></exception>
+        </member>
+        <member name="T:BCryptNet.HashInformation">
+            <summary>
+                HashInformation : A value object that contains the results of interrogating a hash
+                Namely its settings (2a$10 for example); version (2a); workfactor (log rounds), and the raw hash returned
+            </summary>
+        </member>
+        <member name="M:BCryptNet.HashInformation.#ctor(System.String,System.String,System.Int32,System.String)">
+            <summary>Constructor. </summary>
+            <param name="settings">The message.</param>
+            <param name="version">The message.</param>
+            <param name="workFactor">The message.</param>
+            <param name="rawHash">The message.</param>
+        </member>
+        <member name="P:BCryptNet.HashInformation.Settings">
+            <summary>
+                Settings string
+            </summary>
+        </member>
+        <member name="P:BCryptNet.HashInformation.Version">
+            <summary>
+                Hash Version
+            </summary>
+        </member>
+        <member name="P:BCryptNet.HashInformation.WorkFactor">
+            <summary>
+                log rounds used / workfactor
+            </summary>
+        </member>
+        <member name="P:BCryptNet.HashInformation.RawHash">
+            <summary>
+                Raw Hash
+            </summary>
+        </member>
+        <member name="M:BCryptNet.HashInformation.ToString">
+            <summary>
+             Returns the string representation of the object.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="T:BCryptNet.HashInformationException">
+            <summary>
+                Exception used to signal errors that occur during use of the hash information methods
+            </summary>
+        </member>
+        <member name="M:BCryptNet.HashInformationException.#ctor">
+            <summary>
+                Default Constructor
+            </summary>
+        </member>
+        <member name="M:BCryptNet.HashInformationException.#ctor(System.String)">
+            <summary>
+                Initializes a new instance of <see cref="T:BCryptNet.HashInformationException" />.
+            </summary>
+            <param name="message"></param>
+        </member>
+        <member name="M:BCryptNet.HashInformationException.#ctor(System.String,System.Exception)">
+            <summary>
+                Initializes a new instance of <see cref="T:BCryptNet.HashInformationException" />.
+            </summary>
+            <param name="message"></param>
+            <param name="innerException"></param>
+        </member>
+        <member name="T:BCryptNet.HashParser">
+            <summary>
+            Hash Parser
+            </summary>
+        </member>
+        <member name="M:BCryptNet.HashParser.GetHashInformation(System.String)">
+            <summary>
+            Get Hash Info
+            </summary>
+            <param name="hash"></param>
+            <returns></returns>
+        </member>
+        <member name="M:BCryptNet.HashParser.GetWorkFactor(System.String)">
+            <summary>
+            Get Work Factor
+            </summary>
+            <param name="hash"></param>
+            <returns></returns>
+        </member>
+        <member name="M:BCryptNet.HashParser.GetSalt(System.String)">
+            <summary>
+            Get Salt from Hash
+            </summary>
+            <param name="hash"></param>
+            <returns></returns>
+        </member>
+        <member name="T:BCryptNet.HashType">
+            <summary>
+                Type of SHA implementation to use
+                Keys will be hashed, then base64 encoded before being passed to crypt.
+                Unless legacy is selected in which case simply SHA384 hashed.
+            </summary>
+        </member>
+        <member name="T:BCryptNet.BCryptSafeString">
+            <summary>
+            Provides methods for hashing passwords using the BCrypt algorithm with support
+            for <see cref="T:System.Security.SecureString"/> inputs. There are very limited use cases for this class,
+            and it is not recommended for general use as securestring usage in general is discouraged in .net core/.net 5+.
+            </summary>
+        </member>
+        <member name="M:BCryptNet.BCryptSafeString.HashPassword(System.Security.SecureString,System.String)">
+            <summary>
+            Hashes a password using the BCrypt algorithm.
+            </summary>
+            <param name="inputKey">The password to be hashed, provided as a <see cref="T:System.Security.SecureString"/>.</param>
+            <param name="salt">A cryptographic salt used for the hashing process.</param>
+            <returns>The hashed password as a string.</returns>
+        </member>
+        <member name="M:BCryptNet.BCryptSafeString.HashPassword(System.Security.SecureString,System.Int32)">
+            <summary>
+            Hashes a password using the BCrypt algorithm.
+            </summary>
+            <param name="inputKey">The password to be hashed, provided as a <see cref="T:System.Security.SecureString"/>.</param>
+            <param name="workFactor">The computational cost parameter defining the strength of the hash. Defaults to the predefined value of <see cref="F:BCryptNet.BCryptCore.DefaultRounds"/>.</param>
+            <returns>The hashed password as a string.</returns>
+        </member>
+        <member name="M:BCryptNet.BCryptSafeString.Verify(System.Security.SecureString,System.String)">
+            <summary>
+            Verifies a password against a previously computed BCrypt hash.
+            </summary>
+            <param name="inputKey">The candidate password, provided as a <see cref="T:System.Security.SecureString"/>.</param>
+            <param name="hash">The stored BCrypt hash to verify against.</param>
+            <returns><c>true</c> if the password matches the hash; otherwise <c>false</c>.</returns>
+            <exception cref="T:System.ArgumentException">Thrown when <paramref name="hash"/> is null or empty.</exception>
+            <exception cref="T:BCryptNet.SaltParseException">Thrown when the stored hash cannot be parsed.</exception>
+        </member>
+        <member name="T:BCryptNet.SaltParseException">
+            <summary>
+                Exception used to signal errors that occur during salt-parsing
+            </summary>
+        </member>
+        <member name="M:BCryptNet.SaltParseException.#ctor">
+            <summary>
+                Default Constructor
+            </summary>
+        </member>
+        <member name="M:BCryptNet.SaltParseException.#ctor(System.String)">
+            <summary>
+                Initializes a new instance of <see cref="T:BCryptNet.SaltParseException" />.
+            </summary>
+            <param name="message"></param>
+        </member>
+        <member name="M:BCryptNet.SaltParseException.#ctor(System.String,System.Exception)">
+            <summary>
+                Initializes a new instance of <see cref="T:BCryptNet.SaltParseException" />.
+            </summary>
+            <param name="message"></param>
+            <param name="innerException"></param>
+        </member>
+    </members>
+</doc>
