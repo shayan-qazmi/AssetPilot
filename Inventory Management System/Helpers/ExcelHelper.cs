@@ -873,5 +873,98 @@ namespace Inventory_Management_System.Helpers
             return result.ToArray();
         }
         #endregion
+        
+        #region Templates
+        public static void DownloadEmployeeTemplate(string filePath)
+        {
+            using var wb = new XLWorkbook();
+            var ws = wb.Worksheets.Add("Employees");
+
+            ws.Cell(1, 1).Value = "Full Name";
+            ws.Cell(1, 2).Value = "Designation";
+            ws.Cell(1, 3).Value = "Email";
+            ws.Cell(1, 4).Value = "Phone";
+
+            ws.Cell(2, 1).Value = "(Required) e.g. John Doe";
+            ws.Cell(2, 2).Value = "(Optional) e.g. Manager";
+            ws.Cell(2, 3).Value = "(Optional) e.g. john@example.com";
+            ws.Cell(2, 4).Value = "(Optional) e.g. 555-1234";
+
+            ws.Row(1).Style.Font.Bold = true;
+            ws.Row(2).Style.Font.Italic = true;
+            ws.Row(2).Style.Font.FontColor = XLColor.DimGray;
+            ws.Columns().AdjustToContents();
+            
+            wb.SaveAs(filePath);
+        }
+
+        public static void DownloadLocationTemplate(string filePath)
+        {
+            using var wb = new XLWorkbook();
+            var ws = wb.Worksheets.Add("Locations");
+
+            ws.Cell(1, 1).Value = "Location Name";
+            ws.Cell(1, 2).Value = "Building";
+            ws.Cell(1, 3).Value = "Room Number";
+            ws.Cell(1, 4).Value = "Room Name";
+
+            ws.Cell(2, 1).Value = "(Required) e.g. HQ Office";
+            ws.Cell(2, 2).Value = "(Optional) e.g. Main Building";
+            ws.Cell(2, 3).Value = "(Optional) e.g. 101";
+            ws.Cell(2, 4).Value = "(Optional) e.g. Conference Room A";
+
+            ws.Row(1).Style.Font.Bold = true;
+            ws.Row(2).Style.Font.Italic = true;
+            ws.Row(2).Style.Font.FontColor = XLColor.DimGray;
+            ws.Columns().AdjustToContents();
+            
+            wb.SaveAs(filePath);
+        }
+
+        public static void DownloadEquipmentTemplate(string filePath)
+        {
+            using var wb = new XLWorkbook();
+            var ws = wb.Worksheets.Add("Equipment");
+
+            ws.Cell(1, 1).Value = "Equipment Name";
+            ws.Cell(1, 2).Value = "Category";
+            ws.Cell(1, 3).Value = "Location";
+            ws.Cell(1, 4).Value = "Status";
+            ws.Cell(1, 5).Value = "Serial Number";
+            ws.Cell(1, 6).Value = "Make";
+            ws.Cell(1, 7).Value = "Model";
+            ws.Cell(1, 8).Value = "Procurement Type";
+            ws.Cell(1, 9).Value = "Condition";
+            ws.Cell(1, 10).Value = "Purchase Date";
+            ws.Cell(1, 11).Value = "Price";
+            ws.Cell(1, 12).Value = "Vendor";
+            ws.Cell(1, 13).Value = "Warranty Expiry";
+            ws.Cell(1, 14).Value = "Description";
+            ws.Cell(1, 15).Value = "Notes";
+
+            ws.Cell(2, 1).Value = "(Required) e.g. Dell Latitude 7420";
+            ws.Cell(2, 2).Value = "(Optional) e.g. Laptops";
+            ws.Cell(2, 3).Value = "(Optional) Exact location name or ID";
+            ws.Cell(2, 4).Value = "(Optional) 'in_store', 'allocated', etc.";
+            ws.Cell(2, 5).Value = "(Required) e.g. SN12345";
+            ws.Cell(2, 6).Value = "(Optional) e.g. Dell";
+            ws.Cell(2, 7).Value = "(Optional) e.g. Latitude 7420";
+            ws.Cell(2, 8).Value = "(Optional) e.g. Purchased, Leased";
+            ws.Cell(2, 9).Value = "(Optional) e.g. New, Good, Fair";
+            ws.Cell(2, 10).Value = "(Optional) YYYY-MM-DD";
+            ws.Cell(2, 11).Value = "(Optional) e.g. 1500.00";
+            ws.Cell(2, 12).Value = "(Optional) e.g. Vendor Corp";
+            ws.Cell(2, 13).Value = "(Optional) YYYY-MM-DD";
+            ws.Cell(2, 14).Value = "(Optional) Detailed description";
+            ws.Cell(2, 15).Value = "(Optional) Additional notes";
+
+            ws.Row(1).Style.Font.Bold = true;
+            ws.Row(2).Style.Font.Italic = true;
+            ws.Row(2).Style.Font.FontColor = XLColor.DimGray;
+            ws.Columns().AdjustToContents();
+            
+            wb.SaveAs(filePath);
+        }
+        #endregion
     }
 }

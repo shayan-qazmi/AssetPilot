@@ -61,6 +61,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnEdit, Color.FromArgb(245, 158, 11));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleSecondaryButton(btnImport);
+            ThemeHelper.StyleSecondaryButton(btnTemplate);
             ThemeHelper.StyleDataGridView(dgvLocations);
             ResetRowStyleOverrides(dgvLocations);
         }
@@ -522,6 +523,29 @@ namespace Inventory_Management_System.Forms
             else if (firstError != null)
             {
                 ShowToast(firstError, ToastType.Error, ToastIntent.Delete);
+            }
+        }
+
+        private void btnTemplate_Click(object sender, EventArgs e)
+        {
+            using var sfd = new SaveFileDialog
+            {
+                Filter = "Excel Files (*.xlsx)|*.xlsx",
+                Title = "Save Location Template",
+                FileName = "Location_Template.xlsx"
+            };
+
+            if (sfd.ShowDialog() == DialogResult.OK)
+            {
+                try
+                {
+                    ExcelHelper.DownloadLocationTemplate(sfd.FileName);
+                    ToastHelper.Show(this, "Template downloaded successfully.", ToastType.Success);
+                }
+                catch (Exception ex)
+                {
+                    ToastHelper.Show(this, $"Failed to download template: {ex.Message}", ToastType.Error);
+                }
             }
         }
         private void btnImport_Click(object sender, EventArgs e)

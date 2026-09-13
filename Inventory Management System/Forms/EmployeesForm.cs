@@ -117,6 +117,7 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleButton(btnEdit, Color.FromArgb(245, 158, 11));
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleSecondaryButton(btnImport);
+            ThemeHelper.StyleSecondaryButton(btnTemplate);
             ThemeHelper.StyleDataGridView(dgvEmployees);
             ResetRowStyleOverrides(dgvEmployees);
             ApplyRoundedSearchStyle(txtSearch);
@@ -642,6 +643,29 @@ namespace Inventory_Management_System.Forms
             else if (firstError != null)
             {
                 ShowToast(firstError, ToastType.Error, ToastIntent.Delete);
+            }
+        }
+
+        private void btnTemplate_Click(object sender, EventArgs e)
+        {
+            using var sfd = new SaveFileDialog
+            {
+                Filter = "Excel Files (*.xlsx)|*.xlsx",
+                Title = "Save Employee Template",
+                FileName = "Employee_Template.xlsx"
+            };
+
+            if (sfd.ShowDialog() == DialogResult.OK)
+            {
+                try
+                {
+                    ExcelHelper.DownloadEmployeeTemplate(sfd.FileName);
+                    ToastHelper.Show(this, "Template downloaded successfully.", ToastType.Success);
+                }
+                catch (Exception ex)
+                {
+                    ToastHelper.Show(this, $"Failed to download template: {ex.Message}", ToastType.Error);
+                }
             }
         }
 

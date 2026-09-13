@@ -571,6 +571,7 @@ namespace Inventory_Management_System.Forms
             // Export and Import Excel: matching secondary style (white bg, dark border/text)
             ThemeHelper.StyleSecondaryButton(btnExport);
             ThemeHelper.StyleSecondaryButton(btnImportExcel);
+            ThemeHelper.StyleSecondaryButton(btnTemplate);
 
             // QR buttons: white bg, dark gray (#555) border, dark gray (#333) text
             // Hover: light gray (#F2F2F2) — both identical so they read as a set
@@ -1566,6 +1567,29 @@ namespace Inventory_Management_System.Forms
             frm.Controls.Add(btnClose);
             frm.FormClosed += (s, ev) => qrBitmap?.Dispose();
             frm.ShowDialog();
+        }
+
+        private void btnTemplate_Click(object sender, EventArgs e)
+        {
+            using var sfd = new SaveFileDialog
+            {
+                Filter = "Excel Files (*.xlsx)|*.xlsx",
+                Title = "Save Equipment Template",
+                FileName = "Equipment_Template.xlsx"
+            };
+
+            if (sfd.ShowDialog() == DialogResult.OK)
+            {
+                try
+                {
+                    ExcelHelper.DownloadEquipmentTemplate(sfd.FileName);
+                    ToastHelper.Show(this, "Template downloaded successfully.", ToastType.Success);
+                }
+                catch (Exception ex)
+                {
+                    ToastHelper.Show(this, $"Failed to download template: {ex.Message}", ToastType.Error);
+                }
+            }
         }
 
         private void btnImportExcel_Click(object sender, EventArgs e)

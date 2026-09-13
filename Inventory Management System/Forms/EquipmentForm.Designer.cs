@@ -25,6 +25,7 @@ namespace Inventory_Management_System.Forms
             btnExport          = new System.Windows.Forms.Button();
             btnShowQR          = new System.Windows.Forms.Button();
             btnImportExcel     = new System.Windows.Forms.Button();
+            btnTemplate        = new System.Windows.Forms.Button();
             btnSelectAll       = new System.Windows.Forms.Button();
             btnGenerateQRSheet = new System.Windows.Forms.Button();
             txtSearch          = new System.Windows.Forms.TextBox();
@@ -67,6 +68,7 @@ namespace Inventory_Management_System.Forms
             flowToolbar.Controls.Add(btnRefresh);
             flowToolbar.Controls.Add(btnExport);
             flowToolbar.Controls.Add(btnImportExcel);
+            flowToolbar.Controls.Add(btnTemplate);
             flowToolbar.Controls.Add(btnShowQR);
             flowToolbar.Controls.Add(btnGenerateQRSheet);
             flowToolbar.Controls.Add(txtSearch);
@@ -108,6 +110,12 @@ namespace Inventory_Management_System.Forms
             btnImportExcel.Name   = "btnImportExcel";
             btnImportExcel.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
             btnImportExcel.Click += btnImportExcel_Click;
+
+            btnTemplate.Size   = new System.Drawing.Size(100, 32);
+            btnTemplate.Text   = "📄 Template";
+            btnTemplate.Name   = "btnTemplate";
+            btnTemplate.Margin = new System.Windows.Forms.Padding(4, 4, 0, 0);
+            btnTemplate.Click += btnTemplate_Click;
 
             // Show QR — QR-theme: white bg, dark gray border/text
             btnShowQR.Size   = new System.Drawing.Size(110, 32);
@@ -249,6 +257,7 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.Button          btnExport;
         private System.Windows.Forms.Button          btnShowQR;
         private System.Windows.Forms.Button          btnImportExcel;
+        private System.Windows.Forms.Button          btnTemplate;
         private System.Windows.Forms.Button          btnSelectAll;
         private System.Windows.Forms.Button          btnGenerateQRSheet;
         private System.Windows.Forms.TextBox         txtSearch;
