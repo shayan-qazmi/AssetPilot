@@ -56,13 +56,27 @@ namespace Inventory_Management_System.Forms
             SetupToolbarLayout();
             LoadCategoryFilter();
 
-            // Force panelTop to match the fully-populated toolbar (it may now
-            // wrap to a 2nd row). Without this, panelTop keeps its designer-time
-            // height, the 2nd row (search box) renders outside it, and the grid
-            // draws over it.
+            // panelTop.AutoSize (from the Designer) cannot get this right — its
+            // internal calculation reads flowToolbar's UNCONSTRAINED preferred size
+            // (as if it never had to wrap), which is why panelTop kept ending up
+            // shorter than the toolbar's real, wrapped height. Managing panelTop's
+            // height manually, using GetPreferredSize() constrained to flowToolbar's
+            // ACTUAL current width, is what correctly accounts for wrapping.
+            panelTop.AutoSize = false;
             flowToolbar.AutoSize = true;
             flowToolbar.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-            panelTop.Height = flowToolbar.Height;
+
+            void SyncToolbarHeight()
+            {
+                if (flowToolbar.Width <= 0) return;
+                panelTop.Height = flowToolbar.GetPreferredSize(new Size(flowToolbar.Width, 0)).Height;
+            }
+
+            SyncToolbarHeight();
+            flowToolbar.Layout += (s, e) => SyncToolbarHeight();
+            flowToolbar.SizeChanged += (s, e) => SyncToolbarHeight();
+
+            dgvEquipment.BringToFront();
 
             var toolbarTooltip = new ToolTip { AutoPopDelay = 6000, InitialDelay = 400, ReshowDelay = 100, ShowAlways = true };
             toolbarTooltip.SetToolTip(btnExport, "Exports only the rows on the current page — check your page size before exporting.");
@@ -73,7 +87,7 @@ namespace Inventory_Management_System.Forms
 
             dgvEquipment.ColumnHeaderMouseClick += dgvEquipment_ColumnHeaderMouseClick;
 
-            flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
+     
 
             this.Shown += (s, e) =>
             {
@@ -83,6 +97,7 @@ namespace Inventory_Management_System.Forms
                     dgvEquipment.CurrentCell = null;
                 }
             };
+
         }
 
 
@@ -118,7 +133,7 @@ namespace Inventory_Management_System.Forms
             UpdateFiltersButtonLabel();
             LoadEquipment();
         }
-
+ 
         public void ApplyCustomFilter(Func<Equipment, bool> filter)
         {
             _customFilter = filter;
@@ -373,6 +388,8 @@ namespace Inventory_Management_System.Forms
             StyleQrButton(btnGenerateQRSheet, "📄 QR Sheet");
         }
 
+
+   
         private static string StatusFilterDisplayLabel(string? value) => value switch
         {
             "in_store" => "In store",
@@ -1688,5 +1705,7 @@ namespace Inventory_Management_System.Forms
                 LoadEquipment(txtSearch.Text.Trim());
             }
         }
+
     }
+
 }

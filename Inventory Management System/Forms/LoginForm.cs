@@ -1865,6 +1865,9 @@ namespace Inventory_Management_System.Forms
                         .FirstOrDefault(u => u.Username == username && u.IsActive == true);
                 });
 
+                // Guarantee the spinner is visible for at least 1000ms for a smoother UX
+                await System.Threading.Tasks.Task.Delay(1000);
+
                 var timeoutTask = System.Threading.Tasks.Task.Delay(maxSpinnerMs);
                 var completed = await System.Threading.Tasks.Task.WhenAny(dbTask, timeoutTask);
 

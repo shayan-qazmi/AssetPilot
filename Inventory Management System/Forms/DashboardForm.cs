@@ -2882,7 +2882,7 @@ namespace Inventory_Management_System
                         var nextDay = day.AddDays(1);
                         counts[i] = metric switch
                         {
-                            "equipment" => recentLogs.Count(l => l.CreatedAt!.Value >= day && l.CreatedAt.Value < nextDay),
+                            "equipment" => recentLogs.Count(l => l.ActionType == "equipment_created" && l.CreatedAt!.Value >= day && l.CreatedAt.Value < nextDay),
                             "allocated" => recentLogs.Count(l => l.ActionType == "allocation_approved" && l.CreatedAt!.Value >= day && l.CreatedAt.Value < nextDay),
                             "in_store" => recentLogs.Count(l => l.ActionType == "allocation_returned" && l.CreatedAt!.Value >= day && l.CreatedAt.Value < nextDay),
                             "under_repair" => recentLogs.Count(l => l.ActionType == "maintenance_opened" && l.CreatedAt!.Value >= day && l.CreatedAt.Value < nextDay),
@@ -2897,7 +2897,7 @@ namespace Inventory_Management_System
                     var lastWeekStart = today.AddDays(-13);
                     Func<DateTime, DateTime, int> countInRange = (start, end) => metric switch
                     {
-                        "equipment" => recentLogs.Count(l => l.CreatedAt!.Value >= start && l.CreatedAt.Value < end),
+                        "equipment" => recentLogs.Count(l => l.ActionType == "equipment_created" && l.CreatedAt!.Value >= start && l.CreatedAt.Value < end),
                         "allocated" => recentLogs.Count(l => l.ActionType == "allocation_approved" && l.CreatedAt!.Value >= start && l.CreatedAt.Value < end),
                         "in_store" => recentLogs.Count(l => l.ActionType == "allocation_returned" && l.CreatedAt!.Value >= start && l.CreatedAt.Value < end),
                         "under_repair" => recentLogs.Count(l => l.ActionType == "maintenance_opened" && l.CreatedAt!.Value >= start && l.CreatedAt.Value < end),
@@ -2908,7 +2908,7 @@ namespace Inventory_Management_System
                     int thisWeek = countInRange(thisWeekStart, today.AddDays(1));
                     int lastWeek = countInRange(lastWeekStart, thisWeekStart);
                     int delta = thisWeek - lastWeek;
-                    _deltaCache[metric] = delta == 0 ? "No change this week" : $"{(delta > 0 ? "▲ " : "▼ ")}{Math.Abs(delta)} this week";
+                    _deltaCache[metric] = delta == 0 ? "No change vs last week" : $"{(delta > 0 ? "▲ " : "▼ ")}{Math.Abs(delta)} vs last week";
                 }
             }
             catch (Exception ex)
@@ -5145,6 +5145,12 @@ namespace Inventory_Management_System
             panelContent.Controls.Add(childForm);
             childForm.BringToFront();
             childForm.Show();
+
+            // Embedded (TopLevel=false) forms don't get a reliable Shown/Load signal
+            // for "I now have my final docked size" — so the host that just did the
+            // docking has to trigger any width-dependent layout fixups itself, once
+            // the message queue has caught up with the resize (hence BeginInvoke).
+           
 
             panelStats.Visible = false;
 

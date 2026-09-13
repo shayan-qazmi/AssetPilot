@@ -227,9 +227,9 @@ namespace Inventory_Management_System.Forms
             AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             AutoScaleMode       = System.Windows.Forms.AutoScaleMode.Font;
             ClientSize          = new System.Drawing.Size(1200, 700);
-            Controls.Add(dgvEquipment);
             Controls.Add(panelBottom);
             Controls.Add(panelTop);
+            Controls.Add(dgvEquipment);
             Text = "Equipment";
             Name = "EquipmentForm";
 
