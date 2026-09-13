@@ -203,6 +203,16 @@ namespace Inventory_Management_System
         // ── Card entrance animations ────────────────────────────────────
         private System.Windows.Forms.Timer? _animTimer;
         private List<CardAnimState>? _cardAnims;
+
+        private class EmpRowAnimState
+        {
+            public Panel Row { get; set; } = null!;
+            public int StartY { get; set; }
+            public int TargetY { get; set; }
+            public float DelayMs { get; set; }
+            public float Progress { get; set; }
+        }
+        private List<EmpRowAnimState>? _empRowAnims;
         // ── Sidebar active-indicator (sliding accent bar) ────────────────
         private Panel? _accentIndicator;
         private System.Windows.Forms.Timer? _accentTimer;
@@ -212,7 +222,7 @@ namespace Inventory_Management_System
         private const int AccentBarHeight = 30;
         private float _donutAnimProgress = 1f;
         private const int AnimTickIntervalMs = 15;
-        private const float CardAnimStepPerTick = 0.030f; // ~800ms entrance — matches how fast the charts below visually settle
+        private const float CardAnimStepPerTick = 0.055f; // fast, responsive entrance — snappy and smooth
         private const int CenterCardIndex = 3; // "Under Repair"
 
         // Elapsed-time-based chart animation — replaces the old feedback-loop
@@ -292,11 +302,12 @@ namespace Inventory_Management_System
 
         private bool _sidebarCollapsed = false;
         private int _sidebarExpandedWidth = 0;
-        private const int SidebarCollapsedWidth = 64;
+        private const int SidebarCollapsedWidth = 74;
         private const int LogoSize = 90;
         private readonly Dictionary<Button, string> _navButtonFullText = new();
         private System.Windows.Forms.Timer? _sidebarCollapseTimer;
-        private Button? _btnSidebarToggle;
+        private Button? _btnTopSidebarToggle;
+        private Image? _logoTopIconImage;
         private readonly EquipmentService _searchEquipmentService = new();
         private readonly EmployeeService _searchEmployeeService = new();
         private Form? _searchResultsPopup;
@@ -460,6 +471,7 @@ namespace Inventory_Management_System
                     OpenChildForm(new EquipmentForm(code), btnEquipment);
                 }
             };
+            BuildTopSidebarToggle();
             BuildThemeToggle();
             BuildTopSearchBar();
             BuildTopProfileWidget();
@@ -469,6 +481,8 @@ namespace Inventory_Management_System
                 {
                     PositionTopSearchBar();
                     PositionTopProfileWidget();
+                    if (_btnTopSidebarToggle != null)
+                        _btnTopSidebarToggle.Location = new Point(14, (panelTop.Height - _btnTopSidebarToggle.Height) / 2);
                 }
             };
             lblAppBrand.Dock      = DockStyle.Top;
@@ -1349,17 +1363,17 @@ namespace Inventory_Management_System
                 (panelTop.Height - _pnlSearchBox.Height) / 2);
             PositionThemeToggle();
         }
-        private void BuildSidebarToggle()
+        private void BuildTopSidebarToggle()
         {
-            EnsureSidebarHeaderPanel();
-
-            var existing = _pnlSidebarHeader!.Controls.OfType<Button>().FirstOrDefault(b => b.Name == "btnSidebarToggle");
+            var existing = panelTop.Controls.OfType<Button>().FirstOrDefault(b => b.Name == "btnTopSidebarToggle");
             existing?.Dispose();
 
-            _btnSidebarToggle = new Button
+            _btnTopSidebarToggle = new Button
             {
-                Name = "btnSidebarToggle",
-                Text = "", 
+                Name = "btnTopSidebarToggle",
+                Text = "",
+                Size = new Size(38, 38),
+                Location = new Point(14, (panelTop.Height - 38) / 2),
                 FlatStyle = FlatStyle.Flat,
                 ForeColor = Color.White,
                 BackColor = Color.Transparent,
@@ -1367,28 +1381,44 @@ namespace Inventory_Management_System
                 UseVisualStyleBackColor = false,
                 TextAlign = ContentAlignment.MiddleCenter
             };
-            _btnSidebarToggle.FlatAppearance.BorderSize = 0;
-            _btnSidebarToggle.FlatAppearance.MouseOverBackColor = Color.FromArgb(35, 255, 255, 255);
-            _btnSidebarToggle.Click += (s, e) => ToggleSidebar();
+            _btnTopSidebarToggle.FlatAppearance.BorderSize = 0;
+            _btnTopSidebarToggle.FlatAppearance.MouseOverBackColor = Color.FromArgb(30, ThemeHelper.IsDarkMode ? Color.White : Color.Black);
+            _btnTopSidebarToggle.FlatAppearance.MouseDownBackColor = Color.FromArgb(50, ThemeHelper.IsDarkMode ? Color.White : Color.Black);
+            _btnTopSidebarToggle.Click += (s, e) => ToggleSidebar();
 
-            _btnSidebarToggle.Paint += (s, e) =>
+            _btnTopSidebarToggle.Paint += (s, e) =>
             {
                 var g = e.Graphics;
-                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-                float fontSize = _sidebarCollapsed ? 15f : 12f;
-                using var font = new Font("Segoe UI Symbol", fontSize, FontStyle.Bold);
-                using var brush = new SolidBrush(_btnSidebarToggle.ForeColor);
-                using var sf = new StringFormat
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+
+                // Always show the 3-bar hamburger icon (matching reference screenshot)
+                Color barColor = ThemeHelper.IsDarkMode ? Color.FromArgb(235, 240, 245) : Color.FromArgb(40, 50, 60);
+                using var barBrush = new SolidBrush(barColor);
+
+                int barW = 20;
+                int barH = 3;
+                int barX = (_btnTopSidebarToggle.Width - barW) / 2;
+                int startY = (_btnTopSidebarToggle.Height - (barH * 3 + 8)) / 2;
+
+                for (int i = 0; i < 3; i++)
                 {
-                    Alignment = StringAlignment.Center,
-                    LineAlignment = StringAlignment.Center
-                };
-                g.DrawString("\u25EB", font, brush, new RectangleF(0, 0, _btnSidebarToggle.Width, _btnSidebarToggle.Height), sf);
+                    int by = startY + i * (barH + 4);
+                    using var path = RoundedRectF(new RectangleF(barX, by, barW, barH), 1.5f);
+                    g.FillPath(barBrush, path);
+                }
             };
 
-            _pnlSidebarHeader.Controls.Add(_btnSidebarToggle);
-            _btnSidebarToggle.BringToFront();
+            panelTop.Controls.Add(_btnTopSidebarToggle);
+            _btnTopSidebarToggle.BringToFront();
+        }
+
+        private void BuildSidebarToggle()
+        {
+            EnsureSidebarHeaderPanel();
+
+            var existing = _pnlSidebarHeader!.Controls.OfType<Button>().FirstOrDefault(b => b.Name == "btnSidebarToggle");
+            existing?.Dispose();
 
             PositionSidebarHeader();
         }
@@ -1400,18 +1430,28 @@ namespace Inventory_Management_System
             if (_pnlSidebarHeader == null) return;
 
             var logoPic = _pnlSidebarHeader.Controls.OfType<PictureBox>().FirstOrDefault(p => p.Name == "picLogoSide");
+            var logoDivider = _pnlSidebarHeader.Controls.OfType<Panel>().FirstOrDefault(p => p.Name == "pnlLogoDivider");
 
             if (_sidebarCollapsed)
             {
-                if (logoPic != null) logoPic.Visible = false;
-                lblAppBrand.Visible = false;
+                const int collapsedLogoSize = 42;
+                const int collapsedHeaderHeight = 60;
+                _pnlSidebarHeader.Height = collapsedHeaderHeight;
+                int hostWidth = _pnlSidebarHeader.Width;
 
-                _btnSidebarToggle!.Text = "";
-                _btnSidebarToggle.Size = new Size(SidebarCollapsedWidth, _pnlSidebarHeader.Height);
-                _btnSidebarToggle.Location = new Point(0, 0);
+                if (logoPic != null)
+                {
+                    logoPic.Size = new Size(collapsedLogoSize, collapsedLogoSize);
+                    logoPic.Location = new Point(Math.Max(0, (hostWidth - collapsedLogoSize) / 2), (collapsedHeaderHeight - collapsedLogoSize) / 2);
+                    logoPic.Visible = true;
+                    logoPic.BringToFront();
+                }
+                if (logoDivider != null) logoDivider.Visible = true;
+                lblAppBrand.Visible = false;
             }
             else
             {
+                _pnlSidebarHeader.Height = LogoSize + 2;
                 int hostWidth = _pnlSidebarHeader.Width;
 
                 if (logoPic != null)
@@ -1419,16 +1459,13 @@ namespace Inventory_Management_System
                     logoPic.Size = new Size(LogoSize, LogoSize);
                     logoPic.Location = new Point(Math.Max(0, (hostWidth - LogoSize) / 2), (_pnlSidebarHeader.Height - LogoSize) / 2);
                     logoPic.Visible = true;
+                    logoPic.BringToFront();
                 }
+                if (logoDivider != null) logoDivider.Visible = true;
                 lblAppBrand.Visible = logoPic == null;
-
-                _btnSidebarToggle!.Text = "";
-                _btnSidebarToggle.Size = new Size(34, 34);
-                _btnSidebarToggle.Location = new Point(10, (_pnlSidebarHeader.Height - 34) / 2);
             }
 
-            _btnSidebarToggle.BringToFront();
-            logoPic?.BringToFront();
+            _btnTopSidebarToggle?.Invalidate();
             _pnlSidebarHeader.Invalidate();
         }
 
@@ -1615,24 +1652,9 @@ namespace Inventory_Management_System
             }
 
             string fullName = AuthService.CurrentFullName;
-            string username = "";
-            string? picturePath = null;
-
-            try
-            {
-                using var db = new InventoryDbContext();
-                var user = db.Users.FirstOrDefault(u => u.Id == AuthService.CurrentUserId);
-                if (user != null)
-                {
-                    username = user.Username;
-                    picturePath = user.PicturePath;
-                    if (string.IsNullOrWhiteSpace(fullName)) fullName = user.FullName;
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "DashboardForm.BuildUserProfileFooter");
-            }
+            string username = AuthService.CurrentUsername;
+            string? picturePath = AuthService.CurrentPicturePath;
+            if (string.IsNullOrWhiteSpace(fullName)) fullName = string.IsNullOrWhiteSpace(username) ? "Admin" : username;
 
             // footer now hosts BOTH the profile row AND btnLogout, so panelMenu only
             // ever has ONE Dock=Bottom child — no more two-siblings-racing-for-the-edge
@@ -2075,22 +2097,10 @@ namespace Inventory_Management_System
             existing?.Dispose();
 
             string fullName = AuthService.CurrentFullName;
-            string? picturePath = null;
-            string username = "";
-            string email = "";
-            try
-            {
-                using var db = new InventoryDbContext();
-                var user = db.Users.FirstOrDefault(u => u.Id == AuthService.CurrentUserId);
-                if (user != null)
-                {
-                    picturePath = user.PicturePath;
-                    username = user.Username ?? "";
-                    email = user.Email ?? "";
-                    if (string.IsNullOrWhiteSpace(fullName)) fullName = user.FullName;
-                }
-            }
-            catch (Exception ex) { Logger.LogError(ex, "DashboardForm.BuildTopProfileWidget"); }
+            string? picturePath = AuthService.CurrentPicturePath;
+            string username = AuthService.CurrentUsername;
+            string email = AuthService.CurrentEmail;
+            if (string.IsNullOrWhiteSpace(fullName)) fullName = string.IsNullOrWhiteSpace(username) ? "Admin" : username;
 
             _profileFullName = fullName;
             _profileUsername = username;
@@ -2716,19 +2726,30 @@ namespace Inventory_Management_System
             try
             {
                 using var db = new InventoryDbContext();
-                for (int i = 0; i < buckets.Count; i++)
+                if (buckets.Count > 0)
                 {
-                    var (s, e, _) = buckets[i];
-                    var sUtc = s.ToUniversalTime();
-                    var eUtc = e.ToUniversalTime();
+                    var minBucketUtc = buckets.Min(b => b.start).ToUniversalTime();
+                    var maxBucketUtc = buckets.Max(b => b.end).ToUniversalTime();
 
-                    allocated[i] = db.EquipmentLogs.Count(l =>
-                        l.CreatedAt.HasValue && l.CreatedAt.Value >= sUtc && l.CreatedAt.Value < eUtc &&
-                        (l.ActionType == "allocation_approved" || l.ActionType == "allocation_requested" || l.ActionType == "checked_out" || l.ActionType == "check_out"));
+                    var trendLogs = db.EquipmentLogs
+                        .Where(l => l.CreatedAt.HasValue && l.CreatedAt.Value >= minBucketUtc && l.CreatedAt.Value < maxBucketUtc)
+                        .Select(l => new { l.ActionType, l.CreatedAt })
+                        .ToList();
 
-                    inStock[i] = db.EquipmentLogs.Count(l =>
-                        l.CreatedAt.HasValue && l.CreatedAt.Value >= sUtc && l.CreatedAt.Value < eUtc &&
-                        (l.ActionType == "allocation_returned" || l.ActionType == "check_in" || l.ActionType == "checked_in" || l.ActionType == "equipment_updated" || l.ActionType == "equipment_created"));
+                    for (int i = 0; i < buckets.Count; i++)
+                    {
+                        var (s, e, _) = buckets[i];
+                        var sUtc = s.ToUniversalTime();
+                        var eUtc = e.ToUniversalTime();
+
+                        allocated[i] = trendLogs.Count(l =>
+                            l.CreatedAt!.Value >= sUtc && l.CreatedAt.Value < eUtc &&
+                            (l.ActionType == "allocation_approved" || l.ActionType == "allocation_requested" || l.ActionType == "checked_out" || l.ActionType == "check_out"));
+
+                        inStock[i] = trendLogs.Count(l =>
+                            l.CreatedAt!.Value >= sUtc && l.CreatedAt.Value < eUtc &&
+                            (l.ActionType == "allocation_returned" || l.ActionType == "check_in" || l.ActionType == "checked_in" || l.ActionType == "equipment_updated" || l.ActionType == "equipment_created"));
+                    }
                 }
             }
             catch { /* leaves zeros — chart shows a flat line instead of crashing */ }
@@ -2840,6 +2861,62 @@ namespace Inventory_Management_System
                 Logger.LogError(ex, "DashboardForm.MarkNewlyOverdueAllocations");
             }
         }
+        private void PreloadTrendAndDeltaCache(InventoryDbContext db)
+        {
+            try
+            {
+                var today = DateTime.Today;
+                var minDate = today.AddDays(-14);
+                var recentLogs = db.EquipmentLogs
+                    .Where(l => l.CreatedAt.HasValue && l.CreatedAt.Value >= minDate)
+                    .Select(l => new { l.ActionType, l.CreatedAt })
+                    .ToList();
+
+                var metrics = new[] { "equipment", "allocated", "in_store", "under_repair", "overdue", "decommissioned" };
+                foreach (var metric in metrics)
+                {
+                    var counts = new float[7];
+                    for (int i = 0; i < 7; i++)
+                    {
+                        var day = today.AddDays(-6 + i);
+                        var nextDay = day.AddDays(1);
+                        counts[i] = metric switch
+                        {
+                            "equipment" => recentLogs.Count(l => l.CreatedAt!.Value >= day && l.CreatedAt.Value < nextDay),
+                            "allocated" => recentLogs.Count(l => l.ActionType == "allocation_approved" && l.CreatedAt!.Value >= day && l.CreatedAt.Value < nextDay),
+                            "in_store" => recentLogs.Count(l => l.ActionType == "allocation_returned" && l.CreatedAt!.Value >= day && l.CreatedAt.Value < nextDay),
+                            "under_repair" => recentLogs.Count(l => l.ActionType == "maintenance_opened" && l.CreatedAt!.Value >= day && l.CreatedAt.Value < nextDay),
+                            "decommissioned" => recentLogs.Count(l => l.ActionType == "decommission_approved" && l.CreatedAt!.Value >= day && l.CreatedAt.Value < nextDay),
+                            "overdue" => recentLogs.Count(l => l.ActionType == "allocation_overdue" && l.CreatedAt!.Value >= day && l.CreatedAt.Value < nextDay),
+                            _ => 0
+                        };
+                    }
+                    _trendCache[metric] = counts;
+
+                    var thisWeekStart = today.AddDays(-6);
+                    var lastWeekStart = today.AddDays(-13);
+                    Func<DateTime, DateTime, int> countInRange = (start, end) => metric switch
+                    {
+                        "equipment" => recentLogs.Count(l => l.CreatedAt!.Value >= start && l.CreatedAt.Value < end),
+                        "allocated" => recentLogs.Count(l => l.ActionType == "allocation_approved" && l.CreatedAt!.Value >= start && l.CreatedAt.Value < end),
+                        "in_store" => recentLogs.Count(l => l.ActionType == "allocation_returned" && l.CreatedAt!.Value >= start && l.CreatedAt.Value < end),
+                        "under_repair" => recentLogs.Count(l => l.ActionType == "maintenance_opened" && l.CreatedAt!.Value >= start && l.CreatedAt.Value < end),
+                        "decommissioned" => recentLogs.Count(l => l.ActionType == "decommission_approved" && l.CreatedAt!.Value >= start && l.CreatedAt.Value < end),
+                        "overdue" => recentLogs.Count(l => l.ActionType == "allocation_overdue" && l.CreatedAt!.Value >= start && l.CreatedAt.Value < end),
+                        _ => 0
+                    };
+                    int thisWeek = countInRange(thisWeekStart, today.AddDays(1));
+                    int lastWeek = countInRange(lastWeekStart, thisWeekStart);
+                    int delta = thisWeek - lastWeek;
+                    _deltaCache[metric] = delta == 0 ? "No change this week" : $"{(delta > 0 ? "▲ " : "▼ ")}{Math.Abs(delta)} this week";
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "DashboardForm.PreloadTrendAndDeltaCache");
+            }
+        }
+
         // ════════════════════════════════════════════════════════════════
         //  STATS + CHARTS
         // ════════════════════════════════════════════════════════════════
@@ -2852,6 +2929,7 @@ namespace Inventory_Management_System
                 _animTimer?.Dispose();
                 _animTimer = null;
                 _cardAnims = new List<CardAnimState>();
+                _empRowAnims = new List<EmpRowAnimState>();
                 _donutAnimProgress = instant ? 1f : 0f;
                 _barAnimProgress = instant ? 1f : 0f;
                 _activitiesAnimProgress = (instant || _activitiesIntroPlayed) ? 1f : 0f;
@@ -2859,6 +2937,7 @@ namespace Inventory_Management_System
                 _chartAnimClock.Restart();
 
                 using var db = new InventoryDbContext();
+                PreloadTrendAndDeltaCache(db);
 
                 var activeEq = db.Equipment.Where(e => !e.IsDeleted);
                 int totalEquipment = activeEq.Count();
@@ -2919,7 +2998,7 @@ namespace Inventory_Management_System
                 int x      = padL;
                 int cardIndex = 0;
 
-                float staggerStepMs = instant ? 0f : 20f;
+                float staggerStepMs = instant ? 0f : 8f;
                 // How long the slide/bounce itself takes once it starts, derived from the
                 // same step size AnimTimer_Tick uses — kept in sync automatically if that ever changes.
                 int cardEntranceMs = (int)Math.Ceiling(1f / CardAnimStepPerTick) * AnimTickIntervalMs;
@@ -2943,7 +3022,7 @@ namespace Inventory_Management_System
                         int distanceFromCenter = cardIndex - CenterCardIndex; // 1,2,3
                         delay = (distanceFromCenter - 1) * staggerStepMs;
                     }
-                    int numberStartDelayMs = instant ? 0 : (int)delay + cardEntranceMs;
+                    int numberStartDelayMs = instant ? 0 : (int)(delay * 0.4f) + 60;
 
                     var card = ThemeHelper.CreateStatCard(def.title, def.value, def.color, def.icon, def.trendValues, def.deltaText, numberStartDelayMs);
 
@@ -3077,6 +3156,7 @@ namespace Inventory_Management_System
         {
             try
             {
+                var allLocations = db.Locations.ToList().ToDictionary(l => l.Id);
                 _locationBreakdown = db.Allocations
                     .Where(a => a.Status == "approved" && a.ActualReturnDate == null &&
                                 a.LocationId != null && a.EmployeeId == null &&
@@ -3086,7 +3166,7 @@ namespace Inventory_Management_System
                     .ToList()
                     .Select(g =>
                     {
-                        var loc = db.Locations.FirstOrDefault(l => l.Id == g.LocationId);
+                        allLocations.TryGetValue(g.LocationId, out var loc);
                         string fullName = loc == null
                             ? "Unknown"
                             : string.IsNullOrWhiteSpace(loc.RoomName)
@@ -3177,10 +3257,43 @@ namespace Inventory_Management_System
                 _panelLine?.Invalidate();
                 _panelTrend?.Invalidate();
                 _panelLocation?.Invalidate();
+                if (_empRowAnims != null)
+                {
+                    foreach (var anim in _empRowAnims)
+                    {
+                        if (!anim.Row.IsDisposed) anim.Row.Invalidate();
+                    }
+                }
                 allDone = false;
             }
 
-            // ── Phase 3: activities panel slide-in — runs on the same elapsed
+            // ── Phase 3: top employees rows slide-up animation ────────────────
+            if (_empRowAnims != null)
+            {
+                foreach (var anim in _empRowAnims)
+                {
+                    if (anim.Row.IsDisposed) continue;
+                    if (anim.DelayMs > 0)
+                    {
+                        anim.DelayMs -= AnimTickIntervalMs;
+                        allDone = false;
+                        continue;
+                    }
+
+                    if (anim.Progress < 1f)
+                    {
+                        anim.Progress += 0.055f;
+                        if (anim.Progress >= 1f) anim.Progress = 1f;
+                        else { allDone = false; }
+
+                        float ease = EaseOutCubic(anim.Progress);
+                        int curY = (int)(anim.StartY + (anim.TargetY - anim.StartY) * ease);
+                        anim.Row.Location = new Point(10, curY);
+                    }
+                }
+            }
+
+            // ── Phase 4: activities panel slide-in — runs on the same elapsed
             // clock and duration as the donut/bar charts above, so all three
             // start together and finish together instead of racing at different speeds. ──
             if (_activitiesAnimProgress < 1f && _panelActivities != null)
@@ -3205,6 +3318,18 @@ namespace Inventory_Management_System
                     foreach (var anim in _cardAnims)
                     {
                         anim.Card.Bounds = anim.TargetBounds;
+                    }
+                }
+
+                if (_empRowAnims != null)
+                {
+                    foreach (var anim in _empRowAnims)
+                    {
+                        if (!anim.Row.IsDisposed)
+                        {
+                            anim.Row.Location = new Point(10, anim.TargetY);
+                            anim.Row.Invalidate();
+                        }
                     }
                 }
             }
@@ -3525,7 +3650,7 @@ namespace Inventory_Management_System
         }
         private void BuildEmployeesList(Panel card)
         {
-            var listHost = new Panel
+            var listHost = new DoubleBufferedPanel
             {
                 Location = new Point(0, 45),
                 Size = new Size(card.Width, Math.Max(0, card.Height - 45)),
@@ -3544,15 +3669,15 @@ namespace Inventory_Management_System
             {
                 if (listHost.Width == lastWidth) return;
                 lastWidth = listHost.Width;
-                LoadEmployeesRows(listHost);
+                LoadEmployeesRows(listHost, animate: false);
             };
 
-            LoadEmployeesRows(listHost);
+            LoadEmployeesRows(listHost, animate: true);
         }
 
         private bool _isLoadingEmployeeRows = false;
 
-        private void LoadEmployeesRows(Panel listHost)
+        private void LoadEmployeesRows(Panel listHost, bool animate = true)
         {
             if (_isLoadingEmployeeRows || listHost == null || listHost.IsDisposed) return;
             try
@@ -3578,17 +3703,39 @@ namespace Inventory_Management_System
                 int maxVal = Math.Max(1, _topEmployees.Max(x => x.Count));
                 bool showBars = _topEmployees.Any(x => x.Count > 0);
 
+                var animList = new List<EmpRowAnimState>();
                 int y = 4;
                 for (int i = 0; i < _topEmployees.Count; i++)
                 {
                     var emp = _topEmployees[i];
                     int rowWidth = Math.Max(100, listHost.ClientSize.Width - 20);
                     var row = BuildEmployeeRow(i + 1, emp.Name, emp.Count, emp.Dept, emp.Email, emp.Code, maxVal, showBars, rowWidth, _employeeTooltip!);
-                    row.Location = new Point(10, y);
+                    
+                    int targetY = y;
+                    int startY = animate ? targetY + 30 : targetY;
+
+                    row.Location = new Point(10, startY);
                     row.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
                     listHost.Controls.Add(row);
 
+                    if (animate)
+                    {
+                        animList.Add(new EmpRowAnimState
+                        {
+                            Row = row,
+                            StartY = startY,
+                            TargetY = targetY,
+                            DelayMs = i * 25f,
+                            Progress = 0f
+                        });
+                    }
+
                     y += row.Height + 4;
+                }
+
+                if (animate)
+                {
+                    _empRowAnims = animList;
                 }
             }
             catch
@@ -3622,14 +3769,15 @@ namespace Inventory_Management_System
                 : 8;
             int rowH = Math.Max(34, barH + 22);
 
-            var row = new Panel { Size = new Size(width, rowH), BackColor = ThemeHelper.ContentBg };
+            var row = new DoubleBufferedPanel
+            {
+                Size = new Size(width, rowH),
+                BackColor = ThemeHelper.ContentBg,
+                Cursor = Cursors.Hand
+            };
 
             string safeName = string.IsNullOrWhiteSpace(name) ? "Unknown" : name.Trim();
             string safeCode = string.IsNullOrWhiteSpace(code) ? "—" : code;
-
-            string tooltipText = count > 0
-                ? $"{safeName} ({safeCode})\n{count} allocation{(count == 1 ? "" : "s")}"
-                : $"{safeName} ({safeCode})\nNo allocations";
 
             string hoverTitle = $"{safeName} ({safeCode})";
             string hoverSubtitle = count > 0 ? $"{count} allocation{(count == 1 ? "" : "s")}" : "No allocations";
@@ -3641,102 +3789,91 @@ namespace Inventory_Management_System
             Color avatarColor = count > 0 ? barColor : ThemeHelper.ChartTrackBg;
             Color avatarFg = count > 0 ? Color.White : ThemeHelper.ChartSecText;
 
-            var avatarPanel = new Panel
+            bool isHovered = false;
+
+            row.MouseEnter += (s, e) =>
             {
-                Size = new Size(avatarD, avatarD),
-                Location = new Point(8, (rowH - avatarD) / 2),
-                BackColor = Color.Transparent
+                isHovered = true;
+                row.Invalidate();
+                ShowEmployeeHoverPopup(row, hoverTitle, hoverSubtitle, barColor);
             };
-            avatarPanel.Paint += (s, e) =>
+            row.MouseLeave += (s, e) =>
+            {
+                isHovered = false;
+                row.Invalidate();
+                HideEmployeeHoverPopup();
+            };
+
+            row.Paint += (s, e) =>
             {
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
-                using var b = new SolidBrush(avatarColor);
-                g.FillEllipse(b, 0, 0, avatarD - 1, avatarD - 1);
-                using var fg = new SolidBrush(avatarFg);
-                using var f = new Font("Segoe UI", 8.5f, FontStyle.Bold);
-                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                g.DrawString(initial, f, fg, new RectangleF(0, 0, avatarD, avatarD), sf);
-            };
-            row.Controls.Add(avatarPanel);
+                g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
-            int nameX = avatarPanel.Right + 8;
-
-            // Count label on LEFT side of the bar
-            const int countLblW = 24;
-            const int barTrackW = 60;
-            const int rightPad  = 10;
-            int barAreaRight = width - rightPad;
-            int barAreaLeft  = barAreaRight - barTrackW;
-            int countLblLeft = barAreaLeft - countLblW - 4;
-
-            var lblName = new Label
-            {
-                Text = name,
-                Font = ChartCatLabelFont,
-                ForeColor = ThemeHelper.ChartBodyText,
-                Size = new Size(showBar ? countLblLeft - nameX - 4 : width - nameX - 10, rowH),
-                Location = new Point(nameX, 0),
-                TextAlign = ContentAlignment.MiddleLeft,
-                AutoEllipsis = true
-            };
-            row.Controls.Add(lblName);
-
-            row.MouseEnter += (s, e) => row.BackColor = ThemeHelper.ChartTrackBg;
-            row.MouseLeave += (s, e) => row.BackColor = ThemeHelper.ContentBg;
-
-            if (showBar)
-            {
-                // Count number LEFT of the bar
-                var lblCount = new Label
+                // 1. Background
+                using (var bgBrush = new SolidBrush(isHovered ? ThemeHelper.ChartTrackBg : ThemeHelper.ContentBg))
                 {
-                    Text = count.ToString(),
-                    Font = ChartLabelFont,
-                    ForeColor = count > 0 ? barColor : ThemeHelper.ChartTrackBg,
-                    Size = new Size(countLblW, rowH),
-                    Location = new Point(countLblLeft, 0),
-                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                    TextAlign = ContentAlignment.MiddleRight
-                };
-                row.Controls.Add(lblCount);
+                    g.FillRectangle(bgBrush, 0, 0, row.Width, row.Height);
+                }
 
-                var barTrack = new Panel
+                // 2. Avatar Circle
+                int avatarY = (rowH - avatarD) / 2;
+                using (var avBrush = new SolidBrush(avatarColor))
                 {
-                    Size = new Size(barTrackW, barH),
-                    Location = new Point(barAreaLeft, (rowH - barH) / 2),
-                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                    BackColor = Color.Transparent
-                };
-                barTrack.Paint += (s, e) =>
+                    g.FillEllipse(avBrush, 8, avatarY, avatarD, avatarD);
+                }
+                using (var avFgBrush = new SolidBrush(avatarFg))
+                using (var avFont = new Font("Segoe UI", 8.5f, FontStyle.Bold))
+                using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
                 {
-                    var g = e.Graphics;
-                    g.SmoothingMode = SmoothingMode.AntiAlias;
-                    using var trackPath = RoundedRectF(new RectangleF(0, 0, barTrack.Width, barTrack.Height), 4f);
-                    using var trackBrush = new SolidBrush(ThemeHelper.ChartTrackBg);
-                    g.FillPath(trackBrush, trackPath);
+                    g.DrawString(initial, avFont, avFgBrush, new RectangleF(8, avatarY, avatarD, avatarD), sf);
+                }
 
-                    float fillW = maxVal > 0 ? (float)count / maxVal * barTrack.Width : 0;
-                    if (fillW > 1)
+                int nameX = 8 + avatarD + 8; // 40
+
+                const int countLblW = 24;
+                const int barTrackW = 60;
+                const int rightPad = 10;
+                int barAreaRight = row.Width - rightPad;
+                int barAreaLeft = barAreaRight - barTrackW;
+                int countLblLeft = barAreaLeft - countLblW - 4;
+
+                // 3. Employee Name Text
+                int nameMaxW = showBar ? Math.Max(20, countLblLeft - nameX - 4) : Math.Max(20, row.Width - nameX - 10);
+                var nameRect = new RectangleF(nameX, 0, nameMaxW, rowH);
+                using (var nameBrush = new SolidBrush(ThemeHelper.ChartBodyText))
+                using (var nameSf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
+                {
+                    g.DrawString(safeName, ChartCatLabelFont, nameBrush, nameRect, nameSf);
+                }
+
+                if (showBar)
+                {
+                    // 4. Count Number
+                    var countRect = new RectangleF(countLblLeft, 0, countLblW, rowH);
+                    using (var countBrush = new SolidBrush(count > 0 ? barColor : ThemeHelper.ChartTrackBg))
+                    using (var countSf = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center })
                     {
-                        using var fillPath = RoundedRectF(new RectangleF(0, 0, fillW, barTrack.Height), 4f);
+                        g.DrawString(count.ToString(), ChartLabelFont, countBrush, countRect, countSf);
+                    }
+
+                    // 5. Bar Track & Bar Fill
+                    int barTrackY = (rowH - barH) / 2;
+                    using (var trackPath = RoundedRectF(new RectangleF(barAreaLeft, barTrackY, barTrackW, barH), 4f))
+                    using (var trackBrush = new SolidBrush(ThemeHelper.ChartTrackBg))
+                    {
+                        g.FillPath(trackBrush, trackPath);
+                    }
+
+                    if (count > 0 && maxVal > 0)
+                    {
+                        float fillW = Math.Max(6f, (float)count / maxVal * barTrackW);
+                        using var fillPath = RoundedRectF(new RectangleF(barAreaLeft, barTrackY, fillW, barH), 4f);
                         using var fillBrush = new SolidBrush(barColor);
                         g.FillPath(fillBrush, fillPath);
                     }
-                };
-                row.Controls.Add(barTrack);
-
-                barTrack.MouseEnter += (s, e) => ShowEmployeeHoverPopup(barTrack, hoverTitle, hoverSubtitle, barColor);
-                barTrack.MouseLeave += (s, e) => HideEmployeeHoverPopup();
-                lblCount.MouseEnter += (s, e) => ShowEmployeeHoverPopup(lblCount, hoverTitle, hoverSubtitle, barColor);
-                lblCount.MouseLeave += (s, e) => HideEmployeeHoverPopup();
-            }
-
-            row.MouseEnter += (s, e) => ShowEmployeeHoverPopup(row, hoverTitle, hoverSubtitle, barColor);
-            row.MouseLeave += (s, e) => HideEmployeeHoverPopup();
-            avatarPanel.MouseEnter += (s, e) => ShowEmployeeHoverPopup(avatarPanel, hoverTitle, hoverSubtitle, barColor);
-            avatarPanel.MouseLeave += (s, e) => HideEmployeeHoverPopup();
-            lblName.MouseEnter += (s, e) => ShowEmployeeHoverPopup(lblName, hoverTitle, hoverSubtitle, barColor);
-            lblName.MouseLeave += (s, e) => HideEmployeeHoverPopup();
+                }
+            };
 
             return row;
         }

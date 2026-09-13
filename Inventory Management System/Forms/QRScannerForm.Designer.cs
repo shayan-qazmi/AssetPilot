@@ -134,6 +134,7 @@ namespace Inventory_Management_System.Forms
             btnClear.Location = new System.Drawing.Point(674, 18);
             btnClear.Size = new System.Drawing.Size(100, 34);
             btnClear.Text = "↺ Clear";
+            btnClear.Click += btnClear_Click;
             chkBulkMode.Text = "Bulk scan mode";
             chkBulkMode.Location = new System.Drawing.Point(12, 110);
             chkBulkMode.AutoSize = true;

@@ -213,6 +213,10 @@ public partial class InventoryDbContext : DbContext
                 .HasColumnType("timestamp")
                 .HasColumnName("updated_at");
 
+            entity.Property(e => e.PicturePath)
+                .HasMaxLength(255)
+                .HasColumnName("PicturePath");
+
             entity.HasOne(d => d.DefaultLocation).WithMany(p => p.Employees)
                 .HasForeignKey(d => d.DefaultLocationId)
                 .HasConstraintName("employees_ibfk_1");
@@ -479,6 +483,14 @@ public partial class InventoryDbContext : DbContext
             entity.Property(e => e.Username)
                 .HasMaxLength(100)
                 .HasColumnName("username");
+
+            entity.Property(e => e.PicturePath)
+                .HasMaxLength(255)
+                .HasColumnName("PicturePath");
+
+            entity.Property(e => e.PasswordChangedAt)
+                .HasColumnType("datetime")
+                .HasColumnName("PasswordChangedAt");
         });
 
         modelBuilder.Entity<UserRole>(entity =>

@@ -18,7 +18,30 @@ namespace Inventory_Management_System.Forms
     {
 
         private bool _bulkMode = false;
-        private readonly List<(string Code, string Name, DateTime ScannedAt)> _bulkScanCodes = new();
+
+        private class BulkScanItem
+        {
+            public string Code { get; set; } = "";
+            public string QrCode { get; set; } = "";
+            public string Name { get; set; } = "";
+            public string Category { get; set; } = "";
+            public string Make { get; set; } = "";
+            public string Model { get; set; } = "";
+            public string SerialNumber { get; set; } = "";
+            public string Status { get; set; } = "";
+            public string Location { get; set; } = "";
+            public string Employee { get; set; } = "";
+            public string PurchaseDate { get; set; } = "";
+            public string WarrantyExpiry { get; set; } = "";
+            public string ProcurementType { get; set; } = "";
+            public string Condition { get; set; } = "";
+            public string Vendor { get; set; } = "";
+            public string Description { get; set; } = "";
+            public string Notes { get; set; } = "";
+            public DateTime ScannedAt { get; set; }
+        }
+
+        private readonly List<BulkScanItem> _bulkScanCodes = new();
         private readonly EquipmentService _equipmentService = new();
         private System.Windows.Forms.Timer _scanTimer = null!;
         private string _lastText = "";
@@ -75,6 +98,10 @@ namespace Inventory_Management_System.Forms
             dgvHistory.ColumnHeadersHeight = 36;
             lblRecentLabel.ForeColor = ThemeHelper.TextSecondary;
             lblRecentLabel.Font = ThemeHelper.FontSmall;
+            chkBulkMode.ForeColor = ThemeHelper.TextPrimary;
+            chkBulkMode.Font = ThemeHelper.FontDefault;
+            ThemeHelper.StyleSecondaryButton(btnExportBulk);
+            btnExportBulk.Text = $"⬇ Export Scanned ({_bulkScanCodes.Count})";
 
             panelCard.BackColor = ThemeHelper.CardBg;
             panelCard.Paint += (s, e) =>
@@ -285,6 +312,11 @@ namespace Inventory_Management_System.Forms
                     lblNoResult.Text = $"❌  No equipment found for: \"{code}\"";
                     dgvHistory.Rows.Clear();
                     ShowSuggestions(code, db);
+                    if (_bulkMode)
+                    {
+                        txtQRCode.SelectAll();
+                        txtQRCode.Focus();
+                    }
                     return;
                 }
 
@@ -444,8 +476,39 @@ namespace Inventory_Management_System.Forms
                 AddRecentScan(equipment.EquipmentCode);
                 if (_bulkMode)
                 {
-                    _bulkScanCodes.Add((equipment.EquipmentCode, equipment.Name, DateTime.Now));
-                    ToastHelper.Show(this, $"Added to bulk list ({_bulkScanCodes.Count} scanned)", ToastType.Success);
+                    bool alreadyPresent = _bulkScanCodes.Any(s => string.Equals(s.Code, equipment.EquipmentCode, StringComparison.OrdinalIgnoreCase));
+                    if (!alreadyPresent)
+                    {
+                        _bulkScanCodes.Add(new BulkScanItem
+                        {
+                            Code = equipment.EquipmentCode,
+                            QrCode = equipment.QrCode ?? "",
+                            Name = equipment.Name,
+                            Category = equipment.Category ?? "",
+                            Make = equipment.Make ?? "",
+                            Model = equipment.Model ?? "",
+                            SerialNumber = equipment.SerialNumber ?? "",
+                            Status = equipment.CurrentStatus,
+                            Location = activeAlloc?.Location?.LocationName ?? "In Store",
+                            Employee = activeAlloc?.Employee?.FullName ?? "Not assigned",
+                            PurchaseDate = equipment.PurchaseDate?.ToString("yyyy-MM-dd") ?? "",
+                            WarrantyExpiry = equipment.WarrantyExpiry?.ToString("yyyy-MM-dd") ?? "",
+                            ProcurementType = equipment.ProcurementType?.TypeName ?? "",
+                            Condition = equipment.ConditionGrade ?? "",
+                            Vendor = equipment.VendorName ?? "",
+                            Description = equipment.Description ?? "",
+                            Notes = equipment.Notes ?? "",
+                            ScannedAt = DateTime.Now
+                        });
+                        btnExportBulk.Text = $"⬇ Export Scanned ({_bulkScanCodes.Count})";
+                        ToastHelper.Show(this, $"Added {equipment.EquipmentCode} to bulk list ({_bulkScanCodes.Count} total)", ToastType.Success);
+                    }
+                    else
+                    {
+                        ToastHelper.Show(this, $"{equipment.EquipmentCode} is already in the bulk scan list ({_bulkScanCodes.Count} total)", ToastType.Warning);
+                    }
+                    txtQRCode.SelectAll();
+                    txtQRCode.Focus();
                 }
             }
             catch (Exception ex)
@@ -772,10 +835,15 @@ namespace Inventory_Management_System.Forms
         {
             _bulkMode = chkBulkMode.Checked;
             btnExportBulk.Visible = _bulkMode;
-            _bulkScanCodes.Clear();
+            btnExportBulk.Text = $"⬇ Export Scanned ({_bulkScanCodes.Count})";
+            if (_bulkMode)
+            {
+                txtQRCode.Focus();
+                txtQRCode.SelectAll();
+            }
             ToastHelper.Show(this, _bulkMode
-                ? "Bulk scan mode on — every scan is added to a list."
-                : "Bulk scan mode off.", ToastType.Info);
+                ? "Bulk scan mode ON — every scan is added to the export list."
+                : "Bulk scan mode OFF.", ToastType.Info);
         }
 
         private void btnExportBulk_Click(object? sender, EventArgs e)
@@ -796,9 +864,33 @@ namespace Inventory_Management_System.Forms
                 if (dlg.ShowDialog() != DialogResult.OK) return;
 
                 var sb = new StringBuilder();
-                sb.AppendLine("Equipment Code,Equipment Name,Scanned At");
+                sb.AppendLine("Equipment Code,QR Code,Equipment Name,Category,Make,Model,Serial Number,Status,Location,Assigned Employee,Purchase Date,Warranty Expiry,Procurement Type,Condition,Vendor,Description,Notes,Scanned At");
+
+                string Escape(string? v) => $"\"{(v ?? "").Replace("\"", "\"\"")}\"";
+
                 foreach (var scan in _bulkScanCodes)
-                    sb.AppendLine($"\"{scan.Code}\",\"{scan.Name}\",\"{scan.ScannedAt:yyyy-MM-dd HH:mm:ss}\"");
+                {
+                    sb.AppendLine(string.Join(",",
+                        Escape(scan.Code),
+                        Escape(scan.QrCode),
+                        Escape(scan.Name),
+                        Escape(scan.Category),
+                        Escape(scan.Make),
+                        Escape(scan.Model),
+                        Escape(scan.SerialNumber),
+                        Escape(scan.Status),
+                        Escape(scan.Location),
+                        Escape(scan.Employee),
+                        Escape(scan.PurchaseDate),
+                        Escape(scan.WarrantyExpiry),
+                        Escape(scan.ProcurementType),
+                        Escape(scan.Condition),
+                        Escape(scan.Vendor),
+                        Escape(scan.Description),
+                        Escape(scan.Notes),
+                        Escape(scan.ScannedAt.ToString("yyyy-MM-dd HH:mm:ss"))
+                    ));
+                }
 
                 System.IO.File.WriteAllText(dlg.FileName, sb.ToString());
                 ToastHelper.Show(this, $"Exported {_bulkScanCodes.Count} scans to:\n{dlg.FileName}", ToastType.Success);

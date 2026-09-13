@@ -19,6 +19,8 @@ namespace Inventory_Management_System.Services
         public static int CurrentUserId { get; private set; }
         public static string CurrentUsername { get; private set; } = string.Empty;
         public static string CurrentFullName { get; private set; } = string.Empty;
+        public static string? CurrentPicturePath { get; private set; }
+        public static string CurrentEmail { get; private set; } = string.Empty;
         public static string CurrentRole { get; private set; } = RoleOperator; // safe default = least privilege
 
         public static bool IsAdmin => string.Equals(CurrentRole, RoleAdmin, StringComparison.OrdinalIgnoreCase);
@@ -33,10 +35,12 @@ namespace Inventory_Management_System.Services
         /// </summary>
         public static void SetCurrentUser(User user)
         {
-            CurrentUserId   = user.Id;
-            CurrentUsername = user.Username;
-            CurrentFullName = user.FullName;
-            CurrentRole     = RoleOperator;
+            CurrentUserId      = user.Id;
+            CurrentUsername    = user.Username;
+            CurrentFullName    = user.FullName;
+            CurrentPicturePath = user.PicturePath;
+            CurrentEmail       = user.Email ?? string.Empty;
+            CurrentRole        = RoleOperator;
 
             try
             {

@@ -64,8 +64,9 @@ namespace Inventory_Management_System.Forms
             flowToolbar.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             panelTop.Height = flowToolbar.Height;
 
-            var importToolTip = new ToolTip();
-            importToolTip.SetToolTip(btnImportExcel, "Make sure the category of the equipment you are about to import is added in the Categories screen in Settings.");
+            var toolbarTooltip = new ToolTip { AutoPopDelay = 6000, InitialDelay = 400, ReshowDelay = 100, ShowAlways = true };
+            toolbarTooltip.SetToolTip(btnExport, "Exports only the rows on the current page — check your page size before exporting.");
+            toolbarTooltip.SetToolTip(btnImportExcel, "Make sure the category of the equipment you are about to import is added in the Categories screen in Settings.");
 
             LoadEquipment();
             SetupSearchSuggestions();
@@ -1105,7 +1106,7 @@ namespace Inventory_Management_System.Forms
             var eq = GetSelectedEquipment();
             if (eq == null)
             {
-                ToastHelper.Show(this, "Please select an equipment row to edit.", ToastType.Info);
+                ShowToast("Please select an equipment row to edit.", ToastType.Warning, ToastIntent.Edit);
                 return;
             }
             using var form = new AddEditEquipmentForm(eq);

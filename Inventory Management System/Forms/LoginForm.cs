@@ -1854,9 +1854,7 @@ namespace Inventory_Management_System.Forms
             }
 
             SetLoginBtnLoading(true);
-            var loginStopwatch = System.Diagnostics.Stopwatch.StartNew();
-            const int minSpinnerMs = 1500; // spinner always shows at least this long
-            const int maxSpinnerMs = 2000; // and never longer than this before failing
+            const int maxSpinnerMs = 5000; // timeout threshold
 
             try
             {
@@ -1878,12 +1876,6 @@ namespace Inventory_Management_System.Forms
                 }
 
                 User? user = await dbTask;
-
-                // Enforce a minimum spinner duration so it never flashes by
-                // too fast to register as "working" on a fast connection.
-                int elapsed = (int)loginStopwatch.ElapsedMilliseconds;
-                if (elapsed < minSpinnerMs)
-                    await System.Threading.Tasks.Task.Delay(minSpinnerMs - elapsed);
 
                 if (user == null)
                 {

@@ -23,8 +23,8 @@ namespace Inventory_Management_System.Helpers
                 {
                     if (_resolvedShareRoot != null) return _resolvedShareRoot;
 
-                    const string configuredUnc = @"\\192.168.18.240\AssetPilotData";
-                    const string legacyUnc = @"\\192.168.18.240\QInventoryData";
+                    const string configuredUnc = @"\\127.0.0.1\AssetPilotData";
+                    const string legacyUnc = @"\\127.0.0.1\QInventoryData";
 
                     if (!string.IsNullOrWhiteSpace(configuredUnc) && configuredUnc.StartsWith(@"\\"))
                     {

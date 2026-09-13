@@ -133,21 +133,21 @@ namespace Inventory_Management_System.Helpers
 
         public static void RefreshNow()
         {
-            var items = GetNotifications();
+                var items = GetNotifications();
 
             if (_badgeLabel == null) return;
 
-            if (items.Count == 0)
-            {
-                _badgeLabel.Visible = false;
-            }
-            else
-            {
-                _badgeLabel.Text = items.Count > 9 ? "9+" : items.Count.ToString();
-                _badgeLabel.Visible = true;
-                PositionBadge();
-                _badgeLabel.Invalidate();
-            }
+                            if (items.Count == 0)
+                            {
+                                _badgeLabel.Visible = false;
+                            }
+                            else
+                            {
+                                _badgeLabel.Text = items.Count > 9 ? "9+" : items.Count.ToString();
+                                _badgeLabel.Visible = true;
+                                PositionBadge();
+                                _badgeLabel.Invalidate();
+                            }
         }
 
         private static List<NotificationItem> GetNotifications()

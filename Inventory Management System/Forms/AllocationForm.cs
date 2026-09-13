@@ -1554,7 +1554,7 @@ namespace Inventory_Management_System.Forms
             var allSelected = GetSelectedRows();
             if (allSelected.Count == 0)
             {
-                ShowToast(this, "Please select at least one allocation to approve.", ToastType.Info);
+                ShowToast(this, "Please select at least one allocation to approve.", ToastType.Info, isApprove: true);
                 return;
             }
 
@@ -1564,7 +1564,7 @@ namespace Inventory_Management_System.Forms
 
             if (allocRows.Count == 0)
             {
-                ShowToast(this, "The selected row(s) are available equipment items, not pending allocations.", ToastType.Warning);
+                ShowToast(this, "The selected row(s) are available equipment items, not pending allocations.", ToastType.Warning, isApprove: true);
                 return;
             }
 
@@ -1574,7 +1574,7 @@ namespace Inventory_Management_System.Forms
 
             if (pendingRows.Count == 0)
             {
-                ShowToast(this, "The selected allocation(s) are already approved or returned.", ToastType.Info);
+                ShowToast(this, "The selected allocation(s) are already approved or returned.", ToastType.Info, isApprove: true);
                 return;
             }
 
@@ -1631,7 +1631,7 @@ namespace Inventory_Management_System.Forms
                     (t.Status == "Pending" || t.Status == "Overdue"));
                 if (isCheckedOut)
                 {
-                    ShowToast(this, "This equipment is currently checked out and cannot be approved until it is checked back in.", ToastType.Warning);
+                    ShowToast(this, "This equipment is currently checked out and cannot be approved until it is checked back in.", ToastType.Warning, isApprove: true);
                     return;
                 }
                 var a = db.Allocations.Include(x => x.Equipment).FirstOrDefault(x => x.Id == alloc.Id);
@@ -1732,7 +1732,7 @@ namespace Inventory_Management_System.Forms
 
             if (allocRows.Count == 0)
             {
-                ShowToast(this, "The selected row(s) are available equipment items, not allocation requests.", ToastType.Warning);
+                ShowToast(this, "The selected row(s) are available equipment items, not allocation requests.", ToastType.Warning, isDelete: true);
                 return;
             }
 

@@ -562,7 +562,7 @@ namespace Inventory_Management_System.Helpers
                 sparkTimer = new System.Windows.Forms.Timer { Interval = 15 };
                 sparkTimer.Tick += (s, e) =>
                 {
-                    sparkProgress = Math.Min(1f, sparkProgress + 0.04f);
+                    sparkProgress = Math.Min(1f, sparkProgress + 0.08f);
                     card.Invalidate();
                     if (sparkProgress >= 1f) { sparkTimer.Stop(); sparkTimer.Dispose(); }
                 };
@@ -690,15 +690,15 @@ namespace Inventory_Management_System.Helpers
             {
                 lblValue.Text = "0"; // holds at 0 until the card's own slide/bounce entrance has landed
 
-                int steps = 20;
+                int steps = 12;
                 int step = 0;
-                var countTimer = new System.Windows.Forms.Timer { Interval = 20 };
+                var countTimer = new System.Windows.Forms.Timer { Interval = 12 };
                 countTimer.Tick += (s, e) =>
                 {
                     step++;
                     float t = Math.Min(1f, step / (float)steps);
                     float eased = 1f - MathF.Pow(1f - t, 3f);
-                    lblValue.Text = (int)(targetNum * eased) + (t >= 1f ? "" : "");
+                    lblValue.Text = (int)(targetNum * eased) + "";
                     if (t >= 1f)
                     {
                         lblValue.Text = targetNum.ToString();

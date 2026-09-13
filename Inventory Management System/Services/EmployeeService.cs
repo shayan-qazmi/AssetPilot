@@ -172,6 +172,7 @@ namespace Inventory_Management_System.Services
                 existing.Phone = employee.Phone;
                 existing.DefaultLocationId = employee.DefaultLocationId;
                 existing.IsActive = employee.IsActive;
+                existing.PicturePath = employee.PicturePath;
                 existing.UpdatedAt = DateTime.Now;
 
                 db.SaveChanges();

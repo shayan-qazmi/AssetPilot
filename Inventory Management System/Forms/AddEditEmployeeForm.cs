@@ -298,9 +298,12 @@ namespace Inventory_Management_System.Forms
 
             try
             {
-                var newImage = Image.FromFile(ofd.FileName);
-                _avatarImage?.Dispose();
-                _avatarImage = newImage;
+                using (var stream = new FileStream(ofd.FileName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                using (var img = Image.FromStream(stream))
+                {
+                    _avatarImage?.Dispose();
+                    _avatarImage = new Bitmap(img);
+                }
                 _pendingPictureFile = ofd.FileName;
                 _removePicture = false;
                 pnlAvatar.Invalidate();

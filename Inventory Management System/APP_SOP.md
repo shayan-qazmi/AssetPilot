@@ -3,7 +3,7 @@
 > **Ground-truth document** — every claim is traced from source code:
 > UI form event handler → service method → EF Core / DbContext → database table + column.
 > No assumption-based descriptions. Source file + method cited per section.
-> Last updated: 2026-09-05
+> Last updated: 2026-09-13
 
 **Tech Stack:** WinForms · C# · .NET 8 · Entity Framework Core · MariaDB / MySQL
 **Database:** `inventory_management` @ `localhost` (or server IP)
@@ -34,6 +34,7 @@
 20. [New Features & Recent Changes (2026-08-10)](#20-new-features--recent-changes-2026-08-10)
 21. [New Features & Recent Changes (2026-08-17)](#21-new-features--recent-changes-2026-08-17)
 22. [New Features & Recent Changes (2026-09-05)](#22-new-features--recent-changes-2026-09-05)
+23. [New Features & Recent Changes (2026-09-13)](#23-new-features--recent-changes-2026-09-13)
 
 ---
 
@@ -578,9 +579,11 @@ A static helper that compares two equipment snapshots field-by-field and returns
 | `ActionAllocationApproved` | `allocation_approved` |
 | `ActionAllocationRejected` | `allocation_rejected` |
 | `ActionAllocationReturned` | `allocation_returned` |
+| `ActionReturnUndone` | `return_undone` |
 | `ActionDecommissionRequested` | `decommission_requested` |
 | `ActionDecommissionApproved` | `decommission_approved` |
 | `ActionDecommissionRejected` | `decommission_rejected` |
+| `ActionDecommissionUndone` | `decommission_undone` |
 | `ActionTransferred` | `transferred` |
 | `ActionCheckedOut` | `checked_out` |
 | `ActionCheckedIn` | `checked_in` |
@@ -593,6 +596,8 @@ A static helper that compares two equipment snapshots field-by-field and returns
 | `ActionMaintenanceOpened` | `maintenance_opened` |
 | `ActionMaintenanceResolved` | `maintenance_resolved` |
 | *(free-form string)* | `Maintenance History Cleared` |
+| *(free-form string)* | `Allocation Request Deleted` |
+| *(injected by `SettingsForm`)* | `settings_data_delete` |
 
 ### 12.3 Who Writes Audit Logs
 
@@ -602,12 +607,14 @@ A static helper that compares two equipment snapshots field-by-field and returns
 | Equipment Edit | `equipment_updated` (via `BuildEquipmentDiff`) |
 | Allocation Create | `allocation_requested` |
 | Allocation Approve | `allocation_approved` |
+| Allocation Delete (pending/available rows) | `Allocation Request Deleted` (free-form string) |
 | Allocation Return (from Allocation screen) | `allocation_returned` |
 | Returns – Process Return | `allocation_returned` |
-| Returns – Undo Return | `allocation_returned` ← misleading |
+| Returns – Undo Return | `return_undone` ✅ (**fixed** — was `allocation_returned`) |
 | Allocation – Edit Expected Return Date | Free string `"Expected Return Date Updated"` |
 | Transfer | `transferred` |
 | Decommission | `decommission_approved` |
+| Decommission – Restore (Undo) | `decommission_undone` |
 | Check-Out | `checked_out` |
 | Check-In | `checked_in` |
 | Employee Add | `employee_created` |
@@ -618,6 +625,8 @@ A static helper that compares two equipment snapshots field-by-field and returns
 | Location Delete | `location_deleted` |
 | Status → Under Repair | `maintenance_opened` |
 | Status Away from Under Repair (resolved) | `maintenance_resolved` |
+| Settings – Clear All Logs | `settings_data_delete` (+ `SecurityAuditLogger`) |
+| Settings – Reset Application Data | `settings_data_delete` (+ `SecurityAuditLogger`) |
 
 **Not logged:** Equipment soft-delete, restore, hard-delete, user management actions, password changes.
 
@@ -1004,23 +1013,26 @@ Roles      (1) --< UserRoles          (N)  [RoleId FK]
 | Create Allocation | Allocation | `allocations`, `equipment_logs` | ✅ `allocation_requested` |
 | Approve Allocation | Allocation | `allocations`, `equipment`, `equipment_logs` | ✅ `allocation_approved` |
 | Return (Allocation screen) | Allocation | `allocations`, `equipment`, `equipment_logs` | ✅ `allocation_returned` |
-| Delete Allocation | Allocation | `allocations` (hard delete) | ❌ |
+| Delete Allocation (pending / available) | Allocation | `allocations` (hard delete), `equipment_logs` | ✅ `Allocation Request Deleted` |
+| Delete Allocation (approved) | Allocation | Blocked | — |
 | Edit Expected Return | Allocation | `allocations`, `equipment_logs` | ✅ free-string |
 | Process Return | Returns | `allocations`, `equipment`, `equipment_logs` | ✅ `allocation_returned` |
 | Edit Return Record | Returns | `allocations`, `equipment` | ❌ |
-| Undo Return | Returns | `allocations`, `equipment`, `equipment_logs` | ✅ `allocation_returned` (misleading) |
+| Undo Return | Returns | `allocations`, `equipment`, `equipment_logs` | ✅ `return_undone` |
 | Transfer | Transfer | `allocations` (×2), `equipment_logs` | ✅ `transferred` |
 | Decommission | Decommission | `equipment`, `equipment_logs` | ✅ `decommission_approved` |
+| Decommission → Restore | Decommission | `equipment`, `equipment_logs` | ✅ `decommission_undone` |
 | Check-Out | Check In/Out | `transactions`, `equipment`, `equipment_logs` | ✅ `checked_out` |
 | Check-In | Check In/Out | `transactions`, `equipment`, `equipment_logs` | ✅ `checked_in` |
 | Update Overdue | Check In/Out | `transactions` | ❌ |
-| Add / Toggle / Delete User | Settings | `users`, `user_roles` | ❌ |
-| Change Password | Settings | `users` | ❌ |
+| Add / Toggle / Delete User | Settings | `users`, `user_roles` | ❌ (SecurityAuditLogger file only) |
+| Change Password (own) | Settings | `users` | ❌ (SecurityAuditLogger file only) |
+| Admin Change Password (other user) | Settings (AddEditUserForm) | `users` | ❌ (SecurityAuditLogger file only) |
 | Add Category | Settings | `categories` | ❌ |
 | Delete Category | Settings | `categories` (hard delete; `Equipment.Category` not updated) | ❌ |
 | Save Settings | Settings | `app_settings` | ❌ |
-| Clear All Logs | Settings | `equipment_logs` (all rows deleted) | n/a |
-| Reset Application Data | Settings | `allocations` (all), `equipment` (all) | ❌ |
+| Clear All Logs | Settings | `equipment_logs` (all rows deleted) + `SecurityAuditLogger` + `settings_data_delete` log | ✅ `settings_data_delete` |
+| Reset Application Data | Settings | Logs, Location Histories, Maintenance Records, Transactions, Allocations, Equipment, Employees, Locations (in FK order) + `SecurityAuditLogger` + `settings_data_delete` log | ✅ `settings_data_delete` |
 
 ---
 
@@ -1030,24 +1042,26 @@ Roles      (1) --< UserRoles          (N)  [RoleId FK]
 |---|-------|--------|
 | 1 | **Passwords stored in plain text** | `Users.PasswordHash` stores raw passwords. No hashing. All comparisons are plain-string equality. |
 | 2 | **~~`ChangedByUserId` always `1`~~** | ✅ **FIXED** — `AuditService` constructor now defaults `_systemUserId = AuthService.CurrentUserId`. All audit entries now correctly attribute changes to the logged-in user. |
-| 3 | **Undo Return writes `allocation_returned`** | Same action key as a real return — cannot distinguish undo from return in the logs without reading `OldValue`/`NewValue`. |
+| 3 | **~~Undo Return writes `allocation_returned`~~** | ✅ **FIXED** — `BtnDelete_Click` in `ReturnsForm` now logs `AuditService.ActionReturnUndone` (`"return_undone"`). Displays as "Returned to Active Allocation" in logs. |
 | 4 | **Transfer pollutes Returns view** | The old allocation's `Status = "returned"` causes it to appear in the Returns module grid and Returns History report. |
 | 5 | **`ApprovedByUserId = 1` hardcoded** | Both Approve and Transfer hardcode this. The acting user is never recorded in `allocations.approved_by_user_id`. |
 | 6 | **`AllocationService.Allocate` silently approves** | If `allocation.Status` is empty or blank, it is promoted to `"approved"` without requiring a separate approve step — bypassing the `pending → approved` workflow. |
 | 7 | **"Overdue" is UI-only** | Allocations past their expected return date remain `"approved"` in the DB. The status is computed on every load. |
 | 8 | **Category delete orphans equipment records** | Deleting a category from the `categories` table does not update `Equipment.Category`. Orphaned strings persist and continue to appear in filter dropdowns. |
-| 9 | **Reset application data has no transaction wrapper** | Allocations deleted in one `SaveChanges`, equipment in a second. If the second fails, allocations are gone but equipment remains. |
+| 9 | **~~Reset application data has no transaction wrapper~~** | ✅ **IMPROVED** — Reset now deletes tables in FK-safe order (Logs → Location Histories → Maintenance Records → Transactions → Allocations → Equipment → Employees → Locations) in individual `SaveChanges` calls with per-table error isolation. Still not a single atomic transaction, but partial failure no longer leaves the DB in a completely unrecoverable state. |
 | 10 | **Backup password visible in process list** | `mysqldump` password is passed as `-p{pass}` in the command-line argument. |
 | 11 | **Danger Zone Decommission reason lost if logs cleared** | `DecommissionForm` reads the reason from `equipment_logs`. Clearing logs via Settings removes the reason from the decommission view. |
 | 12 | **Returns History Report excludes Check-In/Out completions** | The report only queries `allocations WHERE Status = "returned"`. Completed `transactions` are not shown. |
 | 13 | **Soft delete has no FK guard** | `EquipmentService.Delete` sets `IsDeleted = true` with no check for active allocations or transactions. Allocated equipment can be soft-deleted. |
 | 14 | **LocationsForm has no pagination** | All locations are loaded at once. Will be slow at scale. |
 | 15 | **Employee hard-delete breaks historical allocations** | Non-approved (historical) allocation rows keep the `EmployeeId` FK after the employee is deleted. |
-| 16 | **Audit failure is silently swallowed** | `AuditService.Log` catches all exceptions. If the DB insert fails (connectivity, FK), the triggering operation has already committed and no error is shown. |
-| 17 | **"Expected Return Date Updated" is a free-form string** | Not a defined `AuditService` constant. `LogsForm.FormatAction` has no case for it — it displays verbatim, inconsistent with other formatted action types. |
+| 16 | **Audit failure is silently swallowed** | `AuditService.Log` catches all exceptions and calls `Logger.LogError`. If the DB insert fails (connectivity, FK), the triggering operation has already committed and no error is shown to the user. |
+| 17 | **"Expected Return Date Updated" is a free-form string** | Not a defined `AuditService` constant. However `LogsForm.FormatAction` and `AuditLogDisplay` both now map it to `"Expected Return Date Updated"` and colour it as a yellow update badge. |
 | 18 | **`CreatedByUserId = 1` hardcoded in Equipment Add** | The add form sets `_equipment.CreatedByUserId = 1` unconditionally; the session user is not recorded. |
 | 19 | **DB password DPAPI-bound to OS user** | The password stored in `dbconnection.json` uses `ProtectedData.Protect` with `DataProtectionScope.CurrentUser`. The file cannot be decrypted on a different Windows user account or machine. |
 | 20 | **`BuildSystemConfigPanel` has a duplicate `return outer`** | Lines 2307–2308 both return `outer` — the second `return` is dead code (compile-time unreachable). No functional impact. |
+| 21 | **`Allocation Request Deleted` is a free-form audit string** | The delete-allocation action logs the string `"Allocation Request Deleted"` directly rather than using an `AuditService` constant. `LogsForm` handles it with an explicit switch case. |
+| 22 | **Decommission dialog accepts all non-decommissioned equipment** | The dialog previously only showed `in_store`/`under_repair` items; it now accepts **all** non-decommissioned equipment (including `allocated`). The UI-layer filter for `in_store`/`under_repair` has been removed. |
 
 ---
 
@@ -1361,3 +1375,337 @@ This reminds users to pre-create categories before bulk importing, preventing or
 | Upload User Picture (localhost) | Settings → Users | `users` (`picture_path`) | ❌ |
 | Check-Out (corrected) | Check In/Out | `transactions`, `equipment` | ✅ `checked_out` |
 | Allocate (guard fixed) | Allocation | `allocations`, `equipment` | ✅ `allocation_requested` |
+
+---
+
+## 23. New Features & Recent Changes (2026-09-13)
+
+This section documents all significant features, fixes, and improvements found in the codebase as of the **2026-09-13** review. Changes span the QR Scanner, Allocation, Returns, Decommission, Deleted Items, Settings, Logs, and the shared audit infrastructure.
+
+---
+
+### 23.1 QR Scanner — Major Overhaul
+
+**Source:** `Forms/QRScannerForm.cs`
+
+The QR Scanner has been substantially enhanced beyond its original read-only lookup role. It is now a rich equipment inspection hub with direct navigation and batch capabilities.
+
+#### 23.1.1 Recent Scans Strip
+
+A horizontal chip-strip (`panelRecent`) below the search bar records the last **8** successfully scanned equipment codes as clickable buttons:
+
+- Each chip is auto-sized and styled with a subtle border.
+- Clicking any chip immediately re-runs the search for that code.
+- The strip is maintained in `_recentScans` (newest first). Duplicates are de-duped (case-insensitive) and the oldest entry is evicted once the cap of 8 is reached.
+- Sourced from `AddRecentScan(code)` called on every successful match.
+
+#### 23.1.2 Bulk Scan Mode
+
+A **Bulk Scan** checkbox (`chkBulkMode`) enables session-level batch scanning:
+
+- When enabled, every successful scan appends an entry to `_bulkScanCodes: List<(Code, Name, ScannedAt)>`.
+- A toast notification appears after each scan confirming the running count: `"Added to bulk list (N scanned)"`.
+- The **📤 Export Bulk** button (`btnExportBulk`) becomes visible and exports the accumulated list to CSV:
+  - Filename pattern: `BulkScan_{yyyyMMdd_HHmm}.csv`
+  - Columns: `Equipment Code`, `Equipment Name`, `Scanned At`
+- Toggling bulk mode off clears the session list.
+
+#### 23.1.3 View QR Code Button — `btnViewQR`
+
+A new **🔍 View QR** button generates and displays the equipment's QR code bitmap (via `QRHelper.GenerateQRCode(qrContent, 10)`):
+
+- Opens a 340×400 `FixedDialog` containing the QR bitmap (`PictureBox`, Zoom mode) + the QR content as a text label.
+- Includes a **🖶 Print Label** button that delegates to `btnPrintLabel_Click`. *(Label printing stub — shows toast `"Label printing isn't wired up yet."` as of this version.)*
+- If no QR code is assigned, shows an info toast instead of opening the viewer.
+
+#### 23.1.4 Check-In / Out Navigation Button — `btnCheckInOut`
+
+A new **🔄 Check-In/Out** button (green tint) allows direct navigation to the Check In/Out form with the current equipment pre-loaded:
+
+- `dashboard?.NavigateToCheckInOut(code)` — opens `CheckInOutForm` with the equipment's code pre-searched.
+- Requires a scan result to be loaded; shows a warning toast if no equipment is selected.
+
+#### 23.1.5 View Logs Button — `btnViewLogs`
+
+An existing-concept **📜 View Logs** button (blue tint) is now present directly in the QR Scanner toolbar area:
+
+- Calls `dashboard?.NavigateToLogs(code)` → opens `LogsForm` pre-filtered to the scanned equipment's code.
+- Shows a warning toast if no equipment is loaded.
+
+#### 23.1.6 Warranty Expiry Status Indicator
+
+The `WarrantyExpiry` value label (`lblWarrantyValue`) now shows dynamic expiry warnings inline:
+
+| Condition | Display | Color |
+|-----------|---------|-------|
+| Expired | `"yyyy-MM-dd  (Expired)"` | `ThemeHelper.Danger` (red) |
+| Expiring within 30 days | `"yyyy-MM-dd  (Expires in Nd)"` | `ThemeHelper.Warning` (amber) |
+| Valid | `"yyyy-MM-dd"` | `ThemeHelper.TextPrimary` |
+
+#### 23.1.7 "Did You Mean?" Suggestions on No Match
+
+When a search term returns no equipment:
+
+- Runs a fuzzy match (`FuzzySearchHelper.IsFuzzyMatch`) across `EquipmentCode` and `Name` for all equipment.
+- Shows up to **3** matching suggestions as clickable chip buttons in `panelSuggestions` with a "Did you mean:" label.
+- Clicking a suggestion fills the search box and runs the search immediately.
+
+#### 23.1.8 Hero Picture Panel & View Picture Button
+
+After a successful scan, the left side now renders a **hero photo** (`picHero`, custom-painted `Panel`):
+
+- If `equipment.PicturePath` resolves via `AvatarHelper.TryLoadEquipmentImage`, the image is displayed as a rounded-corner (radius 12) clipped rectangle.
+- If no image is available, shows a `🖥` emoji placeholder on an indigo background.
+- **🖼 View Picture** button (`btnViewPicture`): enabled only if a picture is found. Opens the image in a 340×440 standalone black-background `Form` with `PictureBoxSizeMode.Zoom`.
+- When no picture is found, the button text changes to `"🖼 No Picture"`, becomes disabled and grey.
+
+#### 23.1.9 Source Screen Tag in History Grid
+
+Audit log `NewValue` fields may contain a `"Source Screen: ..."` tag written by services that include contextual origin information (e.g., `"... | Source Screen: Allocation Screen"`).
+
+The QR Scanner's history grid (`dgvHistory`) now strips this tag from the display value and appends it to the `Action` column instead:
+
+- **Action column** shows: `"Allocation Requested (via Allocation Screen)"`
+- **New Value column** shows only the data, without the `Source Screen` segment.
+
+Implemented via `ExtractSourceScreen(ref string newValue)` — mirrors the same pattern in `LogsForm.dgvLogs_CellDoubleClick`.
+
+#### 23.1.10 History Export — `btnExportHistory`
+
+A new **📤 Export History** button exports the currently loaded equipment's log grid to CSV:
+
+- Prompts with `SaveFileDialog`.
+- Filename: `{EquipmentCode}_History_{yyyyMMdd_HHmm}.csv`
+- Columns: `Action`, `Previous Value`, `New Value`, `Changed By`, `Timestamp`
+- Shows a toast on success or failure.
+
+#### 23.1.11 Double-Click Log Row → LogDetailPopup
+
+Double-clicking any row in `dgvHistory` now opens a `LogDetailPopup` modal:
+
+- Passes action, user, date, equipment code, QR code, name, make, model, old value, and new value.
+- Same popup as the Logs screen double-click — dark-mode aware Before/After panels.
+
+#### 23.1.12 Shared `AuditLogDisplay` Static Class
+
+A new internal static class `AuditLogDisplay` is defined at the bottom of `QRScannerForm.cs`. It mirrors `LogsForm.FormatAction` and the colour-mapping logic so both screens render action labels and badge colours identically:
+
+- `FormatActionLabel(string? raw)` — maps raw `action_type` strings to display labels (same table as `LogsForm.FormatAction`).
+- `GetActionColors(string? actionType)` — returns `(Color Back, Color Fore)` for action badge styling.
+
+---
+
+### 23.2 Decommission Screen — Restore Button
+
+**Source:** `Forms/DecommissionForm.cs` · `BuildRestoreButton()` · `BtnRestoreDecomm_Click()`
+
+A new **↩ Restore** button (`btnRestoreDecomm`, teal) has been added to the Decommission form toolbar.
+
+**Behaviour:**
+1. Validates a row is selected; shows info toast (teal) otherwise.
+2. Shows `MessageBox.YesNo` confirmation: `"Are you sure you want to set '{name}' ({code}) back to In Store?"`.
+3. On confirm:
+   - `entity.CurrentStatus = "in_store"`.
+   - `db.SaveChanges()`.
+   - `_audit.Log(entity.Id, AuditService.ActionDecommissionUndone, "Status: Decommissioned", "Status: In Store | Source Screen: Decommission Screen")` → `equipment_logs`.
+4. Shows teal success toast and reloads the grid.
+
+**Audit log display:** `"decommission_undone"` → `"Restored from Decommission"` (lighter teal badge in Logs grid, distinct from the general `"equipment_restored"` teal).
+
+**Decommission dialog change:** The dialog now shows **all non-decommissioned equipment** (not just `in_store`/`under_repair`). Allocated items are now also selectable for decommission.
+
+---
+
+### 23.3 Allocation Form — Enhancements
+
+**Source:** `Forms/AllocationForm.cs`
+
+#### 23.3.1 Combined "Filters" Button with Dropdown Menu
+
+A single **🔽 Filters** button (`_btnFilters`) opens a two-level `ContextMenuStrip` on hover or click:
+
+- **Status** submenu: All / In Store / Allocated / Pending / Overdue.
+- **Category** submenu: All Categories + individual categories from `CategoryService.GetAll()` union with `Equipment.Category` distinct values.
+- The button label updates dynamically: `"🔽 Filters (Overdue, Laptops)"`.
+- Menu closes when cursor leaves both button and open menu (hover-tracking timer at 40 ms, including open submenus via `GetOpenMenuScreenBounds`).
+
+#### 23.3.2 "Overdue" Status Filter
+
+Filters `_allSourceRows` to rows where `Status == "Overdue"` (UI-computed).
+
+#### 23.3.3 AllocatedBy Column
+
+`AllocationRow` includes `AllocatedBy` (resolved from `AllocatedByUser.FullName`). Grid has a corresponding sortable column.
+
+#### 23.3.4 Gmail-style Checkbox Select Header
+
+Replaces the old `cmbSelectMode` with a persistent split toolbar control `[☐ ▾]`:
+
+- Left part (`_chkHeaderBox`): toggles all visible row checkboxes (`ColSelect` column).
+- Right part (`▾`): opens a `ContextMenuStrip` with **All** and **None** items.
+- Header checkbox auto-syncs (all/some/none) via `SyncHeaderCheckbox()`.
+- Same pattern implemented in `DeletedItemsForm`.
+
+#### 23.3.5 Sortable Columns
+
+Clicking any column header sorts the grid (maintained in `_sortColumn` / `_sortAscending`). Sort indicator (`▲` / `▼`) shown in header. Page resets to 1 on sort change.
+
+#### 23.3.6 Pagination
+
+Page sizes: 10 / 25 / 50 / 100 / 250 / 500 / 1000 (default 25). Prev / Next buttons, `Page N of M` label.
+
+#### 23.3.7 Allocation Delete — Now Audited
+
+`btnDelete_Click`:
+
+- Blocked for `Status == "approved"` rows.
+- For non-approved rows: hard-deletes `allocations` row, then logs:
+  - `_audit.Log(equipmentId, "Allocation Request Deleted", a.Status, "Deleted | Source Screen: Allocation Screen")` → `equipment_logs`.
+- Displays with an orange-red badge in the Logs grid.
+
+---
+
+### 23.4 Returns Form — Fixes & Enhancements
+
+**Source:** `Forms/ReturnsForm.cs`
+
+#### 23.4.1 Undo Return — Now Uses `return_undone`
+
+**Fixed:** `BtnDelete_Click` now logs `AuditService.ActionReturnUndone` (`"return_undone"`) instead of `ActionAllocationReturned`:
+
+```csharp
+_audit.Log(alloc.EquipmentId, AuditService.ActionReturnUndone,
+    oldValue, $"{code} - approved (return undone)");
+```
+
+Displays as **"Returned to Active Allocation"** with an orange badge in Logs.
+
+#### 23.4.2 Active Allocation Guard on Undo
+
+Before undoing, checks for another active approved allocation on the same equipment:
+
+```csharp
+var activeAlloc = db.Allocations.FirstOrDefault(a =>
+    a.EquipmentId == alloc.EquipmentId && a.Status == "approved" && a.Id != alloc.Id);
+```
+
+If found: shows warning toast `"Can't undo — '{code}' is currently allocated to {employee}."` and aborts.
+
+#### 23.4.3 ReturnProcessedAt Cleared on Undo
+
+`alloc.ReturnProcessedAt = null` on undo — clears the completed-return timestamp.
+
+#### 23.4.4 Timestamp Column (Pakistan Standard Time)
+
+Added in code via `SetupTimestampColumn()`. Rendered via `FormatPkt()`:
+
+- Converts UTC `ReturnProcessedAt` → Pakistan Standard Time (Windows: `"Pakistan Standard Time"`, Linux: `"Asia/Karachi"`, fallback: custom UTC+5).
+- Format: `"dd MMM yyyy, hh:mm tt"`.
+
+#### 23.4.5 ReturnDetailPopup — Double-Click Row
+
+Double-clicking any row opens a `ReturnDetailPopup` with full return metadata including Source (Allocation/Check-In-Out) and Overdue flag.
+
+#### 23.4.6 Check-In/Out Rows Blocked from Edit & Undo
+
+Rows from transactions have `ReturnID < 0`. Edit and Undo buttons guard for this with warning toasts.
+
+---
+
+### 23.5 Deleted Items — Pagination
+
+**Source:** `Forms/DeletedItemsForm.cs`
+
+Full pagination: page sizes 25 / 50 / 100 / 250 / 500 / 1000 (default 25). `Prev` / `Next` buttons, page indicator, row count label.
+
+---
+
+### 23.6 Settings — Security Audit Trail
+
+**Source:** `Forms/SettingsForm.cs`, `Helpers/SecurityAuditLogger.cs`
+
+#### 23.6.1 `SecurityAuditLogger` — File-Based Immutable Audit Trail
+
+Static helper writing append-only entries to `%AppData%\AssetPilot\security_audit.log`:
+
+- Survives Clear Logs and Reset App Data (no delete path in app).
+- Entry format: `"yyyy-MM-dd HH:mm:ss | {FullName} (@{Username}) | {action} | {details}"`.
+
+| Trigger | Action String |
+|---------|--------------|
+| Clear All Logs | `"Cleared all activity logs"` |
+| Reset Application Data | `"Reset application data"` |
+| Delete User | `"Deleted user"` |
+| Change Own Password | `"Changed own password"` |
+| Admin Change Another User's Password (`AddEditUserForm`) | `"Changed user's password (admin)"` |
+
+#### 23.6.2 `settings_data_delete` — Re-Inserted Non-Deletable `equipment_logs` Entry
+
+`WriteSettingsDeletionAuditLog(action, details)` is called after bulk deletes. Inserts a new `equipment_logs` row:
+
+- `ActionType = "settings_data_delete"` → displayed as `"⚠ Settings Data Deleted"`.
+- Full row highlighted red in Logs grid (`DefaultCellStyle.BackColor = #FFEBEE`).
+- Anchored to the first remaining `equipment` row by FK. Skipped if none exist.
+
+#### 23.6.3 Reset Application Data — Expanded Scope & FK-Safe Order
+
+Previously deleted only `Allocations` + `Equipment`. Now deletes in FK-safe order:
+
+1. Equipment Logs
+2. Equipment Location Histories
+3. Maintenance Records
+4. Transactions (Check-In/Out)
+5. Allocations
+6. Equipment
+7. Employees
+8. Locations
+
+Per-table `try/catch` and `SaveChanges`. Errors collected and shown in summary toast. **Users, roles, categories, and app_settings are NOT deleted.**
+
+---
+
+### 23.7 AuditService — New Constants
+
+**Source:** `Services/AuditService.cs`
+
+| Constant | Value |
+|----------|-------|
+| `ActionReturnUndone` | `"return_undone"` |
+| `ActionDecommissionUndone` | `"decommission_undone"` |
+
+---
+
+### 23.8 Logs Form — New Action Types, Colors & Display
+
+**Source:** `Forms/LogsForm.cs`
+
+New entries fully mapped in `FormatAction` switch and `RefreshGrid` colour switch:
+
+| `action_type` | Display Label | Badge Colors (Back / Fore) |
+|---|---|---|
+| `return_undone` | Returned to Active Allocation | `#FFE0B2` / `#EF6C00` (orange) |
+| `decommission_undone` | Restored from Decommission | `#E0F7F4` / `#26A69A` (lighter teal) |
+| `Allocation Request Deleted` | Allocation Request Deleted | `#FFAB91` / `#BF360C` (orange-red) |
+| `settings_data_delete` | ⚠ Settings Data Deleted | `#FFCDD2` / `#B71C1C` (red badge + full row highlight `#FFEBEE`) |
+| `allocation_overdue` | Allocation Overdue | `#FFE0B2` / `#FFA000` (amber) |
+
+`"allocation_returned"` display label: **"Returned to Store"**.
+
+`"Expected Return Date Updated"` (free string): now has an explicit case → yellow update badge (`#FFF9C4` / `#826400`).
+
+---
+
+### 23.9 Cross-Module Effects — 2026-09-13 Changes
+
+| Action | Module | Tables Written | Audit Log? |
+|--------|--------|----------------|------------|
+| Restore from Decommission | Decommission | `equipment`, `equipment_logs` | ✅ `decommission_undone` |
+| Delete Allocation (non-approved) | Allocation | `allocations` (hard delete), `equipment_logs` | ✅ `Allocation Request Deleted` |
+| Undo Return | Returns | `allocations`, `equipment`, `equipment_logs` | ✅ `return_undone` |
+| Clear All Logs | Settings | `equipment_logs` (all deleted), then `settings_data_delete` row re-inserted + `security_audit.log` | ✅ `settings_data_delete` |
+| Reset Application Data | Settings | Logs → Location Histories → Maintenance Records → Transactions → Allocations → Equipment → Employees → Locations + `security_audit.log` + `settings_data_delete` row | ✅ `settings_data_delete` |
+| Delete User | Settings | `user_roles`, `users` | ❌ DB log; ✅ `security_audit.log` |
+| Change Password | Settings / AddEditUserForm | `users` | ❌ DB log; ✅ `security_audit.log` |
+| Bulk Scan Export | QR Scanner | *(no DB writes)* | ❌ |
+| View QR Code / View Picture | QR Scanner | *(no DB writes)* | ❌ |
+| Navigate to Check-In/Out from QR Scanner | QR Scanner | *(navigation only)* | ❌ |
