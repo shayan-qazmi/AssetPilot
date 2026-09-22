@@ -1,4 +1,4 @@
-#                Q-Inventory Management System
+#                AssetPilot Inventory Management System
 
 <p align="center">
 <img src="screenshots/000-app-overview.png" alt="Screenshot: Dashboard overview" width="900">
