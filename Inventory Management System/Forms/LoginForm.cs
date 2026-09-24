@@ -1889,7 +1889,7 @@ namespace Inventory_Management_System.Forms
                     return;
                 }
 
-                bool ok = user.PasswordHash == password;
+                bool ok = PasswordHelper.Verify(password, user.PasswordHash);
                 if (!ok)
                 {
                     SetLoginBtnLoading(false);
