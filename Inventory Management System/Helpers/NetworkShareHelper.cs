@@ -32,17 +32,32 @@ namespace Inventory_Management_System.Helpers
 
         public static void EnsureConnected()
         {
+            if (_connected) return;
+
             lock (_lock)
             {
                 if (_connected) return;
 
                 const string uncPath = @"\\192.168.18.240\AssetPilotData";
 
-                try
+                var task = System.Threading.Tasks.Task.Run(() =>
                 {
-                    var nr = new NETRESOURCE { lpRemoteName = uncPath };
-                    int result = WNetAddConnection2(nr, NetworkPaths.SharePassword, NetworkPaths.ShareUsername, 0);
+                    try
+                    {
+                        var nr = new NETRESOURCE { lpRemoteName = uncPath };
+                        return WNetAddConnection2(nr, NetworkPaths.SharePassword, NetworkPaths.ShareUsername, 0);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "NetworkShareHelper.EnsureConnected");
+                        return -1;
+                    }
+                });
 
+                // Wait up to 1.5 seconds so we don't freeze the UI for a minute on startup
+                if (task.Wait(1500))
+                {
+                    int result = task.Result;
                     if (result == 0 ||
                         result == ERROR_ALREADY_ASSIGNED ||
                         result == ERROR_SESSION_CREDENTIAL_CONFLICT)
@@ -51,12 +66,8 @@ namespace Inventory_Management_System.Helpers
                         return;
                     }
                 }
-                catch (Exception ex)
-                {
-                    Logger.LogError(ex, "NetworkShareHelper.EnsureConnected");
-                }
 
-                // If UNC path is not accessible on localhost, mark connected so local fallback works seamlessly.
+                // If it timed out or failed, mark connected so local fallback works seamlessly.
                 _connected = true;
             }
         }

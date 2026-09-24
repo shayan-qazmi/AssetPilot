@@ -1107,7 +1107,9 @@ namespace Inventory_Management_System.Forms
             using var form = new AddEditEquipmentForm();
             if (form.ShowDialog() == DialogResult.OK)
             {
-                ShowToast("Equipment added successfully.");
+                var eq = form.SavedEquipment;
+                string qrInfo = eq.QrCode != null && eq.QrCode != eq.EquipmentCode ? $" (QR: {eq.QrCode})" : "";
+                ShowToast($"Equipment {eq.EquipmentCode}{qrInfo} added successfully.");
                 RefreshAfterDataChange();
             }
         }

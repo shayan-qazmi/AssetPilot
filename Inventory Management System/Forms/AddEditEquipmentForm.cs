@@ -14,6 +14,7 @@ namespace Inventory_Management_System.Forms
 {
     public class AddEditEquipmentForm : Form
     {
+        public Equipment SavedEquipment => _equipment;
         private Equipment _equipment;
         private EquipmentService _equipmentService;
         private MaintenanceService _maintenanceService;
