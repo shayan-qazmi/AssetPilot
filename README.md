@@ -1427,6 +1427,232 @@ A quick reference for what each action also touches elsewhere, and whether it's 
 
 ---
 
+
+
+Ran list workspace directory contents
+Ran search APP_SOP for Known Limitations · Exited with code 1
+Ran check SOP file name
+Ran search Known Limitations in APP_SOP.md · Exited with code 1
+Analyzed APP_SOP.md:L1-100
+Analyzed APP_SOP.md:L1300-1450
+Analyzed APP_SOP.md:L1100-1300
+Analyzed APP_SOP.md:L1000-1100
+Analyzed LoginForm.cs:L60-120
+Ran find btnLogin_Click in LoginForm · Exited with code 1
+Analyzed LoginForm.cs:L150-250
+Analyzed LoginForm.cs:L280-380
+Analyzed LoginForm.cs:L600-800
+Analyzed LoginForm.cs:L1500-1700
+Analyzed LoginForm.cs:L1900-2021
+Analyzed LoginForm.cs:L1850-1905
+Analyzed PasswordHelper.cs:L1-29
+Analyzed AddEditUserForm.cs:L1-150
+Analyzed AddEditUserForm.cs:L450-568
+Ran search for PasswordHelper in .cs files · Exited with code 1
+Ran find all references to PasswordHelper
+Analyzed LoginForm.cs:L1890-1915
+Ran check seed users in SQL script · Exited with code 1
+Ran check seed users in SQL script
+Ran search ProtectedData usage
+Ran search mysqldump usage
+Analyzed SettingsForm.cs:L970-1010
+Ran search CreatedByUserId
+Ran search ApprovedByUserId and AllocatedByUserId
+Ran check AllocationService user ids
+Ran check Allocate method in AllocationService
+Analyzed AllocationService.cs:L20-55
+Analyzed AllocationService.cs:L56-90
+Ran check TransferForm status changes
+Ran check ReturnsForm queries
+Ran check ReportsForm queries
+Ran check Category delete logic in SettingsForm
+Ran search category deletion logic
+Analyzed SettingsForm.cs:L2246-2285
+Ran check CategoryService.Delete
+Analyzed CategoryService.cs:L30-75
+Ran check Reset Application Data in SettingsForm
+Ran search Reset in SettingsForm
+Ran read BtnResetAppData_Click
+Analyzed SettingsForm.cs:L1113-1180
+Ran check EquipmentService.Delete
+Ran check DecommissionForm equipment filtering and logic
+Ran check DecommissionDialog class
+Ran find where DecommissionDialog is instantiated
+Analyzed DecommissionForm.cs:L230-285
+Ran find btnDecommission_Click in DecommissionForm
+Analyzed DecommissionForm.cs:L450-500
+Ran check Returns History report in ReportsForm
+Analyzed ReportsForm.cs:L230-290
+Analyzed ReportsForm.cs:L410-480
+Analyzed ReportsForm.cs:L500-580
+Analyzed ReportsForm.cs:L581-650
+Ran check Print Label in QRScannerForm
+Ran check pagination in LocationsForm
+Ran check LoadLocations in LocationsForm
+Ran check LoadHistory in QRScannerForm
+Ran check EmployeeService.Delete
+Ran check FK configuration on Allocations
+Ran check FK in SQL file
+Ran check AuditService.Log
+Ran check equipment_logs table definition
+Ran search _audit.Log(0 usage
+Checked task Search _audit.Log(0 usage
+Ran check equipment ids in SQL dump
+Ran check Clear Logs in SettingsForm
+Ran check where decommission reason is retrieved
+Ran check dgvDecommission rows population
+Analyzed DecommissionForm.cs:L380-425
+Ran search for raw SQL execution
+Ran check SecurityAuditLogger class
+Ran check NetworkShareHelper and NetworkPaths
+Ran check TransactionService CheckInOut methods
+Ran read AuthService.cs
+Ran check DbContext connection string
+Ran check Clear Maintenance History permissions
+Ran check concurrency tokens in Equipment
+Ran read QRHelper.cs
+Ran search GenerateQrBitmap usage
+Ran search PrintDocument
+Ran check btnImport_Click in EquipmentForm
+Ran find btnImport in EquipmentForm
+Ran read btnImportExcel_Click
+Ran check ExcelHelper.ImportEquipment
+Ran check category handling in ExcelHelper
+
+Based on a comprehensive review and static code analysis of the entire codebase, here is the exact verification of the **12 listed limitations**, followed by **additional critical limitations and data-safety issues discovered**, and a **prioritized remediation roadmap**.
+
+---
+
+### Part 1: Status of the 12 Listed Limitations
+
+| # | Limitation | Current Status | Code Verification Details |
+|---|---|---|---|
+| **1** | **Plaintext Passwords** | **Partially Resolved / Improved** | **Implemented:** [`PasswordHelper`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Helpers/PasswordHelper.cs) now uses BCrypt hashing. Adding new users ([`AddEditUserForm.cs#L516`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/AddEditUserForm.cs#L516)), admin password resets ([`AddEditUserForm.cs#L516`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/AddEditUserForm.cs#L516)), and user password changes ([`SettingsForm.cs#L1994`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/SettingsForm.cs#L1994)) all generate BCrypt hashes.<br>**Remaining:** Existing legacy seeded accounts (e.g. `admin1234` in `inventory_management.sql`) remain in plaintext until changed, because [`LoginForm.cs`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/LoginForm.cs#L1892) falls back to plaintext equality and does **not** auto-upgrade/rehash passwords into the database upon successful login. |
+| **2** | **System Config DB Password DPAPI-bound to OS user** | **STILL REMAINS** | In [`DbConnectionSettingsService.cs#L87-L94`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Services/Dbconnectionsettingsservice.cs#L87-L94), `ProtectedData.Protect` and `Unprotect` use `DataProtectionScope.CurrentUser`. Moving `dbconnection.json` to another machine or launching the app under another Windows user account fails with a `CryptographicException`. |
+| **3** | **Backup Tool Password Passed in Command Line** | **STILL REMAINS** | In [`SettingsForm.cs#L942`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/SettingsForm.cs#L942) (Backup) and [`SettingsForm.cs#L994`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/SettingsForm.cs#L994) (Restore), `mysqldump.exe` and `mysql.exe` receive `"-p{pass}"` as a raw argument in `ProcessStartInfo.Arguments`. This is visible in process monitors (Process Explorer, Task Manager) and fails if the password contains special shell characters. |
+| **4** | **Record-level "by" fields hardcoded to ID 1** | **STILL REMAINS** | • [`AddEditEquipmentForm.cs#L1335`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/AddEditEquipmentForm.cs#L1335): `_equipment.CreatedByUserId = 1;` is hardcoded.<br>• [`AllocationForm.cs#L1608`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/AllocationForm.cs#L1608): `a.ApprovedByUserId = 1;` is hardcoded.<br>• [`TransferForm.cs#L359-L360`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/TransferForm.cs#L359-L360): Both `AllocatedByUserId = 1` and `ApprovedByUserId = 1` are hardcoded.<br>*(Audit logs record `AuthService.CurrentUserId`, but the actual entity records store `1`).* |
+| **5** | **Transfer pollutes Returns history** | **STILL REMAINS** | In [`TransferForm.cs#L348-L350`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/TransferForm.cs#L348-L350), old allocations are closed with `oldAlloc.Status = "returned";`. Both [`ReturnsForm.cs#L48`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/ReturnsForm.cs#L48) and [`ReportsForm.cs#L601`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/ReportsForm.cs#L601) query `Where(a => a.Status == "returned")` without excluding allocations superseded by transfers (`PreviousAllocationId`), so transferred items appear as physical returns. |
+| **6** | **Deleting a Category leaves orphaned strings on equipment** | **RESOLVED via Guard** | In [`CategoryService.cs#L67-L73`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Services/CategoryService.cs#L67-L73), a delete-protection guard checks if any equipment currently has that category. If `usageCount > 0`, the deletion is blocked with an error message: `"Cannot delete — {N} equipment item(s) are using this category."` |
+| **7** | **"Reset Application Data" not atomic & no auto-backup** | **STILL REMAINS** | In [`SettingsForm.cs#L1082-L1161`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/SettingsForm.cs#L1082-L1161), 8 tables are wiped in sequential `try/catch` blocks with individual `db.SaveChanges()`. There is **no database transaction** (`BeginTransaction`) and **no automatic backup** prior to wiping. If interrupted, tables are left partially deleted. |
+| **8** | **Equipment soft-delete does not check active allocations** | **STILL REMAINS** | [`EquipmentService.cs#L198`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Services/EquipmentService.cs#L198) simply sets `eq.IsDeleted = true; db.SaveChanges();`. There is no check for active allocations (`Status == "approved"`) or active checkouts (`Transactions`), allowing equipment currently in an employee's hands to be deleted. |
+| **9** | **Decommission dialog allows Allocated equipment directly** | **PARTIALLY PRESENT** | [`DecommissionForm.cs#L433-L435`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/DecommissionForm.cs#L433-L435) allows selecting `allocated` equipment. When decommissioned ([`#L459-L464`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/DecommissionForm.cs#L459-L464)), it automatically mutates active allocations to `"returned"`, but **without warning the user**, without recording `ActualReturnDate`, and **without checking or closing active Check-In/Out `Transactions`**. |
+| **10** | **Returns Report excludes Check-In/Out completions** | **RESOLVED** | In [`ReportsForm.cs#L639-L655`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/ReportsForm.cs#L639-L655), the report now queries both `db.Allocations.Where(a => a.Status == "returned")` AND completed checkouts `db.Transactions.Where(t => t.Status == "Completed" && t.ActualReturn.HasValue && t.TransactionType == "Check-Out")`. Both are included. |
+| **11** | **QR Label Printing in View QR dialog is not wired up** | **STILL REMAINS** | In [`QRScannerForm.cs#L684-L688`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/QRScannerForm.cs#L684-L688), `btnPrintLabel_Click` shows: `"Label printing isn't wired up yet."` even though [`Helpers/LabelPrinter.cs`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Helpers/LabelPrinter.cs) is already fully implemented elsewhere in the project. |
+| **12** | **Locations and QR Scanner grids load full dataset** | **STILL REMAINS** | [`LocationsForm.cs#L145`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/LocationsForm.cs#L145) loads all locations into memory and displays them with no pagination. [`QRScannerForm.cs#L490`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/QRScannerForm.cs#L490) loads all equipment logs for an item without paging. |
+
+---
+
+### Part 2: Additional Limitations & Data-Safety Issues Discovered
+
+Beyond the 12 items above, static analysis identified **10 additional vulnerabilities and architectural flaws**:
+
+1. **Silent Audit Log Drop on Employee & Location Operations (Critical Compliance Bug)**
+   - In [`EmployeeService.cs#L138, #L180, #L209`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Services/EmployeeService.cs#L138) and [`LocationService.cs#L53, #L83, #L112`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Services/LocationService.cs#L53), operations call `_audit.Log(0, ...)`.
+   - In the database schema (`inventory_management.sql`), `equipment_logs.equipment_id` has a strict Foreign Key (`CONSTRAINT equipment_logs_ibfk_1 FOREIGN KEY (equipment_id) REFERENCES equipment(id)`).
+   - Because `equipment_id = 0` does not exist in the equipment table, MySQL throws a foreign key constraint violation.
+   - `AuditService.Log` silently catches all exceptions in a `try/catch`.
+   - **Result:** **100% of audit logs for creating, editing, and deleting employees and locations silently fail to insert and are lost.**
+
+2. **Hardcoded Database & Network Share Credentials in Source Code**
+   - [`InventoryDbContext.cs#L28-L34`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Models/InventoryDbContext.cs#L28-L34): Hardcoded database fallback credentials (`server: "192.168.18.240"`, `username: "ims_user"`, `password: "DBPassword123!"`).
+   - [`NetworkPaths.cs#L11-L12`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Helpers/NetworkPaths.cs#L11-L12): Hardcoded SMB share credentials (`ShareUsername = "pki"`, `SharePassword = "pki@123"`). These credentials can be retrieved by anyone using a .NET decompiler (e.g. ILSpy/dotPeek).
+
+3. **Decommission Reasons Permanently Lost when Logs are Cleared**
+   - The decommission reason is not stored as a column on the `equipment` table.
+   - Instead, [`DecommissionForm.cs#L397-L406`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/DecommissionForm.cs#L397-L406) dynamically looks up the reason by querying `equipment_logs` for `ActionType == "decommission_approved"`.
+   - If an administrator uses Settings → "Clear all logs", all historical decommission reasons and dates across the entire system are permanently wiped.
+
+4. **Hard-Deleting Employees Breaks Historical Allocation FK Constraints**
+   - In [`EmployeeService.cs#L200-L208`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Services/EmployeeService.cs#L200-L208), deleting an employee only checks if `Status == "approved"`.
+   - If the employee has historical (returned) allocations, calling `db.Employees.Remove(existing)` triggers a MySQL Foreign Key failure (`allocations_ibfk_2`) on save.
+   - Employees should be soft-deleted using the existing `IsActive` flag.
+
+5. **Siloed Dual-Checkout Conflict (Check-In/Out vs Allocation)**
+   - The app has two independent tracking systems: formal [`Allocation`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Models/Allocation.cs) and temporary [`Transaction`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Models/Transaction.cs) (Check In/Out).
+   - `AllocationService.Allocate` checks only `Allocations`, not `Transactions`.
+   - `TransactionService.CheckOut` checks only `Transactions`, not `Allocations`.
+   - An item actively assigned to an employee in Allocation can simultaneously be checked out to someone else in Check In/Out without any collision check.
+
+6. **Unrestricted "Clear History" in Maintenance Records**
+   - In [`EquipmentDetailPopup.cs#L525-L545`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/EquipmentDetailPopup.cs#L525-L545), the "Clear History" button deletes all maintenance records for that item.
+   - There is no role check (`AuthService.IsAdmin`); even standard Operators can delete maintenance history.
+
+7. **Local-Only Security Audit Log (`security_audit.log`)**
+   - [`SecurityAuditLogger.cs#L14-L16`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Helpers/SecurityAuditLogger.cs#L14-L16) writes admin actions (user password modifications, role toggles, log clears) to a flat text file in `%AppData%\AssetPilot\security_audit.log`.
+   - In a multi-user network deployment, security audit trails are fragmented per machine rather than centralized in the database, and local users can edit or delete this file without detection.
+
+8. **Missing Concurrency Checks (Lost Update Hazard)**
+   - No EF Core entity defines a `[Timestamp]` or `RowVersion` concurrency token. If two users edit the same item or allocation at the same time, the second write silently overwrites the first.
+
+9. **`remember_me.txt` in `Application.StartupPath`**
+   - In [`LoginForm.cs#L1976`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/LoginForm.cs#L1976), `remember_me.txt` is written directly to the application directory. When installed in standard locations like `C:\Program Files\`, non-admin users will trigger an `UnauthorizedAccessException`.
+
+10. **Excel Import Bypasses Category Validation**
+    - [`ExcelHelper.cs#L123-L125`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Helpers/ExcelHelper.cs#L123-L125) maps the raw text cell directly to `Equipment.Category` without verifying whether the category exists in the `categories` master table, permitting arbitrary orphaned categories.
+
+---
+
+### Part 3: Prioritized Roadmap — Which to Remove First
+
+#### 🔴 Tier 1: Critical (Fix Immediately — Risk of Data Loss, Corruption & Total Audit Failure)
+
+1. **Wrap "Reset Application Data" in a Single Transaction + Automatic Backup (Limitation #7)**
+   - **Why:** If the database connection drops halfway through, half the organization's data is permanently lost while the rest remains orphaned.
+   - **Remediation:** Enclose the 8 table deletions inside `using var tx = db.Database.BeginTransaction()`, commit only after all succeed, and invoke the backup routine before executing.
+
+2. **Fix `equipment_logs` Foreign Key for Employee and Location Auditing (Discovered Issue #1)**
+   - **Why:** Because `equipment_id` has a foreign key to `equipment`, every audit call passing `equipmentId = 0` currently crashes and is silently swallowed.
+   - **Remediation:** Make `equipment_logs.equipment_id` nullable (`INT NULL`) in MySQL and EF Core so non-equipment entities (Employees, Locations, System actions) can be audited legally.
+
+3. **Prevent Soft-Deleting & Decommissioning Allocated / Checked-Out Equipment (Limitations #8 & #9)**
+   - **Why:** Deleting an item currently in an employee's hands creates ghost allocations and corrupts inventory counts. Decommissioning currently allocated items silently changes status to "returned" without setting return dates and ignores active checkouts.
+   - **Remediation:** In `EquipmentService.Delete`, reject deletion if `CurrentStatus == "allocated"` or an active allocation / transaction exists. In `DecommissionForm`, prompt the user to formally process a return before decommissioning.
+
+4. **Auto-Upgrade Legacy Plaintext Passwords on Login (Limitation #1 Follow-up)**
+   - **Why:** Seed accounts like `admin` and `operator` remain stored as plaintext until those users manually visit the Change Password screen.
+   - **Remediation:** In `LoginForm.cs`, when `PasswordHelper.Verify` succeeds on an unhashed password (`!PasswordHelper.IsBcryptHash`), re-hash with `PasswordHelper.Hash()` and update `user.PasswordHash` in the database immediately.
+
+---
+
+#### 🟡 Tier 2: High / Medium (Business Logic Consistency & Operational Integrity)
+
+5. **Soft-Delete Employees instead of Hard-Delete (Discovered Issue #4)**
+   - **Why:** Deleting an employee with past allocation history throws unhandled MySQL FK exceptions or breaks historical audit links.
+   - **Remediation:** Change `EmployeeService.Delete` to set `existing.IsActive = false;` rather than `db.Employees.Remove(existing);`.
+
+6. **Separate "Transferred" from "Returned" Allocations (Limitation #5)**
+   - **Why:** Transferring equipment inflates returns metrics and muddles the returns report.
+   - **Remediation:** Update `TransferForm` to set `oldAlloc.Status = "transferred"` (or add an `is_transfer` column) and exclude these from `ReturnsForm` and `ReportsForm`.
+
+7. **Remove Hardcoded Credentials & Secure CLI Arguments (Limitations #3 & Discovered Issue #2)**
+   - **Remediation:** Pass MySQL passwords to `mysqldump` and `mysql` via temporary option files (`--defaults-extra-file`) rather than `-p{password}` in CLI arguments. Remove hardcoded fallback passwords from `InventoryDbContext.cs` and `NetworkPaths.cs`.
+
+8. **Store Decommission Reason on the `equipment` Record (Discovered Issue #3)**
+   - **Why:** Clearing activity logs currently wipes all decommission records back to `"—"`.
+   - **Remediation:** Add `decommission_reason` and `decommissioned_at` columns directly to the `equipment` table.
+
+9. **Fix Misleading Record-Level "By" Fields (Limitation #4)**
+   - **Remediation:** Replace hardcoded `1` in `AddEditEquipmentForm.cs`, `AllocationForm.cs`, and `TransferForm.cs` with `AuthService.CurrentUserId`.
+
+10. **Bridge the Gap Between Allocation and Check In/Out (Discovered Issue #5)**
+    - **Remediation:** Add cross-table checks so neither module can issue an item that is currently checked out or allocated in the other.
+
+---
+
+#### 🟢 Tier 3: Low / Usability & Performance Polish (Backlog)
+
+11. **Wire up QR Label Printing (Limitation #11)**
+    - **Remediation:** Replace the toast stub in [`QRScannerForm.cs#L684`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Forms/QRScannerForm.cs#L684) with a call to the already completed [`LabelPrinter.cs`](file:///c:/Users/BURRAQ%20LAPTOPS/Downloads/IMS/Inventory%20Management%20System/Inventory%20Management%20System/Inventory%20Management%20System/Helpers/LabelPrinter.cs).
+
+12. **Implement Server-Side Paging for Locations & Scanner History (Limitation #12)**
+    - **Remediation:** Add standard `Skip((page - 1) * pageSize).Take(pageSize)` pagination to `LocationsForm.cs` and limit QR Scanner history to the top 50 rows.
+
+13. **Move `remember_me.txt` to `%AppData%` (Discovered Issue #9)**
+    - **Remediation:** Change path from `Application.StartupPath` to `Path.Combine(Environment.GetFolderPath(SpecialFolder.ApplicationData), "AssetPilot")`.
+
+14. **Centralize `SecurityAuditLogger` to Database (Discovered Issue #7)**
+    - **Remediation:** Create a dedicated `security_audit_logs` database table so security audits are preserved centrally across all client workstations.
+
 ## Credits
 
 Developed by **Syed Shayan Haider Kazmi**.
