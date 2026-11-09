@@ -114,6 +114,25 @@ namespace Inventory_Management_System.Services
                 if (items.Count == 0)
                     return ServiceResult<int>.Fail("No matching equipment found.");
 
+                // Block deletion of equipment that is currently allocated or checked out
+                var allocatedIds = db.Allocations
+                    .Where(a => idList.Contains(a.EquipmentId) && a.Status == "approved")
+                    .Select(a => a.EquipmentId)
+                    .Distinct().ToList();
+                var checkedOutIds = db.Transactions
+                    .Where(t => idList.Contains(t.EquipmentId) &&
+                        (t.Status == "Pending" || t.Status == "Overdue"))
+                    .Select(t => t.EquipmentId)
+                    .Distinct().ToList();
+                var blockedIds = allocatedIds.Union(checkedOutIds).ToHashSet();
+                if (blockedIds.Count > 0)
+                {
+                    var blockedCodes = items.Where(e => blockedIds.Contains(e.Id))
+                        .Select(e => e.EquipmentCode).ToList();
+                    return ServiceResult<int>.Fail(
+                        $"Cannot delete — the following items are still allocated or checked out: {string.Join(", ", blockedCodes)}. Return them first.");
+                }
+
                 foreach (var eq in items)
                     eq.IsDeleted = true;
 
@@ -380,6 +399,18 @@ namespace Inventory_Management_System.Services
                 var eq = db.Equipment.FirstOrDefault(e => e.Id == id);
                 if (eq == null)
                     return ServiceResult<bool>.Fail("Equipment not found.");
+
+                // Block deletion of equipment that is currently allocated or has an active check-out
+                bool hasActiveAllocation = db.Allocations.Any(a => a.EquipmentId == id && a.Status == "approved");
+                if (hasActiveAllocation)
+                    return ServiceResult<bool>.Fail(
+                        $"'{eq.EquipmentCode}' is currently allocated. Return or un-allocate it before deleting.");
+
+                bool hasActiveCheckOut = db.Transactions.Any(t => t.EquipmentId == id &&
+                    (t.Status == "Pending" || t.Status == "Overdue"));
+                if (hasActiveCheckOut)
+                    return ServiceResult<bool>.Fail(
+                        $"'{eq.EquipmentCode}' has an active check-out. Complete it before deleting.");
 
                 string deletedInfo = $"{eq.EquipmentCode} - {eq.Name} - {eq.CurrentStatus}";
 

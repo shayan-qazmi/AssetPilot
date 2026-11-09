@@ -1332,7 +1332,7 @@ namespace Inventory_Management_System.Forms
             _equipment.ProcurementTypeId = _equipmentService.ResolveProcurementTypeId(txtProcurementType.Text);
 
             if (!_isEditMode)
-                _equipment.CreatedByUserId = 1;
+                _equipment.CreatedByUserId = AuthService.CurrentUserId > 0 ? AuthService.CurrentUserId : 1;
 
             var result = _isEditMode
                 ? _equipmentService.Update(_equipment)

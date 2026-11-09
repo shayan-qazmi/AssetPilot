@@ -317,7 +317,9 @@ namespace Inventory_Management_System.Forms
             var sourceCell = dgvReturns.Rows[rowIdx].Cells["Source"];
             sourceCell.Style.ForeColor = item.Source == "Check In/Out"
                 ? Color.FromArgb(25, 118, 210)
-                : Color.FromArgb(107, 114, 128);
+                : (item.Source == "Transferred" || item.Source == "Transfer"
+                    ? Color.FromArgb(124, 58, 237)
+                    : Color.FromArgb(107, 114, 128));
             sourceCell.Style.Font = ThemeHelper.FontBold;
 
             dgvReturns.ClearSelection();
@@ -371,6 +373,12 @@ namespace Inventory_Management_System.Forms
             {
                 using var db = new InventoryDbContext();
 
+                var transferredAllocationIds = db.Allocations
+                    .Where(a => a.PreviousAllocationId != null)
+                    .Select(a => a.PreviousAllocationId!.Value)
+                    .Distinct()
+                    .ToHashSet();
+
                 _allReturns = db.Allocations
                     .Where(a => a.Status == "returned")
                     .Include(a => a.Equipment)
@@ -386,13 +394,14 @@ namespace Inventory_Management_System.Forms
 
                 var allocRows = _allReturns.Select(item =>
                 {
+                    bool isTransfer = transferredAllocationIds.Contains(item.Id);
                     var returnDate = item.ActualReturnDate.HasValue
                         ? item.ActualReturnDate.Value.ToDateTime(TimeOnly.MinValue)
                         : DateTime.Today;
                     return new ReturnRow
                     {
                         Id = item.Id,
-                        Source = "Allocation",
+                        Source = isTransfer ? "Transferred" : "Allocation",
                         QrCode = string.IsNullOrWhiteSpace(item.Equipment?.QrCode) ? "—" : item.Equipment!.QrCode,
                         EquipmentCode = item.Equipment?.EquipmentCode ?? "—",
                         EquipmentName = item.Equipment?.Name ?? "—",
@@ -525,7 +534,9 @@ namespace Inventory_Management_System.Forms
                 var sourceCell = dgvReturns.Rows[rowIdx].Cells["Source"];
                 sourceCell.Style.ForeColor = item.Source == "Check In/Out"
                     ? Color.FromArgb(25, 118, 210)
-                    : Color.FromArgb(107, 114, 128);
+                    : (item.Source == "Transferred" || item.Source == "Transfer"
+                        ? Color.FromArgb(124, 58, 237)
+                        : Color.FromArgb(107, 114, 128));
                 sourceCell.Style.Font = ThemeHelper.FontBold;
             }
 
@@ -1049,8 +1060,10 @@ namespace Inventory_Management_System.Forms
 
             cmbCondition = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
             cmbCondition.Items.AddRange(Conditions);
-            cmbCondition.SelectedItem = existing?.Equipment?.ConditionGrade ?? "Good";
-            if (cmbCondition.SelectedIndex < 0) cmbCondition.SelectedIndex = 1;
+            if (_isEdit && !string.IsNullOrWhiteSpace(existing?.Equipment?.ConditionGrade))
+                cmbCondition.SelectedItem = existing.Equipment.ConditionGrade;
+            else
+                cmbCondition.SelectedIndex = -1;
             ThemeHelper.StyleComboBox(cmbCondition);
             FieldLabel("Equipment Condition on Return", required: true);
             PlaceControl(cmbCondition);
@@ -1102,12 +1115,15 @@ namespace Inventory_Management_System.Forms
 
             var match = _allocations.FirstOrDefault(a =>
                 string.Equals($"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name}", typed,
-                    StringComparison.OrdinalIgnoreCase));
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(a.Equipment?.EquipmentCode, typed, StringComparison.OrdinalIgnoreCase));
             if (match == null) return;
 
             _suppressSync = true;
             cmbAllocation.SelectedValue = match.Id;
+            txtEquipmentSearch.Text = $"{match.Equipment?.EquipmentCode} — {match.Equipment?.Name}";
             _suppressSync = false;
+            UpdateAllocDetails(match);
         }
 
         private void BtnSave_Click(object? sender, EventArgs e)
@@ -1119,9 +1135,9 @@ namespace Inventory_Management_System.Forms
                 ShowToast("Please select an allocation.", ToastType.Warning);
                 return;
             }
-            if (cmbCondition.SelectedItem == null)
+            if (cmbCondition.SelectedIndex < 0 || cmbCondition.SelectedItem == null)
             {
-                ShowToast("Please select a condition grade.", ToastType.Warning);
+                ShowToast("Please select the equipment condition on return.", ToastType.Warning);
                 return;
             }
             AllocationId = (int)cmbAllocation.SelectedValue;

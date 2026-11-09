@@ -19,7 +19,7 @@ namespace Inventory_Management_System.Helpers
     ///   • Mouse selection uses MouseDown to suppress the LostFocus hide-timer,
     ///     then commits on MouseUp.
     /// </summary>
-    public sealed class EntitySuggestHelper<T> : IDisposable where T : class
+    public sealed class EntitySuggestHelper<T> : IDisposable, IMessageFilter where T : class
     {
         private const int MaxSuggestions = 100;
         private const int MaxVisibleItems = 8;
@@ -74,7 +74,7 @@ namespace Inventory_Management_System.Helpers
             _listBox.DrawItem += ListBox_DrawItem;
             _listBox.MouseDown += ListBox_MouseDown;
             _listBox.MouseUp += ListBox_MouseUp;
-            // NOTE: no KeyDown on the listbox — all keyboard handling stays in the textbox.
+            // NOTE: no KeyDown on the listbox — all keyboard handling stays in the textbox / message filter.
 
             // Popup host: a separate, non-activating floating window — not a
             // child of _hostForm.Controls. See EquipmentSuggestHelper for why:
@@ -89,12 +89,62 @@ namespace Inventory_Management_System.Helpers
             _textBox.TextChanged += TextBox_TextChanged;
             _textBox.KeyDown += TextBox_KeyDown;
             _textBox.LostFocus += TextBox_LostFocus;
+            _textBox.PreviewKeyDown += TextBox_PreviewKeyDown;
 
             // Hide when the host form is clicked, moved, resized, or loses focus
             _hostForm.MouseClick += Form_MouseClick;
             _hostForm.Move += Form_MoveOrResize;
             _hostForm.Resize += Form_MoveOrResize;
             _hostForm.Deactivate += Form_MoveOrResize;
+            _hostForm.FormClosed += (s, e) => Dispose();
+
+            Application.AddMessageFilter(this);
+        }
+
+        private void TextBox_PreviewKeyDown(object? sender, PreviewKeyDownEventArgs e)
+        {
+            if (_popup.Visible && (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Down || e.KeyCode == Keys.Up || e.KeyCode == Keys.Escape))
+            {
+                e.IsInputKey = true;
+            }
+        }
+
+        public bool PreFilterMessage(ref Message m)
+        {
+            const int WM_KEYDOWN = 0x0100;
+            if (m.Msg == WM_KEYDOWN)
+            {
+                Keys key = (Keys)(int)m.WParam;
+                if (_popup != null && !_popup.IsDisposed && _popup.Visible &&
+                    (_textBox.Focused || (_listBox != null && !_listBox.IsDisposed && _listBox.Focused)))
+                {
+                    if (key == Keys.Down)
+                    {
+                        MoveHighlight(+1);
+                        return true;
+                    }
+                    if (key == Keys.Up)
+                    {
+                        MoveHighlight(-1);
+                        return true;
+                    }
+                    if (key == Keys.Enter)
+                    {
+                        int targetIndex = _highlightedIndex >= 0 ? _highlightedIndex : (_listBox.Items.Count > 0 ? 0 : -1);
+                        if (targetIndex >= 0 && targetIndex < _listBox.Items.Count)
+                        {
+                            CommitSelection(targetIndex);
+                            return true; // Swallows Enter so dialog AcceptButton does not submit prematurely
+                        }
+                    }
+                    if (key == Keys.Escape)
+                    {
+                        HideDropdown();
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         /// <summary>Call this whenever the underlying data list is (re)loaded.</summary>
@@ -237,7 +287,7 @@ namespace Inventory_Management_System.Helpers
             if (e.Index < 0 || e.Index >= _listBox.Items.Count) return;
             if (_listBox.Items[e.Index] is not T item) return;
 
-            bool selected = (e.State & DrawItemState.Selected) != 0;
+            bool selected = (e.State & DrawItemState.Selected) != 0 || e.Index == _highlightedIndex;
 
             Color bgColor = selected
           ? TintColor(ThemeHelper.CardBg, _accentColor, ThemeHelper.IsDarkMode ? 22 : 14)
@@ -342,11 +392,16 @@ namespace Inventory_Management_System.Helpers
             // searched — it's a display label, not a query — producing an
             // empty grid right after a successful selection.
             _suppressTextChanged = true;
-            _textBox.Text = string.Empty;
-            _suppressTextChanged = false;
-
-            _textBox.Focus();
-            _onSelected(selected);
+            try
+            {
+                _textBox.Text = string.Empty;
+                _textBox.Focus();
+                _onSelected(selected);
+            }
+            finally
+            {
+                _suppressTextChanged = false;
+            }
         }
 
         private void HideDropdown()
@@ -357,9 +412,12 @@ namespace Inventory_Management_System.Helpers
 
         public void Dispose()
         {
+            try { Application.RemoveMessageFilter(this); } catch { }
+
             _textBox.TextChanged -= TextBox_TextChanged;
             _textBox.KeyDown -= TextBox_KeyDown;
             _textBox.LostFocus -= TextBox_LostFocus;
+            _textBox.PreviewKeyDown -= TextBox_PreviewKeyDown;
             _hostForm.MouseClick -= Form_MouseClick;
             _hostForm.Move -= Form_MoveOrResize;
             _hostForm.Resize -= Form_MoveOrResize;

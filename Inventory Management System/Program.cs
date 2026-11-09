@@ -1,4 +1,12 @@
+
+
+
+
 // Program.cs
+
+
+
+
 using System;
 using System.Windows.Forms;
 using Inventory_Management_System.Forms;

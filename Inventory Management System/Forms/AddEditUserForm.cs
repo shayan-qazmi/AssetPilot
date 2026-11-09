@@ -21,6 +21,7 @@ namespace Inventory_Management_System.Forms
         private TextBox txtUsername = null!;
         private TextBox txtFullName = null!;
         private TextBox txtEmail = null!;
+        private TextBox txtRecoveryPin = null!;
         private TextBox txtPassword = null!;
         private TextBox txtConfirm = null!;
         private ComboBox cmbRole = null!;
@@ -208,11 +209,38 @@ namespace Inventory_Management_System.Forms
             PlaceControl(txtFullName);
             Hint("Full display name of the user");
 
+            // ── Mandatory Account Recovery Credentials Notice ──
+            var pnlRecoveryNotice = new Panel
+            {
+                Location = new Point(margin, y),
+                Width = contentWidth,
+                Height = 34,
+                BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(45, 38, 25) : Color.FromArgb(254, 243, 199)
+            };
+            var lblRecoveryNotice = new Label
+            {
+                Text = "⚠️  Enter either PIN or Email or both (Mandatory for recovery)",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                ForeColor = ThemeHelper.IsDarkMode ? Color.FromArgb(251, 191, 36) : Color.FromArgb(180, 83, 9),
+                AutoSize = false,
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            pnlRecoveryNotice.Controls.Add(lblRecoveryNotice);
+            body.Controls.Add(pnlRecoveryNotice);
+            y += pnlRecoveryNotice.Height + 8;
+
             txtEmail = new TextBox();
             ThemeHelper.StyleTextBox(txtEmail);
-            FieldLabel("Email");
+            FieldLabel("Work Email (or PIN)");
             PlaceControl(txtEmail);
-            Hint("Contact email for system notifications and password recovery");
+            Hint("Work email used for notifications and offline password resets");
+
+            txtRecoveryPin = new TextBox();
+            ThemeHelper.StyleTextBox(txtRecoveryPin);
+            FieldLabel("Recovery PIN (or Email)");
+            PlaceControl(txtRecoveryPin);
+            Hint("Secret 4-8 digit PIN for password reset (enter either PIN or Email or both)");
 
             bool editingSelf = _isEditMode && _user.Id == AuthService.CurrentUserId;
 
@@ -323,6 +351,13 @@ namespace Inventory_Management_System.Forms
 
             body.Size = new Size(formWidth, y);
             int totalHeight = pnlHeader.Height + body.Height + footerHeight;
+            int maxScreenH = Screen.PrimaryScreen?.WorkingArea.Height ?? 750;
+            if (totalHeight > maxScreenH - 40)
+            {
+                totalHeight = maxScreenH - 40;
+                body.Height = totalHeight - pnlHeader.Height - footerHeight;
+                body.AutoScroll = true;
+            }
             ClientSize = new Size(formWidth, totalHeight);
             pnlFooter.Location = new Point(0, ClientSize.Height - footerHeight);
 
@@ -353,6 +388,7 @@ namespace Inventory_Management_System.Forms
             txtUsername.Text = _user.Username;
             txtFullName.Text = _user.FullName;
             txtEmail.Text = _user.Email ?? "";
+            txtRecoveryPin.Text = RecoveryPinHelper.GetUserPin(_user.Username) ?? "";
             chkActive.Checked = _user.IsActive == true;
 
             if (!string.IsNullOrWhiteSpace(_user.PicturePath))
@@ -490,6 +526,23 @@ namespace Inventory_Management_System.Forms
                 }
 
                 string newEmail = string.IsNullOrWhiteSpace(txtEmail.Text) ? null : txtEmail.Text.Trim();
+                string newPin = string.IsNullOrWhiteSpace(txtRecoveryPin.Text) ? null : txtRecoveryPin.Text.Trim();
+
+                if (string.IsNullOrWhiteSpace(newEmail) && string.IsNullOrWhiteSpace(newPin))
+                {
+                    lblStatus.Text = "Please enter either Email or Recovery PIN (or both).";
+                    ToastHelper.Show(this, "Please enter either an Email or a Recovery PIN (or both). At least one is mandatory for account recovery.", ToastType.Warning);
+                    txtEmail.Focus();
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(newPin) && newPin.Length < 4)
+                {
+                    lblStatus.Text = "Recovery PIN must be at least 4 characters.";
+                    ToastHelper.Show(this, "Recovery PIN must be at least 4 characters.", ToastType.Warning);
+                    txtRecoveryPin.Focus();
+                    return;
+                }
 
                 if (!string.IsNullOrWhiteSpace(newEmail) && !IsValidEmail(newEmail))
                 {
@@ -538,6 +591,7 @@ namespace Inventory_Management_System.Forms
                 }
 
                 db.SaveChanges();
+                RecoveryPinHelper.SetUserPin(entity.Username, newPin);
 
                 var selectedRole = _roles[cmbRole.SelectedIndex];
                 var existingUR = db.UserRoles.FirstOrDefault(ur => ur.UserId == entity.Id);

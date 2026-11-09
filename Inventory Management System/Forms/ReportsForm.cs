@@ -597,6 +597,12 @@ namespace Inventory_Management_System.Forms
 
             // Load allocation-based returns
             using var db = new InventoryDbContext();
+            var transferredAllocationIds = db.Allocations
+                .Where(a => a.PreviousAllocationId != null)
+                .Select(a => a.PreviousAllocationId!.Value)
+                .Distinct()
+                .ToHashSet();
+
             var returnedAllocations = db.Allocations
                 .Where(a => a.Status == "returned")
                 .Include(a => a.Equipment)
@@ -611,6 +617,7 @@ namespace Inventory_Management_System.Forms
                 {
                     builders.Add(() =>
                     {
+                        bool isTransfer = transferredAllocationIds.Contains(item.Id);
                         bool isOverdue = item.ExpectedReturnDate.HasValue && item.ActualReturnDate.HasValue &&
                                          item.ActualReturnDate.Value > item.ExpectedReturnDate.Value;
                         string fullLocation = ReturnsForm.FormatLocation(item.Location);
@@ -623,7 +630,7 @@ namespace Inventory_Management_System.Forms
                             fullLocation,
                             item.ActualReturnDate?.ToString("yyyy-MM-dd") ?? "—",
                             item.Equipment?.ConditionGrade ?? "—",
-                            "Allocation",
+                            isTransfer ? "Transferred" : "Allocation",
                             isOverdue ? "Yes" : "No");
 
                         var overdueCell = _preview.Rows[rowIdx].Cells["Overdue"];
@@ -631,7 +638,9 @@ namespace Inventory_Management_System.Forms
                         overdueCell.Style.ForeColor = isOverdue ? ThemeHelper.Danger : ThemeHelper.TextSecondary;
 
                         var sourceCell = _preview.Rows[rowIdx].Cells["Source"];
-                        sourceCell.Style.ForeColor = Color.FromArgb(107, 114, 128);
+                        sourceCell.Style.ForeColor = isTransfer
+                            ? Color.FromArgb(124, 58, 237)
+                            : Color.FromArgb(107, 114, 128);
                     });
                 }
 

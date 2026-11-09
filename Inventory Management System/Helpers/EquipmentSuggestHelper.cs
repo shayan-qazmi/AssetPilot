@@ -3,6 +3,7 @@ using Inventory_Management_System.Models;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 
@@ -220,7 +221,19 @@ namespace Inventory_Management_System.Helpers
             HideDropdown();
         }
 
-        // ── Owner-draw: two-line look (code bold + name secondary) ─────────
+        private static GraphicsPath RoundedRect(Rectangle r, int radius)
+        {
+            var path = new GraphicsPath();
+            int d = radius * 2;
+            path.AddArc(r.X, r.Y, d, d, 180, 90);
+            path.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            path.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
+        // ── Owner-draw: two-line look (code bold + name secondary + status badge) ─────────
         private void ListBox_DrawItem(object? sender, DrawItemEventArgs e)
         {
             if (e.Index < 0 || e.Index >= _listBox.Items.Count) return;
@@ -238,29 +251,93 @@ namespace Inventory_Management_System.Helpers
             using var bgBrush = new SolidBrush(bgColor);
             e.Graphics.FillRectangle(bgBrush, e.Bounds);
 
-            // Left accent bar when selected
+            // Determine status
+            string st = (eq.CurrentStatus ?? "").Trim().ToLowerInvariant();
+            bool isAllocated = st == "allocated" || eq.Allocations?.Any(a => a.Status == "approved") == true;
+            bool isInStore = st == "in_store" || st == "in store";
+            bool isDecom = st == "decommissioned";
+            bool isRepair = st == "under_repair" || st == "repair";
+
+            // Left accent bar
+            Color barColor = isAllocated ? Color.FromArgb(245, 158, 11)   // Amber
+                           : isInStore ? Color.FromArgb(16, 185, 129)     // Green
+                           : isDecom ? Color.FromArgb(239, 68, 68)        // Red
+                           : isRepair ? Color.FromArgb(255, 112, 67)      // Orange
+                           : activeAccent;
+
             if (selected)
             {
-                using var accentBrush = new SolidBrush(activeAccent);
-                e.Graphics.FillRectangle(accentBrush, e.Bounds.X, e.Bounds.Y, 3, e.Bounds.Height);
+                using var accentBrush = new SolidBrush(barColor);
+                e.Graphics.FillRectangle(accentBrush, e.Bounds.X, e.Bounds.Y, 4, e.Bounds.Height);
+            }
+            else if (isAllocated || isDecom || isRepair)
+            {
+                // Subtle 3px colored indicator strip on the left even when not hovered
+                using var indicatorBrush = new SolidBrush(barColor);
+                e.Graphics.FillRectangle(indicatorBrush, e.Bounds.X, e.Bounds.Y, 3, e.Bounds.Height);
             }
 
-            // Equipment Code  (bold, primary colour)
             int textX = e.Bounds.X + 10;
             int codeY = e.Bounds.Y + 3;
             int nameY = e.Bounds.Y + 20;
 
-            using var codeBrush = new SolidBrush(activeAccent);
-            using var nameBrush = new SolidBrush(ThemeHelper.TextSecondary);
-
+            // Equipment Code (bold)
+            Color codeColor = isAllocated ? Color.FromArgb(217, 119, 6) : activeAccent;
+            using var codeBrush = new SolidBrush(codeColor);
             e.Graphics.DrawString(
                 eq.EquipmentCode,
                 ThemeHelper.FontBold,
                 codeBrush,
                 textX, codeY);
 
+            // Status Badge / Pill on the right side of Line 1
+            string badgeText = isAllocated ? "Allocated"
+                             : isInStore ? "In Store"
+                             : isRepair ? "Under Repair"
+                             : isDecom ? "Decommissioned"
+                             : (string.IsNullOrEmpty(eq.CurrentStatus) ? "—" : eq.CurrentStatus);
+
+            Color badgeBg = isAllocated ? (ThemeHelper.IsDarkMode ? Color.FromArgb(70, 50, 15) : Color.FromArgb(254, 243, 199))
+                          : isInStore ? (ThemeHelper.IsDarkMode ? Color.FromArgb(15, 60, 40) : Color.FromArgb(236, 253, 245))
+                          : isDecom ? (ThemeHelper.IsDarkMode ? Color.FromArgb(70, 20, 20) : Color.FromArgb(254, 226, 226))
+                          : (ThemeHelper.IsDarkMode ? Color.FromArgb(45, 50, 60) : Color.FromArgb(243, 244, 246));
+
+            Color badgeTextClr = isAllocated ? Color.FromArgb(217, 119, 6)
+                               : isInStore ? Color.FromArgb(16, 185, 129)
+                               : isDecom ? Color.FromArgb(220, 38, 38)
+                               : ThemeHelper.TextSecondary;
+
+            using var badgeFont = new Font("Segoe UI", 7.5f, FontStyle.Bold);
+            var badgeSize = TextRenderer.MeasureText(badgeText, badgeFont);
+            int badgeW = badgeSize.Width + 10;
+            int badgeH = 16;
+            int badgeX = e.Bounds.Right - badgeW - 10;
+            int badgeY = e.Bounds.Y + 4;
+
+            if (badgeX > textX + 80)
+            {
+                using var badgeBgBrush = new SolidBrush(badgeBg);
+                using var badgeBorderPen = new Pen(badgeTextClr, 0.8f);
+                var badgeRect = new Rectangle(badgeX, badgeY, badgeW, badgeH);
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using var badgePath = RoundedRect(badgeRect, 4);
+                e.Graphics.FillPath(badgeBgBrush, badgePath);
+                e.Graphics.DrawPath(badgeBorderPen, badgePath);
+
+                TextRenderer.DrawText(e.Graphics, badgeText, badgeFont, badgeRect, badgeTextClr,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            }
+
+            // Line 2: Name + status hint
+            string line2Text = eq.Name ?? "—";
+            if (isAllocated) line2Text += " • ⚠ Not in store";
+            else if (isInStore) line2Text += " • ✓ Ready";
+
+            Color nameColor = isAllocated ? (ThemeHelper.IsDarkMode ? Color.FromArgb(245, 158, 11) : Color.FromArgb(180, 83, 9))
+                                          : ThemeHelper.TextSecondary;
+            using var nameBrush = new SolidBrush(nameColor);
             e.Graphics.DrawString(
-                eq.Name,
+                line2Text,
                 ThemeHelper.FontSmall,
                 nameBrush,
                 textX, nameY);
@@ -324,7 +401,7 @@ namespace Inventory_Management_System.Helpers
                 new Point(_textBox.Left, _textBox.Bottom));
 
             int dropH = Math.Min(itemCount, MaxSuggestions) * ItemHeight + 2;
-            int width = Math.Max(_textBox.Width, 260);
+            int width = Math.Max(_textBox.Width, 380);
 
             // Keep it on-screen if the textbox is near the bottom edge.
             var workArea = Screen.FromControl(_textBox).WorkingArea;

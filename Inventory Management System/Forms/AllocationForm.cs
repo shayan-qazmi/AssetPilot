@@ -1605,7 +1605,7 @@ namespace Inventory_Management_System.Forms
                     if (a == null) { fail++; continue; }
                     a.Status = "approved";
                     a.ApprovalDate = DateTime.UtcNow;
-                    a.ApprovedByUserId = 1;
+                    a.ApprovedByUserId = AuthService.CurrentUserId > 0 ? AuthService.CurrentUserId : 1;
                     if (a.Equipment != null) a.Equipment.CurrentStatus = "allocated";
                     db.SaveChanges();
                     _audit.Log(a.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved | Source Screen: Allocation Screen");
@@ -1638,7 +1638,7 @@ namespace Inventory_Management_System.Forms
                 if (a == null) return;
                 a.Status = "approved";
                 a.ApprovalDate = DateTime.UtcNow;
-                a.ApprovedByUserId = 1;
+                a.ApprovedByUserId = AuthService.CurrentUserId > 0 ? AuthService.CurrentUserId : 1;
                 if (a.Equipment != null) a.Equipment.CurrentStatus = "allocated";
                 db.SaveChanges();
                 _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved | Source Screen: Allocation Screen");

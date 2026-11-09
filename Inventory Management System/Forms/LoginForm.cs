@@ -256,6 +256,23 @@ namespace Inventory_Management_System.Forms
 
             int createAccountRowBottom = SetupCreateAccountLink();
             AddLoginSsoSection(fieldRadius, createAccountRowBottom);
+
+            // ── "Forgot password?" link on the login card ────────────
+            var lblForgot = new Label
+            {
+                Text = "Forgot password?",
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
+                ForeColor = GreenMid,
+                Cursor = Cursors.Hand,
+                AutoSize = true,
+                BackColor = Color.Transparent
+            };
+            lblForgot.Top = pnlToggle.Top + (pnlToggle.Height - lblForgot.PreferredHeight) / 2;
+            lblForgot.Left = panelUsername.Right - lblForgot.PreferredWidth;
+            lblForgot.Click += (s, e) => ShowForgotPasswordPanel();
+            lblForgot.MouseEnter += (s, e) => lblForgot.Font = new Font("Segoe UI", 8.5f, FontStyle.Underline);
+            lblForgot.MouseLeave += (s, e) => lblForgot.Font = new Font("Segoe UI", 8.5f, FontStyle.Regular);
+            panelCard.Controls.Add(lblForgot);
         }
 
         private void AddLoginSsoSection(int fieldRadius, int startY)
@@ -288,10 +305,16 @@ namespace Inventory_Management_System.Forms
                 panelCard.Height = y;
         }
         private Panel? _signUpPanel;
+        private Panel? _forgotPasswordPanel;
+        private bool _forgotUseEmailMethod = true;
+        private Action? _resetForgotPasswordForm;
         private readonly Dictionary<Control, Point> _signUpOriginalPositions = new();
+        private readonly Dictionary<Control, Point> _forgotOriginalPositions = new();
 
         private void ShowSignUpPanel()
         {
+            if (_forgotPasswordPanel != null) _forgotPasswordPanel.Visible = false;
+
             if (_signUpPanel == null)
                 _signUpPanel = BuildSignUpPanel();
 
@@ -300,6 +323,32 @@ namespace Inventory_Management_System.Forms
             _signUpPanel.Visible = true;
             this.Text = "AssetPilot — Create account";
             AnimateSignUpPanelIn(_signUpPanel);
+        }
+
+        private void ShowForgotPasswordPanel()
+        {
+            if (_signUpPanel != null) _signUpPanel.Visible = false;
+
+            if (_forgotPasswordPanel == null)
+                _forgotPasswordPanel = BuildForgotPasswordPanel();
+
+            _resetForgotPasswordForm?.Invoke();
+            RecenterForgotPasswordPanel();
+            _forgotPasswordPanel.BringToFront();
+            _forgotPasswordPanel.Visible = true;
+            this.Text = "AssetPilot — Reset password";
+            AnimateSignUpPanelIn(_forgotPasswordPanel);
+        }
+
+        private void HideForgotPasswordPanel()
+        {
+            int targetY = (panelRight.Height - panelCard.Height) / 2;
+            panelCard.Location = new Point(panelCard.Left, targetY + 60);
+
+            if (_forgotPasswordPanel != null)
+                _forgotPasswordPanel.Visible = false;
+            this.Text = "AssetPilot — Login";
+            StartSlideUpAnimation();
         }
 
         private void AnimateSignUpPanelIn(Panel panel)
@@ -774,7 +823,38 @@ namespace Inventory_Management_System.Forms
             lblSignInLink.Click += (s, e) => HideSignUpPanel();
             panel.Controls.Add(lblSignInPrompt);
             panel.Controls.Add(lblSignInLink);
-            y += lblSignInLink.PreferredHeight + 16;
+            y += lblSignInLink.PreferredHeight + 12;
+
+            // ── Forgot password link on sign-up panel ────────────────
+            var lblForgotSignPrompt = new Label
+            {
+                Text = "Forgot your password? ",
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = Color.FromArgb(107, 114, 128),
+                AutoSize = true,
+                Top = y
+            };
+            var lblForgotSignLink = new Label
+            {
+                Text = "Reset it here",
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                ForeColor = GreenMid,
+                AutoSize = true,
+                Cursor = Cursors.Hand,
+                Top = y
+            };
+            int forgotSignW = lblForgotSignPrompt.PreferredWidth + lblForgotSignLink.PreferredWidth;
+            int forgotSignStartX = contentLeft + (contentWidth - forgotSignW) / 2;
+            lblForgotSignPrompt.Left = forgotSignStartX;
+            lblForgotSignLink.Left = forgotSignStartX + lblForgotSignPrompt.PreferredWidth;
+            lblForgotSignLink.Click += (s, e) =>
+            {
+                HideSignUpPanel();
+                ShowForgotPasswordPanel();
+            };
+            panel.Controls.Add(lblForgotSignPrompt);
+            panel.Controls.Add(lblForgotSignLink);
+            y += lblForgotSignLink.PreferredHeight + 16;
 
             // ── Admin note ───────────────────────────────────────────
             var lblAdminNote = new Label
@@ -845,6 +925,486 @@ namespace Inventory_Management_System.Forms
             _signUpPanel.PerformLayout();
             _signUpPanel.Invalidate(true);
             _signUpPanel.Update();
+        }
+
+        private Panel BuildForgotPasswordPanel()
+        {
+            panelRight.Resize += (s, e) => { if (_forgotPasswordPanel != null && _forgotPasswordPanel.Visible) RecenterForgotPasswordPanel(); };
+            var panel = new Panel
+            {
+                BackColor = Color.White,
+                Location = new Point(0, 0),
+                Size = panelRight.ClientSize,
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
+                AutoScroll = true,
+                Visible = false
+            };
+            panelRight.Controls.Add(panel);
+
+            int contentLeft = panelUsername.Left;
+            int contentWidth = panelUsername.Width;
+            int y = 40;
+
+            var lblTitle = new Label
+            {
+                Text = "Reset password",
+                Font = new Font("Segoe UI", 22f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(17, 24, 39),
+                AutoSize = true,
+                Left = contentLeft,
+                Top = y
+            };
+            panel.Controls.Add(lblTitle);
+            y += lblTitle.PreferredHeight + 6;
+
+            var lblSubtitle = new Label
+            {
+                Text = "Enter either PIN or Email (or both) to verify your account",
+                Font = new Font("Segoe UI", 9.5f),
+                ForeColor = Color.FromArgb(107, 114, 128),
+                AutoSize = true,
+                Left = contentLeft,
+                Top = y
+            };
+            panel.Controls.Add(lblSubtitle);
+            y += lblSubtitle.PreferredHeight + 20;
+
+            // ── Method Selector Tabs (Option 1 vs Option 2) ──────────
+            int optGap = 10;
+            int optWidth = (contentWidth - optGap) / 2;
+            int optHeight = 38;
+            int fieldRadius = (panelUsername is Helpers.RoundedPanel rpF) ? rpF.CornerRadius : 10;
+
+            var btnOptEmail = new Button
+            {
+                Text = "✉  Work Email",
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                Size = new Size(optWidth, optHeight),
+                Location = new Point(contentLeft, y),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnOptEmail.FlatAppearance.BorderSize = 0;
+            btnOptEmail.Region = MakeRoundedRegion(optWidth, optHeight, 8);
+
+            var btnOptAdmin = new Button
+            {
+                Text = "🔑  Recovery PIN",
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                Size = new Size(optWidth, optHeight),
+                Location = new Point(contentLeft + optWidth + optGap, y),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand
+            };
+            btnOptAdmin.FlatAppearance.BorderSize = 0;
+            btnOptAdmin.Region = MakeRoundedRegion(optWidth, optHeight, 8);
+
+            panel.Controls.Add(btnOptEmail);
+            panel.Controls.Add(btnOptAdmin);
+            y += optHeight + 18;
+
+            // ── Field 1: Username ────────────────────────────────────
+            y = AddSignUpField(panel, "Username", contentLeft, contentWidth, y,
+                out var txtUser, out var fieldUser, isPassword: false, icon: SignUpFieldIcon.Person);
+
+            // ── Field 2: Dynamic Verification Input ──────────────────
+            var lblVerify = new Label
+            {
+                Text = "Registered work email",
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(17, 24, 39),
+                AutoSize = true,
+                Left = contentLeft,
+                Top = y
+            };
+            panel.Controls.Add(lblVerify);
+            y += lblVerify.PreferredHeight + 6;
+
+            var fieldVerify = new Helpers.RoundedPanel
+            {
+                Left = contentLeft,
+                Top = y,
+                Width = contentWidth,
+                Height = panelUsername.Height,
+                BackColor = Color.FromArgb(243, 244, 246),
+                BorderColor = Color.FromArgb(209, 213, 219),
+                BorderWidth = 1,
+                CornerRadius = fieldRadius
+            };
+            panel.Controls.Add(fieldVerify);
+
+            var lblVerifyIcon = new Label
+            {
+                Text = "✉",
+                Font = new Font("Segoe UI", 11.5f),
+                ForeColor = Color.FromArgb(156, 163, 175),
+                AutoSize = true,
+                BackColor = Color.Transparent
+            };
+            lblVerifyIcon.Location = new Point(12, (fieldVerify.Height - lblVerifyIcon.PreferredHeight) / 2);
+            fieldVerify.Controls.Add(lblVerifyIcon);
+
+            var lblTick = new Label
+            {
+                Text = "✓",
+                Font = new Font("Segoe UI", 13f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(16, 185, 129),
+                AutoSize = false,
+                Size = new Size(30, 30),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = Color.Transparent,
+                Visible = false
+            };
+            lblTick.Location = new Point(fieldVerify.Width - 36, (fieldVerify.Height - 30) / 2);
+            fieldVerify.Controls.Add(lblTick);
+
+            var txtVerify = new TextBox
+            {
+                BorderStyle = BorderStyle.None,
+                Font = new Font("Segoe UI", 10.5f),
+                ForeColor = Color.FromArgb(17, 24, 39),
+                BackColor = fieldVerify.BackColor,
+                Left = 44,
+                Width = contentWidth - 44 - 40,
+                PlaceholderText = "name@company.com"
+            };
+            txtVerify.Top = (fieldVerify.Height - txtVerify.Height) / 2;
+            fieldVerify.Controls.Add(txtVerify);
+            y += fieldVerify.Height + 6;
+
+            var lblHint = new Label
+            {
+                Text = "ℹ Must match the email address linked to your account",
+                Font = new Font("Segoe UI", 8.2f, FontStyle.Italic),
+                ForeColor = Color.FromArgb(107, 114, 128),
+                AutoSize = true,
+                Left = contentLeft + 2,
+                Top = y
+            };
+            panel.Controls.Add(lblHint);
+            y += lblHint.PreferredHeight + 14;
+
+            // ── Field 3: New Password ────────────────────────────────
+            y = AddSignUpField(panel, "New password", contentLeft, contentWidth, y,
+                out var txtNewPass, out var fieldNewPass, isPassword: true, icon: SignUpFieldIcon.Key);
+
+            // ── Field 4: Confirm New Password ────────────────────────
+            y = AddSignUpField(panel, "Confirm new password", contentLeft, contentWidth, y,
+                out var txtConfirmPass, out var fieldConfirmPass, isPassword: true, icon: SignUpFieldIcon.Key);
+
+            // ── Reset Password Button ────────────────────────────────
+            var btnReset = new Button
+            {
+                Text = "↺  Reset Password",
+                Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+                ForeColor = Color.White,
+                BackColor = GreenMid,
+                FlatStyle = FlatStyle.Flat,
+                Left = contentLeft,
+                Top = y,
+                Width = contentWidth,
+                Height = panelUsername.Height,
+                Cursor = Cursors.Hand
+            };
+            btnReset.FlatAppearance.BorderSize = 0;
+            btnReset.Region = MakeRoundedRegion(btnReset.Width, btnReset.Height, fieldRadius);
+            btnReset.MouseEnter += (s, e) => { if (btnReset.Enabled) btnReset.BackColor = GreenDark; };
+            btnReset.MouseLeave += (s, e) => { if (btnReset.Enabled) btnReset.BackColor = GreenMid; };
+
+            bool isVerified = false;
+
+            void SetVerificationState(bool verified)
+            {
+                isVerified = verified;
+                if (verified)
+                {
+                    lblTick.Visible = true;
+                    fieldVerify.BorderColor = Color.FromArgb(16, 185, 129);
+                    fieldVerify.BorderWidth = 2;
+                    lblHint.Text = "✓ Verified! You can now proceed and enter your new password below.";
+                    lblHint.ForeColor = Color.FromArgb(16, 185, 129);
+
+                    fieldNewPass.Enabled = true;
+                    txtNewPass.Enabled = true;
+                    fieldNewPass.BackColor = Color.FromArgb(243, 244, 246);
+                    txtNewPass.BackColor = Color.FromArgb(243, 244, 246);
+
+                    fieldConfirmPass.Enabled = true;
+                    txtConfirmPass.Enabled = true;
+                    fieldConfirmPass.BackColor = Color.FromArgb(243, 244, 246);
+                    txtConfirmPass.BackColor = Color.FromArgb(243, 244, 246);
+
+                    btnReset.Enabled = true;
+                    btnReset.BackColor = GreenMid;
+                    btnReset.Cursor = Cursors.Hand;
+                }
+                else
+                {
+                    lblTick.Visible = false;
+                    fieldVerify.BorderColor = Color.FromArgb(209, 213, 219);
+                    fieldVerify.BorderWidth = 1;
+                    lblHint.Text = _forgotUseEmailMethod
+                        ? "ℹ Enter registered work email (or recovery PIN)"
+                        : "ℹ Enter personal recovery PIN or Admin master PIN";
+                    lblHint.ForeColor = Color.FromArgb(107, 114, 128);
+
+                    fieldNewPass.Enabled = false;
+                    txtNewPass.Enabled = false;
+                    txtNewPass.Text = string.Empty;
+                    fieldNewPass.BackColor = Color.FromArgb(249, 250, 251);
+                    txtNewPass.BackColor = Color.FromArgb(249, 250, 251);
+
+                    fieldConfirmPass.Enabled = false;
+                    txtConfirmPass.Enabled = false;
+                    txtConfirmPass.Text = string.Empty;
+                    fieldConfirmPass.BackColor = Color.FromArgb(249, 250, 251);
+                    txtConfirmPass.BackColor = Color.FromArgb(249, 250, 251);
+
+                    btnReset.Enabled = false;
+                    btnReset.BackColor = Color.FromArgb(209, 213, 219);
+                    btnReset.Cursor = Cursors.No;
+                }
+            }
+
+            void CheckVerification()
+            {
+                string uname = txtUser.Text.Trim();
+                string verifyVal = txtVerify.Text.Trim();
+
+                if (string.IsNullOrWhiteSpace(uname) || string.IsNullOrWhiteSpace(verifyVal))
+                {
+                    SetVerificationState(false);
+                    return;
+                }
+
+                try
+                {
+                    using var db = new InventoryDbContext();
+                    var user = db.Users.FirstOrDefault(u => u.Username.ToLower() == uname.ToLower());
+                    if (user == null)
+                    {
+                        SetVerificationState(false);
+                        return;
+                    }
+
+                    bool emailMatches = !string.IsNullOrWhiteSpace(user.Email) &&
+                        string.Equals(user.Email.Trim(), verifyVal, StringComparison.OrdinalIgnoreCase);
+                    bool pinMatches = RecoveryPinHelper.VerifyPin(verifyVal, uname);
+
+                    SetVerificationState(emailMatches || pinMatches);
+                }
+                catch
+                {
+                    SetVerificationState(false);
+                }
+            }
+
+            void UpdateMethodTabs()
+            {
+                if (_forgotUseEmailMethod)
+                {
+                    btnOptEmail.BackColor = GreenMid;
+                    btnOptEmail.ForeColor = Color.White;
+                    btnOptAdmin.BackColor = Color.FromArgb(243, 244, 246);
+                    btnOptAdmin.ForeColor = Color.FromArgb(75, 85, 99);
+
+                    lblVerify.Text = "Registered work email";
+                    lblVerifyIcon.Text = "✉";
+                    txtVerify.PlaceholderText = "name@company.com";
+                    txtVerify.UseSystemPasswordChar = false;
+                }
+                else
+                {
+                    btnOptAdmin.BackColor = GreenMid;
+                    btnOptAdmin.ForeColor = Color.White;
+                    btnOptEmail.BackColor = Color.FromArgb(243, 244, 246);
+                    btnOptEmail.ForeColor = Color.FromArgb(75, 85, 99);
+
+                    lblVerify.Text = "Recovery PIN / Admin Master PIN";
+                    lblVerifyIcon.Text = "🔑";
+                    txtVerify.PlaceholderText = "Enter personal PIN or Admin PIN";
+                    txtVerify.UseSystemPasswordChar = true;
+                }
+                CheckVerification();
+            }
+
+            txtUser.TextChanged += (s, e) => CheckVerification();
+            txtVerify.TextChanged += (s, e) => CheckVerification();
+
+            btnOptEmail.Click += (s, e) => { _forgotUseEmailMethod = true; UpdateMethodTabs(); };
+            btnOptAdmin.Click += (s, e) => { _forgotUseEmailMethod = false; UpdateMethodTabs(); };
+            UpdateMethodTabs();
+            SetVerificationState(false);
+
+            _resetForgotPasswordForm = () =>
+            {
+                txtUser.Text = string.IsNullOrWhiteSpace(txtUsername.Text) ? string.Empty : txtUsername.Text.Trim();
+                txtVerify.Text = string.Empty;
+                txtNewPass.Text = string.Empty;
+                txtConfirmPass.Text = string.Empty;
+                _forgotUseEmailMethod = true;
+                UpdateMethodTabs();
+                SetVerificationState(false);
+            };
+
+            btnReset.Click += (s, e) =>
+            {
+                if (!isVerified)
+                {
+                    ShowToast("Please enter a valid username and verification credentials first.");
+                    ShakeControl(fieldVerify);
+                    return;
+                }
+
+                string uname = txtUser.Text.Trim();
+                string verifyVal = txtVerify.Text.Trim();
+                string newPass = txtNewPass.Text;
+                string confirmPass = txtConfirmPass.Text;
+
+                if (string.IsNullOrWhiteSpace(newPass))
+                {
+                    ShowToast("Please enter a new password.");
+                    ShakeControl(fieldNewPass);
+                    return;
+                }
+                if (newPass.Length < 6)
+                {
+                    ShowToast("Password must be at least 6 characters.");
+                    ShakeControl(fieldNewPass);
+                    return;
+                }
+                if (newPass != confirmPass)
+                {
+                    ShowToast("Passwords do not match.");
+                    ShakeControl(fieldConfirmPass);
+                    return;
+                }
+
+                try
+                {
+                    using var db = new InventoryDbContext();
+                    var targetUser = db.Users.FirstOrDefault(u => u.Username.ToLower() == uname.ToLower());
+                    if (targetUser == null)
+                    {
+                        ShowToast("No account found with this username.");
+                        ShakeControl(fieldUser);
+                        return;
+                    }
+
+                    bool verified = (!string.IsNullOrWhiteSpace(targetUser.Email) &&
+                        string.Equals(targetUser.Email.Trim(), verifyVal, StringComparison.OrdinalIgnoreCase)) ||
+                        RecoveryPinHelper.VerifyPin(verifyVal, uname);
+
+                    if (!verified)
+                    {
+                        ShowToast("Invalid verification credentials for this account.");
+                        ShakeControl(fieldVerify);
+                        return;
+                    }
+
+                    // Verified! Hash and save new password
+                    targetUser.PasswordHash = PasswordHelper.Hash(newPass);
+                    targetUser.PasswordChangedAt = DateTime.UtcNow;
+                    targetUser.UpdatedAt = DateTime.UtcNow;
+                    db.SaveChanges();
+
+                    SecurityAuditLogger.Log("Self-Service Password Reset", $"Password reset for user '{targetUser.Username}' via {(_forgotUseEmailMethod ? "work email" : "recovery PIN")}");
+
+                    ShowToast("Password reset successfully! You can now sign in.", isError: false);
+                    txtUsername.Text = targetUser.Username;
+                    txtPassword.Text = string.Empty;
+                    txtPassword.Focus();
+                    HideForgotPasswordPanel();
+                }
+                catch (Exception ex)
+                {
+                    ShowToast("Reset failed: " + ex.Message);
+                }
+            };
+
+            panel.Controls.Add(btnReset);
+            y += btnReset.Height + 20;
+
+            // ── Footer link: Back to Sign In ─────────────────────────
+            var lblBackPrompt = new Label
+            {
+                Text = "Remember your password? ",
+                Font = new Font("Segoe UI", 9.5f),
+                ForeColor = Color.FromArgb(107, 114, 128),
+                AutoSize = true,
+                Top = y
+            };
+            var lblBackLink = new Label
+            {
+                Text = "Sign in",
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                ForeColor = GreenMid,
+                AutoSize = true,
+                Cursor = Cursors.Hand,
+                Top = y
+            };
+            int backTotalW = lblBackPrompt.PreferredWidth + lblBackLink.PreferredWidth;
+            int backStartX = contentLeft + (contentWidth - backTotalW) / 2;
+            lblBackPrompt.Left = backStartX;
+            lblBackLink.Left = backStartX + lblBackPrompt.PreferredWidth;
+            lblBackLink.Click += (s, e) => HideForgotPasswordPanel();
+            panel.Controls.Add(lblBackPrompt);
+            panel.Controls.Add(lblBackLink);
+            y += lblBackLink.PreferredHeight + 36;
+
+            _forgotOriginalPositions.Clear();
+            foreach (Control c in panel.Controls)
+                _forgotOriginalPositions[c] = new Point(c.Left, c.Top);
+
+            panel.AutoScrollMinSize = new Size(0, y + 40);
+
+            return panel;
+        }
+
+        private void RecenterForgotPasswordPanel()
+        {
+            if (_forgotPasswordPanel == null || _forgotOriginalPositions.Count == 0) return;
+
+            int minLeft = int.MaxValue, maxRight = int.MinValue;
+            int minTop = int.MaxValue, maxBottom = int.MinValue;
+            foreach (var kvp in _forgotOriginalPositions)
+            {
+                if (kvp.Key.IsDisposed) continue;
+                int left = kvp.Value.X;
+                int right = kvp.Value.X + kvp.Key.Width;
+                int top = kvp.Value.Y;
+                int bottom = kvp.Value.Y + kvp.Key.Height;
+                if (left < minLeft) minLeft = left;
+                if (right > maxRight) maxRight = right;
+                if (top < minTop) minTop = top;
+                if (bottom > maxBottom) maxBottom = bottom;
+            }
+            int contentWidthMeasured = maxRight - minLeft;
+            int contentHeight = maxBottom - minTop;
+
+            int availableWidth = panelRight.ClientSize.Width;
+            int availableHeight = panelRight.ClientSize.Height;
+
+            int desiredLeftMargin = Math.Max(0, (availableWidth - contentWidthMeasured) / 2);
+            int offsetX = desiredLeftMargin - minLeft;
+
+            int desiredTopMargin = Math.Max(24, (availableHeight - contentHeight) / 2);
+            int offsetY = desiredTopMargin - minTop;
+
+            foreach (var kvp in _forgotOriginalPositions)
+            {
+                if (kvp.Key.IsDisposed) continue;
+                kvp.Key.Left = kvp.Value.X + offsetX;
+                kvp.Key.Top = kvp.Value.Y + offsetY;
+            }
+
+            int newContentBottom = maxBottom + offsetY;
+            int requiredScrollHeight = newContentBottom + Math.Max(24, desiredTopMargin);
+            _forgotPasswordPanel.AutoScrollMinSize = new Size(0, Math.Max(requiredScrollHeight, availableHeight));
+            _forgotPasswordPanel.AutoScrollPosition = new Point(0, 0);
+            _forgotPasswordPanel.PerformLayout();
+            _forgotPasswordPanel.Invalidate(true);
+            _forgotPasswordPanel.Update();
         }
 
         private Button MakeSsoButtonLocal(string label, int left, int top, int width, int radius)
@@ -1896,6 +2456,22 @@ namespace Inventory_Management_System.Forms
                     ShowToast("Invalid username or password.");
                     ShakeControl(panelPassword);
                     return;
+                }
+
+                // Auto-upgrade legacy plaintext passwords to bcrypt on successful login
+                if (!PasswordHelper.IsBcryptHash(user.PasswordHash))
+                {
+                    try
+                    {
+                        using var upgradeDb = new InventoryDbContext();
+                        var dbUser = upgradeDb.Users.FirstOrDefault(u => u.Id == user.Id);
+                        if (dbUser != null)
+                        {
+                            dbUser.PasswordHash = PasswordHelper.Hash(password);
+                            upgradeDb.SaveChanges();
+                        }
+                    }
+                    catch { /* non-critical — password still works, will retry next login */ }
                 }
 
                 AuthService.SetCurrentUser(user);

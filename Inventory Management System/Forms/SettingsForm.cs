@@ -59,6 +59,8 @@ namespace Inventory_Management_System.Forms
         private Button btnEditUser = null!;
         private Button btnToggleUser = null!;
         private Button btnDeleteUser = null!;
+        private Button btnUserPin = null!;
+        private Button btnRecoveryPin = null!;
 
         // ── Password fields ────────────────────────────────────────────
         private TextBox txtCurrentPwd = null!;
@@ -1078,86 +1080,65 @@ namespace Inventory_Management_System.Forms
             try
             {
                 using var db = new InventoryDbContext();
+                using var tx = db.Database.BeginTransaction();
 
-                // ── 1. Equipment Logs (FK → Equipment, User) ──────────────────
                 try
                 {
-                    var rows = db.EquipmentLogs.ToList();
-                    db.EquipmentLogs.RemoveRange(rows);
+                    // ── 1. Equipment Logs (FK → Equipment, User) ──────────────────
+                    var logRows = db.EquipmentLogs.ToList();
+                    db.EquipmentLogs.RemoveRange(logRows);
                     db.SaveChanges();
-                    counts["Logs"] = rows.Count;
-                }
-                catch (Exception ex) { errors.Add("Equipment Logs: " + ex.Message); }
+                    counts["Logs"] = logRows.Count;
 
-                // ── 2. Equipment Location Histories (FK → Equipment, Location) ──
-                try
-                {
-                    var rows = db.EquipmentLocationHistories.ToList();
-                    db.EquipmentLocationHistories.RemoveRange(rows);
+                    // ── 2. Equipment Location Histories (FK → Equipment, Location) ──
+                    var histRows = db.EquipmentLocationHistories.ToList();
+                    db.EquipmentLocationHistories.RemoveRange(histRows);
                     db.SaveChanges();
-                    counts["Location Histories"] = rows.Count;
-                }
-                catch (Exception ex) { errors.Add("Location Histories: " + ex.Message); }
+                    counts["Location Histories"] = histRows.Count;
 
-                // ── 3. Maintenance Records (FK → Equipment) ───────────────────
-                try
-                {
-                    var rows = db.MaintenanceRecords.ToList();
-                    db.MaintenanceRecords.RemoveRange(rows);
+                    // ── 3. Maintenance Records (FK → Equipment) ───────────────────
+                    var maintRows = db.MaintenanceRecords.ToList();
+                    db.MaintenanceRecords.RemoveRange(maintRows);
                     db.SaveChanges();
-                    counts["Maintenance Records"] = rows.Count;
-                }
-                catch (Exception ex) { errors.Add("Maintenance Records: " + ex.Message); }
+                    counts["Maintenance Records"] = maintRows.Count;
 
-                // ── 4. Transactions / Check-In-Out history (FK → Equipment) ──
-                try
-                {
-                    var rows = db.Transactions.ToList();
-                    db.Transactions.RemoveRange(rows);
+                    // ── 4. Transactions / Check-In-Out history (FK → Equipment) ──
+                    var txRows = db.Transactions.ToList();
+                    db.Transactions.RemoveRange(txRows);
                     db.SaveChanges();
-                    counts["Transactions (Check-In/Out)"] = rows.Count;
-                }
-                catch (Exception ex) { errors.Add("Transactions: " + ex.Message); }
+                    counts["Transactions (Check-In/Out)"] = txRows.Count;
 
-                // ── 5. Allocations (FK → Equipment, Employee, Location) ───────
-                try
-                {
-                    var rows = db.Allocations.ToList();
-                    db.Allocations.RemoveRange(rows);
+                    // ── 5. Allocations (FK → Equipment, Employee, Location) ───────
+                    var allocRows = db.Allocations.ToList();
+                    db.Allocations.RemoveRange(allocRows);
                     db.SaveChanges();
-                    counts["Allocations"] = rows.Count;
-                }
-                catch (Exception ex) { errors.Add("Allocations: " + ex.Message); }
+                    counts["Allocations"] = allocRows.Count;
 
-                // ── 6. Equipment ──────────────────────────────────────────────
-                try
-                {
-                    var rows = db.Equipment.ToList();
-                    db.Equipment.RemoveRange(rows);
+                    // ── 6. Equipment ──────────────────────────────────────────────
+                    var eqRows = db.Equipment.ToList();
+                    db.Equipment.RemoveRange(eqRows);
                     db.SaveChanges();
-                    counts["Equipment"] = rows.Count;
-                }
-                catch (Exception ex) { errors.Add("Equipment: " + ex.Message); }
+                    counts["Equipment"] = eqRows.Count;
 
-                // ── 7. Employees (FK → Location via DefaultLocationId) ────────
-                try
-                {
-                    var rows = db.Employees.ToList();
-                    db.Employees.RemoveRange(rows);
+                    // ── 7. Employees (FK → Location via DefaultLocationId) ────────
+                    var empRows = db.Employees.ToList();
+                    db.Employees.RemoveRange(empRows);
                     db.SaveChanges();
-                    counts["Employees"] = rows.Count;
-                }
-                catch (Exception ex) { errors.Add("Employees: " + ex.Message); }
+                    counts["Employees"] = empRows.Count;
 
-                // ── 8. Locations ──────────────────────────────────────────────
-                try
-                {
-                    var rows = db.Locations.ToList();
-                    db.Locations.RemoveRange(rows);
+                    // ── 8. Locations ──────────────────────────────────────────────
+                    var locRows = db.Locations.ToList();
+                    db.Locations.RemoveRange(locRows);
                     db.SaveChanges();
-                    counts["Locations"] = rows.Count;
+                    counts["Locations"] = locRows.Count;
+
+                    tx.Commit();
                 }
-                catch (Exception ex) { errors.Add("Locations: " + ex.Message); }
+                catch (Exception ex)
+                {
+                    try { tx.Rollback(); } catch { /* already rolled back */ }
+                    errors.Add("Transaction rolled back — no data was deleted: " + (ex.InnerException?.Message ?? ex.Message));
+                }
             }
             catch (Exception ex)
             {
@@ -1260,7 +1241,7 @@ namespace Inventory_Management_System.Forms
             {
                 Text = "✛ Add User",
                 Location = new Point(0, 0),
-                Size = new Size(150, 38)
+                Size = new Size(125, 38)
             };
             StyleGreenBtn(btnAddUser);
             btnAddUser.Click += BtnAddUser_Click;
@@ -1268,8 +1249,8 @@ namespace Inventory_Management_System.Forms
             btnEditUser = new Button
             {
                 Text = "✏  Edit",
-                Location = new Point(164, 0),
-                Size = new Size(130, 38)
+                Location = new Point(135, 0),
+                Size = new Size(100, 38)
             };
             ThemeHelper.StyleButton(btnEditUser, Color.FromArgb(245, 158, 11));
             btnEditUser.Click += BtnEditUser_Click;
@@ -1277,25 +1258,45 @@ namespace Inventory_Management_System.Forms
             btnToggleUser = new Button
             {
                 Text = "⇄ Toggle Active",
-                Location = new Point(308, 0),
-                Size = new Size(160, 38)
+                Location = new Point(245, 0),
+                Size = new Size(130, 38)
             };
             ThemeHelper.StyleButton(btnToggleUser, Color.FromArgb(33, 150, 243));
             btnToggleUser.Click += BtnToggleUser_Click;
 
             btnDeleteUser = new Button
             {
-                Text = "🗑  Delete User",
-                Location = new Point(482, 0),
-                Size = new Size(150, 38)
+                Text = "🗑  Delete",
+                Location = new Point(385, 0),
+                Size = new Size(110, 38)
             };
             StyleRedBtn(btnDeleteUser);
             btnDeleteUser.Click += BtnDeleteUser_Click;
+
+            btnUserPin = new Button
+            {
+                Text = "🔒 User PIN",
+                Location = new Point(505, 0),
+                Size = new Size(125, 38)
+            };
+            ThemeHelper.StyleButton(btnUserPin, Color.FromArgb(124, 58, 237));
+            btnUserPin.Click += BtnUserPin_Click;
+
+            btnRecoveryPin = new Button
+            {
+                Text = "🔑 Master PIN",
+                Location = new Point(640, 0),
+                Size = new Size(135, 38)
+            };
+            ThemeHelper.StyleButton(btnRecoveryPin, Color.FromArgb(109, 40, 217));
+            btnRecoveryPin.Click += BtnRecoveryPin_Click;
 
             toolbar.Controls.Add(btnAddUser);
             toolbar.Controls.Add(btnEditUser);
             toolbar.Controls.Add(btnToggleUser);
             toolbar.Controls.Add(btnDeleteUser);
+            toolbar.Controls.Add(btnUserPin);
+            toolbar.Controls.Add(btnRecoveryPin);
             outer.Controls.Add(toolbar);
 
             dgvUsers = new DataGridView
@@ -1333,11 +1334,14 @@ namespace Inventory_Management_System.Forms
             dgvUsers.Columns.Add("Username", "Username");
             dgvUsers.Columns.Add("FullName", "Full Name");
             dgvUsers.Columns.Add("Email", "Email");
+            dgvUsers.Columns.Add("RecoveryPin", "Recovery PIN");
             dgvUsers.Columns.Add("Role", "Role");
             dgvUsers.Columns.Add("Status", "Status");
             dgvUsers.Columns.Add("PasswordChanged", "Password Changed");
             dgvUsers.Columns["PasswordChanged"].FillWeight = 130;
             dgvUsers.Columns["PasswordChanged"].MinimumWidth = 150;
+            dgvUsers.Columns["RecoveryPin"].FillWeight = 110;
+            dgvUsers.Columns["RecoveryPin"].MinimumWidth = 110;
             dgvUsers.Columns["ID"].FillWeight = 30;
             dgvUsers.Columns["Status"].FillWeight = 90;
             dgvUsers.Columns["Status"].MinimumWidth = 110;
@@ -1364,15 +1368,21 @@ namespace Inventory_Management_System.Forms
                     var roleName = _roles.FirstOrDefault(r => r.Id == roleId)?.RoleName ?? "—";
                     bool active = u.IsActive == true;
 
+                    var uPin = RecoveryPinHelper.GetUserPin(u.Username);
+                    string pinText = !string.IsNullOrWhiteSpace(uPin) ? $"🔑 {uPin}" : "— (Default Master PIN)";
+
                     int idx = dgvUsers.Rows.Add(
-    u.Id, u.Username, u.FullName,
-    u.Email ?? "—", roleName,
-    active ? "🟢 Active" : "🔴 Inactive",
-        u.PasswordChangedAt.HasValue
-        ? TimeHelper.ToPakistanTime(u.PasswordChangedAt.Value).ToString("dd MMM yyyy")
-        : "Never");
+                        u.Id, u.Username, u.FullName,
+                        u.Email ?? "—", pinText, roleName,
+                        active ? "🟢 Active" : "🔴 Inactive",
+                        u.PasswordChangedAt.HasValue
+                            ? TimeHelper.ToPakistanTime(u.PasswordChangedAt.Value).ToString("dd MMM yyyy")
+                            : "Never");
 
                     var row = dgvUsers.Rows[idx];
+
+                    row.Cells["RecoveryPin"].Style.ForeColor = !string.IsNullOrWhiteSpace(uPin) ? Color.FromArgb(124, 58, 237) : Color.FromArgb(140, 140, 140);
+                    row.Cells["RecoveryPin"].Style.Font = ThemeHelper.FontBold;
 
                     // Mute non-status columns for inactive users, but keep Status itself
                     // always clearly colored (green = active, red = inactive) regardless.
@@ -1548,6 +1558,345 @@ namespace Inventory_Management_System.Forms
             {
                 ShowSettingsToast("Could not delete this user — they may still be referenced elsewhere " + ex.Message, ToastType.Error, SettingsToastIntent.Delete);
             }
+        }
+
+        private void BtnUserPin_Click(object? sender, EventArgs e)
+        {
+            if (dgvUsers.SelectedRows.Count == 0)
+            {
+                ShowSettingsToast("Please select a user to view or change their recovery PIN.", ToastType.Info, SettingsToastIntent.Edit);
+                return;
+            }
+            int id = Convert.ToInt32(dgvUsers.SelectedRows[0].Cells["ID"].Value);
+            var user = _users.FirstOrDefault(u => u.Id == id);
+            if (user == null) return;
+
+            string? currentPin = RecoveryPinHelper.GetUserPin(user.Username);
+
+            using var frm = new Form
+            {
+                Text = $"Recovery PIN — @{user.Username}",
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                StartPosition = FormStartPosition.CenterParent,
+                ClientSize = new Size(440, 310),
+                BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(28, 30, 36) : Color.White,
+                Font = new Font("Segoe UI", 9f)
+            };
+
+            var pnlHdr = new Panel { Dock = DockStyle.Top, Height = 60, BackColor = Color.FromArgb(124, 58, 237) };
+            pnlHdr.Controls.Add(new Label
+            {
+                Text = $"🔒  Recovery PIN for {user.FullName}",
+                Font = new Font("Segoe UI", 12f, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(16, 10)
+            });
+            pnlHdr.Controls.Add(new Label
+            {
+                Text = $"Username: @{user.Username} | Email: {user.Email ?? "None"}",
+                Font = new Font("Segoe UI", 8.5f),
+                ForeColor = Color.FromArgb(237, 233, 254),
+                AutoSize = true,
+                Location = new Point(18, 34)
+            });
+            frm.Controls.Add(pnlHdr);
+
+            int y = 74;
+            int margin = 22;
+            int contentW = frm.ClientSize.Width - margin * 2;
+
+            var pnlNotice = new Panel
+            {
+                Location = new Point(margin, y),
+                Width = contentW,
+                Height = 30,
+                BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(45, 38, 25) : Color.FromArgb(254, 243, 199)
+            };
+            var lblNotice = new Label
+            {
+                Text = "⚠️ Either PIN or Email (or both) is mandatory for user recovery",
+                Font = new Font("Segoe UI", 8.2f, FontStyle.Bold),
+                ForeColor = ThemeHelper.IsDarkMode ? Color.FromArgb(251, 191, 36) : Color.FromArgb(180, 83, 9),
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            pnlNotice.Controls.Add(lblNotice);
+            frm.Controls.Add(pnlNotice);
+            y += pnlNotice.Height + 10;
+
+            frm.Controls.Add(new Label
+            {
+                Text = "Recovery PIN:",
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize = true,
+                Location = new Point(margin, y)
+            });
+            y += 20;
+
+            var txtPin = new TextBox
+            {
+                Location = new Point(margin, y),
+                Width = contentW,
+                Font = new Font("Segoe UI", 10.5f),
+                Text = currentPin ?? ""
+            };
+            ThemeHelper.StyleTextBox(txtPin);
+            frm.Controls.Add(txtPin);
+            y += 36;
+
+            var lblHint = new Label
+            {
+                Text = string.IsNullOrWhiteSpace(currentPin) ? "ℹ No custom PIN set (user falls back to Organization Master PIN)" : $"Current PIN: {currentPin}",
+                Font = new Font("Segoe UI", 8.2f, FontStyle.Italic),
+                ForeColor = Color.FromArgb(107, 114, 128),
+                AutoSize = true,
+                Location = new Point(margin, y)
+            };
+            frm.Controls.Add(lblHint);
+            y += 32;
+
+            var btnSave = new Button { Text = "✓ Save PIN", Size = new Size(110, 36), Location = new Point(margin, y), Cursor = Cursors.Hand };
+            ThemeHelper.StyleButton(btnSave, Color.FromArgb(124, 58, 237));
+
+            var btnClear = new Button { Text = "Clear PIN", Size = new Size(100, 36), Location = new Point(margin + 120, y), Cursor = Cursors.Hand };
+            ThemeHelper.StyleSecondaryButton(btnClear);
+
+            var btnCancel = new Button { Text = "Cancel", Size = new Size(90, 36), Location = new Point(frm.ClientSize.Width - margin - 90, y), Cursor = Cursors.Hand };
+            ThemeHelper.StyleSecondaryButton(btnCancel);
+            btnCancel.Click += (s, e) => frm.DialogResult = DialogResult.Cancel;
+
+            btnSave.Click += (s, e) =>
+            {
+                string p = txtPin.Text.Trim();
+                if (string.IsNullOrWhiteSpace(p) && string.IsNullOrWhiteSpace(user.Email))
+                {
+                    ToastHelper.Show(frm, "User has no email. Either Email or Recovery PIN is mandatory.", ToastType.Warning);
+                    return;
+                }
+                if (!string.IsNullOrWhiteSpace(p) && p.Length < 4)
+                {
+                    ToastHelper.Show(frm, "Recovery PIN must be at least 4 characters.", ToastType.Warning);
+                    return;
+                }
+
+                RecoveryPinHelper.SetUserPin(user.Username, string.IsNullOrWhiteSpace(p) ? null : p);
+                SecurityAuditLogger.Log("Updated user recovery PIN", $"Target: {user.Username} by {AuthService.CurrentUsername}");
+                ShowSettingsToast($"Recovery PIN updated for @{user.Username}.");
+                frm.DialogResult = DialogResult.OK;
+            };
+
+            btnClear.Click += (s, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(user.Email))
+                {
+                    ToastHelper.Show(frm, "Cannot clear PIN: user has no email! Either Email or PIN is mandatory.", ToastType.Warning);
+                    return;
+                }
+                RecoveryPinHelper.RemoveUserPin(user.Username);
+                SecurityAuditLogger.Log("Cleared user recovery PIN", $"Target: {user.Username} by {AuthService.CurrentUsername}");
+                ShowSettingsToast($"Recovery PIN cleared for @{user.Username}.");
+                frm.DialogResult = DialogResult.OK;
+            };
+
+            frm.Controls.Add(btnSave);
+            frm.Controls.Add(btnClear);
+            frm.Controls.Add(btnCancel);
+
+            if (frm.ShowDialog(this) == DialogResult.OK)
+            {
+                LoadUsers();
+            }
+        }
+
+        private void BtnRecoveryPin_Click(object? sender, EventArgs e)
+        {
+            using var frm = new Form
+            {
+                Text = "Organization Recovery PIN",
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                StartPosition = FormStartPosition.CenterParent,
+                ClientSize = new Size(460, 390),
+                BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(28, 30, 36) : Color.White,
+                Font = new Font("Segoe UI", 9f)
+            };
+
+            var pnlHeader = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 65,
+                BackColor = Color.FromArgb(124, 58, 237)
+            };
+            var lblTitle = new Label
+            {
+                Text = "🔑  Organization Recovery PIN",
+                Font = new Font("Segoe UI", 13f, FontStyle.Bold),
+                ForeColor = Color.White,
+                AutoSize = true,
+                Location = new Point(20, 12)
+            };
+            var lblSubtitle = new Label
+            {
+                Text = "Set or change the master PIN used for offline password resets",
+                Font = new Font("Segoe UI", 8.5f),
+                ForeColor = Color.FromArgb(237, 233, 254),
+                AutoSize = true,
+                Location = new Point(22, 38)
+            };
+            pnlHeader.Controls.Add(lblTitle);
+            pnlHeader.Controls.Add(lblSubtitle);
+            frm.Controls.Add(pnlHeader);
+
+            int y = 80;
+            int margin = 24;
+            int contentW = frm.ClientSize.Width - margin * 2;
+
+            bool hasCustom = RecoveryPinHelper.IsCustomPinSet();
+            string statusText = hasCustom ? "Current Status: Custom PIN is active" : $"Current Status: Default PIN is active (\"{RecoveryPinHelper.DefaultPin}\")";
+            Color statusColor = hasCustom ? Color.FromArgb(124, 58, 237) : Color.FromArgb(107, 114, 128);
+
+            var lblStatus = new Label
+            {
+                Text = statusText,
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                ForeColor = statusColor,
+                AutoSize = true,
+                Location = new Point(margin, y)
+            };
+            frm.Controls.Add(lblStatus);
+            y += 28;
+
+            var lblNewPin = new Label
+            {
+                Text = "New Recovery PIN *",
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize = true,
+                Location = new Point(margin, y)
+            };
+            frm.Controls.Add(lblNewPin);
+            y += 20;
+
+            var txtNewPin = new TextBox
+            {
+                Location = new Point(margin, y),
+                Width = contentW,
+                Font = new Font("Segoe UI", 10.5f),
+                UseSystemPasswordChar = true
+            };
+            ThemeHelper.StyleTextBox(txtNewPin);
+            frm.Controls.Add(txtNewPin);
+            y += 36;
+
+            var lblConfirmPin = new Label
+            {
+                Text = "Confirm Recovery PIN *",
+                Font = ThemeHelper.FontBold,
+                ForeColor = ThemeHelper.TextPrimary,
+                AutoSize = true,
+                Location = new Point(margin, y)
+            };
+            frm.Controls.Add(lblConfirmPin);
+            y += 20;
+
+            var txtConfirmPin = new TextBox
+            {
+                Location = new Point(margin, y),
+                Width = contentW,
+                Font = new Font("Segoe UI", 10.5f),
+                UseSystemPasswordChar = true
+            };
+            ThemeHelper.StyleTextBox(txtConfirmPin);
+            frm.Controls.Add(txtConfirmPin);
+            y += 42;
+
+            var btnSavePin = new Button
+            {
+                Text = "✓  Save PIN",
+                Size = new Size(130, 38),
+                Location = new Point(margin, y),
+                Cursor = Cursors.Hand
+            };
+            ThemeHelper.StyleButton(btnSavePin, Color.FromArgb(124, 58, 237));
+
+            var btnResetDefault = new Button
+            {
+                Text = "↺ Reset Default",
+                Size = new Size(130, 38),
+                Location = new Point(margin + 140, y),
+                Cursor = Cursors.Hand,
+                Enabled = hasCustom
+            };
+            ThemeHelper.StyleSecondaryButton(btnResetDefault);
+
+            var btnCancel = new Button
+            {
+                Text = "Cancel",
+                Size = new Size(100, 38),
+                Location = new Point(frm.ClientSize.Width - margin - 100, y),
+                Cursor = Cursors.Hand
+            };
+            ThemeHelper.StyleSecondaryButton(btnCancel);
+            btnCancel.Click += (s, e) => frm.DialogResult = DialogResult.Cancel;
+
+            btnSavePin.Click += (s, e) =>
+            {
+                string pin = txtNewPin.Text.Trim();
+                string confirm = txtConfirmPin.Text.Trim();
+
+                if (string.IsNullOrWhiteSpace(pin))
+                {
+                    ToastHelper.Show(frm, "Please enter a recovery PIN.", ToastType.Warning);
+                    txtNewPin.Focus();
+                    return;
+                }
+                if (pin.Length < 4)
+                {
+                    ToastHelper.Show(frm, "Recovery PIN must be at least 4 characters.", ToastType.Warning);
+                    txtNewPin.Focus();
+                    return;
+                }
+                if (pin != confirm)
+                {
+                    ToastHelper.Show(frm, "PINs do not match.", ToastType.Warning);
+                    txtConfirmPin.Focus();
+                    return;
+                }
+
+                if (RecoveryPinHelper.SetPin(pin))
+                {
+                    SecurityAuditLogger.Log("Changed Organization Recovery PIN", $"Updated by {AuthService.CurrentUsername}");
+                    ShowSettingsToast("Organization Recovery PIN updated successfully!");
+                    frm.DialogResult = DialogResult.OK;
+                }
+                else
+                {
+                    ToastHelper.Show(frm, "Could not save recovery PIN.", ToastType.Error);
+                }
+            };
+
+            btnResetDefault.Click += (s, e) =>
+            {
+                if (MessageBox.Show("Reset the recovery PIN to the default ('AssetPilot2026')?", "Confirm Reset",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    RecoveryPinHelper.ResetToDefault();
+                    SecurityAuditLogger.Log("Reset Organization Recovery PIN to Default", $"Reset by {AuthService.CurrentUsername}");
+                    ShowSettingsToast("Recovery PIN reset to default ('AssetPilot2026').");
+                    frm.DialogResult = DialogResult.OK;
+                }
+            };
+
+            frm.Controls.Add(btnSavePin);
+            frm.Controls.Add(btnResetDefault);
+            frm.Controls.Add(btnCancel);
+
+            frm.ShowDialog(this);
         }
 
         // ══════════════════════════════════════════════════════════════

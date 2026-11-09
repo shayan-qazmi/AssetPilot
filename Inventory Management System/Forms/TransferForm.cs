@@ -348,6 +348,7 @@ namespace Inventory_Management_System.Forms
 
                 oldAlloc.Status = "returned";
                 oldAlloc.ActualReturnDate = DateOnly.FromDateTime(DateTime.Today);
+                oldAlloc.ReturnProcessedAt = DateTime.UtcNow;
 
                 var newAlloc = new Allocation
                 {
@@ -356,8 +357,8 @@ namespace Inventory_Management_System.Forms
                     LocationId = frm.NewLocationId,
                     Status = "approved",
                     AllocationDate = DateTime.UtcNow,
-                    AllocatedByUserId = 1,
-                    ApprovedByUserId = 1,
+                    AllocatedByUserId = AuthService.CurrentUserId > 0 ? AuthService.CurrentUserId : 1,
+                    ApprovedByUserId = AuthService.CurrentUserId > 0 ? AuthService.CurrentUserId : 1,
                     ApprovalDate = DateTime.UtcNow,
                     PreviousAllocationId = oldAlloc.Id
                 };
@@ -385,7 +386,8 @@ namespace Inventory_Management_System.Forms
             }
             catch (Exception ex)
             {
-                ShowToast("Transfer failed: " + ex.ToString(), ToastType.Error);
+                string msg = ex.InnerException?.Message ?? ex.Message;
+                ShowToast("Transfer failed: " + msg, ToastType.Error);
             }
         }
 
@@ -918,7 +920,8 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
 
             var match = _allocations.FirstOrDefault(a =>
                 string.Equals($"{a.Equipment?.EquipmentCode} — {a.Equipment?.Name}", typed,
-                    StringComparison.OrdinalIgnoreCase));
+                    StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(a.Equipment?.EquipmentCode, typed, StringComparison.OrdinalIgnoreCase));
 
             if (match == null) return;
 
@@ -927,7 +930,9 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
 
             _suppressSync = true;
             cmbAllocation.SelectedIndex = index;
+            txtEquipmentSearch.Text = $"{match.Equipment?.EquipmentCode} — {match.Equipment?.Name}";
             _suppressSync = false;
+            UpdateCurrentDetails(match);
         }
 
         private void BtnSave_Click(object? sender, EventArgs e)
@@ -944,18 +949,42 @@ E(row.Cells["QRCode"].Value), E(row.Cells["EquipmentCode"].Value),
             var currentAlloc = _allocations.FirstOrDefault(a => a.Id == allocId);
             if (currentAlloc == null) return;
 
-            int? empId = cmbEmployee.SelectedValue is int eid ? eid : (int?)null;
-            int? roomId = cmbRoom.Enabled && cmbRoom.SelectedValue is int rid ? rid : (int?)null;
+            int? empId = cmbEmployee.SelectedValue is int eid && eid > 0 ? eid : (int?)null;
+            string? selectedLocName = cmbLocation.SelectedValue as string;
+            int? roomId = (cmbRoom.Enabled && cmbRoom.SelectedValue is int rid && rid > 0) ? rid : (int?)null;
 
-            if (empId == null && roomId == null)
+            bool isLocationChanged = !string.IsNullOrWhiteSpace(selectedLocName);
+            bool isEmployeeChanged = empId.HasValue;
+
+            if (!isEmployeeChanged && !isLocationChanged)
             {
                 ShowToast("Select a new employee and/or a new location to transfer to.", ToastType.Warning);
                 return;
             }
 
+            int? finalEmployeeId = isEmployeeChanged ? empId : currentAlloc.EmployeeId;
+            int? finalLocationId;
+
+            if (isLocationChanged)
+            {
+                // If a specific room was picked (rid > 0), use that room's Id.
+                // Otherwise resolve to the base Id for that location from _locations (never 0!).
+                finalLocationId = roomId ?? _locations.FirstOrDefault(l => l.LocationName == selectedLocName)?.Id;
+            }
+            else
+            {
+                finalLocationId = currentAlloc.LocationId;
+            }
+
+            if (finalEmployeeId == null && finalLocationId == null)
+            {
+                ShowToast("An allocation must have at least an employee or a location.", ToastType.Warning);
+                return;
+            }
+
             OldAllocationId = allocId;
-            NewEmployeeId = empId ?? currentAlloc.EmployeeId;   // unchanged if left on "keep current"
-            NewLocationId = roomId ?? currentAlloc.LocationId;  // unchanged if left on "keep current"
+            NewEmployeeId = finalEmployeeId;
+            NewLocationId = finalLocationId;
             DialogResult = DialogResult.OK;
         }
 
