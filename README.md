@@ -98,7 +98,7 @@ AssetPilot has two roles, stored in the `roles` table, linked to users through `
 |---|:---:|:---:|
 | Dashboard, Charts, Global Search, Notifications | ✅ | ✅ |
 | Equipment — View / Add / Edit / Import / Export | ✅ | ✅ |
-| Equipment — Delete | ✅ | ❌ Delete button hidden |
+| Equipment — Delete | ✅ | ❌ Restore button hidden |
 | Employees — Full management | ✅ | ✅ |
 | Locations — Full management | ✅ | ✅ |
 | Allocation — Allocate / Approve / Return / Edit date / Delete | ✅ | ✅ |
