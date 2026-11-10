@@ -431,10 +431,12 @@ namespace Inventory_Management_System.Forms
                 panelCard.VerticalScroll.Value = 0;
                 panelCard.PerformLayout();
 
-                // ── Populate history grid ──────────────────────────────────
+                // ── Populate history grid (limited to 50 most recent) ───────
                 dgvHistory.Rows.Clear();
+                int totalLogCount = equipment.EquipmentLogs.Count;
                 var logs = equipment.EquipmentLogs
                     .OrderByDescending(l => l.CreatedAt)
+                    .Take(50)
                     .ToList();
                 _currentLogs = logs;
 
@@ -471,7 +473,10 @@ namespace Inventory_Management_System.Forms
                     row.Cells["NewValue"].ToolTipText = newValueDisplay;
                 }
 
-                lblHistoryTitle.Text = $"📜 Equipment History ({logs.Count})";
+                string historyLabel = totalLogCount > 50
+                    ? $"📜 Equipment History (showing 50 of {totalLogCount})"
+                    : $"📜 Equipment History ({logs.Count})";
+                lblHistoryTitle.Text = historyLabel;
 
                 AddRecentScan(equipment.EquipmentCode);
                 if (_bulkMode)
@@ -809,9 +814,38 @@ namespace Inventory_Management_System.Forms
 
         private void btnPrintLabel_Click(object? sender, EventArgs e)
         {
-            // Stub — wire this to your existing QR/label printing routine if one
-            // exists elsewhere in the app; none was available to integrate against.
-            ToastHelper.Show(this, "Label printing isn't wired up yet.", ToastType.Info);
+            if (_currentEquipment == null)
+            {
+                ToastHelper.Show(this, "No equipment selected. Scan or search for an item first.", ToastType.Warning);
+                return;
+            }
+
+            try
+            {
+                // Generate QR bitmap from equipment's QR code (or equipment code as fallback)
+                string qrContent = _currentEquipment.QrCode ?? _currentEquipment.EquipmentCode;
+                using var qrBitmap = QRHelper.GenerateQRCode(qrContent, 10);
+
+                // Load printer settings from DB
+                AppSetting? settings = null;
+                try
+                {
+                    using var db = new InventoryDbContext();
+                    settings = db.AppSettings.FirstOrDefault();
+                }
+                catch { /* fall through — LabelPrinter uses sensible defaults */ }
+
+                settings ??= new AppSetting();
+
+                string caption = $"{_currentEquipment.EquipmentCode} — {_currentEquipment.Name}";
+
+                var printer = new LabelPrinter(settings);
+                printer.ShowPreview(qrBitmap, caption);
+            }
+            catch (Exception ex)
+            {
+                ToastHelper.Show(this, "Label printing failed: " + ex.Message, ToastType.Error);
+            }
         }
 
         private void btnClear_Click(object? sender, EventArgs e)

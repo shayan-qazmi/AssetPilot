@@ -16,6 +16,22 @@ namespace Inventory_Management_System.Forms
     public partial class LogsForm : Form, IThemableForm
     {
         private List<EquipmentLog> _allLogs = new();
+        // Filter state
+        private string _activeActionCategory = "All";
+        private int? _selectedUserId = null;
+        private DateTime? _filterStartDate = null;
+        private DateTime? _filterEndDate = null;
+        private readonly Dictionary<string, List<string>> _categoryActionMap = new()
+        {
+            { "All", new List<string>() },
+            { "Created", new List<string>{"equipment_created","employee_created","location_created"} },
+            { "Updated", new List<string>{"equipment_updated","employee_updated","location_updated","Expected Return Date Updated"} },
+            { "Allocation", new List<string>{"allocation_requested","allocation_approved","allocation_rejected","allocation_returned","allocation_overdue","return_undone","Allocation Request Deleted"} },
+            { "CheckInOut", new List<string>{"checked_out","checked_in"} },
+            { "Transfers", new List<string>{"transferred"} },
+            { "Decommission", new List<string>{"decommission_requested","decommission_approved","decommission_undone","decommission_rejected"} },
+            { "Deleted", new List<string>{"equipment_deleted","employee_deleted","location_deleted","equipment_restored","settings_data_delete"} }
+        };
 
         private int _currentPage = 1;
         private int _pageSize = 100;
@@ -34,7 +50,14 @@ namespace Inventory_Management_System.Forms
         {
             InitializeComponent();
             SetupPageSizeOptions();
-            flowToolbar.SizeChanged += (s, e) => panelTop.Height = flowToolbar.Height;
+            flowToolbar.SizeChanged += (s, e) =>
+            {
+                panelTop.Height = flowToolbar.Height + (flowFilterRow?.Height ?? 0);
+            };
+            flowFilterRow.SizeChanged += (s, e) =>
+            {
+                panelTop.Height = flowToolbar.Height + flowFilterRow.Height;
+            };
             ApplyTheme();
 
             foreach (DataGridViewColumn col in dgvLogs.Columns)
@@ -49,6 +72,22 @@ namespace Inventory_Management_System.Forms
             };
 
             SetupSuggestions();
+            PopulateUserFilter();
+
+            // Set default date filter to All time (no restriction)
+            _filterStartDate = null;
+            _filterEndDate   = null;
+
+            // Style the "All" pill as active by default (charcoal), rest inactive
+            StylePill(btnFilterAll,          true,  Color.FromArgb(31,  41,  55));
+            StylePill(btnFilterCreated,      false, Color.FromArgb(27,  94,  32));
+            StylePill(btnFilterUpdated,      false, Color.FromArgb(202, 138, 4));
+            StylePill(btnFilterAllocation,   false, Color.FromArgb(234, 88,  12));
+            StylePill(btnFilterCheckInOut,   false, Color.FromArgb(1,   87, 155));
+            StylePill(btnFilterTransfers,    false, Color.FromArgb(74,  20, 140));
+            StylePill(btnFilterDecommission, false, Color.FromArgb(211, 47,  47));
+            StylePill(btnFilterDeleted,      false, Color.FromArgb(183, 28,  28));
+
             LoadLogs();
 
             this.Shown += (s, e) =>
@@ -203,11 +242,24 @@ namespace Inventory_Management_System.Forms
             ThemeHelper.StyleToolbarPanel(panelTop);
             ThemeHelper.StyleButton(btnRefresh, Color.FromArgb(33, 150, 243));
             ThemeHelper.StyleSecondaryButton(btnExport);
-            ApplyRoundedSearchStyle(txtSearch); 
+            ThemeHelper.StyleSecondaryButton(btnReset);
+            ApplyRoundedSearchStyle(txtSearch);
             ThemeHelper.StyleComboBox(cmbPageSize);
+            ThemeHelper.StyleComboBox(cmbFilterUser);
+            ThemeHelper.StyleComboBox(cmbFilterDate);
+            ThemeHelper.StyleComboBox(cmbDensity);
             ThemeHelper.StyleSecondaryButton(btnPrevPage);
             ThemeHelper.StyleSecondaryButton(btnNextPage);
             ThemeHelper.StyleDataGridView(dgvLogs);
+
+            // Style filter row background
+            flowFilterRow.BackColor = ThemeHelper.IsDarkMode
+                ? Color.FromArgb(28, 32, 38)
+                : Color.FromArgb(248, 250, 252);
+
+            // Live status label
+            lblLiveStatus.ForeColor = Color.FromArgb(0, 128, 0);
+            lblLiveStatus.Font = ThemeHelper.FontSmall;
 
             panelBottom.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(22, 24, 29) : Color.FromArgb(249, 250, 251);
             lblRowCount.ForeColor = ThemeHelper.TextSecondary;
@@ -288,6 +340,20 @@ namespace Inventory_Management_System.Forms
                     .Include(l => l.Equipment)
                     .Include(l => l.ChangedByUser);
 
+                // ── Category filter ───────────────────────────────────────────
+                if (_activeActionCategory != "All" && _categoryActionMap.TryGetValue(_activeActionCategory, out var actions) && actions.Count > 0)
+                    baseQuery = baseQuery.Where(l => actions.Contains(l.ActionType));
+
+                // ── User filter ───────────────────────────────────────────────
+                if (_selectedUserId.HasValue)
+                    baseQuery = baseQuery.Where(l => l.ChangedByUserId == _selectedUserId.Value);
+
+                // ── Date filter ───────────────────────────────────────────────
+                if (_filterStartDate.HasValue)
+                    baseQuery = baseQuery.Where(l => l.CreatedAt >= _filterStartDate.Value);
+                if (_filterEndDate.HasValue)
+                    baseQuery = baseQuery.Where(l => l.CreatedAt <= _filterEndDate.Value);
+
                 Func<IQueryable<EquipmentLog>, IOrderedQueryable<EquipmentLog>> sortFunc = _sortColumn switch
                 {
                     "Id" => q => _sortAscending ? q.OrderBy(l => l.Id) : q.OrderByDescending(l => l.Id),
@@ -328,6 +394,13 @@ namespace Inventory_Management_System.Forms
             }
 
             RefreshGrid(filter);
+            UpdateLiveStatus();
+        }
+
+        private void UpdateLiveStatus()
+        {
+            var pkt = TimeHelper.ToPakistanTime(DateTime.UtcNow);
+            lblLiveStatus.Text = $"● Live – updated {pkt.ToString("hh:mm tt")}";
         }
 
         private void RefreshGrid(string filter = "")
@@ -599,6 +672,220 @@ namespace Inventory_Management_System.Forms
             _currentPage = 1;
             LoadLogs();
             SetupSuggestions();
+        }
+
+        // ── Filter pill handlers ──────────────────────────────────────────────
+        private void SetActiveCategory(string category)
+        {
+            _activeActionCategory = category;
+            _currentPage = 1;
+
+            // Category → active pill color (matches log row colors)
+            var pillColors = new Dictionary<string, Color>
+            {
+                { "All",          Color.FromArgb(31,  41,  55)  },  // charcoal
+                { "Created",      Color.FromArgb(27,  94,  32)  },  // dark green
+                { "Updated",      Color.FromArgb(202, 138, 4)   },  // golden yellow (#CA8A04)
+                { "Allocation",   Color.FromArgb(234, 88,  12)  },  // orange (#EA580C)
+                { "CheckInOut",   Color.FromArgb(1,   87, 155)  },  // dark blue
+                { "Transfers",    Color.FromArgb(74,  20, 140)  },  // deep purple
+                { "Decommission", Color.FromArgb(211, 47,  47)  },  // red
+                { "Deleted",      Color.FromArgb(183, 28,  28)  },  // deep red
+            };
+
+            var pillMap = new Dictionary<string, Button>
+            {
+                { "All",          btnFilterAll },
+                { "Created",      btnFilterCreated },
+                { "Updated",      btnFilterUpdated },
+                { "Allocation",   btnFilterAllocation },
+                { "CheckInOut",   btnFilterCheckInOut },
+                { "Transfers",    btnFilterTransfers },
+                { "Decommission", btnFilterDecommission },
+                { "Deleted",      btnFilterDeleted }
+            };
+
+            foreach (var kvp in pillMap)
+            {
+                bool isActive = kvp.Key == category;
+                Color activeColor = pillColors.TryGetValue(kvp.Key, out var c) ? c : Color.FromArgb(31, 41, 55);
+                StylePill(kvp.Value, isActive, activeColor);
+            }
+
+            LoadLogs(txtSearch.Text.Trim());
+        }
+
+        private void StylePill(Button btn, bool active, Color activeBackColor)
+        {
+            if (active)
+            {
+                btn.BackColor = activeBackColor;
+                btn.ForeColor = Color.White;
+                btn.FlatStyle = FlatStyle.Flat;
+                btn.FlatAppearance.BorderSize = 0;
+                btn.Font = new Font(btn.Font, FontStyle.Bold);
+            }
+            else
+            {
+                btn.BackColor = Color.White;
+                btn.ForeColor = Color.FromArgb(75, 85, 99);
+                btn.FlatStyle = FlatStyle.Flat;
+                btn.FlatAppearance.BorderColor = Color.FromArgb(229, 231, 235);
+                btn.FlatAppearance.BorderSize = 1;
+                btn.Font = new Font(btn.Font, FontStyle.Regular);
+            }
+        }
+
+        private void btnFilterAll_Click(object sender, EventArgs e)         => SetActiveCategory("All");
+        private void btnFilterCreated_Click(object sender, EventArgs e)     => SetActiveCategory("Created");
+        private void btnFilterUpdated_Click(object sender, EventArgs e)     => SetActiveCategory("Updated");
+        private void btnFilterAllocation_Click(object sender, EventArgs e)  => SetActiveCategory("Allocation");
+        private void btnFilterCheckInOut_Click(object sender, EventArgs e)  => SetActiveCategory("CheckInOut");
+        private void btnFilterTransfers_Click(object sender, EventArgs e)   => SetActiveCategory("Transfers");
+        private void btnFilterDecommission_Click(object sender, EventArgs e)=> SetActiveCategory("Decommission");
+        private void btnFilterDeleted_Click(object sender, EventArgs e)     => SetActiveCategory("Deleted");
+
+        // ── User / Date filter handlers ───────────────────────────────────────
+        private void cmbFilterUser_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (cmbFilterUser.SelectedItem is UserFilterItem item)
+                _selectedUserId = item.UserId > 0 ? item.UserId : (int?)null;
+            else
+                _selectedUserId = null;
+
+            _currentPage = 1;
+            LoadLogs(txtSearch.Text.Trim());
+        }
+
+        private void cmbFilterDate_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            var now = DateTime.UtcNow;
+            switch (cmbFilterDate.SelectedItem?.ToString())
+            {
+                case "Last 7 days":
+                    _filterStartDate = now.AddDays(-7);
+                    _filterEndDate   = null;
+                    break;
+                case "Last 30 days":
+                    _filterStartDate = now.AddDays(-30);
+                    _filterEndDate   = null;
+                    break;
+                case "All time":
+                    _filterStartDate = null;
+                    _filterEndDate   = null;
+                    break;
+                case "Custom...":
+                    OpenCustomDateRangeDialog();
+                    return; // handler inside method will trigger LoadLogs
+            }
+            _currentPage = 1;
+            LoadLogs(txtSearch.Text.Trim());
+        }
+
+        private void OpenCustomDateRangeDialog()
+        {
+            var dlg = new Form
+            {
+                Text = "Custom Date Range",
+                Size = new Size(360, 230),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false
+            };
+            var lblFrom  = new Label { Text = "From Date:",   Location = new Point(24, 16),  AutoSize = true };
+            var dtpFrom  = new DateTimePicker { Location = new Point(24, 36),  Width = 290, Height = 28,
+                             Value = DateTime.Today.AddDays(-30) };
+            var lblTo    = new Label { Text = "To Date:",     Location = new Point(24, 76),  AutoSize = true };
+            var dtpTo    = new DateTimePicker { Location = new Point(24, 96),  Width = 290, Height = 28,
+                             Value = DateTime.Today };
+            var btnApply = new Button { Text = "Apply", DialogResult = DialogResult.OK,
+                             Location = new Point(24, 148), Width = 136, Height = 32 };
+            var btnCancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel,
+                             Location = new Point(176, 148), Width = 136, Height = 32 };
+            dlg.Controls.AddRange(new Control[]{ lblFrom, dtpFrom, lblTo, dtpTo, btnApply, btnCancel });
+            dlg.AcceptButton = btnApply;
+            dlg.CancelButton = btnCancel;
+
+            if (dlg.ShowDialog(this) == DialogResult.OK)
+            {
+                _filterStartDate = dtpFrom.Value.Date.ToUniversalTime();
+                _filterEndDate   = dtpTo.Value.Date.AddDays(1).AddTicks(-1).ToUniversalTime();
+                // Update combobox label
+                cmbFilterDate.SelectedIndexChanged -= cmbFilterDate_SelectedIndexChanged;
+                cmbFilterDate.Items[3] = $"{dtpFrom.Value:MMM dd} – {dtpTo.Value:MMM dd}";
+                cmbFilterDate.SelectedIndex = 3;
+                cmbFilterDate.SelectedIndexChanged += cmbFilterDate_SelectedIndexChanged;
+                _currentPage = 1;
+                LoadLogs(txtSearch.Text.Trim());
+            }
+            else
+            {
+                // Revert to "Last 30 days"
+                cmbFilterDate.SelectedIndexChanged -= cmbFilterDate_SelectedIndexChanged;
+                cmbFilterDate.SelectedItem = "Last 30 days";
+                cmbFilterDate.SelectedIndexChanged += cmbFilterDate_SelectedIndexChanged;
+            }
+            dlg.Dispose();
+        }
+
+        // ── Reset handler ─────────────────────────────────────────────────────
+        private void btnReset_Click(object sender, EventArgs e)
+        {
+            // Reset all filter state
+            _activeActionCategory = "All";
+            _selectedUserId       = null;
+            _filterStartDate      = null;
+            _filterEndDate        = null;
+            _currentPage          = 1;
+            _sortColumn           = "CreatedAt";
+            _sortAscending        = false;
+
+            // Reset UI controls without triggering re-queries
+            txtSearch.TextChanged -= txtSearch_TextChanged;
+            txtSearch.Text = string.Empty;
+            txtSearch.TextChanged += txtSearch_TextChanged;
+
+            cmbFilterUser.SelectedIndexChanged -= cmbFilterUser_SelectedIndexChanged;
+            if (cmbFilterUser.Items.Count > 0) cmbFilterUser.SelectedIndex = 0;
+            cmbFilterUser.SelectedIndexChanged += cmbFilterUser_SelectedIndexChanged;
+
+            cmbFilterDate.SelectedIndexChanged -= cmbFilterDate_SelectedIndexChanged;
+            cmbFilterDate.SelectedIndex = 2; // All time
+            _filterStartDate = null;
+            _filterEndDate   = null;
+            cmbFilterDate.SelectedIndexChanged += cmbFilterDate_SelectedIndexChanged;
+            // Reset pill styles
+            SetActiveCategory("All");
+        }
+
+        // ── Populate the user filter dropdown ─────────────────────────────────
+        private void PopulateUserFilter()
+        {
+            try
+            {
+                cmbFilterUser.SelectedIndexChanged -= cmbFilterUser_SelectedIndexChanged;
+                cmbFilterUser.Items.Clear();
+                cmbFilterUser.Items.Add(new UserFilterItem(0, "All users"));
+
+                using var db = new InventoryDbContext();
+                var users = db.Users.OrderBy(u => u.FullName).ToList();
+                foreach (var u in users)
+                    cmbFilterUser.Items.Add(new UserFilterItem(u.Id, u.FullName ?? u.Username));
+
+                cmbFilterUser.SelectedIndex = 0;
+                cmbFilterUser.SelectedIndexChanged += cmbFilterUser_SelectedIndexChanged;
+            }
+            catch { /* non-critical */ }
+        }
+
+        // Helper wrapper for user combo items
+        private sealed class UserFilterItem
+        {
+            public int    UserId   { get; }
+            public string Name     { get; }
+            public UserFilterItem(int id, string name) { UserId = id; Name = name; }
+            public override string ToString() => Name;
         }
 
         private void txtSearch_TextChanged(object sender, EventArgs e)

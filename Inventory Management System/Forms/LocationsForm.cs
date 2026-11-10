@@ -22,6 +22,15 @@ namespace Inventory_Management_System.Forms
         private EntitySuggestHelper<Location>? _suggest;
         private List<Location> _allLocationsForSuggest = new();
 
+        // ── Paging ──
+        private const int PageSize = 50;
+        private int _currentPage = 1;
+        private int _totalPages = 1;
+        private Panel _pagingPanel = null!;
+        private Label _lblPageInfo = null!;
+        private Button _btnPrevPage = null!;
+        private Button _btnNextPage = null!;
+
         public LocationsForm()
         {
             InitializeComponent();
@@ -32,6 +41,7 @@ namespace Inventory_Management_System.Forms
             SetupCheckboxSelectHeader();
             SetupSearchBar();
             SetupSuggestions();
+            SetupPagingPanel();
             LoadLocations();
 
             this.Shown += (s, e) =>
@@ -162,6 +172,7 @@ namespace Inventory_Management_System.Forms
 
         private void txtSearch_TextChanged(object? sender, EventArgs e)
         {
+            _currentPage = 1;
             LoadLocations(txtSearch.Text.Trim());
         }
 
@@ -369,7 +380,17 @@ namespace Inventory_Management_System.Forms
                 items = allLocations;
             }
 
-            foreach (var item in items)
+            // ── Apply paging ──
+            _totalPages = Math.Max(1, (int)Math.Ceiling(items.Count / (double)PageSize));
+            if (_currentPage > _totalPages) _currentPage = _totalPages;
+            if (_currentPage < 1) _currentPage = 1;
+
+            var pagedItems = items
+                .Skip((_currentPage - 1) * PageSize)
+                .Take(PageSize)
+                .ToList();
+
+            foreach (var item in pagedItems)
             {
                 dgvLocations.Rows.Add(
                     item.Id,
@@ -380,6 +401,7 @@ namespace Inventory_Management_System.Forms
                 );
             }
             SyncHeaderCheckbox();
+            UpdatePagingControls(items.Count);
         }
 
         // ── Centralised toast helper — delete=red, edit=yellow, everything else=green ──
@@ -598,6 +620,7 @@ namespace Inventory_Management_System.Forms
             if (txtSearch != null) txtSearch.Text = string.Empty;
             SetAllCheckboxes(false);
             if (_chkHeaderBox != null) _chkHeaderBox.Checked = false;
+            _currentPage = 1;
             LoadLocations();
             ToastHelper.Show(this, "Locations refreshed.", ToastType.Info);
         }
@@ -635,5 +658,103 @@ namespace Inventory_Management_System.Forms
        ToastHelper.Show(this, $"Export failed: {ex.Message}", ToastType.Error);
             }
 }
+
+        // ── Paging Controls ─────────────────────────────────────────────────
+        private void SetupPagingPanel()
+        {
+            _pagingPanel = new Panel
+            {
+                Height = 36,
+                Dock = DockStyle.Bottom,
+                BackColor = ThemeHelper.CardBg,
+                Padding = new Padding(8, 4, 8, 4)
+            };
+            // Paint a subtle top border
+            _pagingPanel.Paint += (s, e) =>
+            {
+                using var pen = new Pen(ThemeHelper.IsDarkMode ? Color.FromArgb(55, 58, 65) : Color.FromArgb(220, 220, 220), 1f);
+                e.Graphics.DrawLine(pen, 0, 0, _pagingPanel.Width, 0);
+            };
+
+            _btnPrevPage = new Button
+            {
+                Text = "◀ Prev",
+                Size = new Size(80, 28),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand,
+                Enabled = false
+            };
+            _btnPrevPage.FlatAppearance.BorderSize = 1;
+            _btnPrevPage.FlatAppearance.BorderColor = Color.FromArgb(200, 200, 200);
+            _btnPrevPage.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+            ThemeHelper.StyleSecondaryButton(_btnPrevPage);
+            _btnPrevPage.Click += (s, e) => { _currentPage--; LoadLocations(txtSearch?.Text.Trim() ?? ""); };
+
+            _btnNextPage = new Button
+            {
+                Text = "Next ▶",
+                Size = new Size(80, 28),
+                FlatStyle = FlatStyle.Flat,
+                Cursor = Cursors.Hand,
+                Enabled = false
+            };
+            _btnNextPage.FlatAppearance.BorderSize = 1;
+            _btnNextPage.FlatAppearance.BorderColor = Color.FromArgb(200, 200, 200);
+            _btnNextPage.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+            ThemeHelper.StyleSecondaryButton(_btnNextPage);
+            _btnNextPage.Click += (s, e) => { _currentPage++; LoadLocations(txtSearch?.Text.Trim() ?? ""); };
+
+            _lblPageInfo = new Label
+            {
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = ThemeHelper.TextSecondary,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Anchor = AnchorStyles.None
+            };
+
+            var innerFlow = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                Anchor = AnchorStyles.None
+            };
+            innerFlow.Controls.Add(_btnPrevPage);
+            innerFlow.Controls.Add(_lblPageInfo);
+            innerFlow.Controls.Add(_btnNextPage);
+
+            _pagingPanel.Controls.Add(innerFlow);
+            _pagingPanel.Resize += (s, e) =>
+            {
+                innerFlow.Location = new Point(
+                    Math.Max(0, (_pagingPanel.ClientSize.Width - innerFlow.Width) / 2),
+                    Math.Max(0, (_pagingPanel.ClientSize.Height - innerFlow.Height) / 2));
+            };
+
+            // Insert BEFORE dgvLocations so DockStyle.Bottom is respected
+            // (DockStyle.Fill grabs remaining space — bottom panel must be added first)
+            int gridIndex = Controls.GetChildIndex(dgvLocations);
+            Controls.Add(_pagingPanel);
+            Controls.SetChildIndex(_pagingPanel, gridIndex);
+        }
+
+        private void UpdatePagingControls(int totalItems)
+        {
+            if (_pagingPanel == null) return;
+
+            _pagingPanel.Visible = true;
+            bool multiPage = totalItems > PageSize;
+
+            _btnPrevPage.Visible = multiPage;
+            _btnNextPage.Visible = multiPage;
+            _btnPrevPage.Enabled = _currentPage > 1;
+            _btnNextPage.Enabled = _currentPage < _totalPages;
+
+            if (multiPage)
+                _lblPageInfo.Text = $"  Page {_currentPage} of {_totalPages}  •  {totalItems} locations total  ";
+            else
+                _lblPageInfo.Text = $"  {totalItems} location{(totalItems != 1 ? "s" : "")}  ";
+        }
     }
 }

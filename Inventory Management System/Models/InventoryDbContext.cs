@@ -380,6 +380,8 @@ public partial class InventoryDbContext : DbContext
 
             entity.HasOne(d => d.Equipment).WithMany(p => p.EquipmentLogs)
                 .HasForeignKey(d => d.EquipmentId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull)
                 .HasConstraintName("equipment_logs_ibfk_1");
         });
 

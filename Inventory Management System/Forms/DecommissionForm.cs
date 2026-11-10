@@ -178,6 +178,11 @@ namespace Inventory_Management_System.Forms
                 if (entity == null) { ToastHelper.Show(this, "Equipment not found.", ToastType.Error); return; }
 
                 entity.CurrentStatus = "in_store";
+                if (!string.IsNullOrWhiteSpace(entity.Notes) && entity.Notes.StartsWith("[Decommissioned on "))
+                {
+                    int newline = entity.Notes.IndexOf('\n');
+                    entity.Notes = newline >= 0 ? entity.Notes.Substring(newline + 1).TrimStart() : null;
+                }
                 db.SaveChanges();
 
                 _audit.Log(entity.Id, AuditService.ActionDecommissionUndone,
@@ -391,23 +396,40 @@ namespace Inventory_Management_System.Forms
             {
                 string reason = "—";
                 string decommOn = "—";
-                try
+
+                if (!string.IsNullOrWhiteSpace(item.Notes) && item.Notes.StartsWith("[Decommissioned on "))
                 {
-                    using var db = new InventoryDbContext();
-                    var log = db.EquipmentLogs
-                        .Where(l => l.EquipmentId == item.Id &&
-                               (l.ActionType == "decommission_approved" || l.ActionType == "decommission_requested"))
-                        .OrderByDescending(l => l.CreatedAt)
-                        .FirstOrDefault();
-                    if (log != null)
+                    int closeBracket = item.Notes.IndexOf(']');
+                    if (closeBracket > 19)
                     {
-                        reason = log.NewValue ?? "—";
-                        decommOn = log.CreatedAt?.ToString("yyyy-MM-dd") ?? "—";
+                        decommOn = item.Notes.Substring(19, closeBracket - 19).Trim();
+                        int nextNewline = item.Notes.IndexOf('\n', closeBracket);
+                        reason = nextNewline >= 0
+                            ? item.Notes.Substring(closeBracket + 1, nextNewline - closeBracket - 1).Trim()
+                            : item.Notes.Substring(closeBracket + 1).Trim();
                     }
                 }
-                catch (Exception ex)
+
+                if (reason == "—")
                 {
-                    Logger.LogError(ex, "DecommissionForm.RefreshGrid (Log lookup)");
+                    try
+                    {
+                        using var db = new InventoryDbContext();
+                        var log = db.EquipmentLogs
+                            .Where(l => l.EquipmentId == item.Id &&
+                                   (l.ActionType == "decommission_approved" || l.ActionType == "decommission_requested"))
+                            .OrderByDescending(l => l.CreatedAt)
+                            .FirstOrDefault();
+                        if (log != null)
+                        {
+                            reason = log.NewValue ?? "—";
+                            decommOn = log.CreatedAt?.ToString("yyyy-MM-dd") ?? "—";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex, "DecommissionForm.RefreshGrid (Log lookup)");
+                    }
                 }
 
                 int rowIdx = dgvDecommission.Rows.Add(
@@ -426,18 +448,32 @@ namespace Inventory_Management_System.Forms
 
         private void btnDecommission_Click(object sender, EventArgs e)
         {
-            // Show all non-decommissioned equipment that can be decommissioned
+            // Show all eligible non-decommissioned equipment (excluding allocated or checked-out assets)
             var result = _equipmentService.GetAll();
             if (!result.Success) return;
 
+            using var dbCheck = new InventoryDbContext();
+            var activeAllocIds = dbCheck.Allocations
+                .Where(a => a.Status == "approved" || a.Status == "pending")
+                .Select(a => a.EquipmentId)
+                .ToHashSet();
+
+            var activeTxIds = dbCheck.Transactions
+                .Where(t => t.Status == "Pending" || t.Status == "Overdue")
+                .Select(t => t.EquipmentId)
+                .ToHashSet();
+
             var available = result.Data?
-                .Where(eq => !string.Equals(eq.CurrentStatus, "decommissioned", StringComparison.OrdinalIgnoreCase))
+                .Where(eq => !string.Equals(eq.CurrentStatus, "decommissioned", StringComparison.OrdinalIgnoreCase)
+                          && !string.Equals(eq.CurrentStatus, "allocated", StringComparison.OrdinalIgnoreCase)
+                          && !activeAllocIds.Contains(eq.Id)
+                          && !activeTxIds.Contains(eq.Id))
                 .ToList() ?? new();
 
             if (available.Count == 0)
             {
                 ToastHelper.Show(this,
-                    "No equipment available to decommission. All equipment has already been decommissioned.",
+                    "No equipment currently eligible to decommission. Active equipment is currently allocated to employees or checked out. Please process returns before decommissioning.",
                     ToastType.Info);
                 return;
             }
@@ -453,24 +489,25 @@ namespace Inventory_Management_System.Forms
                     .FirstOrDefault(x => x.Id == frm.EquipmentId);
                 if (eq == null) return;
 
-                string oldStatus = eq.CurrentStatus ?? "unknown";
+                // Block decommissioning if currently allocated or checked out
+                bool hasActiveAllocation = eq.Allocations.Any(a => a.Status == "approved" || a.Status == "pending");
+                bool hasActiveTx = db.Transactions.Any(t => t.EquipmentId == eq.Id && (t.Status == "Pending" || t.Status == "Overdue"));
+                if (hasActiveAllocation || hasActiveTx)
+                {
+                    string issue = hasActiveAllocation ? "is currently allocated to an employee" : "has an active check-out transaction";
+                    ToastHelper.Show(this,
+                        $"Cannot decommission '{eq.EquipmentCode}' — it {issue}. Please process its return first before decommissioning.",
+                        ToastType.Warning);
+                    return;
+                }
 
-                // Close any active allocations for this equipment
-                var activeAllocations = eq.Allocations
-                    .Where(a => a.Status == "approved" || a.Status == "pending")
-                    .ToList();
-                foreach (var alloc in activeAllocations)
-                    alloc.Status = "returned";
+                string oldStatus = eq.CurrentStatus ?? "unknown";
 
                 eq.CurrentStatus = "decommissioned";
                 db.SaveChanges();
 
-                string activeAllocInfo = activeAllocations.Count > 0
-     ? string.Join(", ", activeAllocations.Select(a => $"Alloc #{a.Id} closed"))
-     : "No active allocation";
-
                 _audit.Log(eq.Id, AuditService.ActionDecommissionApproved,
-                    $"Status: {FormatStatusForLog(oldStatus)} | {activeAllocInfo}",
+                    $"Status: {FormatStatusForLog(oldStatus)}",
                     $"Status: Decommissioned | Reason: {frm.Reason} | Source Screen: Decommission Screen");
 
                 LoadDecommissioned();
@@ -835,6 +872,21 @@ namespace Inventory_Management_System.Forms
             {
                 ToastHelper.Show(this, "Please select equipment.", ToastType.Warning, customBgColor: Color.FromArgb(211, 47, 47));
                 return;
+            }
+
+            int eqId = (int)cmbEquipment.SelectedValue;
+            var targetEq = _equipment.FirstOrDefault(e => e.Id == eqId);
+            if (targetEq != null)
+            {
+                using var db = new InventoryDbContext();
+                bool hasAlloc = db.Allocations.Any(a => a.EquipmentId == eqId && (a.Status == "approved" || a.Status == "pending"));
+                bool hasTx = db.Transactions.Any(t => t.EquipmentId == eqId && (t.Status == "Pending" || t.Status == "Overdue"));
+                if (hasAlloc || hasTx)
+                {
+                    string msg = hasAlloc ? "is currently allocated to an employee" : "has an active check-out transaction";
+                    ToastHelper.Show(this, $"Cannot decommission '{targetEq.EquipmentCode}' — it {msg}. Please formally process its return first before decommissioning.", ToastType.Warning, customBgColor: Color.FromArgb(211, 47, 47));
+                    return;
+                }
             }
 
             var selectedOption = cmbEquipment.SelectedItem as DecommissionEquipmentOption;

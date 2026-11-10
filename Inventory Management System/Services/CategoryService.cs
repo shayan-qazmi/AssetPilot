@@ -1,4 +1,4 @@
-﻿// Services/CategoryService.cs
+// Services/CategoryService.cs
 using Inventory_Management_System.Helpers;
 using Inventory_Management_System.Models;
 using System;
@@ -52,7 +52,7 @@ namespace Inventory_Management_System.Services
             }
         }
 
-        public ServiceResult<bool> Delete(int id)
+        public ServiceResult<bool> Delete(int id, bool reassignOrphanedToUncategorized = false)
         {
             try
             {
@@ -61,16 +61,33 @@ namespace Inventory_Management_System.Services
                 if (existing == null)
                     return ServiceResult<bool>.Fail("Category not found.");
 
-                // Delete-protection: check whether any equipment record still
-                // uses this category's name (case-insensitive), same behavior
-                // as the flat-file version was intended to have.
-                int usageCount = db.Equipment
-                    .Count(e => e.Category != null &&
-                                e.Category.ToLower() == existing.Name.ToLower());
+                // Check whether any equipment record uses this category (case-insensitive)
+                var affectedEquipment = db.Equipment
+                    .Where(e => e.Category != null && e.Category.ToLower() == existing.Name.ToLower())
+                    .ToList();
 
-                if (usageCount > 0)
-                    return ServiceResult<bool>.Fail(
-                        $"Cannot delete — {usageCount} equipment item(s) are using this category.");
+                if (affectedEquipment.Count > 0)
+                {
+                    if (!reassignOrphanedToUncategorized)
+                    {
+                        return ServiceResult<bool>.Fail(
+                            $"Cannot delete — {affectedEquipment.Count} equipment item(s) are using this category. Reassign them first or reassign to 'Uncategorized'.");
+                    }
+
+                    // Reassign affected equipment to 'Uncategorized' and ensure 'Uncategorized' category exists
+                    var uncategorized = db.Categories.FirstOrDefault(c => c.Name.ToLower() == "uncategorized");
+                    if (uncategorized == null)
+                    {
+                        uncategorized = new Category { Name = "Uncategorized" };
+                        db.Categories.Add(uncategorized);
+                        db.SaveChanges();
+                    }
+
+                    foreach (var eq in affectedEquipment)
+                    {
+                        eq.Category = "Uncategorized";
+                    }
+                }
 
                 db.Categories.Remove(existing);
                 db.SaveChanges();

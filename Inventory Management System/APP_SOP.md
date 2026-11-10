@@ -35,6 +35,7 @@
 21. [New Features & Recent Changes (2026-08-17)](#21-new-features--recent-changes-2026-08-17)
 22. [New Features & Recent Changes (2026-09-05)](#22-new-features--recent-changes-2026-09-05)
 23. [New Features & Recent Changes (2026-09-13)](#23-new-features--recent-changes-2026-09-13)
+24. [New Features & Comprehensive Overhaul (2026-11-10)](#24-new-features--comprehensive-overhaul-2026-11-10)
 
 ---
 
@@ -61,25 +62,44 @@ Roles are stored in the `roles` table and linked via `user_roles`. Session ident
 
 **Source:** `Forms/LoginForm.cs`
 
-### Login Flow — `btnLogin_Click`
+### 2.1 Login Flow — `btnLogin_Click`
 
 1. Validates both `txtUsername` and `txtPassword` are non-empty; shows error if not.
-2. Queries `db.Users.FirstOrDefault(u => u.Username == username && u.IsActive == true)`. If no match → `"Invalid username or password."` (same message for both not-found and wrong-password to prevent username enumeration).
-3. Compares `user.PasswordHash == password` — **plain-text equality. Passwords are not hashed.**
+2. Queries `db.Users.FirstOrDefault(u => u.Username == username && u.IsActive == true)`. If no match → `"Invalid username or password."` (same generic message for both not-found and wrong-password to prevent username enumeration).
+3. Compares password using `PasswordHelper.Verify(password, user.PasswordHash)` — uses **BCrypt hashing** for all modern accounts, with automatic backward compatibility for unmigrated legacy plaintext accounts.
 4. On success: calls `AuthService.SetCurrentUser(user)` to cache the session.
 5. Calls `SaveRememberedUser(username)` — if `_keepMeLoggedIn` is `true`, writes `{StartupPath}/remember_me.txt` with `["True", username]`. If `false`, deletes the file.
 6. Stops the animation timer, sets `DialogResult = OK`, closes.
 
-### "Keep Me Logged In" Toggle
+### 2.2 "Keep Me Logged In" Toggle
 
 - `pnlToggle` is a custom-painted pill toggle (GDI+). Clicking it flips `_keepMeLoggedIn`.
 - `LoadRememberedUser()` (called in constructor): reads `remember_me.txt`. If `lines[0] == "True"`, pre-fills `txtUsername` and moves focus to `txtPassword`. **The password is never stored.** Authentication always requires manual password entry.
 
-### Enter Key
+### 2.3 Enter Key & UI Feedback
 
-`ProcessCmdKey` intercepts `Keys.Enter` → calls `btnLogin_Click`.
+- `ProcessCmdKey` intercepts `Keys.Enter` → triggers `btnLogin_Click`.
+- Incorrect credentials trigger a gentle horizontal shake animation (`ShakeControl`) on the input field containers with red border flash (`#DC2626`).
 
-### Database Table Read
+### 2.4 Self-Service Password Recovery ("Forgot Password")
+
+The login screen features an offline, self-service password reset panel (`pnlForgot`) with dual verification methods:
+
+- **Method Selector Tabs:**
+  - `✉ Work Email`: Requires the registered work email matching `user.Email`.
+  - `🔑 Recovery PIN`: Requires either the user's personal recovery PIN or the organization master PIN (`RecoveryPinHelper`).
+- **Input Padding & Layout:**
+  - Verification textbox (`txtVerify`) has `Left = 54` with a 22px clear gutter past the left icon (`✉` or `🔑`), ensuring text and placeholders (`name@company.com`, `Enter personal PIN or Admin PIN`) are never clipped.
+- **Strict Input Enforcement:**
+  - **Recovery PIN mode:** Allows **numerals/numbers only** (`char.IsDigit`). All letters, spaces, and symbols are rejected on `KeyPress`, and pasted non-digits are automatically stripped.
+  - **Work Email mode:** Rejects spaces (`e.KeyChar == ' '`) and disallows characters outside valid email sets (`[a-zA-Z0-9@._-+]`). Rejects typing duplicate `@` signs, and strips whitespace on paste.
+  - Toggling between tabs automatically resets the input field to prevent carrying mismatched characters across modes.
+- **Verification Flow:**
+  - Verification is evaluated live on `TextChanged` (`CheckVerification()`).
+  - When verified, green checkmark `✓` appears, input border turns emerald (`#10B981`), hint confirms match, and `New Password` / `Confirm New Password` fields and `Reset Password` button are enabled.
+  - On reset: hashes new password with `PasswordHelper.Hash()`, updates `PasswordChangedAt` and `UpdatedAt`, commits to database, logs event to `SecurityAuditLogger`, shows success toast, and returns user to the login screen with username prefilled.
+
+### 2.5 Database Table Read
 
 - `users` → `WHERE Username = @username AND IsActive = 1`
 
@@ -342,13 +362,17 @@ Profile picture upload copies the file to the network share (`NetworkPaths.Emplo
 
 ### 6.1 List View
 
-**Data load — `LoadLocations()`:** `LocationService.GetAll()` → `db.Locations.ToList()`. No pagination — all records loaded at once.
+**Data load — `LoadLocations()`:** `LocationService.GetAll()` → `db.Locations.ToList()`.
 
 **Grid columns:** `ID` (hidden) · `Location Name` · `Building` · `Room Number` · `Room Name`
 
-**Actions:** Add / Edit (via `AddEditLocationForm`) / Delete (via `LocationService.Delete(id)`) / Export CSV.
+**Actions:** Add / Edit (via `AddEditLocationForm`) / Delete (via `LocationService.Delete(id)`) / Export CSV / Live Search.
 
-No search or pagination. Add/Edit/Delete each write to `equipment_logs` via `_audit.Log(0, ...)` (`location_created`/`location_updated`/`location_deleted`), with `EquipmentId` written as `0` since locations have no associated equipment record.
+**Pagination:**
+- Standardized pagination with `PageSize = 50` records per page.
+- Bottom pagination control with page summary (`Page X of Y`), `Prev` / `Next` navigation buttons, and responsive grid layout.
+
+Add/Edit/Delete each write to `equipment_logs` via `_audit.Log(0, ...)` (`location_created`/`location_updated`/`location_deleted`), with `EquipmentId` written as `0` since locations have no associated equipment record.
 
 ---
 
@@ -511,14 +535,14 @@ Double-clicking a row pre-seeds the `TransferDialog` with that allocation's id.
 
 ### 10.2 Execute Decommission — `btnDecommission_Click`
 
-Dialog shows only `in_store` and `under_repair` equipment (UI-layer filter only). User picks reason (`Damaged`, `Obsolete`, `Beyond Repair`, `End of Life`, `Lost`, `Other`) and optional notes.
+- **Eligibility Filtering:** The decommission dialog query excludes any equipment currently allocated (`CurrentStatus == "allocated"` or active/pending allocation in `allocations`), and any equipment with an active or overdue checkout in `transactions`. Only assets currently in store or under repair are eligible to be decommissioned.
+- **Save-Path Guard:** Both the dialog and the form verify against `allocations` and `transactions` before updating the status, preventing decommissioning of active assets and prompting the operator to process returns first.
+- **Reason & Notes:** User picks reason (`Damaged`, `Obsolete`, `Beyond Repair`, `End of Life`, `Lost`, `Other`) and optional contextual notes.
 
 On confirm:
 1. `Equipment.CurrentStatus = "decommissioned"`.
-2. `SaveChanges`.
+2. `SaveChanges()`.
 3. `_audit.Log(equipment.Id, "decommission_approved", oldStatus, reason + " — " + notes)`.
-
-**No allocation status check in the decommission save path.** Only the dialog's equipment filter (UI) prevents allocated items from being offered.
 
 ---
 
@@ -630,10 +654,34 @@ A static helper that compares two equipment snapshots field-by-field and returns
 
 **Not logged:** Equipment soft-delete, restore, hard-delete, user management actions, password changes.
 
-### 12.4 LogsForm Data Load
+### 12.4 LogsForm Data Load & Advanced Filter Architecture
 
-- No search: server-side `SKIP/TAKE` on `equipment_logs ORDER BY CreatedAt DESC`.
-- With search: full load then in-memory code-first / fuzzy on `ActionType`, `ChangedByUser.FullName`, `OldValue`, `NewValue`.
+**Toolbar & Header Controls:**
+- `Refresh` button (clears search, resets to page 1, refreshes data and autocomplete suggestions).
+- `Export` dropdown/button (exports active view to CSV with full audit details).
+- Rounded Search Bar with real-time debounced search & autocomplete (`EntitySuggestHelper`).
+- `● Live – updated [time]` dynamic status indicator reflecting the last query timestamp in Pakistan Time (PKT).
+- Density selector (`Compact`, `Comfortable`, `Cozy`).
+- `Reset` button (clears search, resets category pills to `All`, user dropdown to `All users`, date dropdown to `All time`, and resets pagination).
+
+**Action Category Filter Pills:**
+Located on the secondary filter row with dedicated color matching that reflects the row badge colors:
+- `All`: Charcoal (`#1F2937`) when active.
+- `Created`: Dark green (`#1B5E20`) — filters `equipment_created`, `employee_created`, `location_created`.
+- `Updated`: Deep orange (`#E65100`) — filters `equipment_updated`, `employee_updated`, `location_updated`, `Expected Return Date Updated`.
+- `Allocation`: Indigo (`#393CB4`) — filters `allocation_requested`, `allocation_approved`, `allocation_rejected`, `allocation_returned`, `allocation_overdue`, `return_undone`, `Allocation Request Deleted`.
+- `Check In/Out`: Dark blue (`#01579B`) — width 110px preventing text cutoff — filters `checked_out`, `checked_in`.
+- `Transfers`: Deep purple (`#4A148C`) — filters `transferred`.
+- `Decommission`: Red (`#D32F2F`) — width 118px preventing text cutoff — filters `decommission_requested`, `decommission_approved`, `decommission_undone`, `decommission_rejected`.
+- `Deleted`: Deep red (`#B71C1C`) — filters `equipment_deleted`, `employee_deleted`, `location_deleted`, `equipment_restored`, `settings_data_delete`.
+
+**User & Date Range Filters:**
+- `All users` dropdown populated dynamically with distinct system users.
+- `Date Range` dropdown defaults to **`All time`** (with options for `Last 7 days`, `Last 30 days`, `All time`, and `Custom...` with an inline popup date picker).
+
+**Query Execution:**
+- Filters are applied server-side on `IQueryable<EquipmentLog>` before pagination (`SKIP`/`TAKE`).
+- With search filter: fuzzy/exact matching on equipment code, QR, user name, and diff values.
 
 **Grid columns:** `Equipment Code` · `QR Code` · `Action` (formatted) · `Changed By` · `Previous Value` · `New Value` · `Timestamp`
 
@@ -657,11 +705,13 @@ Opens a `LogDetailPopup` modal (`Forms/LogDetailPopup.cs`) showing formatted det
 
 **Source:** `Forms/QRScannerForm.cs`
 
-**Read-only lookup tool.** No DB writes.
+**Equipment Inspection & Fast Action Hub.** Primarily a read-only lookup tool with direct shortcuts to transactional operations (Check-Out, Check-In, Allocate).
 
 ### 13.1 Input & Auto-Search
 
-`txtQRCode` is focused on load. `TextChanged` → starts 300 ms debounce timer (`_scanTimer`). On tick or `Enter` key → `Search()`. `EquipmentSuggestHelper` provides a fuzzy suggestion dropdown.
+- `txtQRCode` is focused on load. `TextChanged` → starts 300 ms debounce timer (`_scanTimer`). On tick or `Enter` key → `Search()`.
+- `EquipmentSuggestHelper` provides a fuzzy auto-suggestion dropdown for quick keyboard matching.
+- **Camera Scanning:** Integrated live webcam feed using AForge and ZXing with camera device selection, freeze/unfreeze frame control, and continuous barcode decoding.
 
 ### 13.2 Search Logic
 
@@ -679,7 +729,17 @@ db.Equipment
 
 **Exact equality — partial codes do not match.**
 
-**On match:** Populates detail card with all equipment fields + colour-coded `CurrentStatus`. Current location/employee from first `Allocation WHERE Status == "approved"`. History grid: all `EquipmentLogs` ordered by `CreatedAt DESC` (no pagination).
+### 13.3 Match View & Equipment History
+
+- **Detail Card:** Populates all equipment fields, current allocation (employee and location), procurement type, purchase date, and colour-coded status badge.
+- **Equipment History Grid:** Populates equipment audit logs capped to the **50 most recent entries** (`Take(50)`).
+  - Title displays dynamic record counter: `📜 Equipment History (showing 50 of {totalLogCount})` or `📜 Equipment History ({count})`.
+  - Color-coded badges for all action types via `AuditLogDisplay`.
+  - Double-clicking any history row opens the full `LogDetailPopup`.
+- **Fast Action Hub:** Direct buttons for `Check Out`, `Check In`, `View QR`, `View Picture`, `View Details`, `Print Label`, and `Allocate`.
+- **Batch Capabilities:**
+  - **Recent Scans Strip:** Keeps the last 8 scanned items as quick-access chips.
+  - **Bulk Scan Mode:** Aggregates scanned codes in memory with one-click CSV export (`BulkScan_{timestamp}.csv`).
 
 ---
 
@@ -770,39 +830,74 @@ Entries are re-sorted descending by their effective timestamp (return timestamp 
 
 ## 15. Reports
 
-**Source:** `Forms/ReportsForm.cs`
+**Source:** `Forms/ReportsForm.cs`, `Forms/ReportsForm.Designer.cs`
 
-**Read-only.** No DB writes. Company name loaded from `db.AppSettings.FirstOrDefault()?.CompanyName`.
+**Modern Analytics & Reporting Engine.** Read-only reporting suite with real-time KPI generation, dynamic column controls, multi-format exports, and single-row responsive filtering.
 
-### 15.1 Equipment Inventory Report
+### 15.1 UI Architecture & Default View
 
-Category selection from context menu (same union logic as Equipment module filter). Data: `EquipmentService.GetAll()`, optionally filtered by category. Includes `Allocations → Location` so the `Location` column can show the active allocation's location.
+- **Default Initial State:** On opening the Reports screen, **no data list is loaded by default**.
+  - KPI summary cards display neutral placeholder values (`—`).
+  - The DataGrid remains empty, prompting the user to select an operational report tab.
+  - **Pagination is hidden on the default view.** In its place at the bottom bar, the application developer attribution watermark is displayed:
+    `Designed and Developed by 🐙@shayan-qazmi/📷@shayanqazmi`
+  - As soon as any report tab is selected, data queries the database, KPI cards compute live metrics, the grid populates, and the watermark smoothly transitions into the active pagination bar (`Showing 1-25 of 385`).
 
-**Columns:** `Equipment Code` · `QR Code` · `Name` · `Make` · `Model` · `Serial Number` · `Status` · `Location`
+### 15.2 Five Operational Report Tabs
 
-### 15.2 Employee Allocation Summary
+Located on the top toolbar with distinct thematic accent colors:
 
-`EmployeeService.GetAll()` + `AllocationService.GetAll()`. Active employees only (`IsActive == true`). Employees with `totalCount == 0` are **skipped**.
+| Tab | Theme Color | Target Dataset & Purpose |
+|-----|-------------|--------------------------|
+| **Equipment ▾** | Indigo (`#4F46E5`) | Full equipment asset register with split-button category picker (`All Categories` or specific category). Shows code, name, category, make/model, assignment, location, status. |
+| **Employee** | Purple (`#7C3AED`) | Active workforce equipment holdings summary. Summarizes total items ever allocated vs. items currently held by each employee. |
+| **Allocation** | Amber/Orange (`#EA580C`) | Active and pending asset allocations. Lists allocated employee, location, assignment dates, and expected returns. |
+| **Returns** | Royal Blue (`#4338CA`) | Asset return logs and custody duration analysis. Flags allocations exceeding 30 days. |
+| **Check In/Out** | Sky Blue (`#0284C7`) | Daily operational check-out/check-in borrow transaction log. |
 
-**Columns:** `Employee Code` · `Employee` · `Department` · `Email` · `Items Currently Held` (count `approved`) · `Total Ever Allocated`
+### 15.3 Export Capabilities
 
-### 15.3 Active Allocations Report
+Four one-click export actions on the top right:
 
-`AllocationService.GetAll()` filtered to `Status == "approved"` or `"pending"`. Includes pending items.
+- **Print:** System GDI+ multi-page formatted printing via `PrintDocument` with native print preview.
+- **Export PDF:** Direct PDF export via print subsystem.
+- **Export Excel:** Formatted `.xlsx` spreadsheet generation using `ClosedXML`. Includes bold company header, color-coded table headers, and automatic column width adjustment (`AdjustToContents()`).
+- **Export CSV:** Standardized comma-separated values export with RFC 4180 quoting and character escaping.
 
-**Columns:** `Equipment Code` · `QR Code` · `Equipment Name` · `Allocated To` · `Location` · `Allocated On` · `Expected Return` · `Status`
+### 15.4 Single-Row Filter Toolbar
 
-### 15.4 Returns History Report
+Designed to fit all controls cleanly on a single row without wrapping:
 
-`AllocationService.GetAll()` filtered to `Status == "returned"`. **Does not include Check-In/Out completions (`transactions WHERE Status = "Completed"`).** Duration > 30 days highlighted in warning colour. Null `ActualReturnDate` → duration calculated to today.
+1. **`Apply` Button:** High-contrast emerald green button (`#10B981`) placed on the far left.
+2. **Date Quick-Filter Pills:** `Today`, `7 days`, `30 days` (active default), `This year`, `Custom...`.
+   - Selecting a date filter filters records against the relevant date attribute (e.g. `PurchaseDate`, `AllocationDate`, `ActualReturnDate`, or `TransactionDate`).
+   - **Custom Date Range Dialog:** Dedicated modal dialog (`Width 340, Height 230`) providing `From Date` and `To Date` pickers and an unclipped `Apply Range` button.
+3. **Vertical Divider:** Separates date controls from dimensional dropdowns.
+4. **Location Dropdown (`All locations ▾`):** Dynamically populated from active database locations.
+5. **Status Dropdown (`Any status ▾`):** Filters by `allocated`, `in_store`, `under_repair`, `decommissioned`, or `pending`.
+   *(Note: The category dropdown was integrated directly into the Equipment tab to preserve single-line toolbar layout).*
+6. **Live Search Box (`Filter rows...`):** Real-time text filter across all visible grid columns.
+7. **`Reset` Button:** Restores all filters to defaults (`30 days`, all locations, any status, clear search), unhides all table columns, and clears active grid sorting.
 
-### 15.5 Export — Excel
+### 15.5 KPI Summary Cards
 
-`ClosedXML`. Row 1: `CompanyName` merged. Row 2: headers (bold, green). Rows 3+: data from preview grid cell values (strings, not re-queried from DB). `AdjustToContents()`.
+Four dynamic KPI summary cards displayed above the grid:
 
-### 15.6 Export — PDF / Print
+- **Total rows:** Indigo accent bar (`#7C3AED`). Total record count matching current filter criteria.
+- **Allocated:** Amber accent bar (`#F59E0B`). Count of assets currently assigned or checked out.
+- **In store:** Emerald green accent bar (`#10B981`). Count of assets available in inventory.
+- **Needs attention:** Red accent bar (`#EF4444`). Count of assets marked `under_repair`, `decommissioned`, or overdue.
 
-`System.Drawing.Printing.PrintDocument` + `PrintPreviewDialog`. GDI+ text at fixed column widths. Multi-page via `HasMorePages`. No file created — user prints from the preview dialog.
+### 15.6 Grid Display & Formatting
+
+- **Status Badge Styling:**
+  - `Under Repair`: Displayed with formatted text (no underscore) and **light blue badge** (`#E0F2FE` background / `#0284C7` text).
+  - `In Store`: Soft green badge (`#DCFCE7` / `#15803D`).
+  - `Allocated`: Soft amber badge (`#FEF3C7` / `#B45309`).
+  - `Decommissioned`: Soft red badge (`#FEE2E2` / `#B91C1C`).
+- **Column Customization (`Columns`):** Dropdown menu with checkboxes to toggle any column's visibility dynamically.
+- **Sorting (`Sort ▾`):** Interactive column header sorting and dedicated sort menu (Ascending / Descending).
+- **Pagination:** Configurable page size (`25 per page`, `50 per page`, `100 per page`), `Prev` / `Next` buttons, and record position summary.
 
 ---
 
@@ -846,39 +941,52 @@ Entirely code-built; no Designer layout. Left sidebar slides in on load via a ti
 
 | Action | Detail |
 |--------|--------|
-| Add User | Opens `AddEditUserForm` (add mode). On OK → `LoadUsers()`. |
-| Edit User | Opens `AddEditUserForm(user)` (edit mode). Username field disabled in edit mode. |
-| Toggle Active | Flips `User.IsActive`. Blocked if `id == AuthService.CurrentUserId`. Uses MessageBox confirmation. |
-| Delete User | Removes `UserRoles WHERE UserId = id`, then `Users.Remove(entity)`. Blocked if own account. Shows toast. FK violation shown as toast error. |
+| Add User | Opens `AddEditUserForm` (add mode). On OK → `LoadUsers()`. Logs to `SecurityAuditLogger`. |
+| Edit User | Opens `AddEditUserForm(user)` (edit mode). Username field disabled in edit mode. Logs to `SecurityAuditLogger`. |
+| Toggle Active | Flips `User.IsActive`. Blocked if `id == AuthService.CurrentUserId`. Uses MessageBox confirmation. Logs to `SecurityAuditLogger`. |
+| Delete User | Removes `UserRoles WHERE UserId = id`, then `Users.Remove(entity)`. Blocked if own account. Shows toast. Logs to `SecurityAuditLogger`. |
 
 **Double-click row → `UserDetailPopup`:** Shows user avatar, username, full name, email, role, status.
 
-**`AddEditUserForm` — fields:**
-- `Username` (required, unique; disabled in edit mode)
-- `Full Name` (required)
-- `Email` (optional, unique across users)
-- `New Password` / `Confirm Password` (required in add mode; blank = keep existing in edit mode)
-- `Role` (required ComboBox from `roles` table)
-- **Profile Picture** (optional): Upload button → `OpenFileDialog` (JPG/PNG/BMP/GIF) → staged locally. On save, copied to `NetworkPaths.UserPicturesDir` as `{username}_{GUID}{ext}` via `NetworkShareHelper.EnsureConnected()`. Remove button clears the picture. Avatar drawn as circle crop via `AvatarHelper.DrawAvatar`.
-- `Is Active Account` checkbox
+**`AddEditUserForm` — Mandatory Account Recovery Credential Policy:**
+- Banner alert: `⚠️ Enter either PIN or Email or both (Mandatory for recovery)`
+- **Username** (required, unique; disabled in edit mode)
+- **Full Name** (required)
+- **Work Email** (valid email format, unique across users)
+- **Recovery PIN** (4-8 digit numeric PIN for offline password resets; stored securely via `RecoveryPinHelper.SetUserPin`)
+- At least one recovery credential (Email or Recovery PIN) is **mandatory**; saving is blocked if both are empty.
+- **New Password** / **Confirm Password** (required in add mode; blank = keep existing in edit mode). Hashed via `PasswordHelper.Hash()`.
+- **Role** (required ComboBox from `roles` table)
+- **Profile Picture** (optional): Upload button → `OpenFileDialog` (JPG/PNG/BMP/GIF) → staged locally. Stored in `NetworkPaths.UserPicturesDir` or local avatar store.
+- **Is Active Account** checkbox
 
-**No audit log for any user operation.**
+All administrative user management actions write security audit events to `%AppData%\AssetPilot\security_audit.log`.
 
 ### 16.4 Change Password
 
 1. Validates all fields non-empty.
 2. Validates `newPassword == confirmPassword`.
-3. Validates `newPassword.Length >= 4`.
-4. `user.PasswordHash == currentPassword` — **plain-text comparison**.
-5. `user.PasswordHash = newPassword` — **stored in plain text**.
-6. `SaveChanges`.
+3. Validates `newPassword.Length >= 6`.
+4. Validates current password using `PasswordHelper.Verify(currentPassword, user.PasswordHash)` with BCrypt hashing and legacy migration fallback.
+5. Hashes new password using `PasswordHelper.Hash(newPassword)` (BCrypt).
+6. Updates `user.PasswordChangedAt = DateTime.UtcNow`, `user.UpdatedAt = DateTime.UtcNow`.
+7. `SaveChanges()`.
+8. Logs password change event to `SecurityAuditLogger`.
 
 **Visual improvements:**
 - All three password fields are rounded input panels with an **eye (👁) icon** for reveal/hide toggle.
 - A live **password strength meter** (coloured progress bar + label: Weak/Medium/Strong) appears beneath the New Password field as the user types. Scoring: length ≥ 4 (+1), ≥ 8 (+1), mixed case (+1), digit (+1), symbol (+1).
 - Security Tips card on the right panel lists best-practice guidance.
 
-Only the 4-character minimum is enforced server-side.
+### 16.4a Offline Recovery PIN Configuration
+
+**Source:** `Helpers/RecoveryPinHelper.cs`, `Forms/SettingsForm.cs` (`ShowRecoveryPinDialog()`)
+
+Enables administrators to view and configure the organization-wide master recovery PIN:
+- **Default Master PIN:** `123456` (100% numeric, compatible with the login recovery PIN input requirements).
+- **Custom PIN:** Stored securely at `%AppData%\AssetPilot\recovery_pin.txt`.
+- **Reset to Default:** Dedicated button to reset the organization master PIN back to `123456`.
+- **Per-User Recovery PINs:** Managed via `%AppData%\AssetPilot\user_pins.json` with thread-safe file serialization. Verified by `RecoveryPinHelper.VerifyPin(pin, username)`.
 
 ### 16.5 Printing
 
@@ -892,7 +1000,9 @@ Fields: `PrinterName` (blank = system default), `LabelWidthMm` (62), `LabelHeigh
 
 **Add:** `CategoryService.Add(name)` — validates non-empty, checks uniqueness, inserts into `categories`. Enter key in the text field triggers add.
 
-**Delete:** `CategoryService.Delete(id)` → `db.Categories.Remove` + `SaveChanges`. **Hard delete. Does not update `Equipment.Category` — orphaned string values remain on equipment records.**
+**Delete:** `CategoryService.Delete(id, reassignOrphanedToUncategorized)`:
+- If no equipment is using the category: deletes the category directly.
+- If equipment is assigned to the category: prompts the administrator with the count of affected assets. If confirmed, all affected equipment records have their category updated to `"Uncategorized"` (ensuring `"Uncategorized"` exists in `categories`), preventing any orphaned category strings from persisting on equipment or filter dropdowns. If declined, deletion is safely cancelled.
 
 ### 16.7 System Configuration — Admin Only
 
@@ -1038,30 +1148,63 @@ Roles      (1) --< UserRoles          (N)  [RoleId FK]
 
 ## 19. Known Issues & Observations
 
-| # | Issue | Detail |
-|---|-------|--------|
-| 1 | **Passwords stored in plain text** | `Users.PasswordHash` stores raw passwords. No hashing. All comparisons are plain-string equality. |
-| 2 | **~~`ChangedByUserId` always `1`~~** | ✅ **FIXED** — `AuditService` constructor now defaults `_systemUserId = AuthService.CurrentUserId`. All audit entries now correctly attribute changes to the logged-in user. |
-| 3 | **~~Undo Return writes `allocation_returned`~~** | ✅ **FIXED** — `BtnDelete_Click` in `ReturnsForm` now logs `AuditService.ActionReturnUndone` (`"return_undone"`). Displays as "Returned to Active Allocation" in logs. |
-| 4 | **Transfer pollutes Returns view** | The old allocation's `Status = "returned"` causes it to appear in the Returns module grid and Returns History report. |
-| 5 | **`ApprovedByUserId = 1` hardcoded** | Both Approve and Transfer hardcode this. The acting user is never recorded in `allocations.approved_by_user_id`. |
-| 6 | **`AllocationService.Allocate` silently approves** | If `allocation.Status` is empty or blank, it is promoted to `"approved"` without requiring a separate approve step — bypassing the `pending → approved` workflow. |
-| 7 | **"Overdue" is UI-only** | Allocations past their expected return date remain `"approved"` in the DB. The status is computed on every load. |
-| 8 | **Category delete orphans equipment records** | Deleting a category from the `categories` table does not update `Equipment.Category`. Orphaned strings persist and continue to appear in filter dropdowns. |
-| 9 | **~~Reset application data has no transaction wrapper~~** | ✅ **IMPROVED** — Reset now deletes tables in FK-safe order (Logs → Location Histories → Maintenance Records → Transactions → Allocations → Equipment → Employees → Locations) in individual `SaveChanges` calls with per-table error isolation. Still not a single atomic transaction, but partial failure no longer leaves the DB in a completely unrecoverable state. |
-| 10 | **Backup password visible in process list** | `mysqldump` password is passed as `-p{pass}` in the command-line argument. |
-| 11 | **Danger Zone Decommission reason lost if logs cleared** | `DecommissionForm` reads the reason from `equipment_logs`. Clearing logs via Settings removes the reason from the decommission view. |
-| 12 | **Returns History Report excludes Check-In/Out completions** | The report only queries `allocations WHERE Status = "returned"`. Completed `transactions` are not shown. |
-| 13 | **Soft delete has no FK guard** | `EquipmentService.Delete` sets `IsDeleted = true` with no check for active allocations or transactions. Allocated equipment can be soft-deleted. |
-| 14 | **LocationsForm has no pagination** | All locations are loaded at once. Will be slow at scale. |
-| 15 | **Employee hard-delete breaks historical allocations** | Non-approved (historical) allocation rows keep the `EmployeeId` FK after the employee is deleted. |
-| 16 | **Audit failure is silently swallowed** | `AuditService.Log` catches all exceptions and calls `Logger.LogError`. If the DB insert fails (connectivity, FK), the triggering operation has already committed and no error is shown to the user. |
-| 17 | **"Expected Return Date Updated" is a free-form string** | Not a defined `AuditService` constant. However `LogsForm.FormatAction` and `AuditLogDisplay` both now map it to `"Expected Return Date Updated"` and colour it as a yellow update badge. |
-| 18 | **`CreatedByUserId = 1` hardcoded in Equipment Add** | The add form sets `_equipment.CreatedByUserId = 1` unconditionally; the session user is not recorded. |
-| 19 | **DB password DPAPI-bound to OS user** | The password stored in `dbconnection.json` uses `ProtectedData.Protect` with `DataProtectionScope.CurrentUser`. The file cannot be decrypted on a different Windows user account or machine. |
-| 20 | **`BuildSystemConfigPanel` has a duplicate `return outer`** | Lines 2307–2308 both return `outer` — the second `return` is dead code (compile-time unreachable). No functional impact. |
-| 21 | **`Allocation Request Deleted` is a free-form audit string** | The delete-allocation action logs the string `"Allocation Request Deleted"` directly rather than using an `AuditService` constant. `LogsForm` handles it with an explicit switch case. |
-| 22 | **Decommission dialog accepts all non-decommissioned equipment** | The dialog previously only showed `in_store`/`under_repair` items; it now accepts **all** non-decommissioned equipment (including `allocated`). The UI-layer filter for `in_store`/`under_repair` has been removed. |
+| # | Issue | Status / Detail |
+|---|-------|-----------------|
+| 1 | **~~Passwords stored in plain text~~** | ✅ **FIXED** — Upgraded to **BCrypt** hashing (`PasswordHelper.Hash` / `PasswordHelper.Verify`) across Login, Settings, User Management, and Password Reset. Unmigrated legacy accounts are automatically verified and upgraded upon subsequent password updates. |
+| 2 | **~~`ChangedByUserId` always `1`~~** | ✅ **FIXED** — `AuditService` constructor defaults `_systemUserId = AuthService.CurrentUserId`. All audit entries correctly attribute actions to the authenticated session user. |
+| 3 | **~~Undo Return writes `allocation_returned`~~** | ✅ **FIXED** — `BtnDelete_Click` in `ReturnsForm` logs `AuditService.ActionReturnUndone` (`"return_undone"`). Displays as "Returned to Active Allocation" in logs. |
+| 4 | **Transfer pollutes Returns view** | The previous allocation row is marked `Status = "returned"` during a transfer, causing it to appear in the Returns module grid and Returns History report without a distinguishing `"transferred"` flag. |
+| 5 | **~~`ApprovedByUserId` / `CreatedByUserId` hardcoded~~** | ✅ **FIXED** — Dynamic user attribution implemented. Equipment creation (`AddEditEquipmentForm.cs`, `EquipmentService.cs`), allocation creation/approval (`AllocationForm.cs`, `AllocationService.cs`), and transfers (`TransferForm.cs`) dynamically attribute records to `AuthService.CurrentUserId` with fallback only for offline unauthenticated seeds. |
+| 6 | **`AllocationService.Allocate` silently approves** | If `allocation.Status` is empty or null, it is promoted directly to `"approved"` without requiring a separate approve step — bypassing the `pending → approved` approval queue. |
+| 7 | **"Overdue" is UI-only** | Allocations past their expected return date remain `"approved"` in the database. Overdue status is computed dynamically in the UI on load. |
+| 8 | **~~Category delete orphans equipment records~~** | ✅ **FIXED** — `CategoryService.Delete` and `SettingsForm` verify equipment usage. If items use the category, the administrator is prompted to reassign them to `"Uncategorized"`. Affected equipment records are batch-updated so no orphaned strings persist. |
+| 9 | **~~Reset application data has no single transaction wrapper~~** | ✅ **FIXED** — Wrapped in a single atomic database transaction (`using var tx = db.Database.BeginTransaction()`) with automatic commit/rollback. Includes automatic pre-reset safety backup (`.sql` via `--defaults-extra-file` or structured `.json` snapshot fallback) archived to `%AppData%\AssetPilot\Backups\`. |
+| 10 | **~~Backup password visible in process list~~** | ✅ **FIXED** — Backups and pre-reset dumps invoke `mysqldump` using secure temporary option files (`--defaults-extra-file="{cnfFile}"`) rather than passing `-p{password}` in process command-line arguments. |
+| 11 | **Danger Zone Decommission reason lost if logs cleared** | `DecommissionForm` reads the decommission reason from `equipment_logs`. Clearing logs via Settings removes the displayed reason from the decommission view. |
+| 12 | **~~Returns History Report excludes Check-In/Out completions~~** | ✅ **FIXED** — Modernized Returns History report in `ReportsForm.cs` unifies both allocation returns and completed borrow transactions (`transactions WHERE Status = 'Completed'`) with distinct source badges (`Allocation`, `Transferred`, `Check In/Out`). |
+| 13 | **~~Soft delete has no active allocation / transaction guard~~** | ✅ **FIXED** — `EquipmentService.Delete`, `DeleteRange`, and `EquipmentForm.btnDelete_Click` rigorously verify against active allocations, pending allocations, and active/overdue borrow check-outs, preventing deletion and prompting the user to return assets first. |
+| 14 | **~~LocationsForm has no pagination~~** | ✅ **FIXED** — Standardized pagination with `PageSize = 50`, `Prev` / `Next` buttons, and record position summary implemented in `LocationsForm.cs`. |
+| 15 | **Employee hard-delete breaks historical allocations** | Non-approved (historical) allocation rows keep the `EmployeeId` foreign key after an employee is hard-deleted. |
+| 16 | **Audit failure is silently swallowed** | `AuditService.Log` catches all exceptions and logs them via `Logger.LogError`. If the database write fails, the triggering business transaction commits regardless. |
+| 17 | **"Expected Return Date Updated" is a free-form string** | Not an `AuditService` constant, though explicitly mapped and badge-styled in `LogsForm`. |
+| 18 | **~~`CreatedByUserId = 1` hardcoded in Equipment Add~~** | ✅ **FIXED** — Unified under Issue #5 fix. |
+| 19 | **DB password DPAPI-bound to OS user** | Database credentials in `dbconnection.json` are encrypted via `ProtectedData.Protect` with `CurrentUser` scope, preventing file sharing across different Windows accounts. |
+| 20 | **`BuildSystemConfigPanel` has duplicate `return outer`** | Lines 2307–2308 in `SettingsForm.cs` both return `outer`. The second statement is unreachable dead code. |
+| 21 | **`Allocation Request Deleted` is a free-form audit string** | Hardcoded audit string rather than an `AuditService` constant. |
+| 22 | **~~Decommission dialog accepts all non-decommissioned equipment~~** | ✅ **FIXED** — `btnDecommission_Click` pre-filters available equipment to exclude any items that are currently allocated or checked out. The dialog and save paths strictly reject decommissioning active assets and instruct operators to process returns first. |
+
+
+
+---
+
+### 19.1 Prioritized Limitations Roadmap & Removal Sequence
+
+To systematically eliminate remaining technical debt and operational edge cases, remaining items are prioritized into three distinct tiers:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  TIER 1: Critical & Architectural Integrity [ALL COMPLETED ✅]         │
+│  • ✅ Dynamic ApprovedBy / CreatedBy User Attribution (#5, #18)        │
+│  • ✅ Equipment Soft Delete Active & Pending Allocation Guard (#13)    │
+│  • ✅ Database Backup Credential Protection via Option Files (#10)     │
+│  • ✅ Atomic Transaction Wrapper & Dual-Mode Pre-Reset Backup (#9)     │
+├────────────────────────────────────────────────────────────────────────┤
+│  TIER 2: Operational & Workflow Consistency                           │
+│  • ✅ Category Deletion Reassignment & Uncategorized Guard (#8)       │
+│  • ✅ Unified Returns & Completed Check-Outs Reporting (#12)          │
+│  • Distinguish Transferred vs. Returned Allocations (#4)               │
+│  • Enforce Explicit Pending → Approved Workflow (#6)                  │
+│  • Employee Deletion Historical Foreign Key Sanitization (#15)        │
+│  • Audit Write Failure User-Facing Feedback (#16)                     │
+├────────────────────────────────────────────────────────────────────────┤
+│  TIER 3: Quality of Life, Edge Cases & Visual Polish                   │
+│  • ✅ Decommission Allocated/Checked-Out Pre-Filter & Guard (#22)     │
+│  • Persist Decommission Reason in Equipment Record (#11)              │
+│  • Promote Free-Form Audit Strings to AuditService Constants (#17, #21)│
+│  • Remove Dead Code in System Configuration Panel (#20)               │
+│  • Cross-Machine Database Credential Encryption Option (#19)          │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -1704,8 +1847,202 @@ New entries fully mapped in `FormatAction` switch and `RefreshGrid` colour switc
 | Undo Return | Returns | `allocations`, `equipment`, `equipment_logs` | ✅ `return_undone` |
 | Clear All Logs | Settings | `equipment_logs` (all deleted), then `settings_data_delete` row re-inserted + `security_audit.log` | ✅ `settings_data_delete` |
 | Reset Application Data | Settings | Logs → Location Histories → Maintenance Records → Transactions → Allocations → Equipment → Employees → Locations + `security_audit.log` + `settings_data_delete` row | ✅ `settings_data_delete` |
-| Delete User | Settings | `user_roles`, `users` | ❌ DB log; ✅ `security_audit.log` |
-| Change Password | Settings / AddEditUserForm | `users` | ❌ DB log; ✅ `security_audit.log` |
-| Bulk Scan Export | QR Scanner | *(no DB writes)* | ❌ |
-| View QR Code / View Picture | QR Scanner | *(no DB writes)* | ❌ |
-| Navigate to Check-In/Out from QR Scanner | QR Scanner | *(navigation only)* | ❌ |
+| Delete User | Settings | `user_roles`, `users` | ⚠️ Security audit only (`security_audit.log`); excluded from DB `equipment_logs` by design |
+| Change Password | Settings / AddEditUserForm | `users` | ⚠️ Security audit only (`security_audit.log`); excluded from DB `equipment_logs` by design |
+| Bulk Scan Export | QR Scanner | *(no DB writes)* | ℹ️ N/A (read-only file export to CSV/TXT) |
+| View QR Code / View Picture | QR Scanner | *(no DB writes)* | ℹ️ N/A (read-only inspection dialogs) |
+| Navigate to Check-In/Out from QR Scanner | QR Scanner | *(navigation only)* | ℹ️ N/A (cross-form navigational transition) |
+
+---
+
+## 24. New Features & Comprehensive Overhaul (2026-11-10)
+
+This section summarizes all major design modernization, security hardening, pagination additions, and architecture updates implemented in the **2026-11-10** release.
+
+---
+
+### 24.1 Reports Screen — Complete UI Modernization
+
+**Source:** `Forms/ReportsForm.cs`, `Forms/ReportsForm.Designer.cs`
+
+The Reports screen has undergone a complete redesign to provide a high-density, modern executive analytics experience matching contemporary enterprise UI paradigms.
+
+#### 24.1.1 Default Initial State & Developer Watermark
+- **Zero-Load Default:** When navigating to the Reports screen, no report data or equipment records are loaded automatically.
+- **KPI Dashes:** All four KPI cards display neutral placeholder dashes (`—`).
+- **Hidden Pagination on Default:** The pagination controls (`Prev`, `Next`, per-page selector) are completely hidden on the default view.
+- **Attribution Watermark:** In place of the pagination bar, the developer watermark is displayed across the bottom:
+  `Designed and Developed by 🐙@shayan-qazmi/📷@shayanqazmi`
+- **Dynamic Transition:** As soon as an operator clicks any of the 5 report buttons (e.g. Equipment, Employee, etc.), the database is queried, KPI metrics compute, the DataGrid renders, pagination controls appear (`Showing 1-25 of 385`), and the watermark transitions cleanly.
+
+#### 24.1.2 Five Operational Report Tabs
+- **Equipment ▾** (`#4F46E5`): Comprehensive equipment inventory register. Includes an integrated context menu category picker to filter by specific hardware categories without bloating the horizontal filter toolbar.
+- **Employee** (`#7C3AED`): Holdings summary of active workforce members, tracking items currently held vs. total allocations.
+- **Allocation** (`#EA580C`): Active allocations and pending requests with assignment dates, locations, and return deadlines.
+- **Returns** (`#4338CA`): Custody return log and duration analysis. Highlights allocations held for more than 30 days.
+- **Check In/Out** (`#0284C7`): Real-time borrow transactions ledger.
+
+#### 24.1.3 Single-Row Filter Toolbar
+- **Apply Button:** High-contrast emerald green button (`#10B981`) placed on the left edge.
+- **Date Range Quick-Pills:** `Today`, `7 days`, `30 days`, `This year` (active default), `Custom...`.
+- **Unclipped Custom Date Dialog:** The `Custom...` date range dialog was enlarged (`Width 340, Height 230`) to guarantee that `From Date`, `To Date`, and `Apply Range` button are fully visible and never clipped.
+- **Dropdown Filters:** `All locations ▾` and `Any status ▾`.
+- **Live Search:** Instant client-side substring filter (`Filter rows...`).
+- **Reset Button:** Restores all filters to defaults, resets sorting, and restores any hidden columns.
+
+#### 24.1.4 KPI Summary Cards & Status Badges
+- **Total rows:** Indigo accent bar (`#7C3AED`).
+- **Allocated:** Amber accent bar (`#F59E0B`).
+- **In store:** Emerald green accent bar (`#10B981`).
+- **Needs attention:** Red accent bar (`#EF4444`).
+- **Under Repair Badge:** Formatted with friendly capitalization and no underscore (`under_repair` -> `Under Repair`) rendered in **light blue** (`#E0F2FE` background / `#0284C7` text).
+
+---
+
+### 24.2 QR Scanner & Locations Pagination Overhaul
+
+#### 24.2.1 Locations Screen Pagination
+**Source:** `Forms/LocationsForm.cs`
+- Added standardized pagination (`PageSize = 50`).
+- Bottom pagination controls with `Page X of Y` indicator, responsive `Prev` / `Next` buttons, and instant search integration.
+
+#### 24.2.2 QR Scanner History Cap & Inspection Hub
+**Source:** `Forms/QRScannerForm.cs`
+- Standardized the equipment audit history grid to the **50 most recent records** (`Take(50)`).
+- Dynamic header: `📜 Equipment History (showing 50 of {totalLogCount})`.
+- Integrated camera scanning with AForge/ZXing, freeze/unfreeze controls, autofocus, and barcode recognition.
+- Fast-action buttons: `Check Out`, `Check In`, `View QR`, `View Picture`, `View Details`, `Print Label`, `Allocate`.
+
+---
+
+### 24.3 Login Screen & Credential Security Hardening
+
+**Source:** `Forms/LoginForm.cs`
+
+#### 24.3.1 Password Recovery UI Layout & Text Padding Fix
+- Fixed input text and placeholder clipping: Increased verification field horizontal position (`txtVerify.Left = 54`, `Width = contentWidth - 54 - 40`), creating an 18–22px clear gutter past the left icon (`✉` / `🔑`).
+- Eliminates clipping of initial characters (`name@company.com`, `Enter personal PIN or Admin PIN`).
+
+#### 24.3.2 Strict Input Restrictions
+- **Recovery PIN Mode:**
+  - Enforces **numerals/numbers only** (`char.IsDigit`).
+  - KeyPress handler intercepts and cancels non-digits and spaces.
+  - TextChanged cleanses pasted non-digits while maintaining cursor position.
+- **Work Email Mode:**
+  - Enforces **valid email format characters** (`[a-zA-Z0-9@._-+]`).
+  - Intercepts spaces (`e.KeyChar == ' '`) and blocks multiple `@` symbols.
+  - Cleanses pasted spaces and illegal symbols.
+- **Tab State Cleaning:** Toggling between Work Email and Recovery PIN automatically clears the input field to prevent carrying mismatched formats across verification modes.
+
+---
+
+### 24.4 Security Audit Trail & Offline Recovery PIN Architecture
+
+**Source:** `Helpers/RecoveryPinHelper.cs`, `Helpers/PasswordHelper.cs`, `Helpers/SecurityAuditLogger.cs`
+
+#### 24.4.1 BCrypt Password Hashing
+- Replaced plaintext password comparisons with **BCrypt.Net** hashing (`PasswordHelper.Hash` and `PasswordHelper.Verify`).
+- Transparent backward compatibility: Legacy plaintext passwords authenticate seamlessly and are hashed with BCrypt upon the next password reset or administrative change.
+
+#### 24.4.2 Offline Master PIN & User PIN Helper
+- Default master recovery PIN updated to **`123456`** (100% numeric, compatible with the login PIN input validation).
+- Organization-wide custom PIN stored at `%AppData%\AssetPilot\recovery_pin.txt`.
+- Individual per-user recovery PINs persisted at `%AppData%\AssetPilot\user_pins.json`.
+- Mandatory account recovery credential policy in `AddEditUserForm`: administrators must supply either a valid Email, a Recovery PIN, or both.
+
+#### 24.4.3 Security Audit Log
+- Append-only file log at `%AppData%\AssetPilot\security_audit.log` tracking:
+  - User creation, deletion, status toggling, role assignment.
+  - Self-service password resets and administrative password resets.
+  - Organization PIN updates and resets.
+  - Application data purge and logs clearance.
+
+---
+
+### 24.5 Cross-Module Effects — 2026-11-10 Changes
+
+| Action | Module | Tables Written | Audit Log? |
+|--------|--------|----------------|------------|
+| Self-Service Password Reset (Email/PIN) | Login (`LoginForm`) | `users` | ⚠️ Security audit only (`security_audit.log`); excluded from DB `equipment_logs` by design |
+| Set / Reset Organization Master PIN | Settings (`SettingsForm`) | File (`recovery_pin.txt`) | ⚠️ Security audit only (`security_audit.log`); excluded from DB `equipment_logs` by design |
+| Save User Recovery PIN | Users (`AddEditUserForm`) | File (`user_pins.json`) | ⚠️ Security audit only (`security_audit.log`); excluded from DB `equipment_logs` by design |
+| Report Generation & Multi-Format Export | Reports (`ReportsForm`) | *(no DB writes)* | ℹ️ N/A (read-only export to PDF/Excel/CSV/Print) |
+| Live Camera Scanning & 50 History Cap | QR Scanner (`QRScannerForm`) | *(no DB writes)* | ℹ️ N/A (read-only barcode detection & inspection) |
+| Paginated Location Navigation | Locations (`LocationsForm`) | *(no DB writes)* | ℹ️ N/A (in-memory paged navigation) |
+| Equipment Soft Delete Guard | Equipment (`EquipmentService`, `EquipmentForm`) | `equipment` (soft delete blocked if allocated/pending/checked out) | ✅ `equipment_deleted` logged when permitted; blocked attempts trigger warning toast without state change |
+| Delete User | Settings (`SettingsForm`) | `user_roles`, `users` | ⚠️ Security audit only (`security_audit.log`); excluded from DB `equipment_logs` by design |
+| Change Password | Settings / `AddEditUserForm` | `users` | ⚠️ Security audit only (`security_audit.log`); excluded from DB `equipment_logs` by design |
+| Bulk Scan Export | QR Scanner (`QRScannerForm`) | *(no DB writes)* | ℹ️ N/A (read-only file export to CSV/TXT) |
+| View QR Code / View Picture | QR Scanner (`QRScannerForm`) | *(no DB writes)* | ℹ️ N/A (read-only visual modal viewer) |
+| Navigate to Check-In/Out from QR Scanner | QR Scanner (`QRScannerForm`) | *(navigation only)* | ℹ️ N/A (cross-module UI navigation) |
+| Full Operational Reset with Pre-Backup | Settings (`SettingsForm`) | All 8 operational tables inside `BeginTransaction()` | ✅ `settings_data_delete` + `security_audit.log` |
+
+---
+
+### 24.6 Tier 1 Critical Limitations Resolutions
+
+#### 24.6.1 Dynamic User Attribution (`CreatedBy` / `ApprovedBy` / `AllocatedBy`)
+- **Add / Edit Equipment:** `EquipmentService.Add` and `AddEditEquipmentForm` dynamically assign `CreatedByUserId = AuthService.CurrentUserId > 0 ? AuthService.CurrentUserId : 1`.
+- **Allocation Service & Forms:** `AllocationService.Allocate`, `AllocationForm.cs`, and `TransferForm.cs` dynamically assign `AllocatedByUserId` and `ApprovedByUserId` to `AuthService.CurrentUserId`, capturing the authenticated operator on record creation, manual approvals, and asset transfers.
+
+#### 24.6.2 Equipment Soft Delete Guard
+- **Comprehensive Dependency Check:** Before flagging any asset with `IsDeleted = true`, both `EquipmentService` (`Delete` & `DeleteRange`) and `EquipmentForm` verify:
+  1. Active approved allocations (`allocations.status == 'approved'`).
+  2. Pending allocation requests (`allocations.status == 'pending'`).
+  3. Active or overdue borrow transactions (`transactions.status IN ('Pending', 'Overdue')`).
+  4. Active equipment status (`CurrentStatus == 'allocated'`).
+- If any active or pending dependency exists, deletion is strictly blocked, displaying a descriptive warning to return or complete custody first.
+
+#### 24.6.3 Atomic Reset Transaction & Dual-Mode Pre-Reset Safety Backup
+- **Single Atomic Transaction:** `SettingsForm.BtnResetAppData_Click` wraps all 8 table deletions inside `using var tx = db.Database.BeginTransaction()`. Any error triggers an immediate `tx.Rollback()`, guaranteeing that an interrupted reset will never leave the database in an inconsistent or partially deleted state.
+- **Dual-Mode Automatic Backup:** Before any reset commences, `PerformAutomaticPreResetBackup()` runs:
+  1. Primary: Spawns `mysqldump` using secure temporary option files (`--defaults-extra-file="{cnfFile}"`), writing a complete SQL dump.
+  2. Secondary Fallback: If `mysqldump` is unavailable on the workstation, automatically serializes all 8 tables via EF Core into a structured JSON snapshot (`pre_reset_backup_{timestamp}.json`).
+- Archived safety backups are stored at `%AppData%\AssetPilot\Backups\` and recorded in `SecurityAuditLogger`.
+
+---
+
+### 24.7 Operational & Workflow Consistency Enhancements (Items #10 & #12)
+
+#### 24.7.1 Category Deletion & Reassignment Architecture (Item #10)
+**Source:** `Services/CategoryService.cs`, `Forms/SettingsForm.cs`
+- **Orphan Prevention:** Deleting a category that is currently assigned to equipment no longer leaves orphaned strings on equipment records or phantom filter options in dropdowns.
+- **Interactive Reassignment:** When an administrator attempts to delete an in-use category, the system calculates the active equipment count and presents an explicit choice:
+  `"Category '{name}' is currently assigned to {count} equipment item(s). Would you like to reassign these {count} item(s) to 'Uncategorized' and delete '{name}'?"`
+- **Automatic Migration:** Confirming reassignment automatically creates the `"Uncategorized"` category in `categories` (if not already present), updates all matching `Equipment.Category` records to `"Uncategorized"`, and safely removes the target category.
+- **Cancellation Safety:** If the administrator declines reassignment, the category deletion is safely aborted without modifying any records.
+
+#### 24.7.2 Decommission Eligibility Pre-Filtering & Active Custody Guard (Item #12)
+**Source:** `Forms/DecommissionForm.cs`
+- **Eligibility Pre-Filter:** The Decommission dialog dropdown and suggestion helper now strictly pre-filter the equipment list to exclude:
+  1. Equipment with `CurrentStatus == "allocated"`.
+  2. Equipment with active approved allocations (`allocations.Status == "approved"`).
+  3. Equipment with pending allocation requests (`allocations.Status == "pending"`).
+  4. Equipment with active or overdue borrow transactions (`transactions.Status IN ('Pending', 'Overdue')`).
+- **Clear Operator Guidance:** If all active assets in the database are currently assigned or checked out, the system alerts the operator upfront:
+  `"No equipment currently eligible to decommission. Active equipment is currently allocated to employees or checked out. Please process returns before decommissioning."`
+- **Multi-Layer Guard:** Both `DecommissionDialog.BtnSave_Click` and `DecommissionForm.btnDecommission_Click` enforce real-time database checks before writing `CurrentStatus = "decommissioned"`, ensuring an item can never be decommissioned while under employee custody.
+
+---
+
+### 24.8 Logs Screen Advanced Filter Architecture (2026-11-10)
+
+**Source:** `Forms/LogsForm.cs`, `Forms/LogsForm.Designer.cs`
+
+#### 24.8.1 Action Category Pill Buttons
+A dedicated second toolbar row (`flowFilterRow`) provides category-based quick filtering. The active pill state dynamically adopts the exact matching badge color from the DataGridView action cells:
+- **`All`**: Charcoal (`#1F2937`) — resets action-type filtering.
+- **`Created`**: Dark green (`#1B5E20`) — filters `equipment_created`, `employee_created`, `location_created`.
+- **`Updated`**: Yellow (`#CA8A04`) — filters `equipment_updated`, `employee_updated`, `location_updated`, `Expected Return Date Updated`.
+- **`Allocation`**: Orange (`#EA580C`) — filters `allocation_requested`, `allocation_approved`, `allocation_rejected`, `allocation_returned`, `allocation_overdue`, `return_undone`, `Allocation Request Deleted`.
+- **`Check In/Out`**: Dark blue (`#01579B`) — enlarged button width (`110px`) to prevent text clipping; filters `checked_out`, `checked_in`.
+- **`Transfers`**: Deep purple (`#4A148C`) — filters `transferred`.
+- **`Decommission`**: Red (`#D32F2F`) — enlarged button width (`118px`) to prevent text clipping; filters `decommission_requested`, `decommission_approved`, `decommission_undone`, `decommission_rejected`.
+- **`Deleted`**: Deep red (`#B71C1C`) — filters `equipment_deleted`, `employee_deleted`, `location_deleted`, `equipment_restored`, `settings_data_delete`.
+
+#### 24.8.2 User & Date Range Filter Integration
+- **User Filter (`cmbFilterUser`):** Dynamically populated with all database users (`Users` table) with an `"All users"` default option.
+- **Default "All time" Date Range:** Date filter defaults to **`All time`** (`SelectedIndex = 2`), ensuring historical logs are immediately visible without an artificial 30-day window restriction. Supports `Last 7 days`, `Last 30 days`, `All time`, and `Custom...` with an inline popup date range picker.
+- **Real-Time Live Status Indicator:** Displays `● Live – updated [time]` in Pakistan Standard Time (PKT), refreshed on every query.
+- **Density Selector:** Standardized density options (`Compact`, `Comfortable`, `Cozy`).
+- **Comprehensive Reset Action (`btnReset`):** Clears text search, resets category pills to `All`, resets user filter to `All users`, resets date range to `All time`, resets column sorting to `CreatedAt DESC`, and returns to page 1.

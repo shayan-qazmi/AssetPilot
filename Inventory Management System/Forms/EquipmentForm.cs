@@ -1147,24 +1147,43 @@ namespace Inventory_Management_System.Forms
                 return;
             }
 
-            bool hasAllocated = false;
-            foreach (var eq in selectedList)
-            {
-                var activeAlloc = eq.Allocations?
-                    .Where(a => a.Status != null && a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase))
-                    .FirstOrDefault();
+            bool hasBlocked = false;
+            string blockedReason = string.Empty;
 
-                string effectiveStatus = activeAlloc != null ? "allocated" : (eq.CurrentStatus ?? string.Empty).Trim().ToLowerInvariant();
-                if (effectiveStatus == "allocated")
+            try
+            {
+                using var dbCheck = new InventoryDbContext();
+                var selectedIds = selectedList.Select(e => e.Id).ToList();
+
+                var allocBlocked = dbCheck.Allocations
+                    .Where(a => selectedIds.Contains(a.EquipmentId) && (a.Status == "approved" || a.Status == "pending"))
+                    .Select(a => a.Equipment.EquipmentCode)
+                    .Distinct().ToList();
+
+                if (allocBlocked.Count > 0)
                 {
-                    hasAllocated = true;
-                    break;
+                    hasBlocked = true;
+                    blockedReason = $"Item(s) {string.Join(", ", allocBlocked)} have active or pending allocations. Return or cancel them before deleting.";
+                }
+                else
+                {
+                    var checkOutBlocked = dbCheck.Transactions
+                        .Where(t => selectedIds.Contains(t.EquipmentId) && (t.Status == "Pending" || t.Status == "Overdue"))
+                        .Select(t => t.Equipment.EquipmentCode)
+                        .Distinct().ToList();
+
+                    if (checkOutBlocked.Count > 0)
+                    {
+                        hasBlocked = true;
+                        blockedReason = $"Item(s) {string.Join(", ", checkOutBlocked)} are currently checked out. Complete check-in before deleting.";
+                    }
                 }
             }
+            catch { }
 
-            if (hasAllocated)
+            if (hasBlocked)
             {
-                ShowToast("In order to delete an equipment it must first be returned.", ToastType.Warning, ToastIntent.Delete);
+                ShowToast(blockedReason, ToastType.Warning, ToastIntent.Delete);
                 return;
             }
 

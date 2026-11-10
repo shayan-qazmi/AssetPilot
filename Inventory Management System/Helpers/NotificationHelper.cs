@@ -247,8 +247,8 @@ namespace Inventory_Management_System.Helpers
                 {
                     var repairIds = underRepair.Select(e => e.Id).ToList();
                     var openedDates = db.EquipmentLogs
-                        .Where(l => l.ActionType == "maintenance_opened" && repairIds.Contains(l.EquipmentId))
-                        .GroupBy(l => l.EquipmentId)
+                        .Where(l => l.ActionType == "maintenance_opened" && l.EquipmentId.HasValue && repairIds.Contains(l.EquipmentId.Value))
+                        .GroupBy(l => l.EquipmentId!.Value)
                         .Select(g => new { EquipmentId = g.Key, Opened = g.Max(l => l.CreatedAt) })
                         .ToList()
                         .ToDictionary(x => x.EquipmentId, x => x.Opened);
@@ -292,7 +292,7 @@ namespace Inventory_Management_System.Helpers
 
                     foreach (var log in recentDecomm)
                     {
-                        if (!eqMap.TryGetValue(log.EquipmentId, out var eq)) continue; // no longer decommissioned — skip
+                        if (!log.EquipmentId.HasValue || !eqMap.TryGetValue(log.EquipmentId.Value, out var eq)) continue; // no longer decommissioned — skip
 
                         results.Add(new NotificationItem
                         {

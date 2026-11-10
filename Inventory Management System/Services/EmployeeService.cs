@@ -198,15 +198,17 @@ namespace Inventory_Management_System.Services
                 var hasActiveAllocations = db.Allocations.Any(a => a.EmployeeId == id && a.Status == "approved");
                 if (hasActiveAllocations)
                 {
-                    return ServiceResult<bool>.Fail("Cannot delete employee with active allocations.");
+                    return ServiceResult<bool>.Fail("Cannot delete employee with active allocations. Please return or reassign equipment first.");
                 }
 
                 string deletedInfo = $"{existing.EmployeeCode} - {existing.FullName}";
 
-                db.Employees.Remove(existing);
+                // Soft-delete: mark inactive to preserve historical allocation and check-out foreign keys
+                existing.IsActive = false;
+                existing.UpdatedAt = DateTime.UtcNow;
                 db.SaveChanges();
 
-                _audit.Log(0, AuditService.ActionEmployeeDeleted, deletedInfo, null);
+                _audit.Log(null, AuditService.ActionEmployeeDeleted, deletedInfo, "Employee deactivated (soft-deleted)");
 
                 return ServiceResult<bool>.Ok(true);
             }

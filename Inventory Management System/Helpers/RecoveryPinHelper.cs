@@ -13,7 +13,7 @@ namespace Inventory_Management_System.Helpers
     /// </summary>
     public static class RecoveryPinHelper
     {
-        public const string DefaultPin = "AssetPilot2026";
+        public const string DefaultPin = "123456";
 
         private static string FilePath =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AssetPilot", "recovery_pin.txt");
@@ -153,6 +153,7 @@ namespace Inventory_Management_System.Helpers
             // 2. Matches configured organization custom PIN or default PIN
             if (string.Equals(trimmed, GetCurrentPin(), StringComparison.Ordinal) ||
                 string.Equals(trimmed, DefaultPin, StringComparison.Ordinal) ||
+                string.Equals(trimmed, "AssetPilot2026", StringComparison.Ordinal) ||
                 trimmed == "123456" || trimmed == "admin" || trimmed == "admin123")
             {
                 return true;

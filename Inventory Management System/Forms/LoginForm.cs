@@ -1064,8 +1064,8 @@ namespace Inventory_Management_System.Forms
                 Font = new Font("Segoe UI", 10.5f),
                 ForeColor = Color.FromArgb(17, 24, 39),
                 BackColor = fieldVerify.BackColor,
-                Left = 44,
-                Width = contentWidth - 44 - 40,
+                Left = 54,
+                Width = contentWidth - 54 - 40,
                 PlaceholderText = "name@company.com"
             };
             txtVerify.Top = (fieldVerify.Height - txtVerify.Height) / 2;
@@ -1191,7 +1191,8 @@ namespace Inventory_Management_System.Forms
                         string.Equals(user.Email.Trim(), verifyVal, StringComparison.OrdinalIgnoreCase);
                     bool pinMatches = RecoveryPinHelper.VerifyPin(verifyVal, uname);
 
-                    SetVerificationState(emailMatches || pinMatches);
+                    bool matched = _forgotUseEmailMethod ? emailMatches : pinMatches;
+                    SetVerificationState(matched);
                 }
                 catch
                 {
@@ -1225,14 +1226,89 @@ namespace Inventory_Management_System.Forms
                     txtVerify.PlaceholderText = "Enter personal PIN or Admin PIN";
                     txtVerify.UseSystemPasswordChar = true;
                 }
+                lblVerifyIcon.Location = new Point(12, (fieldVerify.Height - lblVerifyIcon.PreferredHeight) / 2);
                 CheckVerification();
             }
 
             txtUser.TextChanged += (s, e) => CheckVerification();
-            txtVerify.TextChanged += (s, e) => CheckVerification();
 
-            btnOptEmail.Click += (s, e) => { _forgotUseEmailMethod = true; UpdateMethodTabs(); };
-            btnOptAdmin.Click += (s, e) => { _forgotUseEmailMethod = false; UpdateMethodTabs(); };
+            txtVerify.KeyPress += (s, e) =>
+            {
+                // Allow control keys (backspace, clipboard shortcuts, etc.)
+                if (char.IsControl(e.KeyChar)) return;
+
+                if (!_forgotUseEmailMethod)
+                {
+                    // Recovery PIN: only allow digits/numerals
+                    if (!char.IsDigit(e.KeyChar))
+                    {
+                        e.Handled = true;
+                    }
+                }
+                else
+                {
+                    // Reset Email: allow only valid email characters, disallow spaces
+                    if (e.KeyChar == ' ' || !(char.IsLetterOrDigit(e.KeyChar) || e.KeyChar == '@' || e.KeyChar == '.' || e.KeyChar == '_' || e.KeyChar == '-' || e.KeyChar == '+'))
+                    {
+                        e.Handled = true;
+                    }
+                    else if (e.KeyChar == '@' && txtVerify.Text.Contains('@') && txtVerify.SelectionLength == 0)
+                    {
+                        e.Handled = true;
+                    }
+                }
+            };
+
+            txtVerify.TextChanged += (s, e) =>
+            {
+                if (!_forgotUseEmailMethod)
+                {
+                    // Sanitize pasted input for Recovery PIN (digits only)
+                    string original = txtVerify.Text;
+                    string digitsOnly = new string(original.Where(char.IsDigit).ToArray());
+                    if (digitsOnly != original)
+                    {
+                        int sel = txtVerify.SelectionStart;
+                        txtVerify.Text = digitsOnly;
+                        txtVerify.SelectionStart = Math.Min(sel, txtVerify.Text.Length);
+                        return;
+                    }
+                }
+                else
+                {
+                    // Sanitize pasted input for Reset Email (no whitespace, valid email chars only)
+                    string original = txtVerify.Text;
+                    string clean = new string(original.Where(c => !char.IsWhiteSpace(c) && (char.IsLetterOrDigit(c) || c == '@' || c == '.' || c == '_' || c == '-' || c == '+')).ToArray());
+                    if (clean != original)
+                    {
+                        int sel = txtVerify.SelectionStart;
+                        txtVerify.Text = clean;
+                        txtVerify.SelectionStart = Math.Min(sel, txtVerify.Text.Length);
+                        return;
+                    }
+                }
+
+                CheckVerification();
+            };
+
+            btnOptEmail.Click += (s, e) =>
+            {
+                if (!_forgotUseEmailMethod)
+                {
+                    _forgotUseEmailMethod = true;
+                    txtVerify.Text = string.Empty;
+                    UpdateMethodTabs();
+                }
+            };
+            btnOptAdmin.Click += (s, e) =>
+            {
+                if (_forgotUseEmailMethod)
+                {
+                    _forgotUseEmailMethod = false;
+                    txtVerify.Text = string.Empty;
+                    UpdateMethodTabs();
+                }
+            };
             UpdateMethodTabs();
             SetVerificationState(false);
 
@@ -1291,9 +1367,9 @@ namespace Inventory_Management_System.Forms
                         return;
                     }
 
-                    bool verified = (!string.IsNullOrWhiteSpace(targetUser.Email) &&
-                        string.Equals(targetUser.Email.Trim(), verifyVal, StringComparison.OrdinalIgnoreCase)) ||
-                        RecoveryPinHelper.VerifyPin(verifyVal, uname);
+                    bool verified = _forgotUseEmailMethod
+                        ? (!string.IsNullOrWhiteSpace(targetUser.Email) && string.Equals(targetUser.Email.Trim(), verifyVal, StringComparison.OrdinalIgnoreCase))
+                        : RecoveryPinHelper.VerifyPin(verifyVal, uname);
 
                     if (!verified)
                     {
@@ -2545,11 +2621,33 @@ namespace Inventory_Management_System.Forms
             pnlToggle.Invalidate();
         }
 
+        private static string GetRememberMeFilePath()
+        {
+            string dir = System.IO.Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "AssetPilot");
+            System.IO.Directory.CreateDirectory(dir);
+            return System.IO.Path.Combine(dir, "remember_me.txt");
+        }
+
         private void LoadRememberedUser()
         {
             try
             {
-                string filePath = System.IO.Path.Combine(Application.StartupPath, "remember_me.txt");
+                string filePath = GetRememberMeFilePath();
+
+                // Migrate from old location if it exists and new one doesn't
+                string oldPath = System.IO.Path.Combine(Application.StartupPath, "remember_me.txt");
+                if (!System.IO.File.Exists(filePath) && System.IO.File.Exists(oldPath))
+                {
+                    try
+                    {
+                        System.IO.File.Copy(oldPath, filePath, false);
+                        System.IO.File.Delete(oldPath);
+                    }
+                    catch { /* best-effort migration */ }
+                }
+
                 if (System.IO.File.Exists(filePath))
                 {
                     var lines = System.IO.File.ReadAllLines(filePath);
@@ -2571,7 +2669,7 @@ namespace Inventory_Management_System.Forms
         {
             try
             {
-                string filePath = System.IO.Path.Combine(Application.StartupPath, "remember_me.txt");
+                string filePath = GetRememberMeFilePath();
                 if (_keepMeLoggedIn)
                 {
                     System.IO.File.WriteAllLines(filePath, new[] { "True", username });

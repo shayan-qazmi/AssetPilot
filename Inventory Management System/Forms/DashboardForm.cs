@@ -3966,7 +3966,7 @@ namespace Inventory_Management_System
                 int y = 4;
                 foreach (var log in logs)
                 {
-                    string equipName = equipMap.TryGetValue(log.EquipmentId, out var eq) ? eq.Name : "Equipment";
+                    string equipName = (log.EquipmentId.HasValue && equipMap.TryGetValue(log.EquipmentId.Value, out var eq)) ? eq.Name : "System";
                     string userName = userMap.TryGetValue(log.ChangedByUserId, out var usr) ? usr.FullName : "Someone";
 
                     string icon = log.ActionType?.ToLower() switch
@@ -5363,5 +5363,6 @@ namespace Inventory_Management_System
     }
 
 }
+
 
 

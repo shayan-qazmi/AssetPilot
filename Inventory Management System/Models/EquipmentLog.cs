@@ -1,4 +1,4 @@
-﻿//Models/EquipmentLog.cs
+//Models/EquipmentLog.cs
 using System;
 using System.Collections.Generic;
 
@@ -8,7 +8,7 @@ public partial class EquipmentLog
 {
     public int Id { get; set; }
 
-    public int EquipmentId { get; set; }
+    public int? EquipmentId { get; set; }
 
     public string ActionType { get; set; } = null!;
 
@@ -24,5 +24,5 @@ public partial class EquipmentLog
 
     public virtual User ChangedByUser { get; set; } = null!;
 
-    public virtual Equipment Equipment { get; set; } = null!;
+    public virtual Equipment? Equipment { get; set; }
 }

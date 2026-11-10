@@ -43,14 +43,30 @@ namespace Inventory_Management_System.Services
             _systemUserId = systemUserId ?? AuthService.CurrentUserId;
         }
 
-        public void Log(int equipmentId, string actionType, string? oldValue = null, string? newValue = null)
+        private static bool _schemaEnsured = false;
+        private static void EnsureEquipmentLogsNullable(InventoryDbContext db)
         {
+            if (_schemaEnsured) return;
+            _schemaEnsured = true;
+            try
+            {
+                db.Database.ExecuteSqlRaw("ALTER TABLE equipment_logs MODIFY COLUMN equipment_id INT NULL;");
+            }
+            catch { /* already nullable or MySQL user lacks ALTER TABLE privilege */ }
+        }
+
+        public void Log(int? equipmentId, string actionType, string? oldValue = null, string? newValue = null)
+        {
+            int? realEqId = (equipmentId.HasValue && equipmentId.Value > 0) ? equipmentId.Value : null;
+
             try
             {
                 using var db = new InventoryDbContext();
+                EnsureEquipmentLogsNullable(db);
+
                 var log = new EquipmentLog
                 {
-                    EquipmentId = equipmentId,
+                    EquipmentId = realEqId,
                     ActionType = actionType,
                     ChangedByUserId = _systemUserId,
                     OldValue = oldValue,
@@ -63,6 +79,10 @@ namespace Inventory_Management_System.Services
             catch (Exception ex)
             {
                 Logger.LogError(ex, "AuditService.Log");
+                SecurityAuditLogger.Log($"Audit [{actionType}]",
+                    (realEqId.HasValue ? $"EquipmentId: {realEqId.Value} | " : "") +
+                    (string.IsNullOrWhiteSpace(oldValue) ? "" : $"Old: {oldValue} | ") +
+                    (string.IsNullOrWhiteSpace(newValue) ? "" : $"New: {newValue}"));
             }
         }
 

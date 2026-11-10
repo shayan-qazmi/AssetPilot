@@ -13,6 +13,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
+using Microsoft.EntityFrameworkCore;
 
 namespace Inventory_Management_System.Forms
 {
@@ -922,6 +923,14 @@ namespace Inventory_Management_System.Forms
             return txt;
         }
 
+        private static string CreateTempMySqlConfigFile(string host, int port, string user, string password)
+        {
+            string tempFile = Path.Combine(Path.GetTempPath(), $"mysql_opt_{Guid.NewGuid():N}.cnf");
+            string content = $"[client]\r\nhost=\"{host}\"\r\nport={port}\r\nuser=\"{user}\"\r\npassword=\"{password}\"\r\n";
+            File.WriteAllText(tempFile, content);
+            return tempFile;
+        }
+
         private void BtnBackupDb_Click(object? sender, EventArgs e)
         {
             using var sfd = new SaveFileDialog
@@ -936,12 +945,14 @@ namespace Inventory_Management_System.Forms
             if (creds == null) return;
             var (host, db, user, pass) = creds.Value;
 
+            string? cnfFile = null;
             try
             {
+                cnfFile = CreateTempMySqlConfigFile(host, 3306, user, pass);
                 var psi = new ProcessStartInfo
                 {
                     FileName = LocateMySqlTool("mysqldump.exe") ?? "mysqldump",
-                    Arguments = $"-h {host} -u {user}{(string.IsNullOrEmpty(pass) ? "" : $" -p{pass}")} {db}",
+                    Arguments = $"--defaults-extra-file=\"{cnfFile}\" {db}",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -971,6 +982,11 @@ namespace Inventory_Management_System.Forms
                 ShowSettingsToast("Backup failed: " + ex.Message + "\n\nMake sure mysqldump.exe is installed and available on your system PATH (it ships with MySQL Server / XAMPP under the bin folder).", ToastType.Error);
 
             }
+            finally
+            {
+                if (cnfFile != null && File.Exists(cnfFile))
+                    try { File.Delete(cnfFile); } catch { }
+            }
         }
 
         private void BtnRestoreDb_Click(object? sender, EventArgs e)
@@ -988,12 +1004,14 @@ namespace Inventory_Management_System.Forms
             if (creds == null) return;
             var (host, db, user, pass) = creds.Value;
 
+            string? cnfFile = null;
             try
             {
+                cnfFile = CreateTempMySqlConfigFile(host, 3306, user, pass);
                 var psi = new ProcessStartInfo
                 {
                     FileName = LocateMySqlTool("mysql.exe") ?? "mysql",
-                    Arguments = $"-h {host} -u {user}{(string.IsNullOrEmpty(pass) ? "" : $" -p{pass}")} {db}",
+                    Arguments = $"--defaults-extra-file=\"{cnfFile}\" {db}",
                     RedirectStandardInput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -1014,14 +1032,19 @@ namespace Inventory_Management_System.Forms
                 }
                 else
                 {
-                    ShowSettingsToast("Restore did not complete successfully:\n\n" + errors, ToastType.Error);
+                    ShowSettingsToast("mysql restore failed:\n\n" + errors, ToastType.Error);
 
                 }
             }
             catch (Exception ex)
             {
-                ShowSettingsToast("Restore failed: " + ex.Message + "\n\nMake sure mysql.exe is installed and available on your system PATH.", ToastType.Error);
+                ShowSettingsToast("Restore failed: " + ex.Message, ToastType.Error);
 
+            }
+            finally
+            {
+                if (cnfFile != null && File.Exists(cnfFile))
+                    try { File.Delete(cnfFile); } catch { }
             }
         }
 
@@ -1061,6 +1084,85 @@ namespace Inventory_Management_System.Forms
             }
         }
 
+        private string? PerformAutomaticPreResetBackup()
+        {
+            try
+            {
+                var settings = DbConnectionSettingsService.Load();
+                string plainPassword = DbConnectionSettingsService.DecryptPassword(settings);
+                string host = settings.Server;
+                string dbName = settings.Database;
+                string user = settings.Username;
+
+                string backupDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AssetPilot", "Backups");
+                Directory.CreateDirectory(backupDir);
+                string backupPath = Path.Combine(backupDir, $"pre_reset_backup_{DateTime.Now:yyyyMMdd_HHmmss}.sql");
+
+                string? tool = LocateMySqlTool("mysqldump.exe") ?? "mysqldump";
+                string? cnfFile = null;
+                try
+                {
+                    cnfFile = CreateTempMySqlConfigFile(host, settings.Port, user, plainPassword);
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = tool,
+                        Arguments = $"--defaults-extra-file=\"{cnfFile}\" {dbName}",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+
+                    using var proc = Process.Start(psi);
+                    if (proc != null)
+                    {
+                        string output = proc.StandardOutput.ReadToEnd();
+                        proc.WaitForExit();
+                        if (proc.ExitCode == 0 && output.Length > 0)
+                        {
+                            File.WriteAllText(backupPath, output);
+                            SaveLastBackupTimeNow();
+                            SecurityAuditLogger.Log("Automatic Pre-Reset Safety Backup (SQL)", $"Saved to {backupPath}");
+                            return backupPath;
+                        }
+                    }
+                }
+                finally
+                {
+                    if (cnfFile != null && File.Exists(cnfFile))
+                        try { File.Delete(cnfFile); } catch { }
+                }
+
+                // ── Fallback: If mysqldump is unavailable or failed, create an EF Core JSON snapshot ──
+                using var db = new InventoryDbContext();
+                var snapshot = new
+                {
+                    ExportedAt = DateTime.UtcNow,
+                    ExportedBy = AuthService.CurrentUsername,
+                    Equipment = db.Equipment.AsNoTracking().ToList(),
+                    Allocations = db.Allocations.AsNoTracking().ToList(),
+                    Transactions = db.Transactions.AsNoTracking().ToList(),
+                    Employees = db.Employees.AsNoTracking().ToList(),
+                    Locations = db.Locations.AsNoTracking().ToList(),
+                    MaintenanceRecords = db.MaintenanceRecords.AsNoTracking().ToList(),
+                    EquipmentLogs = db.EquipmentLogs.AsNoTracking().ToList(),
+                    LocationHistories = db.EquipmentLocationHistories.AsNoTracking().ToList()
+                };
+
+                string jsonPath = Path.Combine(backupDir, $"pre_reset_backup_{DateTime.Now:yyyyMMdd_HHmmss}.json");
+                string json = System.Text.Json.JsonSerializer.Serialize(snapshot, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(jsonPath, json);
+                SaveLastBackupTimeNow();
+                SecurityAuditLogger.Log("Automatic Pre-Reset Safety Backup (JSON Snapshot)", $"Saved to {jsonPath}");
+                return jsonPath;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "PerformAutomaticPreResetBackup");
+            }
+            return null;
+        }
+
         private void BtnResetAppData_Click(object? sender, EventArgs e)
         {
             if (!ShowTypedConfirm(
@@ -1069,13 +1171,16 @@ namespace Inventory_Management_System.Forms
       "Locations, Logs, Check-In/Out history, Decommissioned &\n" +
       "Deleted items, and Maintenance records.\n\n" +
       "Users, roles, categories, and settings will NOT be affected.\n\n" +
-      "This action will be recorded in a separate, non-deletable\n" +
-      "security audit log (who performed it and when).\n\n" +
+      "A safety database backup will be created automatically before data is cleared.\n\n" +
       "Type RESET below to confirm.", "RESET"))
                 return;
 
+            string? backupPath = PerformAutomaticPreResetBackup();
+
             var errors = new List<string>();
             var counts = new Dictionary<string, int>();
+            if (!string.IsNullOrWhiteSpace(backupPath))
+                counts["Pre-Reset Safety Backup"] = 1;
 
             try
             {
@@ -1151,6 +1256,9 @@ namespace Inventory_Management_System.Forms
 
             if (errors.Count > 0)
                 summary += "\n\nSome tables could not be cleared:\n" + string.Join("\n", errors);
+
+            if (!string.IsNullOrWhiteSpace(backupPath))
+                summary += $"\n\n🛡 Safety backup automatically archived at:\n{backupPath}";
 
 
             SecurityAuditLogger.Log("Reset application data",
@@ -1882,12 +1990,12 @@ namespace Inventory_Management_System.Forms
 
             btnResetDefault.Click += (s, e) =>
             {
-                if (MessageBox.Show("Reset the recovery PIN to the default ('AssetPilot2026')?", "Confirm Reset",
+                if (MessageBox.Show($"Reset the recovery PIN to the default ('{RecoveryPinHelper.DefaultPin}')?", "Confirm Reset",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
                     RecoveryPinHelper.ResetToDefault();
                     SecurityAuditLogger.Log("Reset Organization Recovery PIN to Default", $"Reset by {AuthService.CurrentUsername}");
-                    ShowSettingsToast("Recovery PIN reset to default ('AssetPilot2026').");
+                    ShowSettingsToast($"Recovery PIN reset to default ('{RecoveryPinHelper.DefaultPin}').");
                     frm.DialogResult = DialogResult.OK;
                 }
             };
@@ -2605,10 +2713,35 @@ namespace Inventory_Management_System.Forms
             if (index >= _categories.Count) return;
             var selected = _categories[index];
 
-            if (MessageBox.Show($"Delete category '{selected.Name}'?", "Confirm",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            int usageCount = 0;
+            try
+            {
+                using var db = new InventoryDbContext();
+                usageCount = db.Equipment.Count(e => e.Category != null && e.Category.ToLower() == selected.Name.ToLower());
+            }
+            catch { }
 
-            var result = new CategoryService().Delete(selected.Id);
+            bool reassign = false;
+            if (usageCount > 0)
+            {
+                var choice = MessageBox.Show(
+                    $"Category '{selected.Name}' is currently assigned to {usageCount} equipment item(s).\n\n" +
+                    $"Would you like to reassign these {usageCount} item(s) to 'Uncategorized' and delete '{selected.Name}'?\n\n" +
+                    "(Click Yes to reassign to Uncategorized and delete, or No to cancel)",
+                    "Category In Use",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning);
+
+                if (choice != DialogResult.Yes) return;
+                reassign = true;
+            }
+            else
+            {
+                if (MessageBox.Show($"Delete category '{selected.Name}'?", "Confirm Delete",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            }
+
+            var result = new CategoryService().Delete(selected.Id, reassignOrphanedToUncategorized: reassign);
             if (!result.Success)
             {
                 lblCategoryMsg.ForeColor = ThemeHelper.Danger;
@@ -2617,7 +2750,9 @@ namespace Inventory_Management_System.Forms
             }
 
             lblCategoryMsg.ForeColor = ThemeHelper.Success;
-            lblCategoryMsg.Text = $"🗑 '{selected.Name}' deleted.";
+            lblCategoryMsg.Text = reassign
+                ? $"🗑 '{selected.Name}' deleted. {usageCount} item(s) reassigned to 'Uncategorized'."
+                : $"🗑 '{selected.Name}' deleted.";
             LoadCategories();
         }
 

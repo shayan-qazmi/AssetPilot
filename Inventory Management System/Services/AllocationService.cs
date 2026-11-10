@@ -65,13 +65,19 @@ namespace Inventory_Management_System.Services
                 if (string.IsNullOrWhiteSpace(allocation.Status))
                     allocation.Status = "approved";
 
-                db.Allocations.Add(allocation);
+                if (allocation.AllocatedByUserId <= 0)
+                    allocation.AllocatedByUserId = AuthService.CurrentUserId > 0 ? AuthService.CurrentUserId : 1;
 
                 if (allocation.Status == "approved")
                 {
                     equipment.CurrentStatus = "allocated";
+                    if (!allocation.ApprovedByUserId.HasValue || allocation.ApprovedByUserId.Value <= 0)
+                        allocation.ApprovedByUserId = AuthService.CurrentUserId > 0 ? AuthService.CurrentUserId : 1;
+                    if (!allocation.ApprovalDate.HasValue)
+                        allocation.ApprovalDate = DateTime.UtcNow;
                 }
 
+                db.Allocations.Add(allocation);
                 db.SaveChanges();
                 string empName = allocation.EmployeeId.HasValue
     ? db.Employees.FirstOrDefault(x => x.Id == allocation.EmployeeId)?.FullName ?? "Unknown"
