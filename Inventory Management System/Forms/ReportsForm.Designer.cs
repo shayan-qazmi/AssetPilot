@@ -31,6 +31,7 @@ namespace Inventory_Management_System.Forms
             btnExportCSV = new System.Windows.Forms.Button();
             pnlFilterBar = new System.Windows.Forms.Panel();
             flowFilterRow1 = new System.Windows.Forms.FlowLayoutPanel();
+            btnDateAllTime = new System.Windows.Forms.Button();
             btnDateToday = new System.Windows.Forms.Button();
             btnDate7Days = new System.Windows.Forms.Button();
             btnDate30Days = new System.Windows.Forms.Button();
@@ -41,7 +42,6 @@ namespace Inventory_Management_System.Forms
             cmbFilterStatus = new System.Windows.Forms.ComboBox();
             txtFilterSearch = new System.Windows.Forms.TextBox();
             btnResetFilters = new System.Windows.Forms.Button();
-            btnApplyFilters = new System.Windows.Forms.Button();
             pnlSummaryCards = new System.Windows.Forms.TableLayoutPanel();
             pnlCard1 = new System.Windows.Forms.Panel();
             lblCard1Title = new System.Windows.Forms.Label();
@@ -198,7 +198,7 @@ namespace Inventory_Management_System.Forms
             flowFilterRow1.WrapContents = false;
             flowFilterRow1.AutoSize = true;
             flowFilterRow1.Name = "flowFilterRow1";
-            flowFilterRow1.Controls.Add(btnApplyFilters);
+            flowFilterRow1.Controls.Add(btnDateAllTime);
             flowFilterRow1.Controls.Add(btnDateToday);
             flowFilterRow1.Controls.Add(btnDate7Days);
             flowFilterRow1.Controls.Add(btnDate30Days);
@@ -221,6 +221,9 @@ namespace Inventory_Management_System.Forms
                 b.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
                 b.Cursor = System.Windows.Forms.Cursors.Hand;
             }
+
+            btnDateAllTime.Name = "btnDateAllTime";
+            SetupPillBtn(btnDateAllTime, "All time");
 
             btnDateToday.Name = "btnDateToday";
             SetupPillBtn(btnDateToday, "Today");
@@ -263,13 +266,6 @@ namespace Inventory_Management_System.Forms
             btnResetFilters.Margin = new System.Windows.Forms.Padding(0, 2, 8, 4);
             btnResetFilters.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             btnResetFilters.Cursor = System.Windows.Forms.Cursors.Hand;
-
-            btnApplyFilters.Name = "btnApplyFilters";
-            btnApplyFilters.Text = "Apply";
-            btnApplyFilters.Size = new System.Drawing.Size(75, 30);
-            btnApplyFilters.Margin = new System.Windows.Forms.Padding(0, 2, 8, 4);
-            btnApplyFilters.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            btnApplyFilters.Cursor = System.Windows.Forms.Cursors.Hand;
 
             // ── pnlSummaryCards ─────────────────────────────────────────────
             pnlSummaryCards.Dock = System.Windows.Forms.DockStyle.Top;
@@ -483,6 +479,7 @@ namespace Inventory_Management_System.Forms
 
         private System.Windows.Forms.Panel pnlFilterBar;
         private System.Windows.Forms.FlowLayoutPanel flowFilterRow1;
+        private System.Windows.Forms.Button btnDateAllTime;
         private System.Windows.Forms.Button btnDateToday;
         private System.Windows.Forms.Button btnDate7Days;
         private System.Windows.Forms.Button btnDate30Days;
@@ -493,7 +490,6 @@ namespace Inventory_Management_System.Forms
         private System.Windows.Forms.ComboBox cmbFilterStatus;
         private System.Windows.Forms.TextBox txtFilterSearch;
         private System.Windows.Forms.Button btnResetFilters;
-        private System.Windows.Forms.Button btnApplyFilters;
 
         private System.Windows.Forms.TableLayoutPanel pnlSummaryCards;
         private System.Windows.Forms.Panel pnlCard1;

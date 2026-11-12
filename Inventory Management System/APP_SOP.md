@@ -1883,12 +1883,14 @@ The Reports screen has undergone a complete redesign to provide a high-density, 
 - **Check In/Out** (`#0284C7`): Real-time borrow transactions ledger.
 
 #### 24.1.3 Single-Row Filter Toolbar
-- **Apply Button:** High-contrast emerald green button (`#10B981`) placed on the left edge.
-- **Date Range Quick-Pills:** `Today`, `7 days`, `30 days`, `This year` (active default), `Custom...`.
+- **All Time Quick-Pill:** Placed on the far left of the filter row as the active default pill (`All time`), automatically applied whenever any report tab is selected.
+- **Date Range Quick-Pills:** `All time` (active default), `Today`, `7 days`, `30 days`, `This year`, `Custom...`.
+- **Locations Dropdown:** Configured with extended dropdown menu width (`DropDownWidth = Math.Max(maxLocWidth, 260)`) and scroll support (`MaxDropDownItems = 10`, `IntegralHeight = false`) to ensure location names are never truncated.
+- **High-Definition Outlined Action Buttons:** Print, Export (PDF, Excel, CSV), Columns, Sort, and Reset buttons feature crisp, clear borders (`#B4B9C3`, hover `#8C919B`) matching the Equipment module's clean toolbar styling.
 - **Unclipped Custom Date Dialog:** The `Custom...` date range dialog was enlarged (`Width 340, Height 230`) to guarantee that `From Date`, `To Date`, and `Apply Range` button are fully visible and never clipped.
 - **Dropdown Filters:** `All locations ▾` and `Any status ▾`.
 - **Live Search:** Instant client-side substring filter (`Filter rows...`).
-- **Reset Button:** Restores all filters to defaults, resets sorting, and restores any hidden columns.
+- **Reset Button:** Restores all filters to defaults (`All time`), resets sorting, and restores any hidden columns.
 
 #### 24.1.4 KPI Summary Cards & Status Badges
 - **Total rows:** Indigo accent bar (`#7C3AED`).

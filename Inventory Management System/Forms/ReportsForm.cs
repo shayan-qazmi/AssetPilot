@@ -48,7 +48,7 @@ namespace Inventory_Management_System.Forms
         private List<ReportRowData> _filteredRows = new();
 
         // ── Filter State ───────────────────────────────────────────────────
-        private string _activeDateMode = "thisyear"; // "today", "7days", "30days", "thisyear", "custom"
+        private string _activeDateMode = "alltime"; // "alltime", "today", "7days", "30days", "thisyear", "custom"
         private DateTime? _customStartDate = null;
         private DateTime? _customEndDate = null;
         private string _selectedLocation = "All locations";
@@ -193,14 +193,6 @@ namespace Inventory_Management_System.Forms
             StyleOutlineButton(btnSort);
             StyleOutlineButton(btnResetFilters);
 
-            // Style Apply button (Green)
-            btnApplyFilters.BackColor = Color.FromArgb(46, 125, 50);
-            btnApplyFilters.ForeColor = Color.White;
-            btnApplyFilters.Font = new Font("Segoe UI", 9f, FontStyle.Bold);
-            btnApplyFilters.FlatStyle = FlatStyle.Flat;
-            btnApplyFilters.FlatAppearance.BorderSize = 0;
-            ApplyButtonRounding(btnApplyFilters, 6);
-
             // Style search textbox
             txtFilterSearch.BorderStyle = BorderStyle.FixedSingle;
             txtFilterSearch.Font = new Font("Segoe UI", 9f);
@@ -220,7 +212,6 @@ namespace Inventory_Management_System.Forms
                 }
             };
 
-            btnApplyFilters.Click += (s, e) => ApplyCurrentFilters();
             btnResetFilters.Click += (s, e) => ResetFilters();
         }
 
@@ -228,15 +219,23 @@ namespace Inventory_Management_System.Forms
         {
             b.FlatStyle = FlatStyle.Flat;
             b.FlatAppearance.BorderSize = 1;
-            b.FlatAppearance.BorderColor = Color.FromArgb(209, 213, 219);
-            b.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(30, 32, 38) : Color.White;
-            b.ForeColor = ThemeHelper.IsDarkMode ? Color.FromArgb(220, 225, 230) : Color.FromArgb(55, 65, 81);
+            b.FlatAppearance.BorderColor = Color.FromArgb(180, 185, 195);
+            b.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(30, 32, 38) : Color.FromArgb(249, 250, 251);
+            b.ForeColor = ThemeHelper.IsDarkMode ? Color.FromArgb(220, 225, 230) : Color.FromArgb(31, 41, 55);
             b.Font = new Font("Segoe UI", 8.75f, FontStyle.Regular);
             b.Cursor = Cursors.Hand;
             ApplyButtonRounding(b, 6);
 
-            b.MouseEnter += (s, e) => b.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(45, 48, 56) : Color.FromArgb(243, 244, 246);
-            b.MouseLeave += (s, e) => b.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(30, 32, 38) : Color.White;
+            b.MouseEnter += (s, e) =>
+            {
+                b.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(45, 48, 56) : Color.FromArgb(243, 244, 246);
+                b.FlatAppearance.BorderColor = Color.FromArgb(140, 145, 155);
+            };
+            b.MouseLeave += (s, e) =>
+            {
+                b.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(30, 32, 38) : Color.FromArgb(249, 250, 251);
+                b.FlatAppearance.BorderColor = Color.FromArgb(180, 185, 195);
+            };
         }
 
         private static void ApplyButtonRounding(Button btn, int radius)
@@ -302,6 +301,7 @@ namespace Inventory_Management_System.Forms
 
         private void SetupFilterControls()
         {
+            btnDateAllTime.Click += (s, e) => SetDateMode("alltime");
             btnDateToday.Click += (s, e) => SetDateMode("today");
             btnDate7Days.Click += (s, e) => SetDateMode("7days");
             btnDate30Days.Click += (s, e) => SetDateMode("30days");
@@ -333,6 +333,7 @@ namespace Inventory_Management_System.Forms
 
         private void UpdateDatePillStyles()
         {
+            StylePill(btnDateAllTime, _activeDateMode == "alltime");
             StylePill(btnDateToday, _activeDateMode == "today");
             StylePill(btnDate7Days, _activeDateMode == "7days");
             StylePill(btnDate30Days, _activeDateMode == "30days");
@@ -400,7 +401,7 @@ namespace Inventory_Management_System.Forms
 
         private void ResetFilters()
         {
-            _activeDateMode = "thisyear";
+            _activeDateMode = "alltime";
             _customStartDate = null;
             _customEndDate = null;
             btnDateCustom.Text = "Custom...";
@@ -687,6 +688,10 @@ namespace Inventory_Management_System.Forms
 
             switch (_activeDateMode)
             {
+                case "alltime":
+                    startDate = null;
+                    endDate = null;
+                    break;
                 case "today":
                     startDate = now.Date;
                     endDate = now.Date.AddDays(1).AddTicks(-1);
@@ -832,6 +837,20 @@ namespace Inventory_Management_System.Forms
                 cmbFilterLocation.Items.Add(loc);
             cmbFilterLocation.SelectedIndex = 0;
 
+            // Ensure dropdown menu is wide enough for full location names and has comfortable scrolling
+            int maxLocWidth = cmbFilterLocation.Width;
+            using (var g = cmbFilterLocation.CreateGraphics())
+            {
+                foreach (var item in cmbFilterLocation.Items)
+                {
+                    int w = (int)g.MeasureString(item.ToString(), cmbFilterLocation.Font).Width + SystemInformation.VerticalScrollBarWidth + 24;
+                    if (w > maxLocWidth) maxLocWidth = w;
+                }
+            }
+            cmbFilterLocation.DropDownWidth = Math.Max(maxLocWidth, 260);
+            cmbFilterLocation.MaxDropDownItems = 10;
+            cmbFilterLocation.IntegralHeight = false;
+
             _availableCategories = categories.Where(c => !string.IsNullOrWhiteSpace(c) && c != "—").Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c => c).ToList();
 
             cmbFilterStatus.Items.Clear();
@@ -839,6 +858,8 @@ namespace Inventory_Management_System.Forms
             foreach (var st in statuses.Where(s => !string.IsNullOrWhiteSpace(s) && s != "—").Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(s => s))
                 cmbFilterStatus.Items.Add(st);
             cmbFilterStatus.SelectedIndex = 0;
+            cmbFilterStatus.MaxDropDownItems = 10;
+            cmbFilterStatus.IntegralHeight = false;
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -902,6 +923,12 @@ namespace Inventory_Management_System.Forms
         private void LoadEquipmentReport(string category)
         {
             _currentReport = "Equipment";
+            _activeDateMode = "alltime";
+            _customStartDate = null;
+            _customEndDate = null;
+            btnDateCustom.Text = "Custom...";
+            UpdateDatePillStyles();
+
             _activeHeaderColor = Color.FromArgb(94, 53, 177); // Deep Purple
             lblGridReportTitle.Text = "Equipment Report";
             btnEquipmentReport.Text = "Equipment  ▾";
@@ -998,6 +1025,12 @@ namespace Inventory_Management_System.Forms
         private void btnEmployeeReport_Click(object? sender, EventArgs e)
         {
             _currentReport = "Employee";
+            _activeDateMode = "alltime";
+            _customStartDate = null;
+            _customEndDate = null;
+            btnDateCustom.Text = "Custom...";
+            UpdateDatePillStyles();
+
             _activeHeaderColor = Color.FromArgb(123, 31, 162); // Magenta
             lblGridReportTitle.Text = "Employee Summary Report";
             UpdateTabButtonStyles();
@@ -1063,6 +1096,12 @@ namespace Inventory_Management_System.Forms
         private void btnAllocationReport_Click(object? sender, EventArgs e)
         {
             _currentReport = "Allocation";
+            _activeDateMode = "alltime";
+            _customStartDate = null;
+            _customEndDate = null;
+            btnDateCustom.Text = "Custom...";
+            UpdateDatePillStyles();
+
             _activeHeaderColor = Color.FromArgb(245, 124, 0); // Orange
             lblGridReportTitle.Text = "Active Allocations Report";
             UpdateTabButtonStyles();
@@ -1137,6 +1176,12 @@ namespace Inventory_Management_System.Forms
         private void btnReturnReport_Click(object? sender, EventArgs e)
         {
             _currentReport = "Return";
+            _activeDateMode = "alltime";
+            _customStartDate = null;
+            _customEndDate = null;
+            btnDateCustom.Text = "Custom...";
+            UpdateDatePillStyles();
+
             _activeHeaderColor = Color.FromArgb(92, 107, 192); // Indigo
             lblGridReportTitle.Text = "Returns History Report";
             UpdateTabButtonStyles();
@@ -1249,6 +1294,12 @@ namespace Inventory_Management_System.Forms
         private void btnCheckInOutReport_Click(object? sender, EventArgs e)
         {
             _currentReport = "CheckInOut";
+            _activeDateMode = "alltime";
+            _customStartDate = null;
+            _customEndDate = null;
+            btnDateCustom.Text = "Custom...";
+            UpdateDatePillStyles();
+
             _activeHeaderColor = Color.FromArgb(3, 169, 244); // Sky Blue
             lblGridReportTitle.Text = "Check In/Out History Report";
             UpdateTabButtonStyles();
