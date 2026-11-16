@@ -49,6 +49,18 @@ namespace Inventory_Management_System.Forms
 
         private Button btnHistory = null!;
 
+        private void PositionTopElements()
+        {
+            if (btnHistory == null || _lblSearchStatusBadge == null) return;
+            btnHistory.Location = new Point(panelTop.ClientSize.Width - btnHistory.Width - 20, btnSearch.Top);
+            int maxW = btnHistory.Left - btnClear.Right - 24;
+            if (maxW > 100)
+            {
+                _lblSearchStatusBadge.Location = new Point(btnClear.Right + 12, btnSearch.Top);
+                _lblSearchStatusBadge.Width = maxW;
+            }
+        }
+
         public CheckInOutForm()
         {
             InitializeComponent();
@@ -111,16 +123,6 @@ namespace Inventory_Management_System.Forms
             };
             panelTop.Controls.Add(_lblSearchStatusBadge);
 
-            void PositionTopElements()
-            {
-                btnHistory.Location = new Point(panelTop.ClientSize.Width - btnHistory.Width - 20, btnSearch.Top);
-                int maxW = btnHistory.Left - btnClear.Right - 24;
-                if (maxW > 100)
-                {
-                    _lblSearchStatusBadge.Location = new Point(btnClear.Right + 12, btnSearch.Top);
-                    _lblSearchStatusBadge.Width = Math.Min(340, maxW);
-                }
-            }
             PositionTopElements();
 
             panelTop.Resize += (s, e) => PositionTopElements();
@@ -128,24 +130,20 @@ namespace Inventory_Management_System.Forms
             panelBottom.BackColor = ThemeHelper.DashboardBg;
             pnlEmptyState.BackColor = ThemeHelper.CardBg;
 
-            // ── QR icon badge, left of the search box ──────────────────────
+            // ── QR icon badge, left of the search box (Always Blue) ───────
             pnlQrIcon.Paint += (s, e) =>
             {
                 var g = e.Graphics;
                 g.SmoothingMode = SmoothingMode.AntiAlias;
 
                 using var path = RoundedRect(new Rectangle(0, 0, pnlQrIcon.Width - 1, pnlQrIcon.Height - 1), 8);
-                Color bgColor = _qrIconBadgeColor == Color.FromArgb(245, 158, 11)
-                    ? (ThemeHelper.IsDarkMode ? Color.FromArgb(70, 50, 15) : Color.FromArgb(254, 243, 199))
-                    : _qrIconBadgeColor == Color.FromArgb(16, 185, 129)
-                    ? (ThemeHelper.IsDarkMode ? Color.FromArgb(15, 60, 40) : Color.FromArgb(236, 253, 245))
-                    : (ThemeHelper.IsDarkMode ? Color.FromArgb(25, 45, 65) : Color.FromArgb(227, 242, 253));
+                Color bgColor = ThemeHelper.IsDarkMode ? Color.FromArgb(25, 45, 65) : Color.FromArgb(227, 242, 253);
 
                 using var bg = new SolidBrush(bgColor);
                 g.FillPath(bg, path);
 
                 int pad = (int)(pnlQrIcon.Width * 0.2f);
-                DrawQrIcon(g, new Rectangle(pad, pad, pnlQrIcon.Width - pad * 2, pnlQrIcon.Height - pad * 2), _qrIconBadgeColor);
+                DrawQrIcon(g, new Rectangle(pad, pad, pnlQrIcon.Width - pad * 2, pnlQrIcon.Height - pad * 2), Color.FromArgb(33, 150, 243));
             };
 
             // Left panel (details card) styling
@@ -439,8 +437,6 @@ namespace Inventory_Management_System.Forms
                     _scannedEquipment = null;
                     _activeTransaction = null;
                     if (_lblSearchStatusBadge != null) _lblSearchStatusBadge.Visible = false;
-                    _qrIconBadgeColor = Color.FromArgb(33, 150, 243);
-                    pnlQrIcon.Invalidate();
                     return;
                 }
 
@@ -463,13 +459,14 @@ namespace Inventory_Management_System.Forms
                 lblDescriptionValue.Text = string.IsNullOrWhiteSpace(equipment.Description) ? "—" : equipment.Description;
                 lblNotesValue.Text = string.IsNullOrWhiteSpace(equipment.Notes) ? "—" : equipment.Notes;
 
+                string eqStatus = (equipment.CurrentStatus ?? "").Trim().ToLowerInvariant();
                 lblStatusValue.Text = equipment.CurrentStatus;
-                lblStatusValue.ForeColor = equipment.CurrentStatus switch
+                lblStatusValue.ForeColor = eqStatus switch
                 {
-                    "in_store" => ThemeHelper.Success,
-                    "allocated" => ThemeHelper.Warning,
-                    "under_repair" => Color.FromArgb(255, 112, 67),
-                    "decommissioned" => ThemeHelper.Danger,
+                    "in_store" or "in store" => ThemeHelper.Success,
+                    "allocated" => Color.FromArgb(217, 119, 6),
+                    "under_repair" or "repair" => Color.FromArgb(2, 132, 199),
+                    "decommissioned" => Color.FromArgb(220, 38, 38),
                     _ => ThemeHelper.TextPrimary
                 };
                 lblStatusValue.Font = CardLabelFont;
@@ -487,27 +484,36 @@ namespace Inventory_Management_System.Forms
                     .FirstOrDefault();
 
                 bool isCheckedOut = _activeTransaction != null;
-                bool isFormallyAllocated = activeAlloc != null;
-                string eqStatus = (equipment.CurrentStatus ?? "").Trim().ToLowerInvariant();
-                bool isAllocatedOrNotInStore = isFormallyAllocated || isCheckedOut || (eqStatus != "in_store" && eqStatus != "in store" && eqStatus != "");
+                bool isDecom = eqStatus == "decommissioned";
+                bool isRepair = eqStatus == "under_repair" || eqStatus == "repair";
+                bool isFormallyAllocated = !isDecom && !isRepair && (eqStatus == "allocated" || activeAlloc != null);
 
                 if (_lblSearchStatusBadge != null)
                 {
-                    if (isAllocatedOrNotInStore)
+                    if (isDecom)
                     {
-                        string who = isFormallyAllocated
-                            ? $"With: {activeAlloc?.Employee?.FullName ?? "Allocated"}"
-                            : isCheckedOut ? $"Issued: {_activeTransaction?.IssuedTo ?? "Checked Out"}"
-                            : equipment.CurrentStatus;
+                        _lblSearchStatusBadge.Text = "⚠ DECOMMISSIONED — NOT AVAILABLE FOR CHECK-OUT";
+                        _lblSearchStatusBadge.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(70, 20, 20) : Color.FromArgb(254, 226, 226);
+                        _lblSearchStatusBadge.ForeColor = Color.FromArgb(220, 38, 38);
+                        _lblSearchStatusBadge.Visible = true;
+                    }
+                    else if (isRepair)
+                    {
+                        _lblSearchStatusBadge.Text = "🔧 UNDER REPAIR — NOT AVAILABLE";
+                        _lblSearchStatusBadge.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(16, 53, 80) : Color.FromArgb(224, 242, 254);
+                        _lblSearchStatusBadge.ForeColor = Color.FromArgb(2, 132, 199);
+                        _lblSearchStatusBadge.Visible = true;
+                    }
+                    else if (isCheckedOut || isFormallyAllocated)
+                    {
+                        string who = isCheckedOut
+                            ? $"Issued: {_activeTransaction?.IssuedTo ?? "Checked Out"}"
+                            : $"With: {activeAlloc?.Employee?.FullName ?? "Allocated"}";
 
                         _lblSearchStatusBadge.Text = $"⚠ ALLOCATED — NOT IN STORE ({who})";
                         _lblSearchStatusBadge.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(70, 50, 15) : Color.FromArgb(254, 243, 199);
                         _lblSearchStatusBadge.ForeColor = Color.FromArgb(217, 119, 6);
                         _lblSearchStatusBadge.Visible = true;
-                        _lblSearchStatusBadge.Invalidate();
-
-                        _qrIconBadgeColor = Color.FromArgb(245, 158, 11); // Amber warning
-                        pnlQrIcon.Invalidate();
                     }
                     else
                     {
@@ -515,11 +521,9 @@ namespace Inventory_Management_System.Forms
                         _lblSearchStatusBadge.BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(15, 60, 40) : Color.FromArgb(236, 253, 245);
                         _lblSearchStatusBadge.ForeColor = Color.FromArgb(16, 185, 129);
                         _lblSearchStatusBadge.Visible = true;
-                        _lblSearchStatusBadge.Invalidate();
-
-                        _qrIconBadgeColor = Color.FromArgb(16, 185, 129); // Green ready
-                        pnlQrIcon.Invalidate();
                     }
+                    PositionTopElements();
+                    _lblSearchStatusBadge.Invalidate();
                 }
 
                 txtOperatorOut.Text = AuthService.CurrentFullName;
@@ -793,6 +797,7 @@ namespace Inventory_Management_System.Forms
                 ReloadSuggestions();
                 Search();
                 SwitchTab(false);
+                NotificationHelper.RefreshNow();
             }
             else
             {
@@ -820,6 +825,7 @@ namespace Inventory_Management_System.Forms
                 ReloadSuggestions();
                 Search();
                 SwitchTab(true);
+                NotificationHelper.RefreshNow();
             }
             else
             {
@@ -837,8 +843,6 @@ namespace Inventory_Management_System.Forms
             lblNoResult.Visible = true;
             lblNoResult.Text = "📋 Scan a QR code or enter an equipment code to start check-in or check-out";
             if (_lblSearchStatusBadge != null) _lblSearchStatusBadge.Visible = false;
-            _qrIconBadgeColor = Color.FromArgb(33, 150, 243);
-            pnlQrIcon.Invalidate();
             txtQRCode.Focus();
         }
 

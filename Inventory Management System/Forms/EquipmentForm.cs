@@ -639,7 +639,11 @@ namespace Inventory_Management_System.Forms
                 .FirstOrDefault();
 
             var normalized = (eq.CurrentStatus ?? string.Empty).Trim().ToLowerInvariant();
-            string effectiveStatus = activeAlloc != null ? "allocated" : normalized;
+            string effectiveStatus;
+            if (normalized == "decommissioned") effectiveStatus = "decommissioned";
+            else if (normalized == "under_repair" || normalized == "under repair") effectiveStatus = "under_repair";
+            else if (activeAlloc != null || normalized == "allocated") effectiveStatus = "allocated";
+            else effectiveStatus = "in_store";
 
             return _statusFilter.ToLowerInvariant() switch
             {
@@ -700,22 +704,18 @@ namespace Inventory_Management_System.Forms
         // "Allocated" regardless of the equipment's raw CurrentStatus field.
         private static string GetEffectiveStatusLabel(Equipment item)
         {
+            var normalized = (item.CurrentStatus ?? "").Trim().ToLowerInvariant();
+            if (normalized == "decommissioned") return "Decommissioned";
+            if (normalized == "under_repair" || normalized == "under repair") return "Under Repair";
+
             var activeAlloc = item.Allocations?
                 .Where(a => a.Status != null && a.Status.Equals("approved", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(a => a.EmployeeId.HasValue)
                 .ThenByDescending(a => a.Id)
                 .FirstOrDefault();
 
-            if (activeAlloc != null) return "Allocated";
-
-            return (item.CurrentStatus ?? "").Trim().ToLowerInvariant() switch
-            {
-                "in_store" => "In Store",
-                "allocated" => "Allocated",
-                "decommissioned" => "Decommissioned",
-                "under_repair" => "Under Repair",
-                _ => "In Store"
-            };
+            if (activeAlloc != null || normalized == "allocated") return "Allocated";
+            return "In Store";
         }
 
         // Mirrors the location-label logic in RefreshGrid.
@@ -863,21 +863,21 @@ namespace Inventory_Management_System.Forms
 
                 var normalizedStatus = (item.CurrentStatus ?? string.Empty).Trim().ToLowerInvariant();
                 string formattedStatus;
-                // If there is an approved allocation, display Allocated regardless of stored status
-                if (activeAlloc != null)
+                if (normalizedStatus == "decommissioned")
+                {
+                    formattedStatus = "Decommissioned";
+                }
+                else if (normalizedStatus == "under_repair" || normalizedStatus == "under repair")
+                {
+                    formattedStatus = "Under Repair";
+                }
+                else if (activeAlloc != null || normalizedStatus == "allocated")
                 {
                     formattedStatus = "Allocated";
                 }
                 else
                 {
-                    formattedStatus = normalizedStatus switch
-                    {
-                        "in_store" => "In Store",
-                        "allocated" => "Allocated",
-                        "decommissioned" => "Decommissioned",
-                        "under_repair" => "Under Repair",
-                        _ => "In Store"  // null/empty/unrecognized statuses default to In Store
-                    };
+                    formattedStatus = "In Store";
                 }
 
                 int rowIdx = dgvEquipment.Rows.Add(

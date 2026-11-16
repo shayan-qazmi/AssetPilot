@@ -1442,17 +1442,24 @@ namespace Inventory_Management_System.Forms
             dgvUsers.Columns.Add("Username", "Username");
             dgvUsers.Columns.Add("FullName", "Full Name");
             dgvUsers.Columns.Add("Email", "Email");
-            dgvUsers.Columns.Add("RecoveryPin", "Recovery PIN");
             dgvUsers.Columns.Add("Role", "Role");
-            dgvUsers.Columns.Add("Status", "Status");
+            dgvUsers.Columns.Add("RecoveryPin", "Recovery PIN");
             dgvUsers.Columns.Add("PasswordChanged", "Password Changed");
-            dgvUsers.Columns["PasswordChanged"].FillWeight = 130;
-            dgvUsers.Columns["PasswordChanged"].MinimumWidth = 150;
-            dgvUsers.Columns["RecoveryPin"].FillWeight = 110;
-            dgvUsers.Columns["RecoveryPin"].MinimumWidth = 110;
-            dgvUsers.Columns["ID"].FillWeight = 30;
-            dgvUsers.Columns["Status"].FillWeight = 90;
-            dgvUsers.Columns["Status"].MinimumWidth = 110;
+            dgvUsers.Columns.Add("Status", "Status");
+
+            dgvUsers.Columns["ID"].Visible = false;
+
+            dgvUsers.Columns["Username"].FillWeight = 100;
+            dgvUsers.Columns["FullName"].FillWeight = 120;
+            dgvUsers.Columns["Email"].FillWeight = 150;
+            dgvUsers.Columns["Role"].FillWeight = 80;
+            dgvUsers.Columns["Role"].MinimumWidth = 80;
+            dgvUsers.Columns["RecoveryPin"].FillWeight = 120;
+            dgvUsers.Columns["RecoveryPin"].MinimumWidth = 120;
+            dgvUsers.Columns["PasswordChanged"].FillWeight = 120;
+            dgvUsers.Columns["PasswordChanged"].MinimumWidth = 130;
+            dgvUsers.Columns["Status"].FillWeight = 80;
+            dgvUsers.Columns["Status"].MinimumWidth = 90;
             outer.Controls.Add(dgvUsers);
             dgvUsers.CellDoubleClick += DgvUsers_CellDoubleClick;
 
@@ -1480,12 +1487,16 @@ namespace Inventory_Management_System.Forms
                     string pinText = !string.IsNullOrWhiteSpace(uPin) ? $"🔑 {uPin}" : "— (Default Master PIN)";
 
                     int idx = dgvUsers.Rows.Add(
-                        u.Id, u.Username, u.FullName,
-                        u.Email ?? "—", pinText, roleName,
-                        active ? "🟢 Active" : "🔴 Inactive",
+                        u.Id,
+                        u.Username,
+                        u.FullName,
+                        u.Email ?? "—",
+                        roleName,
+                        pinText,
                         u.PasswordChangedAt.HasValue
                             ? TimeHelper.ToPakistanTime(u.PasswordChangedAt.Value).ToString("dd MMM yyyy")
-                            : "Never");
+                            : "Never",
+                        active ? "🟢 Active" : "🔴 Inactive");
 
                     var row = dgvUsers.Rows[idx];
 
@@ -1688,7 +1699,7 @@ namespace Inventory_Management_System.Forms
                 MaximizeBox = false,
                 MinimizeBox = false,
                 StartPosition = FormStartPosition.CenterParent,
-                ClientSize = new Size(440, 310),
+                ClientSize = new Size(520, 320),
                 BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(28, 30, 36) : Color.White,
                 Font = new Font("Segoe UI", 9f)
             };
@@ -1759,7 +1770,7 @@ namespace Inventory_Management_System.Forms
             var lblHint = new Label
             {
                 Text = string.IsNullOrWhiteSpace(currentPin) ? "ℹ No custom PIN set (user falls back to Organization Master PIN)" : $"Current PIN: {currentPin}",
-                Font = new Font("Segoe UI", 8.2f, FontStyle.Italic),
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Italic),
                 ForeColor = Color.FromArgb(107, 114, 128),
                 AutoSize = true,
                 Location = new Point(margin, y)
@@ -1767,13 +1778,13 @@ namespace Inventory_Management_System.Forms
             frm.Controls.Add(lblHint);
             y += 32;
 
-            var btnSave = new Button { Text = "✓ Save PIN", Size = new Size(110, 36), Location = new Point(margin, y), Cursor = Cursors.Hand };
+            var btnSave = new Button { Text = "✓ Save PIN", Size = new Size(115, 36), Location = new Point(margin, y), Cursor = Cursors.Hand };
             ThemeHelper.StyleButton(btnSave, Color.FromArgb(124, 58, 237));
 
-            var btnClear = new Button { Text = "Clear PIN", Size = new Size(100, 36), Location = new Point(margin + 120, y), Cursor = Cursors.Hand };
+            var btnClear = new Button { Text = "Clear PIN", Size = new Size(105, 36), Location = new Point(margin + 125, y), Cursor = Cursors.Hand };
             ThemeHelper.StyleSecondaryButton(btnClear);
 
-            var btnCancel = new Button { Text = "Cancel", Size = new Size(90, 36), Location = new Point(frm.ClientSize.Width - margin - 90, y), Cursor = Cursors.Hand };
+            var btnCancel = new Button { Text = "Cancel", Size = new Size(95, 36), Location = new Point(frm.ClientSize.Width - margin - 95, y), Cursor = Cursors.Hand };
             ThemeHelper.StyleSecondaryButton(btnCancel);
             btnCancel.Click += (s, e) => frm.DialogResult = DialogResult.Cancel;
 
@@ -1829,7 +1840,7 @@ namespace Inventory_Management_System.Forms
                 MaximizeBox = false,
                 MinimizeBox = false,
                 StartPosition = FormStartPosition.CenterParent,
-                ClientSize = new Size(460, 390),
+                ClientSize = new Size(540, 395),
                 BackColor = ThemeHelper.IsDarkMode ? Color.FromArgb(28, 30, 36) : Color.White,
                 Font = new Font("Segoe UI", 9f)
             };
@@ -1935,7 +1946,7 @@ namespace Inventory_Management_System.Forms
             var btnResetDefault = new Button
             {
                 Text = "↺ Reset Default",
-                Size = new Size(130, 38),
+                Size = new Size(145, 38),
                 Location = new Point(margin + 140, y),
                 Cursor = Cursors.Hand,
                 Enabled = hasCustom

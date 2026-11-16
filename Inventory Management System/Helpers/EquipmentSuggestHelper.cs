@@ -253,16 +253,16 @@ namespace Inventory_Management_System.Helpers
 
             // Determine status
             string st = (eq.CurrentStatus ?? "").Trim().ToLowerInvariant();
-            bool isAllocated = st == "allocated" || eq.Allocations?.Any(a => a.Status == "approved") == true;
-            bool isInStore = st == "in_store" || st == "in store";
             bool isDecom = st == "decommissioned";
             bool isRepair = st == "under_repair" || st == "repair";
+            bool isAllocated = !isDecom && !isRepair && (st == "allocated" || eq.Allocations?.Any(a => a.Status == "approved") == true);
+            bool isInStore = !isDecom && !isRepair && !isAllocated && (st == "in_store" || st == "in store" || string.IsNullOrEmpty(st));
 
             // Left accent bar
-            Color barColor = isAllocated ? Color.FromArgb(245, 158, 11)   // Amber
+            Color barColor = isDecom ? Color.FromArgb(220, 38, 38)        // Red
+                           : isRepair ? Color.FromArgb(2, 132, 199)       // Light Blue
+                           : isAllocated ? Color.FromArgb(245, 158, 11)   // Amber
                            : isInStore ? Color.FromArgb(16, 185, 129)     // Green
-                           : isDecom ? Color.FromArgb(239, 68, 68)        // Red
-                           : isRepair ? Color.FromArgb(255, 112, 67)      // Orange
                            : activeAccent;
 
             if (selected)
@@ -282,7 +282,10 @@ namespace Inventory_Management_System.Helpers
             int nameY = e.Bounds.Y + 20;
 
             // Equipment Code (bold)
-            Color codeColor = isAllocated ? Color.FromArgb(217, 119, 6) : activeAccent;
+            Color codeColor = isDecom ? Color.FromArgb(220, 38, 38)
+                            : isRepair ? Color.FromArgb(2, 132, 199)
+                            : isAllocated ? Color.FromArgb(217, 119, 6)
+                            : activeAccent;
             using var codeBrush = new SolidBrush(codeColor);
             e.Graphics.DrawString(
                 eq.EquipmentCode,
@@ -291,20 +294,22 @@ namespace Inventory_Management_System.Helpers
                 textX, codeY);
 
             // Status Badge / Pill on the right side of Line 1
-            string badgeText = isAllocated ? "Allocated"
-                             : isInStore ? "In Store"
+            string badgeText = isDecom ? "Decommissioned"
                              : isRepair ? "Under Repair"
-                             : isDecom ? "Decommissioned"
+                             : isAllocated ? "Allocated"
+                             : isInStore ? "In Store"
                              : (string.IsNullOrEmpty(eq.CurrentStatus) ? "—" : eq.CurrentStatus);
 
-            Color badgeBg = isAllocated ? (ThemeHelper.IsDarkMode ? Color.FromArgb(70, 50, 15) : Color.FromArgb(254, 243, 199))
+            Color badgeBg = isDecom ? (ThemeHelper.IsDarkMode ? Color.FromArgb(70, 20, 20) : Color.FromArgb(254, 226, 226))
+                          : isRepair ? (ThemeHelper.IsDarkMode ? Color.FromArgb(16, 53, 80) : Color.FromArgb(224, 242, 254))
+                          : isAllocated ? (ThemeHelper.IsDarkMode ? Color.FromArgb(70, 50, 15) : Color.FromArgb(254, 243, 199))
                           : isInStore ? (ThemeHelper.IsDarkMode ? Color.FromArgb(15, 60, 40) : Color.FromArgb(236, 253, 245))
-                          : isDecom ? (ThemeHelper.IsDarkMode ? Color.FromArgb(70, 20, 20) : Color.FromArgb(254, 226, 226))
                           : (ThemeHelper.IsDarkMode ? Color.FromArgb(45, 50, 60) : Color.FromArgb(243, 244, 246));
 
-            Color badgeTextClr = isAllocated ? Color.FromArgb(217, 119, 6)
+            Color badgeTextClr = isDecom ? Color.FromArgb(220, 38, 38)
+                               : isRepair ? Color.FromArgb(2, 132, 199)
+                               : isAllocated ? Color.FromArgb(217, 119, 6)
                                : isInStore ? Color.FromArgb(16, 185, 129)
-                               : isDecom ? Color.FromArgb(220, 38, 38)
                                : ThemeHelper.TextSecondary;
 
             using var badgeFont = new Font("Segoe UI", 7.5f, FontStyle.Bold);
@@ -330,11 +335,15 @@ namespace Inventory_Management_System.Helpers
 
             // Line 2: Name + status hint
             string line2Text = eq.Name ?? "—";
-            if (isAllocated) line2Text += " • ⚠ Not in store";
+            if (isDecom) line2Text += " • ⚠ Decommissioned";
+            else if (isRepair) line2Text += " • 🔧 Under repair";
+            else if (isAllocated) line2Text += " • ⚠ Not in store";
             else if (isInStore) line2Text += " • ✓ Ready";
 
-            Color nameColor = isAllocated ? (ThemeHelper.IsDarkMode ? Color.FromArgb(245, 158, 11) : Color.FromArgb(180, 83, 9))
-                                          : ThemeHelper.TextSecondary;
+            Color nameColor = isDecom ? (ThemeHelper.IsDarkMode ? Color.FromArgb(239, 68, 68) : Color.FromArgb(220, 38, 38))
+                            : isRepair ? Color.FromArgb(2, 132, 199)
+                            : isAllocated ? (ThemeHelper.IsDarkMode ? Color.FromArgb(245, 158, 11) : Color.FromArgb(180, 83, 9))
+                            : ThemeHelper.TextSecondary;
             using var nameBrush = new SolidBrush(nameColor);
             e.Graphics.DrawString(
                 line2Text,

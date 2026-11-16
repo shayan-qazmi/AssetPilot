@@ -92,6 +92,7 @@ namespace Inventory_Management_System.Services
                 _audit.Log(equipment.Id, action,
                                   $"Status: {equipment.CurrentStatus}",
                                   $"Employee: {empName} | Location: {locName} | Allocation Status: {allocation.Status} | Source Screen: Allocation Screen");
+                NotificationHelper.RefreshNow();
                 return ServiceResult<Allocation>.Ok(allocation);
             }
             catch (Exception ex)
@@ -127,6 +128,7 @@ namespace Inventory_Management_System.Services
                 _audit.Log(allocation.EquipmentId, AuditService.ActionAllocationReturned,
                         $"Allocated to: {empName}",
                         "Status: In Store | Source Screen: Allocation Screen");
+                NotificationHelper.RefreshNow();
                 return ServiceResult<bool>.Ok(true);
             }
             catch (Exception ex)

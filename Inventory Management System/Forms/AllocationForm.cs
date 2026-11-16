@@ -1619,6 +1619,7 @@ namespace Inventory_Management_System.Forms
                           : $"{ok} approved, {fail} failed (checked-out or error).",
                 fail == 0 ? ToastType.Success : ToastType.Warning, isApprove: true);
             LoadAllocations();
+            NotificationHelper.RefreshNow();
         }
 
         private void ApproveSingle(Allocation alloc)
@@ -1644,6 +1645,7 @@ namespace Inventory_Management_System.Forms
                 _audit.Log(alloc.EquipmentId, AuditService.ActionAllocationApproved, "pending", "approved | Source Screen: Allocation Screen");
                 ShowToast(this, "Allocation approved successfully.", ToastType.Success, isApprove: true);
                 LoadAllocations();
+                NotificationHelper.RefreshNow();
             }
             catch (Exception ex)
             {
@@ -1715,6 +1717,7 @@ namespace Inventory_Management_System.Forms
                           : $"{ok} returned, {fail} failed.",
                 fail == 0 ? ToastType.Success : ToastType.Warning, isReturn: true);
             LoadAllocations();
+            NotificationHelper.RefreshNow();
         }
 
         private void btnDelete_Click(object sender, EventArgs e)
@@ -1784,6 +1787,7 @@ namespace Inventory_Management_System.Forms
                 ShowToast(this, ok == 1 ? "Allocation request deleted successfully." : $"{ok} allocation requests deleted successfully.", ToastType.Success, isDelete: true);
 
             LoadAllocations();
+            NotificationHelper.RefreshNow();
         }
 
         private void btnRefresh_Click(object sender, EventArgs e)

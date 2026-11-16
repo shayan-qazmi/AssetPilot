@@ -2048,3 +2048,49 @@ A dedicated second toolbar row (`flowFilterRow`) provides category-based quick f
 - **Real-Time Live Status Indicator:** Displays `● Live – updated [time]` in Pakistan Standard Time (PKT), refreshed on every query.
 - **Density Selector:** Standardized density options (`Compact`, `Comfortable`, `Cozy`).
 - **Comprehensive Reset Action (`btnReset`):** Clears text search, resets category pills to `All`, resets user filter to `All users`, resets date range to `All time`, resets column sorting to `CreatedAt DESC`, and returns to page 1.
+
+---
+
+### 24.9 Check In/Out & Suggestion Consistency Architecture (2026-11-16)
+
+**Source:** `Forms/CheckInOutForm.cs`, `Helpers/EquipmentSuggestHelper.cs`, `Forms/QRScannerForm.cs`, `Forms/EquipmentForm.cs`
+
+#### 24.9.1 Permanent Blue QR Code Icon Badge
+- The QR icon badge (`pnlQrIcon`) situated to the left of the search box in `CheckInOutForm` is permanently styled in brand blue (`#2196F3` / `Color.FromArgb(33, 150, 243)`) on a soft blue background (`#E3F2FD` in light mode, `#192D41` in dark mode).
+- It remains blue at all times regardless of whether the searched equipment is In Store, Allocated, Under Repair, or Decommissioned, preserving a stable search UI anchor.
+
+#### 24.9.2 Accurate Status Priority & Non-Clipping Search Status Badge
+- **Priority Resolution:** Status detection respects terminal states before checking historical allocations:
+  1. `decommissioned`: Badge displays `"⚠ DECOMMISSIONED — NOT AVAILABLE FOR CHECK-OUT"`, ForeColor Red (`#DC2626`), BackColor Light Red (`#FEE2E2`).
+  2. `under_repair`: Badge displays `"🔧 UNDER REPAIR — NOT AVAILABLE"`, ForeColor Light Blue (`#0284C7`), BackColor Light Blue (`#E0F2FE`).
+  3. `allocated` / Checked-Out / Active Approved Allocation: Badge displays `"⚠ ALLOCATED — NOT IN STORE (With: {who})"` or `"⚠ ALLOCATED — NOT IN STORE (Issued: {who})"`, ForeColor Amber/Yellow (`#D97706`), BackColor Light Amber (`#FEF3C7`).
+  4. `in_store`: Badge displays `"✓ IN STORE — AVAILABLE FOR CHECK-OUT"`, ForeColor Green (`#10B981`), BackColor Light Green (`#ECFDF5`).
+- **Dynamic Width Layout:** The status badge width dynamically fills the available space between the Clear button and History button (`PositionTopElements()`), preventing text from being truncated or cut off with ellipsis.
+
+#### 24.9.3 Global Equipment Status Color & Fuzzy Suggestion Consistency
+- In `EquipmentSuggestHelper.cs` (powering fuzzy search in Check In/Out, QR Scanner, Equipment, and History panels), equipment status evaluation strictly prioritizes `isDecom` and `isRepair` over historical allocation records:
+  - **Decommissioned:** Red text & indicator (`#DC2626` / `Color.FromArgb(220, 38, 38)`), light red badge `#FEE2E2`, line 2 hint `"• ⚠ Decommissioned"`.
+  - **Under Repair:** Light blue text & indicator (`#0284C7` / `Color.FromArgb(2, 132, 199)`), light blue badge `#E0F2FE`, line 2 hint `"• 🔧 Under repair"`.
+  - **Allocated:** Yellow / Amber text & indicator (`#D97706` / `Color.FromArgb(217, 119, 6)`), light amber badge `#FEF3C7`, line 2 hint `"• ⚠ Not in store"`.
+  - **In Store:** Green text & indicator (`#10B981` / `Color.FromArgb(16, 185, 129)`), light green badge `#ECFDF5`, line 2 hint `"• ✓ Ready"`.
+- `QRScannerForm` and `EquipmentForm` align with the standardized light blue (`#0284C7`) for `under_repair` and prevent decommissioned assets from being misclassified as allocated due to legacy allocation rows.
+
+---
+
+### 24.10 User Management Grid & Dialog Layout Architecture (2026-11-16)
+
+**Source:** `Forms/SettingsForm.cs`
+
+#### 24.10.1 Grid Column Ordering & ID Column Visibility
+- **Column Order:** Standardized to: `Username`, `Full Name`, `Email`, `Role`, `Recovery PIN`, `Password Changed`, `Status`.
+- **Hidden ID Column:** The internal database user ID column (`ID`) is explicitly hidden (`Visible = false`) from user view while remaining programmatically accessible for edit, toggle, delete, and PIN operations.
+- **Column Sizing & Proportions:** Optimal `FillWeight` and `MinimumWidth` allocations prevent horizontal scrolling and ensure all names, emails, roles, and status indicators render legibly.
+
+#### 24.10.2 Dialog Boxes Non-Clipping Layouts
+- **User Recovery PIN Dialog (`BtnUserPin_Click`):**
+  - Expanded client dimensions to `520 x 320 px` with `476 px` content width.
+  - Generous horizontal allowance prevents the helper hint (`"ℹ No custom PIN set (user falls back to Organization Master PIN)"`) and alert notice from truncating.
+- **Organization Recovery PIN Dialog (`BtnRecoveryPin_Click`):**
+  - Expanded client dimensions to `540 x 395 px` with `472 px` content width.
+  - The purple banner subtitle (`"Set or change the master PIN used for offline password resets"`) displays completely without trailing ellipsis.
+  - Widened the Reset button to `145 px` so the full label (`"↺ Reset Default"`) renders cleanly without clipping.

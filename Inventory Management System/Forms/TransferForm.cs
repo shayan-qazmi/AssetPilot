@@ -382,6 +382,7 @@ namespace Inventory_Management_System.Forms
                     $"Employee: {newEmpName} | Location: {newLocDisplay}");
 
                 LoadAllocatedEquipment();
+                NotificationHelper.RefreshNow();
                 ShowToast("Equipment transferred successfully.", ToastType.Success);
             }
             catch (Exception ex)

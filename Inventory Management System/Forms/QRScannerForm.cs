@@ -407,7 +407,7 @@ namespace Inventory_Management_System.Forms
                 {
                     "in_store" => (Color.FromArgb(200, 230, 201), ThemeHelper.Success),
                     "allocated" => (Color.FromArgb(255, 249, 196), ThemeHelper.Warning),
-                    "under_repair" => (Color.FromArgb(255, 224, 178), Color.FromArgb(255, 112, 67)),
+                    "under_repair" => (Color.FromArgb(224, 242, 254), Color.FromArgb(2, 132, 199)),
                     "decommissioned" => (Color.FromArgb(255, 205, 210), ThemeHelper.Danger),
                     _ => (Color.Transparent, ThemeHelper.TextPrimary)
                 };

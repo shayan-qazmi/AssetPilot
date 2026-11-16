@@ -133,21 +133,33 @@ namespace Inventory_Management_System.Helpers
 
         public static void RefreshNow()
         {
+            if (_badgeLabel == null || _badgeLabel.IsDisposed) return;
+            if (_badgeLabel.InvokeRequired)
+            {
+                try { _badgeLabel.BeginInvoke(new Action(RefreshNow)); } catch { }
+                return;
+            }
+
+            try
+            {
                 var items = GetNotifications();
 
-            if (_badgeLabel == null) return;
-
-                            if (items.Count == 0)
-                            {
-                                _badgeLabel.Visible = false;
-                            }
-                            else
-                            {
-                                _badgeLabel.Text = items.Count > 9 ? "9+" : items.Count.ToString();
-                                _badgeLabel.Visible = true;
-                                PositionBadge();
-                                _badgeLabel.Invalidate();
-                            }
+                if (items.Count == 0)
+                {
+                    _badgeLabel.Visible = false;
+                }
+                else
+                {
+                    _badgeLabel.Text = items.Count > 9 ? "9+" : items.Count.ToString();
+                    _badgeLabel.Visible = true;
+                    PositionBadge();
+                    _badgeLabel.Invalidate();
+                }
+            }
+            catch
+            {
+                // fail silently
+            }
         }
 
         private static List<NotificationItem> GetNotifications()
@@ -213,27 +225,36 @@ namespace Inventory_Management_System.Helpers
 
                 // ── Urgent: pending allocation approvals ──
                 var pendingAllocations = db.Allocations
-                    .Where(a => a.Status == "pending")
+                    .Where(a => (a.Status == "pending" || a.Status == "Pending") &&
+                                (a.Equipment == null || !a.Equipment.IsDeleted))
                     .Include(a => a.Equipment)
                     .Include(a => a.Employee)
-                    .OrderBy(a => a.AllocationDate)
-                    .Take(8)
+                    .Include(a => a.Location)
+                    .OrderByDescending(a => a.AllocationDate)
+                    .Take(12)
                     .ToList();
 
                 foreach (var a in pendingAllocations)
                 {
                     var waiting = now - (a.AllocationDate.Kind == DateTimeKind.Utc ? a.AllocationDate : DateTime.SpecifyKind(a.AllocationDate, DateTimeKind.Utc));
-                    string waitStr = waiting.TotalHours < 24
+                    string waitStr = waiting.TotalMinutes < 60
+                        ? (waiting.TotalMinutes < 2 ? "just now" : $"{(int)waiting.TotalMinutes}m ago")
+                        : waiting.TotalHours < 24
                         ? $"{(int)waiting.TotalHours} hr(s) ago"
                         : $"{(int)waiting.TotalDays} day(s) ago";
+
+                    string targetName = a.Employee?.FullName ?? a.Location?.LocationName ?? "—";
+                    string eqCode = a.Equipment?.EquipmentCode ?? "Equipment";
+
                     results.Add(new NotificationItem
                     {
-                        Title = $"{a.Equipment?.EquipmentCode} awaiting approval",
-                        Subtitle = $"Requested for {a.Employee?.FullName ?? "—"} • {waitStr}",
-                        Icon = "📋",
+                        Title = $"{eqCode} pending allocation",
+                        Subtitle = $"Awaiting approval for {targetName} • {waitStr}",
+                        Icon = "⏳",
                         AccentColor = Color.FromArgb(245, 158, 11),
                         Section = NotificationSection.Urgent,
-                        EquipmentCode = a.Equipment?.EquipmentCode
+                        EquipmentCode = a.Equipment?.EquipmentCode,
+                        NavigateToAllocation = true
                     });
                 }
 
